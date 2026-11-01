@@ -1,0 +1,224 @@
+// This file is part of the koala project with MIT License.
+// Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+
+// gen_unicode writes native/re_unicode.c: the Unicode tables behind \p{..}
+// and case folding, taken from Go's own unicode package so that koala/re
+// matches what Go's regexp matches.
+//
+// Run it from the koala/re directory:
+//
+//	go run tools/gen_unicode.go > native/re_unicode.c
+//
+// The lookup rules mirror regexp/syntax's unicodeTable: a name is passed
+// through canonicalName, then tried against the special names (Any,
+// Assigned, Ascii, Lc), unicode.Categories, unicode.Scripts and finally the
+// category aliases. A key that canonicalName would change can never be
+// reached (Go cannot match \p{Old_Italic} either), so it is not emitted.
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"sort"
+	"unicode"
+)
+
+// canonicalName is regexp/syntax.canonicalName.
+func canonicalName(name string) string {
+	var b []byte
+	first := true
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c == '_' || c == '-' || c == ' ':
+			c = ' '
+		case first:
+			if 'a' <= c && c <= 'z' {
+				c -= 'a' - 'A'
+			}
+			first = false
+		default:
+			if 'A' <= c && c <= 'Z' {
+				c += 'a' - 'A'
+			}
+		}
+		if b == nil {
+			if c == name[i] && c != ' ' {
+				continue
+			}
+			b = make([]byte, i, len(name))
+			copy(b, name[:i])
+		}
+		if c == ' ' {
+			continue
+		}
+		b = append(b, c)
+	}
+	if b == nil {
+		return name
+	}
+	return string(b)
+}
+
+type entry struct {
+	table  int
+	fold   int // table of the extra fold-equivalent runes, -1 if none
+	negate bool
+}
+
+func internFold(t *unicode.RangeTable) int {
+	if t == nil {
+		return -1
+	}
+	return intern(t)
+}
+
+var (
+	tables []*unicode.RangeTable
+	index  = map[*unicode.RangeTable]int{}
+)
+
+func intern(t *unicode.RangeTable) int {
+	if i, ok := index[t]; ok {
+		return i
+	}
+	tables = append(tables, t)
+	index[t] = len(tables) - 1
+	return len(tables) - 1
+}
+
+func members(t *unicode.RangeTable) map[rune]bool {
+	m := map[rune]bool{}
+	for _, r := range t.R16 {
+		for c := rune(r.Lo); c <= rune(r.Hi); c += rune(r.Stride) {
+			m[c] = true
+		}
+	}
+	for _, r := range t.R32 {
+		for c := rune(r.Lo); c <= rune(r.Hi); c += rune(r.Stride) {
+			m[c] = true
+		}
+	}
+	return m
+}
+
+// checkFold verifies that "the table plus its fold table" is the closure of
+// the table under unicode.SimpleFold, which is what the C side computes.
+func checkFold(name string, t, fold *unicode.RangeTable) {
+	set := members(t)
+	want := map[rune]bool{}
+	for r := range set {
+		want[r] = true
+		for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+			want[f] = true
+		}
+	}
+	got := members(t)
+	if fold != nil {
+		for r := range members(fold) {
+			got[r] = true
+		}
+	}
+	if len(got) != len(want) {
+		fmt.Fprintf(os.Stderr, "fold mismatch for %s: table+fold=%d closure=%d\n", name, len(got), len(want))
+		return
+	}
+	for r := range want {
+		if !got[r] {
+			fmt.Fprintf(os.Stderr, "fold mismatch for %s at %U\n", name, r)
+			return
+		}
+	}
+}
+
+func main() {
+	names := map[string]entry{}
+
+	// lowest priority first; later assignments win, as in unicodeTable
+	for name, actual := range unicode.CategoryAliases {
+		names[canonicalName(name)] = entry{intern(unicode.Categories[actual]), internFold(unicode.FoldCategory[actual]), false}
+		checkFold(name, unicode.Categories[actual], unicode.FoldCategory[actual])
+	}
+	for name, t := range unicode.Scripts {
+		if canonicalName(name) == name {
+			names[name] = entry{intern(t), internFold(unicode.FoldScript[name]), false}
+			checkFold(name, t, unicode.FoldScript[name])
+		}
+	}
+	for name, t := range unicode.Categories {
+		if canonicalName(name) == name {
+			names[name] = entry{intern(t), internFold(unicode.FoldCategory[name]), false}
+			checkFold(name, t, unicode.FoldCategory[name])
+		}
+	}
+
+	anyTable := &unicode.RangeTable{
+		R16: []unicode.Range16{{Lo: 0, Hi: 1<<16 - 1, Stride: 1}},
+		R32: []unicode.Range32{{Lo: 1 << 16, Hi: unicode.MaxRune, Stride: 1}},
+	}
+	asciiTable := &unicode.RangeTable{R16: []unicode.Range16{{Lo: 0, Hi: 0x7F, Stride: 1}}}
+	asciiFoldTable := &unicode.RangeTable{R16: []unicode.Range16{
+		{Lo: 0, Hi: 0x7F, Stride: 1},
+		{Lo: 0x017F, Hi: 0x017F, Stride: 1}, // long s, folds to S/s
+		{Lo: 0x212A, Hi: 0x212A, Stride: 1}, // Kelvin sign, folds to K/k
+	}}
+	names["Any"] = entry{intern(anyTable), intern(anyTable), false}
+	names["Assigned"] = entry{intern(unicode.Cn), intern(unicode.Cn), true}
+	names["Ascii"] = entry{intern(asciiTable), intern(asciiFoldTable), false}
+	names["Lc"] = entry{intern(unicode.Categories["LC"]), internFold(unicode.FoldCategory["LC"]), false}
+
+	w := bufio.NewWriter(os.Stdout)
+	defer w.Flush()
+
+	fmt.Fprintf(w, "/*\n * This file is part of the koala project with MIT License.\n")
+	fmt.Fprintf(w, " * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.\n */\n\n")
+	fmt.Fprintf(w, "/* Code generated by tools/gen_unicode.go from Unicode %s; DO NOT EDIT. */\n\n", unicode.Version)
+	fmt.Fprintf(w, "#include \"re_unicode.h\"\n\n")
+
+	for i, t := range tables {
+		fmt.Fprintf(w, "static const ReURange t%d[] = {\n", i)
+		for _, r := range t.R16 {
+			fmt.Fprintf(w, "    { 0x%X, 0x%X, %d },\n", r.Lo, r.Hi, r.Stride)
+		}
+		for _, r := range t.R32 {
+			fmt.Fprintf(w, "    { 0x%X, 0x%X, %d },\n", r.Lo, r.Hi, r.Stride)
+		}
+		fmt.Fprintf(w, "};\n\n")
+	}
+
+	keys := make([]string, 0, len(names))
+	for k := range names {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	fmt.Fprintf(w, "const ReUName kl_re_unicode_names[] = {\n")
+	for _, k := range keys {
+		e := names[k]
+		neg := 0
+		if e.negate {
+			neg = 1
+		}
+		n := func(i int) int { return len(tables[i].R16) + len(tables[i].R32) }
+		if e.fold < 0 {
+			fmt.Fprintf(w, "    { \"%s\", t%d, %d, NULL, 0, %d },\n", k, e.table, n(e.table), neg)
+		} else {
+			fmt.Fprintf(w, "    { \"%s\", t%d, %d, t%d, %d, %d },\n", k, e.table, n(e.table), e.fold, n(e.fold), neg)
+		}
+	}
+	fmt.Fprintf(w, "};\n\nconst int kl_re_unicode_nnames = %d;\n\n", len(keys))
+
+	var folds [][2]rune
+	for r := rune(0); r <= unicode.MaxRune; r++ {
+		if f := unicode.SimpleFold(r); f != r {
+			folds = append(folds, [2]rune{r, f})
+		}
+	}
+	fmt.Fprintf(w, "/* SimpleFold: every rune that has a case orbit, and the next rune in it. */\n")
+	fmt.Fprintf(w, "const ReUFold kl_re_unicode_fold[] = {\n")
+	for _, f := range folds {
+		fmt.Fprintf(w, "    { 0x%X, 0x%X },\n", f[0], f[1])
+	}
+	fmt.Fprintf(w, "};\n\nconst int kl_re_unicode_nfold = %d;\n", len(folds))
+}

@@ -1,0 +1,34 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// A specialized function is called before its generic declaration: the
+// specialized functions are declared together with all functions, and their
+// bodies are cloned after all generic bodies are emitted.
+
+func main() {
+    print(mymax(1, 2))
+    print(mymax(4.5, 3.5))
+}
+
+@specialized(int, float)
+func mymax[T: Comparable](x T, y T) T {
+    if x > y { return x }
+    return y
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: call @mymax_int64 [const], 1 int64, 2 int64
+// CHECK: call @mymax_float64 [const], 4.500000 float64, 3.500000 float64
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @mymax(%x mymax:T, %y mymax:T) mymax:T {
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @mymax_int64(%x int64, %y int64) int64 {
+// CHECK: %0 = cmpgt %x int64, %y int64
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @mymax_float64(%x float64, %y float64) float64 {
+// CHECK: %0 = cmpgt %x float64, %y float64
+
+// CHECK: {{^}}2{{$}}
+// CHECK-NEXT: {{^}}4.5{{$}}

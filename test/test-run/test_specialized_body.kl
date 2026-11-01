@@ -1,0 +1,81 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// A @specialized function is cloned from the generic IR for any instruction:
+// the types are specialized (T, T?), the CFG edges are copied (loops/branches),
+// calls to non-generic funcs are kept and a recursive call targets the clone.
+
+func show(s str) {
+    print("show:", s)
+}
+
+@specialized(int, float)
+func sum_n[T: Arithmetic](x T, count int) T {
+    var acc = x - x
+    var i = 0
+    while i < count {
+        acc = acc + x
+        i = i + 1
+    }
+    show("sum")
+    return acc
+}
+
+@specialized(int)
+func pown[T: Arithmetic](x T, n int) T {
+    if n <= 1 {
+        return x
+    }
+    return x * pown(x, n - 1)
+}
+
+@specialized(int, float)
+func pick[T](a T?, b T) T {
+    if let v = a {
+        return v
+    }
+    return b
+}
+
+func main() {
+    print(sum_n(3, 4))
+    print(sum_n(0.5, 3))
+    print(pown(2, 10))
+    let a int? = nil
+    print(pick(a, 9))
+    let f float? = 1.5
+    print(pick(f, 2.5))
+}
+
+// CHECK-LABEL: func @sum_n_int64(%x int64, %count int64) int64 {
+// CHECK: %0 = sub %x int64, %x int64
+// CHECK: %acc = local int64
+// CHECK: %bb1(while-cond):{{.*}}preds = %bb0
+// CHECK: %1 = cmplt %i int64, %count int64
+// CHECK: %bb2(while-body):{{.*}}preds = %bb1, %bb2
+// CHECK: %2 = add %acc int64, %x int64
+// CHECK: %bb3(while-end):{{.*}}preds = %bb1, %bb2
+// CHECK: call @show [const], 'sum' str
+// CHECK: ret %acc int64
+
+// CHECK-LABEL: func @sum_n_float64(%x float64, %count int64) float64 {
+// CHECK: %2 = add %acc float64, %x float64
+// CHECK: ret %acc float64
+
+// CHECK-LABEL: func @pown_int64(%x int64, %n int64) int64 {
+// CHECK: %bb1(if-then):{{.*}}preds = %bb0
+// CHECK: %2 = call @pown_int64, %x int64, %1 int64
+// CHECK: %3 = mul %x int64, %2 int64
+
+// CHECK-LABEL: func @pick_int64(%a int64?, %b int64) int64 {
+// CHECK: %v = local [immutable] int64
+// CHECK: %0 = cmpne %a int64?, nil
+
+// CHECK-LABEL: func @pick_float64(%a float64?, %b float64) float64 {
+// CHECK: %0 = cmpne %a float64?, nil
+
+// CHECK: show: sum
+// CHECK-NEXT: {{^}}12{{$}}
+// CHECK-NEXT: show: sum
+// CHECK-NEXT: {{^}}1.5{{$}}
+// CHECK-NEXT: {{^}}1024{{$}}
+// CHECK-NEXT: {{^}}9{{$}}
+// CHECK-NEXT: {{^}}1.5{{$}}

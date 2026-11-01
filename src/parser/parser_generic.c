@@ -239,7 +239,7 @@ static inline int ts_is_generic(TypeSpec *ts)
     return 0;
 }
 
-static inline int tps_are_generic(Vector *tp_args)
+int tps_are_generic(Vector *tp_args)
 {
     TypeSpec *ts;
     vector_foreach(ts, tp_args) {
@@ -542,7 +542,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
     return inst_sym;
 }
 
-static TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm)
+TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm)
 {
     TypeSpec *arg_ts;
     if (ts->kind == TYPE_GENERIC_VAR) {
@@ -573,7 +573,12 @@ static TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, Pa
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
                                   ParserState *ps)
 {
-    char *mangled_name = mangle_func_name(origin->name, tp_args);
+    // Type args with type variables (e.g. a generic body calling another generic func) are not a
+    // concrete instantiation, so never routed to a specialized func: always the erased instance.
+    // Keyed by the type-name form 'f<...>', which no declared func name can match.
+    int generic = tps_are_generic(tp_args);
+    char *mangled_name =
+        generic ? mangle_type_name(origin->name, tp_args) : mangle_func_name(origin->name, tp_args);
     Symbol *sym = stbl_get(stbl, mangled_name);
     if (sym) {
         log_info("found existing func instance symbol '%s'", mangled_name);
@@ -581,7 +586,7 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
         return sym;
     }
 
-    if (origin->flags & SYM_FLAGS_EXT) {
+    if (!generic && (origin->flags & SYM_FLAGS_EXT)) {
         // try to find mangled_name function from external library
         sym = find_ext_symbol(ps, origin->path, mangled_name);
         if (sym) {

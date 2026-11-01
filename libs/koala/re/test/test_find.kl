@@ -1,0 +1,509 @@
+// RUN: koala %s --test
+
+import "koala/re"
+import "std/ut"
+
+func collect(it re.MatchIter) list[re.Match] {
+    let out = list[re.Match]()
+    for m in it { out.append(m) }
+    return out
+}
+
+// The offsets of `regs`, flat: start and end of group 0, then of group 1, ...
+func flat(regs list[(int, int)]) list[int] {
+    let out = list[int]()
+    for (a, b) in regs {
+        out.append(a)
+        out.append(b)
+    }
+    return out
+}
+
+func spans(ms list[re.Match]) list[int] {
+    let out = list[int]()
+    for m in ms {
+        out.append(m.start())
+        out.append(m.end())
+    }
+    return out
+}
+
+func assert_ints(got list[int], want list[int]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) {
+        ut.assert_eq(got[i], want[i])
+    }
+}
+
+func assert_strs(got list[str], want list[str]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) {
+        ut.assert_eq(got[i], want[i])
+    }
+}
+
+// Expected offsets are what Python 3.14 gives, in bytes.
+
+@test
+func test_finditer_empty_matches() {
+    assert_ints(spans(collect(re.compile("a*").finditer("baaab"))), [0, 0, 1, 4, 4, 4, 5, 5])
+    assert_ints(spans(collect(re.compile("\\b").finditer("ab cd"))), [0, 0, 2, 2, 3, 3, 5, 5])
+    assert_ints(spans(collect(re.compile("").finditer("é"))), [0, 0, 2, 2])
+    assert_ints(spans(collect(re.compile("é*").finditer("aéb"))), [0, 0, 1, 3, 3, 3, 4, 4])
+    assert_ints(spans(collect(re.compile("a*?").finditer("aa"))), [0, 0, 0, 1, 1, 1, 1, 2, 2, 2])
+    assert_ints(spans(collect(re.compile("(?:)|b").finditer("ab"))), [0, 0, 1, 1, 1, 2, 2, 2])
+}
+
+@test
+func test_finditer_groups() {
+    let ms = collect(re.compile("(a)|(b)").finditer("abc"))
+    ut.assert_eq(ms.len(), 2)
+    assert_ints(flat(ms[0].regs), [0, 1, 0, 1, -1, -1])
+    assert_ints(flat(ms[1].regs), [1, 2, -1, -1, 1, 2])
+}
+
+// findall: the text of each match, as Python's findall gives it
+
+@test
+func test_findall_texts() {
+    assert_strs(re.compile("\\d+").findall("a1b22c333"), ["1", "22", "333"])
+    assert_strs(re.compile("a*").findall("baaab"), ["", "aaa", "", ""])
+    assert_strs(re.compile("").findall("é"), ["", ""])
+    assert_strs(re.compile("é+").findall("aébéé"), ["é", "éé"])
+    assert_strs(re.compile("x*").findall("axbc"), ["", "x", "", "", ""])
+}
+
+@test
+func test_findall_no_match() {
+    ut.assert_eq(re.compile("a").findall("bbb").len(), 0)
+}
+
+@test
+func test_findall_groups() {
+    // Python's findall: group 1 when there is one group, "" if it took no part
+    assert_strs(re.findall("(a)|b", "ab"), ["a", ""])
+    assert_strs(re.findall("(a)", "xaa"), ["a", "a"])
+    assert_strs(re.findall("k=(\\d+)", "k=1 k=22"), ["1", "22"])
+}
+
+@should_panic("re: findall with 2 groups gives tuples; use finditer")
+func test_findall_two_groups() {
+    re.findall("(a)(b)", "ab")
+}
+
+@test
+func test_finditer_matches_findall() {
+    let it = re.compile("a*").finditer("baaab")
+    let got = list[re.Match]()
+    while it.has_next() { got.append(it.next_strict()) }
+    assert_ints(spans(got), [0, 0, 1, 4, 4, 4, 5, 5])
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_finditer_in_a_for_loop() {
+    var n = 0
+    for m in re.compile("\\d+").finditer("a1b22c333") {
+        n += m.end() - m.start()
+    }
+    ut.assert_eq(n, 6)
+}
+
+@should_panic("No more matches in MatchIter")
+func test_finditer_next_strict_when_done() {
+    re.compile("z").finditer("abc").next_strict()
+}
+
+// ---------------------------------------------------------------------------
+// search / match / fullmatch
+// ---------------------------------------------------------------------------
+
+@test
+func test_search() {
+    let m = re.compile("b+").search("abbbc")!
+    ut.assert_eq(m.group(0), "bbb")
+    ut.assert_eq(m.start(), 1)
+    ut.assert_eq(m.end(), 4)
+    ut.assert_true(re.compile("z").search("abc") == nil)
+}
+
+@test
+func test_search_from_an_offset() {
+    let r = re.compile("a")
+    ut.assert_eq(r.search("aXa", 1)!.start(), 2)
+    // ^ and \b see the text before the offset
+    ut.assert_true(re.compile("^b").search("ab", 1) == nil)
+    ut.assert_true(re.compile("\\bb").search("ab", 1) == nil)
+}
+
+@test
+func test_match_is_anchored_at_start() {
+    let r = re.compile("b")
+    ut.assert_true(r.match("ab") == nil)
+    ut.assert_eq(r.match("ab", 1)!.start(), 1)
+}
+
+@test
+func test_fullmatch() {
+    ut.assert_true(re.compile("a+").fullmatch("aab") == nil)
+    ut.assert_eq(re.compile("a+").fullmatch("aa")!.end(), 2)
+    // the preferred way to match up to the end wins
+    ut.assert_eq(re.compile("a|ab").fullmatch("ab")!.group(0), "ab")
+}
+
+@test
+func test_search_or_nil() {
+    ut.assert_true(re.compile("b").search("abc") != nil)
+    ut.assert_true(re.compile("z").search("abc") == nil)
+}
+
+// ---------------------------------------------------------------------------
+// Match
+// ---------------------------------------------------------------------------
+
+@test
+func test_match_groups() {
+    let m = re.compile("(a)(b)?(c)").search("ac")!
+    ut.assert_eq(m.re.groups, 3)
+    // Python's groups(): groups 1.., the default for one that took no part
+    assert_strs(m.groups(), ["a", "", "c"])
+    assert_strs(m.groups("-"), ["a", "-", "c"])
+    ut.assert_eq(m.group(0), "ac")
+    ut.assert_eq(m.group(1), "a")
+    ut.assert_eq(m.start(1), 0)
+    // group 2 took no part: -1 offsets and an empty string
+    ut.assert_eq(m.group(2), "")
+    ut.assert_eq(m.start(2), -1)
+    ut.assert_eq(m.end(2), -1)
+    ut.assert_eq(m.group(3), "c")
+}
+
+@test
+func test_match_span() {
+    let m = re.compile("(b+)").search("xbbby")!
+    let (a, b) = m.span(1)
+    ut.assert_eq(a, 1)
+    ut.assert_eq(b, 4)
+    let (c, d) = m.span()
+    ut.assert_eq(c, 1)
+    ut.assert_eq(d, 4)
+}
+
+@test
+func test_match_group_by_name() {
+    let m = re.compile("(?P<key>\\w+)=(?P<val>\\w*)").search("x a=1")!
+    ut.assert_eq(m.group("key"), "a")
+    ut.assert_eq(m.group("val"), "1")
+    ut.assert_eq(m.group(1), "a")
+}
+
+@test
+func test_match_group_by_shared_name() {
+    // the first group of that name that took part
+    let m = re.compile("(?P<n>a)|(?P<n>b)").search("b")!
+    ut.assert_eq(m.group("n"), "b")
+}
+
+@test
+func test_match_keeps_its_source() {
+    let r = re.compile("b")
+    let m = r.search("abc")!
+    ut.assert_eq(m.string, "abc")
+    ut.assert_eq(m.re.pattern, "b")
+}
+
+@test
+func test_match_regs() {
+    let m = re.compile("(b)(x)?").search("abc")!
+    assert_ints(flat(m.regs), [1, 2, 1, 2, -1, -1])
+}
+
+@test
+func test_match_expand() {
+    let r = re.compile("(?P<k>\\w+)=(\\w+)?")
+    let m = r.search("x a= y")!
+    // what Python's Match.expand gives
+    ut.assert_eq(m.expand("\\g<k>:\\2:\\g<1>z:\\\\"), "a::az:\\")
+}
+
+@test
+func test_utf8_offsets_are_bytes() {
+    let m = re.compile("é+").search("aéé!")!
+    ut.assert_eq(m.start(), 1)
+    ut.assert_eq(m.end(), 5)
+    ut.assert_eq(m.group(0), "éé")
+}
+
+@should_panic("re: group 3 out of range")
+func test_match_group_out_of_range() {
+    re.compile("(a)").search("a")!.group(3)
+}
+
+@should_panic("re: no group named 'nope'")
+func test_match_unknown_name() {
+    re.compile("(a)").search("a")!.group("nope")
+}
+
+// ---------------------------------------------------------------------------
+// Unicode: \p{..} classes and case folding come from re_unicode.c
+// ---------------------------------------------------------------------------
+
+@test
+func test_unicode_classes() {
+    let m = re.search("\\p{Greek}+", "aαβγb")!
+    ut.assert_eq(m.group(0), "αβγ")
+    ut.assert_eq(m.start(), 1)
+    ut.assert_eq(m.end(), 7)
+    ut.assert_eq(re.search("\\P{L}+", "ab12cd")!.group(0), "12")
+    ut.assert_true(re.search("\\p{Han}", "abc") == nil)
+}
+
+@test
+func test_unicode_case_folding() {
+    // k folds to the Kelvin sign and σ to the final ς, as in Go
+    ut.assert_true(re.fullmatch("(?i)k", "K") != nil)
+    ut.assert_true(re.fullmatch("σ", "ς", re.IGNORECASE) != nil)
+    ut.assert_true(re.fullmatch("σ", "ς") == nil)
+}
+
+// ---------------------------------------------------------------------------
+// Pattern information and the package functions
+// ---------------------------------------------------------------------------
+
+@test
+func test_pattern_groupindex() {
+    let r = re.compile("(?P<key>\\w+)=(\\w+)?")
+    ut.assert_eq(r.groups, 2)
+    ut.assert_eq(r.groupindex["key"], 1)
+    ut.assert_eq(r.pattern, "(?P<key>\\w+)=(\\w+)?")
+}
+
+@test
+func test_pattern_attributes() {
+    let r = re.compile("(?P<a>x)(y)(?P<b>z)?(?P<a>w)?", re.I | re.M)
+    ut.assert_eq(r.pattern, "(?P<a>x)(y)(?P<b>z)?(?P<a>w)?")
+    ut.assert_eq(r.flags, re.IGNORECASE | re.MULTILINE)
+    ut.assert_eq(r.groupindex.len(), 2)
+    // a name used twice maps to the leftmost group
+    ut.assert_eq(r.groupindex["a"], 1)
+    ut.assert_eq(r.groupindex["b"], 3)
+    ut.assert_eq(re.compile("(a)").groupindex.len(), 0)
+}
+
+@test
+func test_match_groups_by_name() {
+    let m = re.compile("(?P<k>\\w+)=(?P<v>\\d+)?").search("x a=")!
+    ut.assert_eq(m.group("k"), "a")
+    ut.assert_eq(m.start("k"), 2)
+    ut.assert_eq(m.end("k"), 3)
+    let (a, b) = m.span("k")
+    ut.assert_eq(a, 2)
+    ut.assert_eq(b, 3)
+
+    ut.assert_eq(m.start("v"), -1)
+    ut.assert_eq(m.group(group = "k"), "a")
+    // a shared name: the group that took part, else the leftmost
+    let m2 = re.compile("(?P<n>a)|(?P<n>b)").search("b")!
+    ut.assert_eq(m2.group("n"), "b")
+    ut.assert_eq(m2.start("n"), 0)
+    let m3 = re.compile("(?P<n>a)?(?P<n>b)?").search("")!
+    ut.assert_eq(m3.group("n"), "")
+    ut.assert_eq(m3.start("n"), -1)
+}
+
+@should_panic("re: no group named 'nope'")
+func test_match_group_unknown_name() {
+    re.compile("(?P<k>a)").search("a")!.start("nope")
+}
+
+@test
+func test_match_pos() {
+    let r = re.compile("b")
+    ut.assert_eq(r.search("abcb", 2)!.pos, 2)
+    ut.assert_eq(r.match("ab", 1)!.pos, 1)
+    ut.assert_eq(r.search("abcb")!.pos, 0)
+    for m in r.finditer("bb") { ut.assert_eq(m.pos, 0) }
+}
+
+// pos / endpos: expected values are what Python 3.14 gives
+
+@test
+func test_pos_endpos() {
+    let r = re.compile("b")
+    // pos is cut to 0..len: past the end it finds nothing, a negative one is 0
+    ut.assert_true(r.search("abc", 10) == nil)
+    ut.assert_eq(re.compile("").search("abc", 10)!.start(), 3)
+    ut.assert_eq(r.search("abc", -5)!.start(), 1)
+    // the text ends at endpos
+    ut.assert_eq(r.search("abcb", 0, 2)!.start(), 1)
+    ut.assert_true(r.search("abcb", 0, 1) == nil)
+    ut.assert_true(r.search("abcb", 3, 2) == nil)
+    ut.assert_eq(r.search("abcb", 0, 99)!.start(), 1)
+    ut.assert_true(r.search("abcb", 0, -1) == nil)
+    ut.assert_eq(re.compile("b$").search("abcb", 0, 2)!.start(), 1)
+    ut.assert_eq(r.match("abcb", 3, 4)!.start(), 3)
+    ut.assert_true(r.fullmatch("abcb", 1, 3) == nil)
+    ut.assert_eq(r.fullmatch("abcb", 1, 2)!.end(), 2)
+    // ^ and \b still see the text before pos
+    ut.assert_true(re.compile("^b").search("ab", 1) == nil)
+    ut.assert_true(re.compile("\\bb").search("ab", 1) == nil)
+}
+
+@test
+func test_match_endpos() {
+    let m = re.compile("b").search("abcb", 1, 3)!
+    ut.assert_eq(m.pos, 1)
+    ut.assert_eq(m.endpos, 3)
+    ut.assert_eq(m.string, "abcb")
+    ut.assert_eq(re.compile("b").search("abcb")!.endpos, 4)
+    ut.assert_eq(re.compile("b").search("abcb", 0, 99)!.endpos, 4)
+}
+
+@test
+func test_findall_finditer_pos_endpos() {
+    let r = re.compile("b")
+    assert_strs(r.findall("abcb", 2), ["b"])
+    assert_strs(r.findall("abcb", 0, 3), ["b"])
+    ut.assert_eq(r.findall("abcb", 3, 2).len(), 0)
+    assert_ints(spans(collect(r.finditer("abcb", 1, 4))), [1, 2, 3, 4])
+    ut.assert_eq(collect(r.finditer("abcb", 3, 2)).len(), 0)
+    for m in r.finditer("abcb", 1, 3) {
+        ut.assert_eq(m.pos, 1)
+        ut.assert_eq(m.endpos, 3)
+    }
+}
+
+@test
+func test_match_groupdict() {
+    let m = re.compile("(?P<k>\\w+)=(?P<v>\\d+)?").search("x a=")!
+    let d = m.groupdict()
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d["k"], "a")
+    ut.assert_eq(d["v"], "")
+    ut.assert_eq(m.groupdict("-")["v"], "-")
+    // with a name used twice, the group that took part wins
+    let m2 = re.compile("(?P<n>a)|(?P<n>b)").search("b")!
+    ut.assert_eq(m2.groupdict()["n"], "b")
+    ut.assert_eq(re.compile("(a)").search("a")!.groupdict().len(), 0)
+}
+
+@test
+func test_python_keyword_names() {
+    // Koala passes only parameters with a default by keyword
+    let r = re.compile("b")
+    ut.assert_eq(r.search("abcb", pos = 2)!.start(), 3)
+    ut.assert_eq(r.match("ab", pos = 1)!.end(group = 0), 2)
+    let (a, b) = re.search("c", "abc", flags = re.I)!.span(group = 0)
+    ut.assert_eq(a, 2)
+    ut.assert_eq(b, 3)
+    ut.assert_eq(re.split(",", "a,b,c", maxsplit = 1).len(), 2)
+    let m = re.compile("(a)(b)?").search("a")!
+    ut.assert_eq(m.group(group = 1), "a")
+    ut.assert_eq(m.start(group = 2), -1)
+}
+
+@test
+func test_package_functions() {
+    ut.assert_true(re.search("b", "abc") != nil)
+    ut.assert_eq(re.search("b+", "abbc")!.group(0), "bb")
+    ut.assert_eq(re.match("a", "abc")!.end(), 1)
+    ut.assert_true(re.match("b", "abc") == nil)
+    ut.assert_eq(re.fullmatch("a.c", "abc")!.group(0), "abc")
+    assert_strs(re.findall("\\d", "a1b2c3"), ["1", "2", "3"])
+    assert_ints(spans(collect(re.finditer("\\d+", "a1b22"))), [1, 2, 3, 5])
+    ut.assert_true(re.search("ABC", "xabcx", re.IGNORECASE) != nil)
+}
+
+@test
+func test_package_functions_take_flags() {
+    ut.assert_eq(re.search("B+", "abbc", re.IGNORECASE)!.group(0), "bb")
+    ut.assert_eq(re.match("A", "abc", re.IGNORECASE)!.end(), 1)
+    ut.assert_eq(re.fullmatch("a.c", "a\nc", re.DOTALL)!.group(0), "a\nc")
+    assert_strs(re.findall("^\\w", "ab\ncd", re.MULTILINE), ["a", "c"])
+    // flags comes third, as in Python
+    assert_strs(re.findall("A", "aAa", re.IGNORECASE), ["a", "A", "a"])
+    ut.assert_eq(collect(re.finditer("A", "aAa", re.IGNORECASE)).len(), 3)
+}
+
+@test
+func test_ascii_flag() {
+    // \w is Unicode by default and ASCII only with re.ASCII, as in Python
+    assert_strs(re.findall("\\w", "aé"), ["a", "é"])
+    assert_strs(re.findall("\\w", "aé", re.ASCII), ["a"])
+    assert_strs(re.findall("(?a)\\w", "aé"), ["a"])
+    assert_strs(re.findall("\\d", "1٣"), ["1", "٣"])
+    assert_strs(re.findall("\\b\\w+\\b", "héllo wörld"), ["héllo", "wörld"])
+    // IGNORECASE folds only ASCII letters under re.ASCII
+    ut.assert_eq(re.findall("é", "É", re.I).len(), 1)
+    ut.assert_eq(re.findall("é", "É", re.I | re.A).len(), 0)
+    let r = re.compile("a", re.A | re.I)
+    ut.assert_eq(r.flags, re.ASCII | re.IGNORECASE)
+    ut.assert_eq(r.findall("aA").len(), 2)
+}
+
+// fmt: expected values are what Python 3.14's repr gives
+
+@test
+func test_pattern_fmt() {
+    ut.assert_eq(format("{}", re.compile("a+")), "re.compile('a+')")
+    ut.assert_eq(format("{}", re.compile("\\d+'x")), "re.compile(\"\\\\d+'x\")")
+    ut.assert_eq(format("{}", re.compile("a\"b'c")), "re.compile('a\"b\\'c')")
+    ut.assert_eq(format("{}", re.compile("tab\there\n")), "re.compile('tab\\there\\n')")
+    ut.assert_eq(format("{}", re.compile("é你")), "re.compile('é你')")
+    ut.assert_eq(format("{}", re.compile("\x01\x7f")), "re.compile('\\x01\\x7f')")
+    ut.assert_eq(format("{}", re.compile("a", re.S | re.A | re.I | re.M)),
+                 "re.compile('a', re.IGNORECASE|re.MULTILINE|re.DOTALL|re.ASCII)")
+    // cut after 200 characters, the closing quote too
+    let long = format("{}", re.compile("x" * 300))
+    ut.assert_eq(long.len(), "re.compile(".len() + 200 + 1)
+}
+
+@test
+func test_match_fmt() {
+    ut.assert_eq(format("{}", re.search("b+", "abbc")!), "<re.Match object; span=(1, 3), match='bb'>")
+    ut.assert_eq(format("{}", re.search("", "abc")!), "<re.Match object; span=(0, 0), match=''>")
+    let long = format("{}", re.search("x+", "x" * 100)!)
+    ut.assert_eq(long, "<re.Match object; span=(0, 100), match='" + "x" * 49 + ">")
+}
+
+// syntax from Python: expected values are what Python 3.14 gives, in bytes
+
+@test
+func test_python_syntax() {
+    let (a, b) = re.search("a\\Z", "ba")!.span()
+    ut.assert_eq(a, 1)
+    ut.assert_eq(b, 2)
+    ut.assert_true(re.search("a\\Z", "a\n") == nil)
+    assert_strs(re.findall("\\u00e9", "xé"), ["é"])
+    assert_strs(re.findall("[\\u0061-\\u0063]+", "abcd"), ["abc"])
+    assert_strs(re.findall("\\U0001F600", "😀"), ["😀"])
+    assert_strs(re.findall("(?a)\\w+", "aé"), ["a"])
+    assert_strs(re.findall("(?u)\\w+", "aé"), ["aé"])
+    assert_strs(re.findall("(?a:\\w)\\w", "éé aé"), ["aé"])
+}
+
+@test
+func test_purge() {
+    let a = re.compile("(p)+q")
+    re.purge()
+    ut.assert_true(re.compile("(p)+q") != a)
+}
+
+@test
+func test_compile_is_cached() {
+    let a = re.compile("(x)+y")
+    let b = re.compile("(x)+y")
+    ut.assert_true(a == b)
+    ut.assert_true(re.compile("(x)+y", re.IGNORECASE) != a)
+}
+
+@test
+func test_escape() {
+    // what Python's re.escape returns
+    ut.assert_eq(re.escape("a.b*c?(d)[e]{f}|g^h$i\\j+ é"), "a\\.b\\*c\\?\\(d\\)\\[e\\]\\{f\\}\\|g\\^h\\$i\\\\j\\+\\ é")
+    ut.assert_eq(re.escape("a-b#c&d~e\tf\ng"), "a\\-b\\#c\\&d\\~e\\\tf\\\ng")
+    ut.assert_eq(re.escape(""), "")
+    // the escaped text matches itself
+    let s = "1+1=2 (really?) a-b #c\td"
+    ut.assert_true(re.fullmatch(re.escape(s), s) != nil)
+}

@@ -8,7 +8,7 @@ import "koala/log"
 
 @test
 func test_attr_fields() {
-    let a = log.attr("user", "alice")
+    let a = log.Attr("user", "alice")
     ut.assert_eq(a.key, "user")
     ut.assert_eq(a.value, "alice")
 }
@@ -23,9 +23,9 @@ func test_attr_constructor_direct() {
 @test
 func test_attr_order_preserved_in_list() {
     let xs = list[log.Attr]()
-    xs.append(log.attr("a", "1"))
-    xs.append(log.attr("b", "2"))
-    xs.append(log.attr("c", "3"))
+    xs.append(log.Attr("a", "1"))
+    xs.append(log.Attr("b", "2"))
+    xs.append(log.Attr("c", "3"))
     ut.assert_eq(xs[0].key, "a")
     ut.assert_eq(xs[1].key, "b")
     ut.assert_eq(xs[2].key, "c")

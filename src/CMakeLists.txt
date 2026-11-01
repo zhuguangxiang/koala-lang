@@ -73,6 +73,8 @@ add_library(koala_common STATIC ${COMMON_SOURCES})
 set_target_properties(koala_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(KOALA_SHARED_SOURCES
+    # native packages resolve the utf8_* rune API from libkoala.so
+    common/utf8.c
     objects/boolobj.c
     objects/floatobj.c
     objects/funcobj.c

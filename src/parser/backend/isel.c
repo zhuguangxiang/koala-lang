@@ -861,14 +861,16 @@ static void isel_lower_cast(KlrInsn *insn)
         insn->cast_flag = 0;
     } else if (src_ts->kind == TYPE_UNION ||
                (src_ts->kind == TYPE_KLASS && dst_ts->kind == TYPE_KLASS) ||
-               src_ts->kind == TYPE_ANY) {
+               src_ts->kind == TYPE_ANY || src_ts->kind == TYPE_GENERIC_VAR) {
         // Narrowing cast produced by an `is` check: the runtime value already
-        // *is* the target type, so no real conversion is needed. All three
+        // *is* the target type, so no real conversion is needed. All these
         // source kinds behave identically — keep OP_IR_CAST so cgen lowers it
         // to a plain OP_MOVE (bit-copy, same semantics as `as`):
         //   1. union -> member:  the union value already holds the member object.
         //   2. trait -> class:   the intf value's obj field is the class object.
         //   3. any -> T:         the tagged value is already the target value.
+        //   4. T -> trait:       the marker irgen leaves for a specialized clone
+        //                        (specialize.c), the value as is in the generic func.
     } else {
         NYI();
     }

@@ -3,29 +3,93 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+import "std/io"
+import "std/sys"
+import "koala/datetime"
+
+/// DefaultHandler writes formatted lines to the writer captured at
+/// construction time, flushing after each line so a crash does not
+/// lose already-emitted output.
+pub class DefaultHandler : Handler {
+    let out io.BufWriter
+
+    /// Capture `sys.stderr` at construction. Later replacement of
+    /// `sys.stderr` does not affect this handler.
+    pub func __init__() {
+        out = sys.stderr
+    }
+
+    /// Write `s` to the captured writer and flush.
+    pub func write(s str) {
+        out.write_str(s)
+        out.flush()
+    }
+}
+
+/// TextFormatter renders a record as a single log line:
+///
+///     2026-11-01 07:07:03.462 INFO  message
+///
+/// The timestamp is UTC, formatted to millisecond precision. The level
+/// name is left-justified to 5 columns so message text starts at the
+/// same column for every level.
+pub class TextFormatter : Formatter {
+
+    /// Construct a stateless TextFormatter.
+    ///
+    pub func __init__() {}
+
+    /// Render `r` as one formatted line, ending with a newline.
+    pub func format(r Record) str {
+        let dt = datetime.DateTime.from_instant(r.timestamp)
+        let ms = dt.nanosecond / 1000000
+
+        let buf = Buffer()
+
+        buf.write_str(str(dt.year).zfill(4))
+        buf.write_byte('-')
+        buf.write_str(str(dt.month).zfill(2))
+        buf.write_byte('-')
+        buf.write_str(str(dt.day).zfill(2))
+        buf.write_byte(' ')
+        buf.write_str(str(dt.hour).zfill(2))
+        buf.write_byte(':')
+        buf.write_str(str(dt.minute).zfill(2))
+        buf.write_byte(':')
+        buf.write_str(str(dt.second).zfill(2))
+        buf.write_byte('.')
+        buf.write_str(str(ms).zfill(3))
+        buf.write_byte(' ')
+        buf.write_str(level_str(r.level).ljust(5))
+        buf.write_byte(' ')
+        buf.write_str(r.msg)
+        buf.write_byte('\n')
+
+        return buf.to_str()
+    }
+}
+
 /// The process-wide default logger. Lazily created on first use,
 /// writing to `sys.stderr` at INFO. Replace it with `set_default`
 /// if a different handler or level is needed.
 var _default Logger?
 
 /// Return the process-wide default logger, creating it on first use.
-pub func default_logger() Logger {
+pub func get_default() Logger {
+    // TODO: global shadow var?
     if _default == nil {
-        _default = new_logger(new_stderr_handler(INFO))
+        _default = Logger(DefaultHandler(), TextFormatter())
     }
     return _default!
 }
 
 /// Replace the process-wide default logger. Call before the first
-/// logging call, or anytime to redirect subsequent package-level
-/// calls.
-pub func set_default(l Logger) {
-    _default = l
-}
+/// logging call, or anytime to redirect subsequent package-level calls.
+pub func set_default(l Logger) { _default = l }
 
-pub func trace(msg str) { default_logger().trace(msg) }
-pub func debug(msg str) { default_logger().debug(msg) }
-pub func info(msg str)  { default_logger().info(msg) }
-pub func warn(msg str)  { default_logger().warn(msg) }
-pub func error(msg str) { default_logger().error(msg) }
-pub func fatal(msg str) { default_logger().fatal(msg) }
+pub func trace(msg str) { get_default().trace(msg) }
+pub func debug(msg str) { get_default().debug(msg) }
+pub func info(msg str)  { get_default().info(msg) }
+pub func warn(msg str)  { get_default().warn(msg) }
+pub func error(msg str) { get_default().error(msg) }
+pub func fatal(msg str) { get_default().fatal(msg) }

@@ -9,31 +9,37 @@ import "koala/log"
 @test
 func test_record_fields() {
     let xs = list[log.Attr]()
-    xs.append(log.attr("k", "v"))
-    let r = log.record(log.INFO, "hello", xs)
+    xs.append(log.Attr("k", "v"))
+    let r = log.Record(log.INFO, "hello", xs)
+
     ut.assert_eq(r.level, log.INFO)
     ut.assert_eq(r.msg, "hello")
-    ut.assert_eq(r.attrs.len(), 1)
-    ut.assert_eq(r.attrs[0].key, "k")
-    ut.assert_eq(r.attrs[0].value, "v")
+    ut.assert_true(r.attrs != nil)
+
+    let a = r.attrs!
+    ut.assert_eq(a.len(), 1)
+    ut.assert_eq(a[0].key, "k")
+    ut.assert_eq(a[0].value, "v")
 }
 
 @test
-func test_record_empty_attrs() {
-    let r = log.record(log.WARN, "w", list[log.Attr]())
-    ut.assert_eq(r.attrs.len(), 0)
+func test_record_no_attrs_by_default() {
+    let r = log.Record(log.WARN, "w")
     ut.assert_eq(r.level, log.WARN)
     ut.assert_eq(r.msg, "w")
+    ut.assert_true(r.attrs == nil)
 }
 
 @test
 func test_record_attrs_order_preserved() {
     let xs = list[log.Attr]()
-    xs.append(log.attr("a", "1"))
-    xs.append(log.attr("b", "2"))
-    xs.append(log.attr("c", "3"))
-    let r = log.record(log.ERROR, "e", xs)
-    ut.assert_eq(r.attrs[0].key, "a")
-    ut.assert_eq(r.attrs[1].key, "b")
-    ut.assert_eq(r.attrs[2].key, "c")
+    xs.append(log.Attr("a", "1"))
+    xs.append(log.Attr("b", "2"))
+    xs.append(log.Attr("c", "3"))
+    let r = log.Record(log.ERROR, "e", xs)
+
+    let a = r.attrs!
+    ut.assert_eq(a[0].key, "a")
+    ut.assert_eq(a[1].key, "b")
+    ut.assert_eq(a[2].key, "c")
 }

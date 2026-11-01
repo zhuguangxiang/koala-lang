@@ -1,0 +1,77 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s --check-prefix=NOTV
+// Generic classes and generic traits are not specialized, but a @specialized
+// clone has the IR hand-written code for the concrete type has: the generic
+// instances become the instances for the concrete type (list<j>,
+// Sequence<j>, Cell<j>, Getter<j>), an intf call on a trait instance calls the
+// intf of the concrete instance (Sequence<j>:len), and the methods and
+// make_intf / intf indices stay those of the erased classes and traits.
+// No type variable is left in the clone.
+
+trait Getter[T] {
+    func fetch() T
+}
+
+class Cell[T] : Getter[T] {
+    var v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+
+    func fetch() T {
+        return v
+    }
+}
+
+func count[T](it Iterable[T]) int {
+    var n = 0
+    for e in it {
+        n = n + 1
+    }
+    return n
+}
+
+@specialized(int)
+func probe[T](x T, y T) T {
+    let l = [x, y]
+    let s Sequence[T] = l
+    let c = Cell(x)
+    let g Getter[T] = c
+    let n = count(l)
+    print(s.len(), n)
+    return g.fetch()
+}
+
+func main() {
+    print(probe(3, 4))
+}
+
+// CHECK-LABEL: func @probe(%x probe:T, %y probe:T) probe:T {
+// CHECK: %s = local [immutable] std/builtin.Sequence[probe:T]
+// CHECK: make_intf %l std/builtin.list[probe:T] [intf-table-index = 6] to std/builtin.Sequence
+// CHECK: %g = local [immutable] test_specialized_generic_intf.Getter[probe:T]
+// CHECK: call @Getter:fetch [intf-index = 0], %g test_specialized_generic_intf.Getter[probe:T]
+// CHECK: ret %8 probe:T
+
+// CHECK-LABEL: func @probe_int64(%x int64, %y int64) int64 {
+// CHECK: build_intern @list, %x int64, %y int64
+// CHECK: %l = local [immutable] std/builtin.list<j>
+// CHECK: %s = local [immutable] std/builtin.Sequence<j>
+// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
+// CHECK: [[C:%[0-9]+]] = new @test_specialized_generic_intf.Cell<j>
+// CHECK: call @Cell:__init__, [[C]] test_specialized_generic_intf.Cell<j>, %x int64
+// CHECK: %g = local [immutable] test_specialized_generic_intf.Getter<j>
+// CHECK: make_intf %c test_specialized_generic_intf.Cell<j> [intf-table-index = 4] to test_specialized_generic_intf.Getter
+// CHECK: [[IT:%[0-9]+]] = make_intf %l std/builtin.list<j> [intf-table-index = 4] to std/builtin.Iterable
+// CHECK: call @count, [[IT]] std/builtin.Iterable
+// CHECK: call @std/builtin.Sequence<j>:len [intf-index = 1], %s std/builtin.Sequence<j>
+// CHECK: call @Getter:fetch [intf-index = 0], %g test_specialized_generic_intf.Getter<j>
+// CHECK: ret %8 int64
+
+// CHECK: {{^}}2 2{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+
+// NOTV-LABEL: func @probe_int64(
+// NOTV-NOT: probe:T
+// NOTV: ret %8 int64

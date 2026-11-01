@@ -1,0 +1,55 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+@test
+func test_text_formatter_basic() {
+    let f = log.TextFormatter()
+    let r = log.Record(log.INFO, "hello", list[log.Attr]())
+    let line = f.format(r)
+    ut.assert_true(line.index(" INFO  hello") >= 0)
+    ut.assert_true(line.ends_with("\n"))
+}
+
+@test
+func test_text_formatter_level_alignment() {
+    let f = log.TextFormatter()
+
+    let info = f.format(log.Record(log.INFO, "m", list[log.Attr]()))
+    ut.assert_true(info.index(" INFO  m") >= 0)
+
+    let debug = f.format(log.Record(log.DEBUG, "m", list[log.Attr]()))
+    ut.assert_true(debug.index(" DEBUG m") >= 0)
+
+    let warn = f.format(log.Record(log.WARN, "m", list[log.Attr]()))
+    ut.assert_true(warn.index(" WARN  m") >= 0)
+
+    let error = f.format(log.Record(log.ERROR, "m", list[log.Attr]()))
+    ut.assert_true(error.index(" ERROR m") >= 0)
+}
+
+@test
+func test_text_formatter_timestamp_shape() {
+    let f = log.TextFormatter()
+    let line = f.format(log.Record(log.INFO, "x", list[log.Attr]()))
+
+    // YYYY-MM-DD HH:MM:SS.mmm
+    ut.assert_eq(line[4], "-")
+    ut.assert_eq(line[7], "-")
+    ut.assert_eq(line[10], " ")
+    ut.assert_eq(line[13], ":")
+    ut.assert_eq(line[16], ":")
+    ut.assert_eq(line[19], ".")
+
+    ut.assert_true(line.substr(0, 4).isdigit())
+    ut.assert_true(line.substr(5, 7).isdigit())
+    ut.assert_true(line.substr(8, 10).isdigit())
+    ut.assert_true(line.substr(11, 13).isdigit())
+    ut.assert_true(line.substr(14, 16).isdigit())
+    ut.assert_true(line.substr(17, 19).isdigit())
+    ut.assert_true(line.substr(20, 23).isdigit())
+}

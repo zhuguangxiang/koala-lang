@@ -1,0 +1,14 @@
+[package]
+name = "koala/re"
+version = "0.1.0"
+description = "Linear-time regular expressions (Go/RE2 syntax) over a native C core"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_re"
+sources = ["native/re_core.c", "native/re_unicode.c", "native/re_shim.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

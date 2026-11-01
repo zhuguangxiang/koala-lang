@@ -1,0 +1,48 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// A generic body calling another generic func: the inferred type args contain
+// type variables, so it is no concrete instantiation and the call stays an
+// erased call to the generic func (no route by mangled name).
+
+func twice[T](x T) T {
+    return x
+}
+
+func twice_int64(x int) int {
+    return x * 2
+}
+
+func quad[T](x T) T {
+    return twice(twice(x))
+}
+
+func head[T](l list[T]) T {
+    return l[0]
+}
+
+func first[T](l list[T]) T {
+    return head(l)
+}
+
+func main() {
+    print(quad(3))
+    print(first([7, 8]))
+    print(twice(5))
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @quad(%x quad:T) quad:T {
+// CHECK: %0 = call @twice, %x quad:T
+// CHECK: %1 = call @twice, %0 quad:T
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @first(
+// CHECK: call @head, %l
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: call @quad [const], 3 int64
+// CHECK: call @twice_int64 [const], 5 int64
+
+// CHECK: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}7{{$}}
+// CHECK-NEXT: {{^}}10{{$}}

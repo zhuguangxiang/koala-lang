@@ -1,0 +1,75 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s --check-prefix=NOTV
+// A @specialized clone is an ordinary function: its IR is the IR hand-written
+// code for the concrete type has. A generic instance of the generic body
+// (list[T], tuple, dict, local and external generic classes, nested and
+// optional instances) becomes the instance for the concrete type (list<j>,
+// Cell<j>, ...), which is only a type for checking: generic classes are not
+// specialized, their methods stay the erased ones (Cell:get, Box:get_value).
+// No type variable is left in the clone.
+
+import "test_pkg/pkg3" as p3
+
+class Cell[T] {
+    var v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+
+    func get() T {
+        return v
+    }
+}
+
+func first[T](l list[T]) T {
+    return l[0]
+}
+
+@specialized(int)
+func probe[T](x T, y T) T {
+    let l = [x, y]
+    var total = l[0]
+    for e in l {
+        total = e
+    }
+    let t = (x, y)
+    let c = Cell(x)
+    let m = {x: y}
+    let b = p3.Box(y)
+    let ll = [l, [y]]
+    var o list[T]? = nil
+    o = l
+    print(l, t, c.get(), m, b.get_value(), ll, o, len(l), first(l))
+    return total
+}
+
+func main() {
+    print(probe(3, 4))
+}
+
+// CHECK-LABEL: func @probe_int64(%x int64, %y int64) int64 {
+// CHECK: build_intern @list, %x int64, %y int64
+// CHECK: %l = local [immutable] std/builtin.list<j>
+// CHECK: seq.get %l std/builtin.list<j>, 0 int64
+// CHECK: %e = local int64
+// CHECK: %t = local [immutable] std/builtin.tuple<jj>
+// CHECK: [[C:%[0-9]+]] = new @test_specialized_types.Cell<j>
+// CHECK: call @Cell:__init__, [[C]] test_specialized_types.Cell<j>, %x int64
+// CHECK: %m = local [immutable] std/builtin.dict<jj>
+// CHECK: [[B:%[0-9]+]] = new @test_pkg/pkg3.Box<j>
+// CHECK: call @Box:__init__ [path = 'test_pkg/pkg3'], [[B]] test_pkg/pkg3.Box<j>, %y int64
+// CHECK: %ll = local [immutable] std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: %o = local std/builtin.list<j>?
+// CHECK: call @Cell:get, %c test_specialized_types.Cell<j>
+// CHECK: call @Box:get_value [path = 'test_pkg/pkg3'], %b test_pkg/pkg3.Box<j>
+// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 5] to std/builtin.Sized
+// CHECK: call @first, %l std/builtin.list<j>
+// CHECK: ret %total int64
+
+// CHECK: [3, 4] (3, 4) 3 {3: 4} 4 {{\[\[}}3, 4], [4]] [3, 4] 2 3
+// CHECK-NEXT: {{^}}4{{$}}
+
+// NOTV-LABEL: func @probe_int64(
+// NOTV-NOT: probe:T
+// NOTV: ret %total int64

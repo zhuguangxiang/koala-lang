@@ -1,0 +1,67 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// In a @specialized clone, a call to a generic func whose type args have type
+// variables is routed with the concrete type args, like a call from user code:
+// to a hand-written func (twice_int64), an @specialized one of std/builtin
+// (min_int64/max_float64) or a hand-written one of std/builtin (abs_int64).
+// Without such a func it stays the erased call (twice in quad_float64).
+
+func twice[T](x T) T {
+    return x
+}
+
+func twice_int64(x int) int {
+    return x * 2
+}
+
+@specialized(int, float)
+func quad[T](x T) T {
+    return twice(twice(x))
+}
+
+@specialized(int, float)
+func clamp_hi[T: Comparable](x T, hi T) T {
+    return max(min(x, hi), min(hi, x))
+}
+
+@specialized(int)
+func mag[T](x T) T {
+    return abs(x)
+}
+
+func main() {
+    print(quad(3))
+    print(quad(1.5))
+    print(clamp_hi(9, 4))
+    print(clamp_hi(2.5, 7.5))
+    print(mag(-7))
+}
+
+// CHECK-LABEL: func @quad(%x quad:T) quad:T {
+// CHECK: %0 = call @twice, %x quad:T
+// CHECK: %1 = call @twice, %0 quad:T
+
+// CHECK-LABEL: func @quad_int64(%x int64) int64 {
+// CHECK: %0 = call @twice_int64, %x int64
+// CHECK: %1 = call @twice_int64, %0 int64
+
+// CHECK-LABEL: func @quad_float64(%x float64) float64 {
+// CHECK: %0 = call @twice, %x float64
+// CHECK: %1 = call @twice, %0 float64
+
+// CHECK-LABEL: func @clamp_hi_int64(%x int64, %hi int64) int64 {
+// CHECK: call @min_int64 [path = 'std/builtin'], %x int64, %hi int64
+// CHECK: call @min_int64 [path = 'std/builtin'], %hi int64, %x int64
+// CHECK: call @max_int64 [path = 'std/builtin']
+
+// CHECK-LABEL: func @clamp_hi_float64(%x float64, %hi float64) float64 {
+// CHECK: call @min_float64 [path = 'std/builtin']
+// CHECK: call @max_float64 [path = 'std/builtin']
+
+// CHECK-LABEL: func @mag_int64(%x int64) int64 {
+// CHECK: call @abs_int64 [path = 'std/builtin'], %x int64
+
+// CHECK: {{^}}12{{$}}
+// CHECK-NEXT: {{^}}1.5{{$}}
+// CHECK-NEXT: {{^}}4{{$}}
+// CHECK-NEXT: {{^}}2.5{{$}}
+// CHECK-NEXT: {{^}}7{{$}}

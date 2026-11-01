@@ -1,42 +1,46 @@
 /*
- * demo.kl — koala/log 用法示例。
+ * log_demo.kl — koala/log 用法示例。
  */
 
-import "std/sys"
 import "koala/log"
 
 func main() {
-    // 1. 默认 logger：stderr，INFO 门槛
+    // 1. Default logger: stderr, INFO threshold
     log.info("demo started")
 
-    // 2. 低于门槛，快速路径直接返回，不构造 Record
+    // 2. Below threshold: fast path, no Record constructed
     log.debug("not shown at INFO level")
 
-    // 3. 换全局默认：TRACE 门槛
-    log.set_default(log.new_logger(log.new_stderr_handler(log.TRACE)))
+    // 3. Lower the global threshold
+    log.get_default().set_level(log.DEBUG)
     log.debug("shown after lowering the level")
 
-    // 4. with 派生上下文，常驻字段自动附加
+    // 4. Resident fields: assigned once, attached to every record
     let base = list[log.Attr]()
-    base.append(log.attr("service", "demo"))
-    base.append(log.attr("pid", "1234"))
-    let ctx = log.default_logger().with(base)
-    ctx.info("request received")
+    base.append(log.Attr("service", "demo"))
+    base.append(log.Attr("pid", "1234"))
+    log.get_default().set_attrs(base)
+    log.info("request received")
 
-    // 5. 调用点临时字段，和 with 字段合并（with 在前）
-    let xs = list[log.Attr]()
-    xs.append(log.attr("user", "alice"))
-    xs.append(log.attr("path", "/api/orders"))
-    ctx.log(log.WARN, "slow query", xs)
+    //-----------------------------------------------------------------
 
-    // 6. MultiHandler：stderr 收 INFO 及以上，另一路只收 ERROR
-    let low  = log.new_text_handler(sys.stderr, log.INFO)
-    let high = log.new_text_handler(sys.stderr, log.ERROR)
+    // 5. File output with its own logger
+    let f = log.FileHandler("demo.log")
+
+    let flog = log.Logger(f, log.TextFormatter())
+    flog.set_attrs(base)
+    flog.debug("debug to file")
+    flog.info("info to file")
+
+
+    //-----------------------------------------------------------------
+
+    // 6. Multi output: terminal and file in one logger
     let hs = list[log.Handler]()
-    hs.append(low)
-    hs.append(high)
-    let multi = log.new_logger(log.multi_handler(hs))
+    hs.append(log.DefaultHandler())
+    hs.append(log.FileHandler("both.log"))
+    let both = log.Logger(log.MultiHandler(hs), log.TextFormatter())
+    both.info("to terminal and both.log")
 
-    multi.info("info: low only")
-    multi.error("error: low and high (appears twice)")
+    f.close()
 }

@@ -16,7 +16,12 @@
 > 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（§34，待修，用例已留档为
 > `test/test-run/test_intf_generic_bounds.kl.disabled`）、
 > mutable literals and the const pool: leftovers (§37, open), compiler issues found while adding
-> fs/os APIs (§38, open), signal handlers in std/os (§39, waits for the concurrency API).
+> fs/os APIs (§38, open), signal handlers in std/os (§39, waits for the concurrency API),
+> open items of the `@specialized` IR specialization (§40, to fix later), `koala/re` vs Python's
+> `re`: what is not aligned (§41, to do / to discuss), indexing an instance of a user class aborts the
+> compiler (§42, to fix), `<<=` / `>>=` abort the compiler (§43, to fix), an empty list of tuples
+> cannot be created (§44, to fix), string literals have no `\u` / `\U` escapes and keep unknown
+> escapes silently (§45, to discuss), language issues met while writing `koala/re` (§46).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
@@ -2141,3 +2146,343 @@ concurrency API, which the runtime's green threads have but std does not expose 
    EINTR is retried today, so a handler must still get to run.
 5. Platform names and numbers beyond the five portable constants (e.g. SIGUSR1 is 10 on Linux and
    30 on macOS).
+
+---
+
+## 40. `@specialized` generic functions: open items of the IR specialization (2026-11-01, to fix later)
+
+A `@specialized` function is now a clone of the generic function's IR (`src/parser/klr/specialize.c`,
+driven by `emit_specialized_funcs()` in `irgen.c`): all instructions are cloned with the type
+variables replaced, calls to generic functions are routed with the concrete type args, an intf
+call on a `T` receiver is devirtualized to the class method, and where a `T` value goes into a
+trait irgen leaves `cast %x T to Trait`, which the clone turns into a `make_intf`. Left open:
+
+1. **The erased track still crashes on a `T` value used as an intf value** (§8, shelved by the
+   author; §34 for the bound args of generic free functions): callers pass raw values (`call @ts1 [const], 5 int64`), but the generic body makes an
+   intf call on it (`x.to_str()` with `T : ToString`) → `vm_ops.h:430` assertion. Only the
+   `@specialized` clones are fixed. New fact for when §8 is reopened: every place a `T` value goes
+   into a trait now carries the marker `cast %x T to Trait` (lowered to a move by isel), so the
+   erased track has a single point to attach a conversion to.
+2. **Devirtualization fallback is untested**: when the class of the type argument does not define
+   the trait method itself (e.g. a trait default method), `specialize_intf_call()` wraps the
+   receiver with `make_intf` and keeps the intf call. No primitive type (the only types
+   `@specialized` accepts) gets a trait default method today, so no test reaches it.
+3. **`T?` → `Trait?` has no marker**: `_build_opt_obj_intf_upcast()` returns early for a type
+   variable source (`_intf_upcast_needed()` is false), so a clone would pass the raw optional
+   value into an optional trait slot. Not hit by any code yet.
+4. **`mangle_func_name()` handles only primitive, `str`, `bool` and class type args**:
+   `type_spec_str_func_name()` (`typespec.c`) ends in `UNREACHABLE()` for other kinds (optional,
+   tuple, proto, ...), so routing a call whose concrete type args include one of them aborts the
+   compiler, at parse time or in a clone. Seen in the code, no test yet.
+5. **The `koala` driver hides a `koalac` crash**: when `koalac` dies by a signal (e.g. a segfault in
+   irgen), `koala` only prints "koala: compilation failed". It should report the signal, e.g.
+   "koalac crashed (signal 11)", as §38.2 also asks for a diagnostic.
+6. **Explicit type args with a type variable abort the compiler**: in a generic body,
+   `twice[T](x)` (instead of the inferred `twice(x)`) fails the assertion
+   `arg_sym && arg_sym->kind == SYM_CLASS` in `parse_index_func_tp()` (`parser_expr.c`), with or
+   without `@specialized`. Each explicit type arg is taken as a class symbol (its `instance_ts`);
+   a type parameter (and likely a generic instance such as `list[T]`, or `int?`) is not handled.
+   Expected: the type arg's type spec is used, and with type variables the call stays an erased
+   call whose type args are kept on the call for the clones (as for an inferred call,
+   `exp->tp_args`).
+
+## 41. `koala/re` vs Python's `re`: what is not aligned (2026-11-01, to do / to discuss)
+
+The API of `libs/koala/re` follows Python's `re` (checked against Python 3.14); there is no
+Koala-only or Go-only API left, except `SEARCH` / `MATCH` / `FULL_MATCH` with `Pattern.exec` and
+the public constructors, kept on purpose. Aligned on 2026-11-01: `compile` / `search` / `match` /
+`fullmatch` / `findall` / `finditer` / `sub` / `split` / `escape` / `purge`; the flags `NOFLAG` /
+`I` / `IGNORECASE` / `M` / `MULTILINE` / `S` / `DOTALL` / `A` / `ASCII` with Python's values;
+`Pattern.pattern` / `flags` / `groups` / `groupindex` and its methods with `pos` / `endpos`;
+`Match.re` / `string` / `regs` / `pos` / `endpos` / `group` / `start` / `end` / `span` (by number
+or name) / `groups` / `groupdict` / `expand`; Python's replacement templates (`\1`, `\g<name>`,
+`\0`, octal, `\n` ...) and errors; Python's `count`; `split` inserts the groups; the printed form
+of `Pattern` and `Match`. Also aligned on 2026-11-01, second round: `subn`; `findall` with one
+group gives group 1; `\d \w \s \b` are Unicode unless `ASCII` (then ASCII only, and `IGNORECASE`
+folds only ASCII letters; `\d \w \s` are never case-folded, as in Python); `\Z`, `\uXXXX`,
+`\UXXXXXXXX`, `(?a)`, `(?u)`; and Python's empty-match rule (3.7+) in `findall` / `finditer` /
+`sub` / `split`, with `split` pieces as Python cuts them. Removed then: `UNGREEDY`, `is_match`, `replace` (now `sub`),
+`replace_literal`, `replace_with` / `Replacer`, `Pattern.group_name` / `group_index` /
+`group_names`, `Match.regex()` / `input()` / `indexes()` (now `re` / `string` / `regs`) /
+`matched` / `named` / `submatches`, and the `n` limit of `findall`.
+
+### 41.1 In Python, missing in Koala (not added: no new API in that refactor)
+
+1. ~~`subn`~~: done 2026-11-01.
+2. `sub` with a function as `repl`: Koala has no function-type parameters yet.
+3. `m[g]` (`__getitem__`): blocked by §42 (indexing a user class aborts irgen).
+4. `group(1, 2)` returning several groups: needs variadic parameters and a tuple return.
+5. `Match.lastindex` / `lastgroup`: the engine would have to record the order in which the groups
+   close; the offsets cannot tell `((a))` from `(a)(b?)`.
+6. `error` / `PatternError` (with `msg`, `pattern`, `pos`, `lineno`, `colno`), `RegexFlag`,
+   `Scanner` and `Pattern.scanner`: errors are panics, flags are ints.
+7. `Pattern.__eq__` / `__hash__` (equal when pattern and flags are), `__copy__` / `__deepcopy__`
+   on `Pattern` and `Match`.
+8. The flags `U` / `UNICODE`, `L` / `LOCALE`, `X` / `VERBOSE`, `DEBUG`.
+
+### 41.2 Not aligned: behaviour
+
+1. **A group that took no part gives `""`, not `None`**: in `group()`, `groups()`, `groupdict()`
+   and the groups `split` inserts. `None` needs `str?` returns.
+2. **`findall` with 2 groups or more panics** ("use finditer"): Python returns tuples then, which
+   a `list[str]` cannot hold. With 0 or 1 group it is Python's.
+3. ~~Empty matches follow Go~~: done 2026-11-01 (the C iterator has Python's `must_advance`).
+4. **Syntax extras kept from RE2**: `\p{..}` / `\pL`, `\Q...\E`, `[[:alpha:]]`, `\x{...}` and the
+   inline `(?U)` are accepted (Python has none of them). Compile errors use Go's wording
+   ("missing closing )"). Python's `(?x)`, `(?L)` and the rule that global inline flags must come
+   first are not supported.
+5. **Offsets are byte offsets**, also in error positions of templates and in the printed span;
+   Python's are character indexes. Kept: Koala's `str` indexes bytes.
+6. **`Pattern.flags` does not include inline flags** such as `(?i)`, nor Python's default
+   `UNICODE` (32).
+7. **Template group names**: any non-ASCII character counts as a letter, where Python asks for
+   `str.isidentifier()`.
+8. **Printed form**: non-printable characters outside ASCII are not escaped (Python writes
+   `'\u200b'`).
+9. **Keyword arguments**: Koala passes only parameters with a default by keyword, so the required
+   ones keep short names (`s`, not `string`).
+10. **Unicode version**: the tables are Unicode 15.0 (generated from Go), Python 3.14 has 16.0;
+    the 5004 `\w` and 80 `\d` characters added in 16.0 do not match. Checked over every code
+    point: on the characters of 15.0, `\w \d \s \W \S \D`, `(?i)` on literals and classes, and
+    the `ASCII` variants all agree with Python, except item 11.
+11. **`(?i)` and the Turkish i**: Python's `(?i)[a-z]` also matches U+0130 `İ` and U+0131 `ı`,
+    which Unicode simple folding (ours) keeps apart.
+12. **`$` without `MULTILINE`** matches only at the very end; Python's also matches just before a
+    final `\n` (`re.search('a$', 'a\n')` matches in Python, not here). `\Z` is the very end in
+    both.
+
+### 41.3 Compiler issues met on the way
+
+- `x as str` on an `int | str` holding an int yields nil while its static type is `str` (the
+  compiler warns that `!` on it is redundant); `koala/re` narrows with `is` only. Related to §29.
+- Indexing a user class: §42. `<<=` / `>>=`: §43. An empty list of tuples: §44.
+
+### 41.4 Next steps (2026-11-01, in this order)
+
+1. **`$` as in Python** (41.2, item 12): without `MULTILINE`, `$` also matches just before a final
+   `\n`. Lines read from a file keep their `\n`, so `re.search('x$', line)` is common and fails
+   silently today. Small: a new assertion kind in the parser (`re_core.c`), `\Z` stays the very end;
+   check against Python as for the other assertions.
+2. **API doc `docs/koala_re_api.md`**, in the style of the other package docs: the API, the syntax
+   (Python's, without backreferences and lookaround, plus the RE2 extras of 41.2 item 4), Unicode
+   and `ASCII`, the templates of `sub`, byte offsets, the linear-time guarantee, and the
+   differences of 41.2.
+3. **Performance of `findall` / `finditer` / `sub` / `split`**: every `kl_re_iter_next` call goes
+   through `kl_re_exec`, which allocates and frees its thread lists, stack and capture buffers;
+   a find-all loop over a long text with many matches pays that per match. Reuse them across the
+   loop (for example a scratch area kept in `ReIter` or passed by the caller).
+
+## 42. Indexing an instance of a user class aborts the compiler (2026-11-01, to fix)
+
+`x[i]` and `x[i] = v` on an instance of any user class that defines `__getitem__` /
+`__setitem__` abort the compiler with `irgen.c:1490: Why goes here?`. The parser already resolves
+and checks the call (`parse_index_load()` / `parse_index_store()` in `parser_expr.c`), but
+`emit_ir_index()` (`irgen.c`) only lowers sequences (`KLR_SEQ_SET` / `KLR_SLICE_SET`) and maps,
+and ends in `UNREACHABLE()` for anything else. It also hits the std classes with `__getitem__`
+(`SortedDict`, `LinkedList`, `FrozenBytes`) and blocks `m[g]` on `re.Match` (§41.1, item 2).
+
+### 42.1 Failing cases
+
+Read (`irgen.c:1490: Why goes here?`; expected `4`):
+
+```kl
+class C {
+    pub func __getitem__(i int) int = i * 2
+}
+
+func main() {
+    let c = C()
+    print(c[2])
+}
+```
+
+Write (same abort; expected `7`):
+
+```kl
+class G {
+    var _c list[int]
+
+    pub func __init__() { _c = [0] }
+
+    pub func __getitem__(i int) int = _c[i]
+
+    pub func __setitem__(i int, v int) { _c[i] = v }
+}
+
+func main() {
+    let g = G()
+    g[0] = 7
+    print(g[0])
+}
+```
+
+Compound assignment on an index fails even on a list, with `error: cannot resolve expr's type.`
+(expected `7`); the same on a class instance:
+
+```kl
+func main() {
+    let l = [1, 2]
+    l[1] += 5
+    print(l[1])
+}
+```
+
+A fuller regression test, with a union key (`__getitem__(key int | str)`, narrowed with `is`) and
+a generic class (`Box[T]`), is kept as `test/test-run/test_class_index.kl.disabled`; rename it to
+`.kl` once fixed.
+
+### 42.2 Rejected attempt (2026-11-01)
+
+A third index kind `KLR_METHOD_SET` in `KlrIndexInfo` (`ir.h`), carrying the `__setitem__`
+callable and its return type to `emit_ir_simple_assignment()`, plus a direct `__getitem__` call in
+`emit_ir_index()`. It passed the test above but was reverted:
+
+- `KLR_SEQ_SET` / `KLR_SLICE_SET` stand for real IR instructions; `KLR_METHOD_SET` stands for none
+  and only smuggles irgen data through a shared IR struct.
+- It needed its own copy of the argument handling of `emit_ir_call()` (interface upcasts, casts
+  for type parameters bound by a trait) and still missed what normal method calls handle:
+  default parameters, classes of other modules, trait receivers, inherited methods.
+- Compound assignment (`x[i] += v`) stays unsupported.
+
+### 42.3 Proposed fixes
+
+- **A (preferred)**: desugar in the parser. When the subscripted value is a user class, rewrite
+  `x[i]` into the call `x.__getitem__(i)` and `x[i] = v` into the call statement
+  `x.__setitem__(i, v)`; `parse_index_load()` / `parse_index_store()` already have the method
+  symbol and check the arguments. irgen then needs no change, and every case of a method call
+  works as it does today. `x[i] += v` can later become `x.__setitem__(i, x.__getitem__(i) + v)`
+  (evaluating `x` and `i` once).
+- **B (smaller)**: irgen only, no IR struct change. Keep the direct `__getitem__` call for loads;
+  for stores, let `emit_ir_index()` only evaluate `x` and `i`, and have
+  `emit_ir_simple_assignment()` build the `__setitem__` call from the IndexExpr's children. Still
+  duplicates the call argument handling.
+
+## 43. `<<=` / `>>=` abort the compiler (2026-11-01, to fix)
+
+The shift compound assignments abort the backend with `isel.c:317: Why goes here?`. The other
+compound assignments on the same local (`|=`, `&=`, `^=`, and `+=` / `-=` / `*=` / `/=` / `%=`)
+compile. Failing case (expected `bits 12`, then `bits 6`):
+
+```kl
+func main() {
+    var b = 3
+    b <<= 2
+    print("bits", b)
+    b >>= 1
+    print("bits", b)
+}
+```
+
+Found while checking compound assignments for `koala/re`; located by the author: with the two shift
+lines commented out, the rest of that check compiled. Not yet traced in `isel.c`.
+
+## 44. An empty list of tuples cannot be created (2026-11-01, to fix)
+
+Found while giving `re.Match` its `regs` field (`list[(int, int)]`). Both ways to start an empty
+list of tuples fail; a non-empty literal works, so `koala/re` starts from `[(a, b)]` and appends.
+
+1. **`list[(int, int)]()` aborts the compiler** (expected `1`):
+
+   ```kl
+   func main() {
+       let xs = list[(int, int)]()
+       xs.append((1, 2))
+       print(xs.len())
+   }
+   ```
+
+   `koalac: parser_expr.c:2622: parse_index_new_type: Assertion 'arg->ts->kind == TYPE_TYPE ||
+   arg->ts->kind == TYPE_GENERIC_VAR' failed.` A tuple type argument is neither; `list[str]()`
+   works.
+
+2. **`[]` is not typed from the declared type, and the error is a raw internal message**
+   (expected `1`):
+
+   ```kl
+   func main() {
+       var xs list[(int, int)] = []
+       xs.append((1, 2))
+       print(xs.len())
+   }
+   ```
+
+   The compiler prints `lhs: std/builtin.list<Lstd/builtin.tuple<jj>;> =/= rhs:
+   std/builtin.list<o>` and fails, with no file or line: the empty literal stays `list[any]`
+   instead of taking the declared element type.
+
+`let xs = [(1, 2)]` followed by `xs.append((3, 4))` compiles and prints `2`.
+
+## 45. String literals: no `\u` / `\U` escapes, unknown escapes kept silently (2026-11-01, to discuss)
+
+Found while writing a `koala/re` test: `"1٣"` was meant as `1` and ARABIC-INDIC DIGIT THREE,
+but Koala has no `\u` escape. A backslash before a letter that is not a known escape stays in the
+string as it is, with no error or warning:
+
+```kl
+func main() {
+    let a = "1٣"
+    print(a.len(), a)      // 7 1٣
+    let b = "\U0001F600"
+    print(b.len(), b)      // 10 \U0001F600
+    let c = "\x41"
+    print(c.len(), c)      // 1 A
+    let d = "\q"
+    print(d.len(), d)      // 2 \q
+}
+```
+
+The test then searched `1٣` with `\d` and found five digits instead of two; it now writes the
+character itself (`"1٣"`). The manual does not list the string escapes.
+
+To discuss:
+
+1. Add `\uXXXX` and `\UXXXXXXXX` (as Python, Go, C), so a non-ASCII character can be written in
+   ASCII source.
+2. Make an unknown escape such as `\q` a compile error (Go, Rust) or at least a warning (Python
+   3.12+ warns), instead of keeping it silently.
+3. Document the escapes in the manual (Strings and Characters).
+
+## 46. Language issues met while writing `koala/re` (2026-11-01, to fix / to discuss)
+
+Each case was run on 2026-11-01; `koala/re` and its tests work around all of them.
+
+1. **`ut.assert_eq` on a `str?` aborts the compiler** (to fix; expected `ok`):
+
+   ```kl
+   import "std/ut"
+
+   func main() {
+       let a str? = "y"
+       ut.assert_eq(a, "y")
+       print("ok")
+   }
+   ```
+
+   `typespec.c:1575: Why goes here?`. The `re` tests unwrap with `!` first.
+
+2. **`==` on lists compares identity** (to discuss): `print([1, 2] == [1, 2])` prints `false`.
+   Python, Go (for arrays) and Rust compare the elements. The `re` tests compare lists element by
+   element with small helpers (`assert_ints`, `assert_strs`).
+
+3. **No tuple element access** (to discuss): `let t = (1, 2)` then `print(t.0)` fails with
+   `error: expected an identifer.` (also a typo: "identifier"). Only destructuring works,
+   `let (a, b) = t`.
+
+4. **A parameter may not have the name of a field** (to discuss): with `let x int` in the class,
+   `pub func __init__(x int) {}` fails with `parameter 'x' conflicts with field name in class 'P'`.
+   It forced `re.Pattern(text, bits)` (the fields are `pattern` and `flags`) and
+   `re.Match(pattern, text, ...)` (the fields are `re` and `string`); Python, Go and Rust allow it
+   (`self.x = x`).
+
+5. **No function-type parameters** (to do): a parameter such as `fn func(Match) str` does not
+   compile (`zip.kl` keeps such code commented out). It blocks Python's `re.sub(func, s)`
+   (41.1, item 2).
+
+6. **`uint8` has no `__add__` / `__iadd__`** (to do, not a bug): `var u = uint8(250)` then
+   `u += uint8(10)` fails with `neither '__iadd__' nor '__add__' is defined for class 'uint8'`,
+   as the rule says; the operators are just not implemented for the small integer types yet.
+
+Also for `koala/re`: its C macros keep the `RE_*` prefix (`RE_FLAG_*`, `RE_ERR_*`, `RE_MODE_*`,
+`RE_MATCH`) while the functions are `kl_re_*`. glibc's `<regex.h>` defines other `RE_*` macros
+(`RE_ICASE`, `RE_DUP_MAX`, `RE_SYNTAX_*`); none clashes today, but a source file that includes
+both headers could. Renaming them to `KL_RE_*` was left for later on purpose.

@@ -515,6 +515,10 @@ typedef struct _KlrInsn {
     /* target local KlrValue of 'is' and 'as' instructions */
     KlrValue *target_kls;
 
+    /* type args with type variables of a call to a generic func, which a specialized clone of
+       the calling generic func routes with its concrete type args */
+    Vector *tp_args;
+
     /* Raw operands for MachInsn */
     KlrRawOper raws[3];
 
@@ -1139,7 +1143,6 @@ KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
                               char *name);
 KlrValue *klr_build_set_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, KlrValue *val);
 
-
 KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
                             char *name);
 void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
@@ -1156,7 +1159,24 @@ KlrValue *klr_build_as(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec 
 KlrValue *klr_build_contains(KlrBuilder *bldr, KlrValue *obj, KlrValue *val, char *name);
 KlrValue *klr_build_unreachable(KlrBuilder *bldr);
 
-KlrValue *klr_specialize_func(KlrFunc *fn, char *mangled_name, Vector *tp_args);
+KlrInsn *klr_build_clone(KlrBuilder *bldr, KlrInsn *insn, TypeSpec *ts);
+void klr_init_clone_oper(KlrInsn *clone, KlrInsn *insn, int i, KlrValue *ref);
+/* symbol lookups of the front-end used by klr_specialize_func() */
+typedef struct _KlrSpecializeHooks {
+    /* 'ts' with the type variables replaced by 'tp_args'; a generic instance (list[T]) is the
+       front-end's instance type for the concrete args, as in hand-written code */
+    TypeSpec *(*specialize_ts)(TypeSpec *ts, Vector *tp_args, void *ctx);
+    /* the func a call to generic func 'callee' with concrete 'tp_args' is routed to, or NULL */
+    KlrValue *(*resolve_call)(KlrValue *callee, Vector *tp_args, void *ctx);
+    /* the callee of a call to 'intf' on a 'ts' value: the intf of trait instance 'ts', or the
+       method of class 'ts' the call is devirtualized to; NULL if none */
+    KlrValue *(*resolve_method)(TypeSpec *ts, KlrValue *intf, void *ctx);
+    /* the intf index of trait 'trait_ts' for a make_intf of a 'ts' value, or -1 if none needed */
+    int (*intf_index)(TypeSpec *ts, TypeSpec *trait_ts, void *ctx);
+    void *ctx;
+} KlrSpecializeHooks;
+
+void klr_specialize_func(KlrFunc *fn, KlrFunc *new_fn, Vector *tp_args, KlrSpecializeHooks *hooks);
 
 #ifdef __cplusplus
 }

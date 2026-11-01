@@ -6,58 +6,64 @@
 import "std/ut"
 import "koala/log"
 
+/// A Handler that counts how many lines it was asked to write.
 class CountingHandler : log.Handler {
     pub var calls int
-    let min_level int
 
-    pub func __init__(_min_level int) {
-        min_level = _min_level
+    pub func __init__() {
         calls = 0
     }
 
-    pub func enabled(level int) bool { return level >= min_level }
-    pub func handle(r log.Record)    { calls = calls + 1 }
+    pub func write(s str) {
+        calls = calls + 1
+    }
 }
 
 @test
-func test_fanout_by_level() {
-    let low  = CountingHandler(log.INFO)
-    let high = CountingHandler(log.ERROR)
+func test_fanout_writes_to_all_children() {
+    let a = CountingHandler()
+    let b = CountingHandler()
 
     let hs = list[log.Handler]()
-    hs.append(low)
-    hs.append(high)
-    let mh = log.multi_handler(hs)
-    let l = log.new_logger(mh)
+    hs.append(a)
+    hs.append(b)
+    let mh = log.MultiHandler(hs)
 
-    l.info("a")             // low 收，high 不收
-    ut.assert_eq(low.calls, 1)
-    ut.assert_eq(high.calls, 0)
+    mh.write("x\n")
+    ut.assert_eq(a.calls, 1)
+    ut.assert_eq(b.calls, 1)
 
-    l.error("b")            // 两个都收
-    ut.assert_eq(low.calls, 2)
-    ut.assert_eq(high.calls, 1)
+    mh.write("y\n")
+    ut.assert_eq(a.calls, 2)
+    ut.assert_eq(b.calls, 2)
 }
 
 @test
-func test_empty_multi_handler_disabled() {
+func test_empty_multi_handler_writes_nothing() {
     let hs = list[log.Handler]()
-    let mh = log.multi_handler(hs)
-    ut.assert_false(mh.enabled(log.INFO))
+    let mh = log.MultiHandler(hs)
+
+    mh.write("x\n")     // no children, no effect, no panic
+    ut.assert_true(true)
 }
 
 @test
-func test_all_below_threshold() {
-    let h1 = CountingHandler(log.ERROR)
-    let h2 = CountingHandler(log.FATAL)
+func test_multi_handler_through_logger() {
+    let a = CountingHandler()
+    let b = CountingHandler()
 
     let hs = list[log.Handler]()
-    hs.append(h1)
-    hs.append(h2)
-    let mh = log.multi_handler(hs)
-    let l = log.new_logger(mh)
+    hs.append(a)
+    hs.append(b)
+    let mh = log.MultiHandler(hs)
 
-    l.info("x")             // 两个都不收，外层快速路径直接返回
-    ut.assert_eq(h1.calls, 0)
-    ut.assert_eq(h2.calls, 0)
+    let l = log.Logger(mh, log.TextFormatter(), log.INFO)
+
+    l.info("x")         // enabled by Logger, fanned out
+    ut.assert_eq(a.calls, 1)
+    ut.assert_eq(b.calls, 1)
+
+    l.debug("y")        // filtered by Logger, neither child sees it
+    ut.assert_eq(a.calls, 1)
+    ut.assert_eq(b.calls, 1)
 }

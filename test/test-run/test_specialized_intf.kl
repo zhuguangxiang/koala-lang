@@ -1,0 +1,50 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// In a @specialized clone a value of a type variable is a value of a concrete
+// class, which carries no itable:
+//  - an intf call on it ('x.to_str()' with T : ToString) is devirtualized to
+//    the method of the class (int64:to_str);
+//  - where it goes into a trait (a local, a param, a return), irgen leaves
+//    'cast %x T to Trait' (a move for the generic func), which the clone turns
+//    into a make_intf, also to a parent trait of the bound (Equatable).
+
+func takes_ts(t ToString) str {
+    return t.to_str()
+}
+
+@specialized(int)
+func probe[T: ToString](x T, y T) str {
+    let s = x.to_str()
+    let t ToString = x
+    let u = takes_ts(y)
+    return s + t.to_str() + u
+}
+
+@specialized(int)
+func as_eq[T: Comparable](x T) Equatable[T] {
+    let e Equatable[T] = x
+    return e
+}
+
+func main() {
+    print(probe(3, 4))
+    let e = as_eq(4)
+    print(e is int)
+}
+
+// CHECK-LABEL: func @probe(%x probe:T, %y probe:T) str {
+// CHECK: call @std/builtin.ToString:to_str [intf-index = 0], %x probe:T
+// CHECK: cast %x probe:T to std/builtin.ToString
+// CHECK: cast %y probe:T to std/builtin.ToString
+
+// CHECK-LABEL: func @probe_int64(%x int64, %y int64) str {
+// CHECK: %0 = call @int64:to_str [path = 'std/builtin'], %x int64
+// CHECK: make_intf %x int64 [intf-table-index = 7] to std/builtin.ToString
+// CHECK: [[Y:%[0-9]+]] = make_intf %y int64 [intf-table-index = 7] to std/builtin.ToString
+// CHECK: call @takes_ts, [[Y]] std/builtin.ToString
+// CHECK: call @std/builtin.ToString:to_str [intf-index = 0], %t std/builtin.ToString
+
+// CHECK-LABEL: func @as_eq_int64(%x int64) std/builtin.Equatable<j> {
+// CHECK: make_intf %x int64 [intf-table-index = 3] to std/builtin.Equatable
+
+// CHECK: {{^}}334{{$}}
+// CHECK-NEXT: {{^}}true{{$}}

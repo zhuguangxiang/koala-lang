@@ -1,0 +1,29 @@
+// RUN: koala %s ++ --dump=no-opt-ir 2>&1 | filecheck %s
+// '@specialized' is only supported on top-level generic functions: on a class
+// or a method it is ignored with a warning, the class keeps using type erasure
+// and no specialized class or method is generated.
+
+@specialized(int)
+class Holder[T] {
+    var v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+
+    @specialized(int)
+    func get() T {
+        return v
+    }
+}
+
+func main() {
+    let h = Holder(5)
+    print(h.get())
+}
+
+// CHECK-DAG: warning: {{.*}}'@specialized' on class 'Holder' is not supported and is ignored: generic classes use type erasure.
+// CHECK-DAG: warning: {{.*}}'@specialized' on method 'get' is not supported and is ignored: only top-level generic functions are specialized.
+// CHECK-NOT: func @{{.*}}_int64
+// CHECK: call @Holder:get, %h test_specialized_ignored_warnings.Holder<j>
+// CHECK: {{^}}5{{$}}

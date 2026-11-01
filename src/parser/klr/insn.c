@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <string.h>
 #include "ir.h"
 #include "log.h"
 #include "mm.h"
@@ -940,6 +941,42 @@ KlrValue *klr_build_unreachable(KlrBuilder *bldr)
     KlrInsn *insn = new_insn(OP_UNREACHABLE, 0, "");
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
+}
+
+/*
+ * Clone 'insn' into 'bldr' as an instruction of type 'ts': the opcode, name, flags and the
+ * opcode-specific fields are copied, the operands are left unset and must all be set by
+ * klr_init_clone_oper() before the clone is used.
+ */
+KlrInsn *klr_build_clone(KlrBuilder *bldr, KlrInsn *insn, TypeSpec *ts)
+{
+    // phi is only created by ssa, after irgen
+    ASSERT(insn->code != OP_IR_PHI);
+
+    KlrInsn *clone = new_insn(insn->code, insn->num_opers, insn->name);
+    clone->ts = ts;
+    clone->loc = insn->loc;
+    clone->flags = insn->flags;
+    clone->num_args = insn->num_args;
+    clone->cast_flag = insn->cast_flag;
+    clone->intern_tag = insn->intern_tag;
+    clone->target_ts = insn->target_ts;
+    clone->target_path = insn->target_path;
+    clone->target_name = insn->target_name;
+    clone->target_kls = insn->target_kls;
+    clone->tp_args = insn->tp_args;
+    // make_intf/upcast_intf keep the intf index in raws[2]
+    memcpy(clone->raws, insn->raws, sizeof(insn->raws));
+    klr_append_insn(bldr, clone);
+    return clone;
+}
+
+/* set the i-th operand of 'clone' to 'ref', a def or a use as the i-th operand of 'insn' */
+void klr_init_clone_oper(KlrInsn *clone, KlrInsn *insn, int i, KlrValue *ref)
+{
+    ASSERT(clone->num_opers == insn->num_opers);
+    KlrOper *oper = insn_operand(insn, i);
+    init_oper(&clone->opers[i], clone, ref, oper->use.is_def);
 }
 
 #ifdef __cplusplus

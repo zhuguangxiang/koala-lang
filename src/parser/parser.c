@@ -1587,32 +1587,13 @@ static void check_class_prefix(ParserState *ps, KlassDeclStmt *klass)
     if (!ann->ident) return;
 
     if (str_equal(ann->ident, "specialized")) {
-        if (klass->kind != STMT_CLASS_KIND) {
-            kl_error(ann->id_loc,
-                     "'%s' is not a class. The 'specialized' annotation only be used for class.",
-                     klass->id.name);
-        }
-
-        if (vector_empty(klass->tps)) {
-            kl_error(ann->id_loc,
-                     "class '%s' is not a generic class. The 'specialized' annotation only be used "
-                     "for generic class.",
-                     klass->id.name);
-        }
-
-        if (vector_empty(ann->types)) {
-            kl_error(ann->id_loc,
-                     "class '%s' with 'specialized' annotation needs at least one type.",
-                     klass->id.name);
-        }
-
-        if (vector_size(ann->types) != vector_size(klass->tps)) {
-            kl_error(ann->id_loc,
-                     "class '%s' with 'specialized' annotation needs same number of types as type "
-                     "parameters.",
-                     klass->id.name);
-        }
-
+        // generic classes (and traits, which take no annotation) are not specialized, they
+        // always use type erasure
+        kl_warn(ann->id_loc,
+                "'@specialized' on class '%s' is not supported and is ignored: generic classes "
+                "use type erasure.",
+                klass->id.name);
+        ann->ident = NULL;
         return;
     }
 
@@ -1661,6 +1642,15 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
 
     fn->sym = sym;
 
+    if (!toplevel && has_specialized_meta((Stmt *)fn)) {
+        // methods are not specialized; dropping the annotation lets every later stage ignore it
+        kl_warn(fn->flags.ann.id_loc,
+                "'@specialized' on method '%s' is not supported and is ignored: only top-level "
+                "generic functions are specialized.",
+                id->name);
+        fn->flags.ann.ident = NULL;
+    }
+
     check_func_prefix(ps, fn);
 
     if (match_prefix(fn->flags.ann.ident, "test")) {
@@ -1687,12 +1677,8 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;
 
-    if (!toplevel) {
-        kl_error(id->loc, "func '%s' with specialized meta can only be declared at top level.",
-                 id->name);
-        return NULL;
-    }
-
+    // the annotation of a method is dropped above
+    ASSERT(toplevel);
     Vector *tp_args_list = get_specialized_types_list((Stmt *)fn);
     add_specialized_func((FuncSymbol *)fn->sym, tp_args_list, ps);
 
@@ -3582,8 +3568,7 @@ static InstanceSymbol *get_tuple_instance(ParserState *ps, Expr *exp)
     BUF(buf);
     type_spec_print(exp->ts, &buf);
     if (is_optional_tuple(exp->ts)) {
-        kl_error(exp->loc, "cannot destructure optional type '%s', unwrap it first.",
-                 BUF_STR(buf));
+        kl_error(exp->loc, "cannot destructure optional type '%s', unwrap it first.", BUF_STR(buf));
     } else {
         kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
     }
@@ -3941,11 +3926,8 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
 
     if (!has_specialized_meta((Stmt *)fn)) return;
 
-    if (!toplevel) {
-        kl_error(fn->loc, "specialized function must be defined at top level");
-        return;
-    }
-
+    // the annotation of a method is dropped by _add_func()
+    ASSERT(toplevel);
     Vector *tp_args_list = get_specialized_types_list((Stmt *)fn);
     update_specialized_func(sym, tp_args_list, ps);
 }

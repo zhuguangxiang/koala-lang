@@ -68,6 +68,7 @@ From these principles follow a number of advanced features that most languages d
 - [Functions](#functions)
 - [Classes and Interfaces](#classes-and-interfaces)
 - [Generics](#generics)
+  - [Instantiating Generic Functions](#instantiating-generic-functions)
 - [Operator Overloading](#operator-overloading)
 - [Error Handling](#error-handling)
 - [Memory Management](#memory-management)
@@ -931,6 +932,115 @@ let empty list[int] = list[int]()
 
 Note the asymmetry for parameter types: a bare trait name is not a valid parameter type —
 concrete trait instances such as `Arithmetic[int]` must be spelled out there.
+
+### Instantiating Generic Functions
+
+These rules cover top-level generic functions only; generic classes, traits and methods are not
+specialized, they always use type erasure.
+
+**Erased by default.** A generic function is compiled once, and that one body serves every type
+argument; operations on a `T` value are dispatched at run time by the value's own type. Nothing is
+instantiated implicitly.
+
+**A call is routed by name to a specialized function.** When all type arguments of a call are
+concrete — inferred or written explicitly — the call goes to the function named after the generic
+function and its type arguments, if one exists; otherwise it calls the erased generic function.
+The name is the function name followed by `_` and the name of each type argument:
+
+| Generic call | Routed to |
+|--------------|-----------|
+| `abs(10)`, `abs[int](10)` | `abs_int64` |
+| `max(2.5, 1.0)` | `max_float64` |
+| `pow(2.0, 10)` (`pow[T, U]`) | `pow_float64_int64` |
+| `describe(Point(1))` | `describe_Point` |
+
+Type arguments are named by their canonical type: `int`, `uint` and `float` are `int64`, `uint64`
+and `float64`; the other primitive types keep their names (`int8`, `uint32`, `float32`,
+`bfloat16`, `bool`, `str`), and a class is named by its class name. The name is looked up in the
+calling module first, then in the generic function's package.
+
+The specialized function is an ordinary function whose signature is the generic signature with the
+type arguments substituted. It can be written by hand, with no annotation: the standard library's
+`abs` and `pow` are generic "shells" whose generic body only panics, and every supported type is a
+hand-written function:
+
+```kl
+pub func abs[T](a T) T {
+    panic("abs is not implemented for this type")
+}
+
+pub func abs_int64(a int) int {
+    if a < 0 { return 0 - a }
+    return a
+}
+
+print(abs(-7))      // calls abs_int64
+```
+
+Supporting a new type means writing one more function with the right name, in the module that
+calls it or in the generic function's package.
+
+**`@specialized` generates the specialized functions.** On a generic function, `@specialized`
+lists the instantiations the compiler generates from the generic body; each one is the function
+of the routed name, as if written by hand:
+
+```kl
+@specialized(int, uint, float)
+pub func max[T : Comparable](x T, y T) T {
+    if x > y { return x }
+    return y
+}
+// generates max_int64, max_uint64 and max_float64; max(10, 20) calls max_int64
+```
+
+- Each entry gives one type argument per type parameter; with several type parameters an entry is
+  a bracketed list: `@specialized([int, float], [float, float])` on `scale[T, U]` generates
+  `scale_int64_float64` and `scale_float64_float64`.
+- Only primitive types may be listed (integers, floats, `bool`); other types use the erased body
+  or a hand-written function.
+- Only top-level generic functions are specialized. On a generic class or a method the
+  annotation is not supported: the compiler warns and ignores it, and the class or method keeps
+  using type erasure (traits take no annotation).
+- A generated function and a hand-written function of the same name are a redefinition error.
+- A generated function is an ordinary function: it may be called before the generic function is
+  declared, and by its name (`max_int64(1, 2)`).
+
+**A generated function works on concrete values.** Its body is the generic body in which every
+value of a type parameter is a value of the type argument:
+
+- operators on `T` become the operations of the concrete type (`x > y` on `int64` is an integer
+  comparison);
+- a trait method called on a `T` value calls the type's own method (`x.to_str()` with
+  `T : ToString` calls `int64.to_str`), and a `T` value passed or assigned to a trait type is
+  converted to that trait;
+- a generic instance in the body is the instance for the type argument (`list[T]` is
+  `list[int64]`, `Box[T]` is `Box[int64]`), as in code written for that type; generic classes and
+  traits are still not specialized, so their methods are the same erased ones;
+- a call to another generic function is routed again with the concrete type arguments, so it
+  reaches that function's specialized or hand-written version, and a recursive call calls the
+  generated function itself:
+
+```kl
+func twice[T](x T) T {
+    return x
+}
+
+func twice_int64(x int) int {
+    return x * 2
+}
+
+@specialized(int, float)
+func quad[T](x T) T {
+    return twice(twice(x))
+}
+
+print(quad(3))      // 12: quad_int64 calls twice_int64
+print(quad(1.5))    // 1.5: quad_float64 calls the erased twice, there is no twice_float64
+```
+
+In the erased body itself, a call whose type arguments contain a type parameter (`twice(x)` with
+`x T`) is never routed: it calls the erased generic function, and only a generated function routes
+it with concrete types.
 
 ## Operator Overloading
 

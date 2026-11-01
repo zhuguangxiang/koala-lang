@@ -1,0 +1,99 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+link "koala_re"
+
+/// Regular expressions with the API of Python's `re`.
+///
+/// Matching never backtracks: a search takes time proportional to the
+/// length of the pattern times the length of the text. In exchange,
+/// backreferences and lookaround are not supported and are rejected when
+/// the pattern is compiled. `\d`, `\w`, `\s` and `\b` are Unicode unless
+/// `ASCII` is given, as in Python.
+///
+/// Text is read as UTF-8 and offsets are byte offsets into the `str`.
+///
+/// The types are `Pattern` (a compiled pattern), `Match` (one match, with its
+/// groups) and `MatchIter` (the matches of a text, one at a time). The
+/// functions below compile a pattern and use it in one go.
+
+/// Flags for `compile`; combine them with `|`. Names and values are
+/// Python's. The same letters also work inline, as in `(?i)` or `(?s:.)`.
+pub let NOFLAG = 0
+pub let IGNORECASE = 2 // i: case-insensitive
+pub let I = 2
+pub let MULTILINE = 8 // m: ^ and $ also match at line boundaries
+pub let M = 8
+pub let DOTALL = 16 // s: . also matches a newline
+pub let S = 16
+/// `ASCII`: `\d`, `\w`, `\s` and `\b` match ASCII only, and `IGNORECASE`
+/// folds only the ASCII letters. Without it they are Unicode.
+pub let ASCII = 256
+pub let A = 256
+
+/// How `Pattern.exec` anchors a match.
+pub let SEARCH = 0 // leftmost match at or after `start`
+pub let MATCH = 1 // the match must begin at `start`
+pub let FULL_MATCH = 2 // the match must begin at `start` and end at the end
+
+// Compiled patterns of the package functions, by flags and pattern.
+let _cache = dict[str, Pattern]()
+
+/// Compile `pattern`; the same as `Pattern(pattern, flags)`, except that the
+/// result is kept for the next call with the same pattern and flags, so it
+/// is cheap to call again.
+///
+/// Panic if the pattern is not valid; see `Pattern`.
+pub func compile(pattern str, flags int = 0) Pattern {
+    let key = flags.to_str() + ":" + pattern
+    let hit = _cache.get(key)
+    if hit != nil { return hit }
+
+    let r = Pattern(pattern, flags)
+    if _cache.len() >= 128 { _cache.clear() }
+    _cache[key] = r
+    return r
+}
+
+/// Clear the cache of compiled patterns that the functions above keep.
+pub func purge() { _cache.clear() }
+
+/// The leftmost match of `pattern` in `s`, or nil.
+pub func search(pattern str, s str, flags int = 0) Match? = compile(pattern, flags).search(s)
+
+/// The match of `pattern` at the start of `s`, or nil.
+pub func match(pattern str, s str, flags int = 0) Match? = compile(pattern, flags).match(s)
+
+/// The match of `pattern` that covers all of `s`, or nil.
+pub func fullmatch(pattern str, s str, flags int = 0) Match? = compile(pattern, flags).fullmatch(s)
+
+/// The text of every match of `pattern` in `s`; see `Pattern.findall`.
+pub func findall(pattern str, s str, flags int = 0) list[str] = compile(pattern, flags).findall(s)
+
+/// The matches of `pattern` in `s`, as `Match` objects found one by one; see
+/// `Pattern.finditer`.
+pub func finditer(pattern str, s str, flags int = 0) MatchIter = compile(pattern, flags).finditer(s)
+
+/// Replace the matches of `pattern` in `s` with the template `repl`, the
+/// first `count` of them when it is positive; see `Pattern.sub`.
+pub func sub(pattern str, repl str, s str, count int = 0, flags int = 0) str = compile(pattern, flags).sub(repl, s, count)
+
+/// What `sub` gives, and the number of replacements made; see `Pattern.subn`.
+pub func subn(pattern str, repl str, s str, count int = 0, flags int = 0) (str, int) = compile(pattern, flags).subn(repl, s, count)
+
+/// Split `s` around the matches of `pattern`, at most `maxsplit` times when
+/// it is positive; see `Pattern.split`.
+pub func split(pattern str, s str, maxsplit int = 0, flags int = 0) list[str] = compile(pattern, flags).split(s, maxsplit)
+
+/// Escape the special characters of `s` with a backslash, so that the
+/// result matches `s` literally: Python's `re.escape`. The characters are
+/// `( ) [ ] { } ? * + - | ^ $ \ . & ~ #`, the space and `\t \n \r \v \f`.
+@native
+pub func escape(s str) str {}
+
+// Python's repr() of `s`, cut to `limit` characters; for the `fmt` of
+// Pattern and Match.
+@native
+func _repr(s str, limit int) str {}

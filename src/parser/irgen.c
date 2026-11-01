@@ -209,6 +209,11 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
             return NULL;
         }
         return klr_build_upcast_intf(&bldr, obj, ts, intf_index, name);
+    } else if (type_is_generic_var(obj->ts)) {
+        // a value of a type variable into a trait: a move for the generic function, the marker
+        // where a specialized clone makes an intf value of a concrete class (specialize.c)
+        klr_builder_end(&bldr, ps->scope->bb);
+        return klr_build_cast(&bldr, obj, ts, name);
     } else {
         return NULL;
     }
@@ -1112,6 +1117,11 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 UNREACHABLE();
             }
         }
+    }
+
+    if (exp->tp_args) {
+        ASSERT(ret->kind == KLR_VALUE_INSN && ((KlrInsn *)ret)->code == OP_IR_CALL);
+        ((KlrInsn *)ret)->tp_args = exp->tp_args;
     }
 
     SET_IR_LOC(ret, exp);
@@ -2518,23 +2528,6 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     exit_scope(ps);
-
-    if (!has_specialized_meta(stmt)) return;
-
-    Vector *tp_args_list = get_specialized_types_list(stmt);
-    Vector *tp_args;
-    vector_foreach(tp_args, tp_args_list) {
-        char *mangled_name = mangle_func_name(sym->name, tp_args);
-        KlrValue *new_fn = klr_specialize_func((KlrFunc *)sym->ir_val, mangled_name, tp_args);
-        Symbol *new_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
-        ASSERT(new_fn_sym);
-        new_fn_sym->ir_val = new_fn;
-
-        if (dump_no_opt_ir_enabled()) {
-            fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
-            klr_print_func((KlrFunc *)new_fn, stdout);
-        }
-    }
 }
 
 static void emit_ir_class(ParserState *ps, Stmt *stmt)
@@ -3776,21 +3769,169 @@ static void _add_global(KlrModule *m, VarDeclStmt *var)
     sym->ir_val = gvar;
 }
 
-static void _add_func(KlrModule *m, FuncDeclStmt *fn)
+// declare an IR function from its symbol's signature
+static KlrValue *_declare_func(KlrModule *m, FuncSymbol *sym, char *name)
 {
-    Ident *id = &fn->id;
-    FuncSymbol *sym = (FuncSymbol *)fn->sym;
-
-    KlrValue *fval = klr_add_func(m, sym->ret, id->name);
+    KlrValue *fval = klr_add_func(m, sym->ret, name);
 
     KlrValue *param;
     ArgInfo *arg;
     vector_foreach(arg, sym->params) {
         param = klr_func_add_param(fval, arg->ts, arg->name);
-        arg->sym->ir_val = param;
+        if (arg->sym) arg->sym->ir_val = param;
     }
 
     sym->ir_val = fval;
+    return fval;
+}
+
+static void _declare_func_and_specialized(KlrModule *m, FuncDeclStmt *fn, ParserModule *pm)
+{
+    _declare_func(m, (FuncSymbol *)fn->sym, fn->id.name);
+
+    if (!has_specialized_meta((Stmt *)fn)) return;
+
+    // Declare the specialized functions now, so that calls emitted before the
+    // generic body can reference them; their bodies are cloned in
+    // emit_specialized_funcs() after all bodies are emitted.
+    Vector *tp_args;
+    vector_foreach(tp_args, get_specialized_types_list((Stmt *)fn)) {
+        char *mangled_name = mangle_func_name(fn->id.name, tp_args);
+        Symbol *spec_sym = stbl_get(pm->stbl, mangled_name);
+        ASSERT(spec_sym && spec_sym->kind == SYM_FUNC);
+        _declare_func(m, (FuncSymbol *)spec_sym, mangled_name);
+    }
+}
+
+// the specialized or hand-written func, e.g. 'twice_int64', a call to generic func 'callee' with
+// concrete 'tp_args' is routed to, the same lookup as find_or_add_func_instance(); NULL if none
+static KlrValue *resolve_specialized_call(KlrValue *callee, Vector *tp_args, void *ctx)
+{
+    ParserState *ps = ctx;
+    char *mangled_name = mangle_func_name(callee->name, tp_args);
+
+    if (callee->kind == KLR_VALUE_FUNC) {
+        Symbol *sym = stbl_get(ps->pm->stbl, mangled_name);
+        if (!sym || sym->kind != SYM_FUNC) return NULL;
+        // all funcs, incl. the specialized ones, are declared before any body is emitted
+        ASSERT(sym->ir_val);
+        return sym->ir_val;
+    }
+
+    ASSERT(callee->kind == KLR_VALUE_EXT_FUNC);
+    char *path = ((KlrExtFunc *)callee)->module->name;
+    Symbol *sym = find_ext_symbol(ps, path, mangled_name);
+    if (!sym || sym->kind != SYM_FUNC) return NULL;
+    return klr_add_ext_func(MOD, path, ((FuncSymbol *)sym)->ret, mangled_name);
+}
+
+// 'ts' of the generic body with its type variables replaced by 'tp_args', the same as the
+// signature of the specialized function (update_specialized_func()). A generic instance
+// (list[T], Cell[T]) becomes the instance for the concrete args (list[int64], Cell[int64]), as
+// in hand-written code: an instance is only a type for checking, generic classes and traits are
+// not specialized, their methods stay the erased ones.
+static TypeSpec *specialize_type_spec(TypeSpec *ts, Vector *tp_args, void *ctx)
+{
+    if (!ts) return NULL;
+    ParserState *ps = ctx;
+    return inst_type_spec(ts, tp_args, ps->pm->stbl, ps->pm);
+}
+
+// The callee of a call to intf method 'intf' on a value of 'ts' in a specialized clone:
+// - 'ts' is a trait instance (Sequence[int64]): the intf of that instance, the callee a call on a
+//   value of it has in hand-written code;
+// - 'ts' is a class: its method the call is devirtualized to, NULL if the class does not define
+//   it (e.g. a default method of the trait).
+static KlrValue *resolve_specialized_method(TypeSpec *ts, KlrValue *intf, void *ctx)
+{
+    ParserState *ps = ctx;
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) return NULL;
+
+    if (sym->kind == SYM_INSTANCE && ((InstanceSymbol *)sym)->origin->kind == SYM_TRAIT) {
+        Symbol *meth = get_instance_method((InstanceSymbol *)sym, intf->name, ps);
+        return meth ? get_callable(ps, meth) : NULL;
+    }
+
+    if (sym->kind == SYM_INSTANCE) sym = ((InstanceSymbol *)sym)->origin;
+    if (sym->kind != SYM_CLASS) return NULL;
+
+    KlassSymbol *kls_sym = (KlassSymbol *)sym;
+    Symbol *meth = stbl_get(kls_sym->stbl, intf->name);
+    if (!meth || meth->kind != SYM_FUNC) return NULL;
+    if (meth->ir_val) return meth->ir_val;
+
+    // a method of an external class, the same as calling it on a value of the class
+    ASSERT(meth->flags & SYM_FLAGS_EXT);
+    if (!kls_sym->ir_val) {
+        Symbol *parent = kls_sym->parent;
+        ASSERT(parent && parent->kind == SYM_PACKAGE);
+        kls_sym->ir_val = klr_add_ext_klass(MOD, parent->name, kls_sym->instance_ts, sym->name);
+    }
+    FuncSymbol *fn_sym = (FuncSymbol *)meth;
+    KlrValue *val = klr_add_ext_method((KlrExtKlass *)kls_sym->ir_val, fn_sym->ret, meth->name);
+    ((KlrExtFunc *)val)->proto = fn_sym->ts;
+    meth->ir_val = val;
+    return val;
+}
+
+// the intf index of trait 'trait_ts' for a make_intf of a value of class 'ts', -1 if a 'ts'
+// value needs no make_intf to be a 'trait_ts' value
+static int specialized_intf_index(TypeSpec *ts, TypeSpec *trait_ts, void *ctx)
+{
+    if (!_intf_upcast_needed(ts, trait_ts)) return -1;
+
+    Symbol *obj_sym = get_symbol_by_id(ts->sym_id);
+    if (obj_sym->kind == SYM_INSTANCE) obj_sym = ((InstanceSymbol *)obj_sym)->origin;
+    if (obj_sym->kind != SYM_CLASS) return -1;
+
+    // the type argument satisfies the bound, so the class implements the trait
+    int intf_index = get_intf_index(obj_sym, intf_canonical_ts(trait_ts));
+    ASSERT(intf_index >= 0);
+    return intf_index;
+}
+
+// clone the generic bodies into the specialized functions declared by
+// _declare_func_and_specialized()
+static void emit_specialized_funcs(ParserState *ps)
+{
+    // resolve_specialized_call() looks up external symbols in the current scope, the top one as
+    // when parsing
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+
+    KlrSpecializeHooks hooks = {
+        .specialize_ts = specialize_type_spec,
+        .resolve_call = resolve_specialized_call,
+        .resolve_method = resolve_specialized_method,
+        .intf_index = specialized_intf_index,
+        .ctx = ps,
+    };
+
+    Stmt *s;
+    vector_foreach(s, &ps->stmts) {
+        if (!s || s->kind != STMT_FUNC_KIND) continue;
+        if (!has_specialized_meta(s)) continue;
+
+        FuncDeclStmt *fn = (FuncDeclStmt *)s;
+        KlrFunc *origin = (KlrFunc *)fn->sym->ir_val;
+
+        Vector *tp_args;
+        vector_foreach(tp_args, get_specialized_types_list(s)) {
+            char *mangled_name = mangle_func_name(fn->id.name, tp_args);
+            Symbol *spec_sym = stbl_get(ps->pm->stbl, mangled_name);
+            ASSERT(spec_sym && spec_sym->ir_val);
+            KlrFunc *new_fn = (KlrFunc *)spec_sym->ir_val;
+            klr_specialize_func(origin, new_fn, tp_args, &hooks);
+
+            if (dump_no_opt_ir_enabled()) {
+                fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
+                klr_print_func(new_fn, stdout);
+            }
+        }
+    }
+
+    exit_scope(ps);
 }
 
 // 'self' of a generic class is typed with its own type parameters, e.g. 'Foo[Foo:K]'.
@@ -3914,7 +4055,7 @@ void kl_gen_ir(ParserModule *pm)
                 _add_global(m, var);
             } else if (s->kind == STMT_FUNC_KIND) {
                 FuncDeclStmt *fn = (FuncDeclStmt *)s;
-                _add_func(m, fn);
+                _declare_func_and_specialized(m, fn, pm);
             } else if (s->kind == STMT_CLASS_KIND) {
                 KlassDeclStmt *kls = (KlassDeclStmt *)s;
                 _add_klass(m, kls, pm);
@@ -3971,6 +4112,11 @@ void kl_gen_ir(ParserModule *pm)
     }
 
     m->num_globals = num_globals;
+
+    // all generic bodies are emitted, clone them into the specialized functions
+    vector_foreach(ps, &pm->pss) {
+        emit_specialized_funcs(ps);
+    }
 
     if (dump_no_opt_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");

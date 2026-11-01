@@ -1,0 +1,171 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// One match of a `Pattern` in a piece of text.
+///
+/// A `Match` records where the whole match and each capture group were
+/// found; it holds the text it came from, so the groups can be read out as
+/// strings. It never changes. Offsets are byte offsets into the text.
+///
+/// Groups are numbered from 1 in the order of their opening parenthesis,
+/// and group 0 is the whole match. A group that did not take part in the
+/// match, such as `(b)` in `(a)|(b)` when `a` matched, has offsets of -1 and
+/// reads as the empty string.
+///
+/// Example
+///
+/// ```kl
+/// let m = re.compile("(?P<key>\\w+)=(\\w+)").search("x a=1")!
+/// print(m.group(0))       // a=1
+/// print(m.group("key"))   // a
+/// print(m.span(2))        // (4, 5)
+/// ```
+pub class Match {
+    /// The regular expression that produced this match. Python's `Match.re`.
+    pub let re Pattern
+
+    /// The text that was searched. Python's `Match.string`.
+    pub let string str
+
+    /// `(start, end)` of every group, group 0 first; `(-1, -1)` for a group
+    /// that took no part. Python's `Match.regs`.
+    pub let regs list[(int, int)]
+
+    let _caps list[int]
+
+    /// The byte offset the search started from: the `pos` given to
+    /// `search`, `match`, `fullmatch` or `finditer`, otherwise 0. Python's
+    /// `Match.pos`.
+    pub let pos int
+
+    /// The byte offset the search stopped at: the `endpos` given to the
+    /// search, otherwise the length of the text. Python's `Match.endpos`.
+    pub let endpos int
+
+    /// Wrap the offsets `caps` of a match of `pattern` in `text`, found by a
+    /// search over `text[0:stop]` that started at `at`.
+    ///
+    /// `Pattern` creates matches; this constructor is for it. `caps` is what
+    /// `Pattern.exec` returns for a match.
+    pub func __init__(pattern Pattern, text str, caps list[int], at int = 0, stop int = INT64_MAX) {
+        re = pattern
+        string = text
+        _caps = caps
+        pos = at
+        if stop > text.len() { endpos = text.len() } else { endpos = stop }
+        // list[(int, int)]() and a typed [] do not compile yet (Koala_TODO §44)
+        regs = [(caps[0], caps[1])]
+        for i in range(1, pattern.groups + 1) { regs.append((caps[2 * i], caps[2 * i + 1])) }
+    }
+
+    /// Write `<re.Match object; span=(1, 3), match='bb'>`, as Python's `repr`
+    /// does; the matched text is cut after 50 characters. The span is in
+    /// bytes.
+    pub func fmt(f Formatter) {
+        f.write_fmt("<re.Match object; span=({}, {}), match=", _caps[0], _caps[1])
+        f.write_str(_repr(group(0), 50))
+        f.write_str(">")
+    }
+
+    /// Offset of the first byte of group `group`, or -1 if it took no part.
+    /// `group` is a number or a name, here and in `end`, `span` and `group`;
+    /// for a name that several groups share, the first group that took part
+    /// is used, else the leftmost one.
+    ///
+    /// Panic if there is no such group.
+    pub func start(group int | str = 0) int {
+        return _caps[2 * _index(group)]
+    }
+
+    /// Offset just past the last byte of group `group`, or -1 if it took no part.
+    ///
+    /// Panic if there is no such group.
+    pub func end(group int | str = 0) int {
+        return _caps[2 * _index(group) + 1]
+    }
+
+    /// `(start, end)` of group `group`; both are -1 if it took no part.
+    ///
+    /// Panic if there is no such group.
+    pub func span(group int | str = 0) (int, int) {
+        let i = _index(group)
+        return (_caps[2 * i], _caps[2 * i + 1])
+    }
+
+    /// The text of group `group`: the whole match for 0. It is the empty string
+    /// for a group that took no part (Python gives `None`).
+    ///
+    /// Panic if there is no such group.
+    pub func group(group int | str = 0) str {
+        let i = _index(group)
+        let a = _caps[2 * i]
+        if a < 0 { return "" }
+        return string[a:_caps[2 * i + 1]]
+    }
+
+    /// The text of every group from 1 on, without the whole match: Python's
+    /// `Match.groups`. A group that took no part gives `default`.
+    ///
+    /// The number of groups is `re.groups`.
+    pub func groups(default str = "") list[str] {
+        let out = list[str]()
+        for i in range(1, re.groups + 1) {
+            if _caps[2 * i] < 0 { out.append(default) } else { out.append(group(i)) }
+        }
+        return out
+    }
+
+    /// The text of every named group, by name: Python's `Match.groupdict`.
+    /// A group that took no part gives `default`. If several groups share a
+    /// name, the first one that took part is used, as in `group`.
+    pub func groupdict(default str = "") dict[str, str] {
+        let out = dict[str, str]()
+        let found = dict[str, bool]() // names set from a group that took part
+        for i in range(1, re.groups + 1) {
+            let g = re.group_name(i)
+            if g == nil { continue }
+            let name = g
+            if found.get(name) != nil { continue }
+            if _caps[2 * i] >= 0 {
+                out[name] = group(i)
+                found[name] = true
+            } else if out.get(name) == nil {
+                out[name] = default
+            }
+        }
+        return out
+    }
+
+    /// Expand `template` with this match by Python's rules, the template of
+    /// `Pattern.sub`. Panic if the template is not valid.
+    pub func expand(template str) str = re.expand(template, string, _caps)
+
+    // The number of `group`, given as a number or a name. Panic if there is
+    // no such group.
+    func _index(group int | str) int {
+        if group is int {
+            _check(group)
+            return group
+        }
+        if group is str {
+            var first = -1
+            for i in range(1, re.groups + 1) {
+                let g = re.group_name(i)
+                if g == nil || g! != group { continue }
+                if _caps[2 * i] >= 0 { return i }
+                if first < 0 { first = i }
+            }
+            if first < 0 { panic("re: no group named '" + group + "'") }
+            return first
+        }
+        return -1
+    }
+
+    func _check(i int) {
+        if i < 0 || i > re.groups {
+            panic("re: group " + i.to_str() + " out of range")
+        }
+    }
+}

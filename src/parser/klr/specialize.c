@@ -44,110 +44,112 @@ static void *get_from_map(HashMap *map, void *old_ptr)
     return entry ? entry->new_ptr : NULL;
 }
 
-static void build_specialize_insn(KlrInsn *insn, HashMap *map, KlrBuilder *bldr)
+/* map an operand of the generic function to the specialized one */
+static KlrValue *map_value(HashMap *map, KlrValue *val)
 {
-    switch (insn->code) {
-        case OP_IR_LOCAL: {
-            KlrValue *local;
-            if (insn->flags & KLR_INSN_FLAGS_CONST) {
-                local = klr_build_local(bldr, insn->ts, insn->name);
-            } else {
-                local = klr_build_local_var(bldr, insn->ts, insn->name);
-            }
-            add_to_map(map, insn, local);
-            break;
-        }
-
-        case OP_MOVE: {
-            KlrValue *src = insn_oper_value(insn, 0);
-            KlrValue *dst = insn_oper_value(insn, 1);
-            src = get_from_map(map, src);
-            dst = get_from_map(map, dst);
-            klr_build_move(bldr, src, dst);
-            break;
-        }
-
-        case OP_BINARY_GT: {
-            KlrValue *v1 = insn_oper_value(insn, 0);
-            KlrValue *v2 = insn_oper_value(insn, 1);
-            v1 = get_from_map(map, v1);
-            v2 = get_from_map(map, v2);
-            KlrValue *ret = klr_build_cmpgt(bldr, v1, v2, insn->name);
-            add_to_map(map, insn, ret);
-            break;
-        }
-
-        case OP_BINARY_LT: {
-            KlrValue *v1 = insn_oper_value(insn, 0);
-            KlrValue *v2 = insn_oper_value(insn, 1);
-            v1 = get_from_map(map, v1);
-            v2 = get_from_map(map, v2);
-            KlrValue *ret = klr_build_cmplt(bldr, v1, v2, insn->name);
-            add_to_map(map, insn, ret);
-            break;
-        }
-
-        case OP_IR_JMP_COND: {
-            KlrValue *v = insn_oper_value(insn, 0);
-            v = get_from_map(map, v);
-
-            KlrValue *bb0 = insn_oper_value(insn, 2);
-            KlrValue *bb1 = insn_oper_value(insn, 3);
-
-            bb0 = get_from_map(map, bb0);
-            bb1 = get_from_map(map, bb1);
-            klr_build_jmp_cond(bldr, v, (KlrBasicBlock *)bb0, (KlrBasicBlock *)bb1);
-            break;
-        }
-
-        case OP_JMP: {
-            KlrValue *bb = insn_oper_value(insn, 0);
-            bb = get_from_map(map, bb);
-            klr_build_jmp(bldr, (KlrBasicBlock *)bb);
-            break;
-        }
-
-        case OP_RET: {
-            KlrValue *v = insn_oper_value(insn, 0);
-            v = get_from_map(map, v);
-            klr_build_ret(bldr, v);
-            break;
-        }
-
-        case OP_RET_VOID: {
-            klr_build_ret_void(bldr);
-            break;
-        }
-
-        default: {
-            NYI();
-            break;
-        }
-    }
+    if (!val) return NULL;
+    KlrValue *new_val = get_from_map(map, val);
+    if (new_val) return new_val;
+    // function-local values are all mapped, the others (const, global, func, klass, field, ext
+    // symbols, ...) are shared with the generic function
+    ASSERT(val->kind != KLR_VALUE_INSN && val->kind != KLR_VALUE_PARAM &&
+           val->kind != KLR_VALUE_BLOCK);
+    return val;
 }
 
-KlrValue *klr_specialize_func(KlrFunc *fn, char *mangled_name, Vector *tp_args)
+/* specialize the type args (with type variables) of a call in the generic function */
+static Vector *specialize_tp_args(Vector *call_tp_args, Vector *tp_args, KlrSpecializeHooks *hooks)
 {
-    // new function
-    KlrModule *m = fn->module;
-    TypeSpec *ret = fn->ts;
-    TypeSpec *new_ret = type_spec_specialize(fn->ts, tp_args);
-    char *new_name = mangled_name;
-    KlrValue *fval = klr_add_func(m, new_ret, new_name);
-    KlrFunc *new_fn = (KlrFunc *)fval;
+    Vector *args = vector_create_ptr();
+    TypeSpec *ts;
+    vector_foreach(ts, call_tp_args) {
+        TypeSpec *arg = hooks->specialize_ts(ts, tp_args, hooks->ctx);
+        vector_push_back(args, &arg);
+    }
+    return args;
+}
+
+/*
+ * An intf call on a receiver of a type variable, e.g. 'x.to_str()' with 'T : ToString': after
+ * specialization the receiver is a value of a concrete class, which carries no itable. Call the
+ * method of the class directly, or if the class does not define it, make the receiver an intf
+ * value of the trait for the intf call. An intf call on an open trait instance gets the callee
+ * of the concrete instance.
+ */
+static void specialize_intf_call(KlrInsn *insn, KlrInsn *clone, KlrSpecializeHooks *hooks)
+{
+    KlrValue *callee = insn_oper_value(insn, 0);
+    TypeSpec *trait_ts;
+    if (callee->kind == KLR_VALUE_INTF) {
+        trait_ts = ((KlrIntf *)callee)->trait->ts;
+    } else if (callee->kind == KLR_VALUE_EXT_INTF) {
+        trait_ts = ((KlrExtIntf *)callee)->trait->ts;
+    } else {
+        return;
+    }
+
+    ASSERT(insn->num_opers >= 2);
+    TypeSpec *recv_ts = insn_oper_value(insn, 1)->ts;
+    KlrValue *recv = insn_oper_value(clone, 1);
+
+    // an intf call on an open trait instance (Sequence[T]): the receiver is now a value of the
+    // concrete instance (Sequence[int64]), call the intf of that instance, as hand-written code
+    if (recv_ts && recv_ts->kind == TYPE_GENERIC_REF) {
+        KlrValue *meth = hooks->resolve_method(recv->ts, callee, hooks->ctx);
+        if (meth) set_operand_at(clone, 0, meth);
+        return;
+    }
+
+    if (!type_is_generic_var(recv_ts)) return;
+
+    KlrValue *meth = hooks->resolve_method(recv->ts, callee, hooks->ctx);
+    if (meth) {
+        set_operand_at(clone, 0, meth);
+        return;
+    }
+
+    int intf_index = hooks->intf_index(recv->ts, trait_ts, hooks->ctx);
+    if (intf_index < 0) return;
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, clone);
+    KlrValue *val = klr_build_make_intf(&bldr, recv, trait_ts, intf_index, "");
+    set_operand_at(clone, 1, val);
+}
+
+/*
+ * 'cast %x T to Trait' is left by irgen where a value of a type variable goes into a trait (it is
+ * a move for the generic function): after specialization a value of a concrete class needs a
+ * make_intf.
+ */
+static void specialize_intf_cast(KlrInsn *insn, KlrInsn *clone, KlrSpecializeHooks *hooks)
+{
+    if (!type_is_generic_var(insn_oper_value(insn, 0)->ts)) return;
+
+    KlrValue *src = insn_oper_value(clone, 0);
+    int intf_index = hooks->intf_index(src->ts, clone->ts, hooks->ctx);
+    if (intf_index < 0) return;
+    clone->code = OP_MAKE_INTF;
+    set_raw_imm(&clone->raws[2], intf_index);
+}
+
+/* Clone the body of generic function 'fn' into 'new_fn', the specialized function already
+   declared (with its specialized signature) for type arguments 'tp_args'. A call to a generic
+   function with type variables is routed with the concrete type args, or kept as the erased
+   call if there is no such function; the uses of values of type variables as intf values are
+   fixed for the concrete types. */
+void klr_specialize_func(KlrFunc *fn, KlrFunc *new_fn, Vector *tp_args, KlrSpecializeHooks *hooks)
+{
+    KlrValue *fval = (KlrValue *)new_fn;
+    ASSERT(vector_size(&fn->params) == vector_size(&new_fn->params));
 
     // create value map
     HashMap val_map;
     hashmap_init(&val_map, _ptr_equal_);
 
-    // add func to map(recursive call)
-    add_to_map(&val_map, fn, new_fn);
-
-    // copy parameters
+    // map parameters
     KlrParam *arg;
     vector_foreach(arg, &fn->params) {
-        TypeSpec *_ts = type_spec_specialize(arg->ts, tp_args);
-        KlrValue *new_param = klr_func_add_param(fval, _ts, arg->name);
+        KlrValue *new_param = vector_get(&new_fn->params, i__);
         add_to_map(&val_map, arg, new_param);
     }
 
@@ -158,18 +160,58 @@ KlrValue *klr_specialize_func(KlrFunc *fn, char *mangled_name, Vector *tp_args)
         add_to_map(&val_map, bb, new_bb);
     }
 
-    // copy instructions
+    // clone instructions with specialized types; all are cloned before any operand is set, so
+    // that an operand defined later in block order is already mapped
     basic_block_foreach(bb, fn) {
         KlrBasicBlock *new_bb = get_from_map(&val_map, bb);
         KlrBuilder bldr;
         klr_builder_end(&bldr, new_bb);
         KlrInsn *insn;
         insn_foreach(insn, bb) {
-            build_specialize_insn(insn, &val_map, &bldr);
+            TypeSpec *ts = hooks->specialize_ts(insn->ts, tp_args, hooks->ctx);
+            KlrInsn *clone = klr_build_clone(&bldr, insn, ts);
+            clone->target_ts = hooks->specialize_ts(insn->target_ts, tp_args, hooks->ctx);
+            add_to_map(&val_map, insn, clone);
         }
     }
 
-    return fval;
+    // copy the CFG edges, which the jmp/branch/ret builders add when building, not the clone; the
+    // edge <sbb, first block> is added by klr_append_block()
+    add_to_map(&val_map, fn->ebb, new_fn->ebb);
+    basic_block_foreach(bb, fn) {
+        KlrEdge *edge;
+        edge_out_foreach(edge, bb) {
+            KlrBasicBlock *dst = get_from_map(&val_map, edge->dst);
+            ASSERT(dst);
+            klr_link_edge(get_from_map(&val_map, bb), dst);
+        }
+    }
+
+    // set operands
+    basic_block_foreach(bb, fn) {
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            KlrInsn *clone = get_from_map(&val_map, insn);
+            for (int i = 0; i < insn->num_opers; i++) {
+                KlrValue *ref = map_value(&val_map, insn_oper_value(insn, i));
+                klr_init_clone_oper(clone, insn, i, ref);
+            }
+
+            // route a call to a generic func (incl. a recursive one) with the concrete type args
+            if (insn->tp_args) {
+                ASSERT(insn->code == OP_IR_CALL);
+                Vector *args = specialize_tp_args(insn->tp_args, tp_args, hooks);
+                KlrValue *callee = hooks->resolve_call(insn_oper_value(insn, 0), args, hooks->ctx);
+                if (callee) set_operand_at(clone, 0, callee);
+                clone->tp_args = NULL;
+                vector_destroy(args);
+            } else if (insn->code == OP_IR_CALL) {
+                specialize_intf_call(insn, clone, hooks);
+            } else if (insn->code == OP_IR_CAST) {
+                specialize_intf_cast(insn, clone, hooks);
+            }
+        }
+    }
 }
 
 #ifdef __cplusplus

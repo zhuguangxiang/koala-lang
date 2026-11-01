@@ -6,75 +6,86 @@
 import "std/ut"
 import "koala/log"
 
-/// A Handler that records everything it is asked to handle, so the
-/// test can assert on what reached the backend.
+/// A Handler that records every line it is asked to write.
 class MockHandler : log.Handler {
-    pub let records list[log.Record]
-    let min_level int
+    pub let lines list[str]
 
-    pub func __init__(_min_level int) {
-        min_level = _min_level
-        records = list[log.Record]()
+    pub func __init__() {
+        lines = list[str]()
     }
 
-    pub func enabled(level int) bool {
-        return level >= min_level
+    pub func write(s str) {
+        lines.append(s)
     }
+}
 
-    pub func handle(r log.Record) {
-        records.append(r)
+/// A Formatter that wraps the message in angle brackets, so the test
+/// can tell formatted output apart from the raw message.
+class MockFormatter : log.Formatter {
+    pub func __init__() {}
+
+    pub func format(r log.Record) str {
+        return "<" + r.msg + ">"
     }
 }
 
 @test
-func test_fast_path_disabled() {
-    let h = MockHandler(log.WARN)
-    let l = log.new_logger(h)
-    l.info("x")          // INFO < WARN
-    ut.assert_eq(h.records.len(), 0)
+func test_below_level_is_skipped() {
+    let h = MockHandler()
+    let l = log.Logger(h, MockFormatter(), log.WARN)
+    l.info("x")                       // INFO < WARN
+    ut.assert_eq(h.lines.len(), 0)
 }
 
 @test
-func test_handle_called_when_enabled() {
-    let h = MockHandler(log.INFO)
-    let l = log.new_logger(h)
+func test_at_level_is_written() {
+    let h = MockHandler()
+    let l = log.Logger(h, MockFormatter(), log.INFO)
     l.info("hello")
-    ut.assert_eq(h.records.len(), 1)
-    ut.assert_eq(h.records[0].msg, "hello")
-    ut.assert_eq(h.records[0].level, log.INFO)
+    ut.assert_eq(h.lines.len(), 1)
+    ut.assert_eq(h.lines[0], "<hello>")
 }
 
 @test
-func test_with_derives_new_logger() {
-    let h = MockHandler(log.TRACE)
-    let l = log.new_logger(h)
-
-    let xs = list[log.Attr]()
-    xs.append(log.attr("req", "42"))
-    let l2 = l.with(xs)
-
-    l2.info("x")
-    ut.assert_eq(h.records[0].attrs.len(), 1)
-    ut.assert_eq(h.records[0].attrs[0].key, "req")
-
-    l.info("y")
-    ut.assert_eq(h.records[1].attrs.len(), 0)
+func test_above_level_is_written() {
+    let h = MockHandler()
+    let l = log.Logger(h, MockFormatter(), log.INFO)
+    l.error("boom")
+    ut.assert_eq(h.lines.len(), 1)
+    ut.assert_eq(h.lines[0], "<boom>")
 }
 
 @test
-func test_with_merges_caller_attrs() {
-    let h = MockHandler(log.TRACE)
-    let l = log.new_logger(h)
+func test_set_level() {
+    let h = MockHandler()
+    let l = log.Logger(h, MockFormatter(), log.WARN)
 
-    let base = list[log.Attr]()
-    base.append(log.attr("service", "api"))
-    let l2 = l.with(base)
+    l.info("a")                       // filtered
+    ut.assert_eq(h.lines.len(), 0)
 
-    let xs = list[log.Attr]()
-    xs.append(log.attr("req", "42"))
-    l2.log(log.INFO, "x", xs)
+    l.set_level(log.DEBUG)
+    l.info("b")                       // now passes
+    ut.assert_eq(h.lines.len(), 1)
+    ut.assert_eq(h.lines[0], "<b>")
+}
 
-    ut.assert_eq(h.records[0].attrs.len(), 2)
-    ut.assert_eq(h.records[0].attrs[0].key, "service")
-    ut.assert_eq(h.records[0].attrs[1].key, "req")
+@test
+func test_level_methods_route() {
+    let h = MockHandler()
+    let l = log.Logger(h, MockFormatter(), log.TRACE)
+
+    l.trace("a")
+    l.debug("b")
+    l.info("c")
+    l.warn("d")
+    l.error("e")
+    l.fatal("f")
+
+    ut.assert_eq(h.lines.len(), 6)
+    ut.assert_eq(h.lines[0], "<a>")
+    ut.assert_eq(h.lines[1], "<b>")
+    ut.assert_eq(h.lines[2], "<c>")
+    ut.assert_eq(h.lines[3], "<d>")
+    ut.assert_eq(h.lines[4], "<e>")
+    ut.assert_eq(h.lines[5], "<f>")
 }

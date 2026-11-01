@@ -1,0 +1,111 @@
+// RUN: koala %s --test
+
+import "koala/re"
+import "std/ut"
+
+// `==` on lists compares identity, so compare the offsets one by one.
+func assert_spans(got list[int], want list[int]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) {
+        ut.assert_eq(got[i], want[i])
+    }
+}
+
+@test
+func test_compile_and_exec() {
+    let r = re.Pattern("a+(b)?", 0)
+    ut.assert_eq(r.groups, 1)
+    assert_spans(r.exec("xaab", 0, 4, re.SEARCH), [1, 4, 3, 4])
+    assert_spans(r.exec("xaac", 0, 4, re.SEARCH), [1, 3, -1, -1])
+}
+
+@test
+func test_no_match_is_empty() {
+    let r = re.Pattern("z", 0)
+    ut.assert_eq(r.exec("abc", 0, 3, re.SEARCH).len(), 0)
+}
+
+@test
+func test_modes_and_start() {
+    let r = re.Pattern("b", 0)
+    ut.assert_eq(r.exec("ab", 0, 2, re.MATCH).len(), 0)
+    assert_spans(r.exec("ab", 1, 2, re.MATCH), [1, 2])
+    ut.assert_eq(r.exec("ab", 0, 2, re.FULL_MATCH).len(), 0)
+    assert_spans(re.Pattern("a|ab", 0).exec("ab", 0, 2, re.FULL_MATCH), [0, 2])
+}
+
+@test
+func test_flags() {
+    assert_spans(re.Pattern("abc", re.IGNORECASE).exec("xABC", 0, 4, re.SEARCH), [1, 4])
+    assert_spans(re.Pattern(".", re.DOTALL).exec("\n", 0, 1, re.SEARCH), [0, 1])
+    assert_spans(re.Pattern("^b", re.MULTILINE).exec("a\nb", 0, 3, re.SEARCH), [2, 3])
+    // Python's values
+    ut.assert_eq(re.I, 2)
+    ut.assert_eq(re.M, 8)
+    ut.assert_eq(re.S, 16)
+    ut.assert_eq(re.A, 256)
+}
+
+@test
+func test_utf8_offsets_are_bytes() {
+    let r = re.Pattern("你+", 0)
+    assert_spans(r.exec("x你你y", 0, 8, re.SEARCH), [1, 7])
+}
+
+@test
+func test_groupindex() {
+    let r = re.Pattern("(?P<year>\\d{4})-(\\d\\d)", 0)
+    ut.assert_eq(r.groups, 2)
+    ut.assert_eq(r.groupindex.len(), 1)
+    ut.assert_eq(r.groupindex["year"], 1)
+}
+
+@test
+func test_many_pattern_objects() {
+    // each object owns a native program that the finalizer must release
+    for i in range(2000) {
+        let r = re.Pattern("(a|b)+c", 0)
+        assert_spans(r.exec("abac", 0, 4, re.SEARCH), [0, 4, 2, 3])
+    }
+}
+
+@should_panic("re: invalid pattern: missing closing ) at 0")
+func test_bad_pattern() {
+    re.Pattern("(a", 0)
+}
+
+@should_panic("re: invalid pattern: invalid or unsupported Perl syntax at 0")
+func test_lookahead_is_rejected() {
+    re.Pattern("(?=a)", 0)
+}
+
+@should_panic("re: invalid pattern: invalid escape sequence at 3")
+func test_backreference_is_rejected() {
+    re.Pattern("(a)\\1", 0)
+}
+
+@should_panic("re: invalid pattern: invalid repeat count at 1")
+func test_repeat_count_over_1000() {
+    re.Pattern("a{1001}", 0)
+}
+
+// 32 is Python's re.UNICODE, which is not supported
+@should_panic("re: invalid flags 32")
+func test_bad_flags() {
+    re.Pattern("a", 32)
+}
+
+@should_panic("re: start 5 out of range")
+func test_start_out_of_range() {
+    re.Pattern("a", 0).exec("abc", 5, 3, re.SEARCH)
+}
+
+@should_panic("re: end 4 out of range")
+func test_end_out_of_range() {
+    re.Pattern("a", 0).exec("abc", 0, 4, re.SEARCH)
+}
+
+@should_panic("re: invalid mode 3")
+func test_bad_mode() {
+    re.Pattern("a", 0).exec("abc", 0, 3, 3)
+}

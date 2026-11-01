@@ -1,0 +1,280 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A compiled regular expression.
+///
+/// The API and the results follow Python's `re`; the syntax is Python's
+/// without the parts that need backtracking (no backreferences, no
+/// lookaround), plus RE2's `\p{..}` classes. A search takes time proportional
+/// to the length of the pattern times the length of the text, however the
+/// pattern is written. Text is read as UTF-8; an invalid byte matches as
+/// U+FFFD. Offsets are byte offsets.
+///
+/// A `Pattern` never changes, so it can be kept and used over and over;
+/// compile once and reuse it rather than calling the package functions in
+/// a loop with the same pattern.
+///
+/// Example
+///
+/// ```kl
+/// let r = re.compile("(\\w+)@(\\w+)\\.com")
+/// let m = r.search("mail bob@example.com now")!
+/// print(m.group(1))                     // bob
+/// print(r.sub("\\2 at \\1", "a@b.com"))    // b at a
+/// ```
+pub class Pattern {
+
+    /// Number of capture groups, not counting group 0, the whole match.
+    pub let groups int
+
+    /// The text of the pattern.
+    pub let pattern str
+
+    /// The flags given to the constructor. Unlike Python, flags set inline,
+    /// as in `(?i)`, are not added.
+    pub let flags int
+
+    /// Group name to group number. A name used by several groups maps to
+    /// the leftmost one.
+    pub let groupindex dict[str, int]
+
+    /// Compile the pattern `text` with the flags `bits`.
+    ///
+    /// Panic if the pattern is not valid, with the reason and its offset,
+    /// or if `bits` has an unknown flag set. The error kinds are those of
+    /// Go, for example "missing closing )" or "invalid escape sequence".
+    @native
+    pub func __init__(text str, bits int) {}
+
+    // Name of group `i`, or nil if it is unnamed or `i` is out of range.
+    @native
+    func group_name(i int) str? {}
+
+    /// Run the matcher over `s[0:end]` from byte offset `start`; the
+    /// primitive under `search`, `match` and `fullmatch`. The text after
+    /// `end` is not seen at all, so `$` matches at `end`.
+    ///
+    /// Return an empty list if there is no match. Otherwise return
+    /// `2 * (groups + 1)` offsets: the begin and end of the whole
+    /// match, then of every group in turn, with -1 for a group that took
+    /// no part in the match. `mode` is `SEARCH`, `MATCH` or `FULL_MATCH`.
+    ///
+    /// `^`, `\A` and `\b` see the text before `start`, so a loop that moves
+    /// `start` forward finds the same matches as one pass over the text.
+    ///
+    /// Panic unless `0 <= start <= end <= s.len()`, or if `mode` is
+    /// unknown.
+    @native
+    pub func exec(s str, start int, end int, mode int) list[int] {}
+
+    // Every match in `s[0:end]` from `pos` on, at most `n` of them when `n`
+    // is not negative, as one flat list of offsets.
+    @native
+    func all_matches(s str, pos int, end int, n int) list[int] {}
+
+    // One step of a find-all loop over `s[0:end]`; see MatchIter.
+    @native
+    func next_match(s str, pos int, must_advance int, end int) list[int] {}
+
+    // `template` with its group references replaced by the groups of the
+    // match `caps` in `s`, by Python's rules (see `sub`). An empty `caps`
+    // only checks the template. Panic if the template is not valid.
+    @native
+    func expand(template str, s str, caps list[int]) str {}
+
+    /// Write `re.compile('...', re.FLAG|...)`, as Python's `repr` does; the
+    /// pattern is cut after 200 characters.
+    pub func fmt(f Formatter) {
+        f.write_str("re.compile(")
+        f.write_str(_repr(pattern, 200))
+        let names = [(IGNORECASE, "IGNORECASE"), (MULTILINE, "MULTILINE"),
+                     (DOTALL, "DOTALL"), (ASCII, "ASCII")]
+        var sep = ", "
+        for (bit, name) in names {
+            if (flags & bit) == 0 { continue }
+            f.write_str(sep)
+            f.write_str("re.")
+            f.write_str(name)
+            sep = "|"
+        }
+        f.write_str(")")
+    }
+
+    /// The leftmost match in `s` at or after byte offset `pos`, or nil.
+    ///
+    /// `pos` and `endpos` are Python's: the search looks at `s[0:endpos]`
+    /// only, as if the text ended there, and starts at `pos`; `^` and `\b`
+    /// still see the text before `pos`. Both are cut to `0..s.len()`, and
+    /// there is no match when `endpos` is before `pos`. The same holds for
+    /// `match`, `fullmatch`, `findall` and `finditer`.
+    pub func search(s str, pos int = 0, endpos int = INT64_MAX) Match? {
+        return _find(s, pos, endpos, SEARCH)
+    }
+
+    /// The match that begins exactly at byte offset `pos` of `s`, or nil.
+    ///
+    /// The match need not reach the end of `s`; see `fullmatch`.
+    pub func match(s str, pos int = 0, endpos int = INT64_MAX) Match? {
+        return _find(s, pos, endpos, MATCH)
+    }
+
+    /// The match that begins at byte offset `pos` of `s` and runs to the
+    /// end of `s` (or to `endpos`), or nil.
+    ///
+    /// Among the ways to match up to the end, the one a search would prefer
+    /// wins, so `a|ab` fully matches `ab` as `ab`.
+    pub func fullmatch(s str, pos int = 0, endpos int = INT64_MAX) Match? {
+        return _find(s, pos, endpos, FULL_MATCH)
+    }
+
+    /// Every match in `s` between `pos` and `endpos` (see `search`), as
+    /// Python's `findall` gives it: the whole match when the pattern has no
+    /// group, the text of group 1 when it has one (`""` if it took no part).
+    /// Use `finditer` for the `Match` objects, with groups and offsets.
+    ///
+    /// Panic if the pattern has 2 groups or more: Python returns tuples
+    /// then, which a `list[str]` cannot hold; use `finditer`.
+    ///
+    /// The matches are in text order and do not overlap. As in Python, an empty
+    /// match may come right after another match but not right after an empty
+    /// one, so `a*` over `baaab` gives `""`, `aaa`, `""` and `""`.
+    ///
+    pub func findall(s str, pos int = 0, endpos int = INT64_MAX) list[str] {
+        if groups > 1 {
+            panic("re: findall with " + groups.to_str() + " groups gives tuples; use finditer")
+        }
+        let out = list[str]()
+        let p = _clamp(pos, s.len())
+        let e = _clamp(endpos, s.len())
+        if e < p { return out }
+
+        let raw = all_matches(s, p, e, -1)
+        let stride = 2 * (groups + 1)
+        var at = 0
+        // the whole match, or group 1
+        let g = 2 * groups
+        while at < raw.len() {
+            if raw[at + g] < 0 { out.append("") } else { out.append(s[raw[at + g]:raw[at + g + 1]]) }
+            at += stride
+        }
+        return out
+    }
+
+    /// The matches that `findall` finds, as `Match` objects, found one by one
+    /// as they are asked for. `pos` and `endpos` as in `search`.
+    pub func finditer(s str, pos int = 0, endpos int = INT64_MAX) MatchIter {
+        return MatchIter(self, s, _clamp(pos, s.len()), _clamp(endpos, s.len()))
+    }
+
+    /// Replace the matches in `s` with the template `repl`: Python's `sub`.
+    ///
+    /// `count` is Python's: 0 replaces every match, `k > 0` the first `k`,
+    /// and a negative one none.
+    ///
+    /// The template is Python's:
+    /// - `\1` to `\99`, `\g<1>` and `\g<name>` stand for a group; `\g<0>` is
+    ///   the whole match. A group that took no part gives the empty string;
+    /// - `\0`, and three octal digits as in `\101`, stand for that character;
+    /// - `\a \b \f \n \r \t \v \\` stand for those characters;
+    /// - a backslash before any other ASCII letter is an error, and before
+    ///   any other character it stays as it is (`\&` stays `\&`).
+    ///
+    /// Panic if the template is not valid, even when nothing matches, or if
+    /// it names a group that does not exist.
+    ///
+    /// Empty matches are replaced as in Python, so replacing `a*` by `-` in
+    /// `baaac` gives `-b--c-`.
+    pub func sub(repl str, s str, count int = 0) str {
+        let (out, _) = subn(repl, s, count)
+        return out
+    }
+
+    /// What `sub` gives, and the number of replacements made: Python's
+    /// `subn`.
+    pub func subn(repl str, s str, count int = 0) (str, int) {
+        expand(repl, s, list[int]())
+        if count < 0 { return (s, 0) }
+
+        var n = -1
+        if count > 0 { n = count }
+        let raw = all_matches(s, 0, s.len(), n)
+        if raw.len() == 0 { return (s, 0) }
+
+        let stride = 2 * (groups + 1)
+        let out = Buffer(s.len() + repl.len())
+        var last = 0
+        var at = 0
+        while at < raw.len() {
+            out.write_str(s[last:raw[at]])
+            out.write_str(expand(repl, s, _caps_at(raw, at, stride)))
+            last = raw[at + 1]
+            at += stride
+        }
+        out.write_str(s[last:s.len()])
+        return (out.to_str(), raw.len() / stride)
+    }
+
+    /// Split `s` around the matches of this expression and return the
+    /// pieces between them: Python's `split`.
+    ///
+    /// `maxsplit` is Python's:
+    /// - `0`: split at every match;
+    /// - `k > 0`: at most `k` splits; the last piece is the rest of `s`;
+    /// - negative: no split, `s` as the only piece.
+    ///
+    /// The text of every group of a match is added after the piece before
+    /// it; a group that took no part gives the empty string (Python gives
+    /// `None`). Empty matches split too, so `x*` over `axbc` gives
+    /// `["", "a", "", "b", "c", ""]`.
+    pub func split(s str, maxsplit int = 0) list[str] {
+        let out = list[str]()
+        if maxsplit < 0 {
+            out.append(s)
+            return out
+        }
+
+        var n = -1
+        if maxsplit > 0 { n = maxsplit }
+        let raw = all_matches(s, 0, s.len(), n)
+        let stride = 2 * (groups + 1)
+        var last = 0
+        var at = 0
+        while at < raw.len() {
+            out.append(s[last:raw[at]])
+            for g in range(1, groups + 1) {
+                let a = raw[at + 2 * g]
+                if a < 0 { out.append("") } else { out.append(s[a:raw[at + 2 * g + 1]]) }
+            }
+            last = raw[at + 1]
+            at += stride
+        }
+        out.append(s[last:s.len()])
+        return out
+    }
+
+    func _find(s str, pos int, endpos int, mode int) Match? {
+        let p = _clamp(pos, s.len())
+        let e = _clamp(endpos, s.len())
+        if e < p { return nil }
+
+        let caps = exec(s, p, e, mode)
+        if caps.len() == 0 { return nil }
+        return Match(self, s, caps, p, e)
+    }
+
+    // `v` cut to `0..n`, as Python cuts `pos` and `endpos`.
+    func _clamp(v int, n int) int {
+        if v < 0 { return 0 }
+        if v > n { return n }
+        return v
+    }
+
+    // The offsets of the match that begins at raw[at].
+    func _caps_at(raw list[int], at int, stride int) list[int] {
+        let caps = list[int]()
+        for k in range(stride) { caps.append(raw[at + k]) }
+        return caps
+    }
+}

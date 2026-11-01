@@ -21,8 +21,3 @@ pub class Attr {
         value = _value
     }
 }
-
-/// Convenience constructor for `Attr`.
-pub func attr(key str, value str) Attr {
-    return Attr(key, value)
-}

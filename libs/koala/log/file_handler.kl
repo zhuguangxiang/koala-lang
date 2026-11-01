@@ -1,0 +1,29 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+
+/// FileHandler appends formatted lines to a file, flushing after
+/// each line so a crash does not lose already-emitted output.
+///
+/// The file is opened once at construction and kept open until
+/// `close()`. Open failures panic.
+pub class FileHandler : Handler {
+    let file fs.File
+
+    /// Open `path` in append mode.
+    pub func __init__(path str) {
+        file = fs.open(path, "a")!
+    }
+
+    /// Write `s` to the file and flush.
+    pub func write(s str) {
+        file.write_str(s)
+        file.flush()
+    }
+
+    /// Close the underlying file. Further `write` calls panic.
+    pub func close() { file.close() }
+}

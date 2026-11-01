@@ -22,9 +22,9 @@ pub class Record {
     pub let msg str
 
     /// Structured fields, in insertion order.
-    pub let attrs list[Attr]
+    pub let attrs list[Attr]?
 
-    pub func __init__(_level int, _msg str, _attrs list[Attr]) {
+    pub func __init__(_level int, _msg str, _attrs list[Attr]? = nil) {
         timestamp = time.now()
         level = _level
         msg = _msg

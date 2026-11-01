@@ -1,0 +1,10 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Formatter renders a `Record` into text.
+pub trait Formatter {
+    /// Render `r` as text.
+    func format(r Record) str
+}

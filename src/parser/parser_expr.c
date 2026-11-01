@@ -1891,6 +1891,9 @@ static void parse_call(ParserState *ps, Expr *exp)
                 params = fn_inst_sym->real_params;
                 exp->ts = fn_inst_sym->ret_ts;
                 lhs->ts = fn_inst_sym->ts;
+                // type args with type variables (a call in a generic body): kept on the call, so
+                // that a specialized clone of the body can route it with concrete type args
+                if (tps_are_generic(_tp_args)) exp->tp_args = _tp_args;
             }
         } else {
             if (lhs->ts->kind == TYPE_OPTIONAL) {

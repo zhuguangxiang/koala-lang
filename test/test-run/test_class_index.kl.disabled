@@ -1,0 +1,58 @@
+// RUN: koala %s | filecheck %s
+// `x[i]` and `x[i] = v` on an instance of a user class call its __getitem__ /
+// __setitem__, as on a list or a dict.
+
+class Grid {
+    var _cells list[int]
+
+    pub func __init__() { _cells = [0, 0, 0] }
+
+    pub func __getitem__(i int) int = _cells[i]
+
+    pub func __setitem__(i int, v int) { _cells[i] = v * 10 }
+}
+
+class Names {
+    let _names list[str]
+
+    pub func __init__() { _names = ["zero", "one", "two"] }
+
+    // a union key, narrowed in the method
+    pub func __getitem__(key int | str) int {
+        if key is int { return key }
+        if key is str {
+            for i in range(_names.len()) {
+                if _names[i] == key { return i }
+            }
+        }
+        return -1
+    }
+}
+
+class Box[T] {
+    let _v T
+
+    pub func __init__(v T) { _v = v }
+
+    pub func __getitem__(i int) T = _v
+}
+
+func main() {
+    let g = Grid()
+    g[1] = 4
+    print(g[0], g[1], g[2])
+    // CHECK: 0 40 0
+
+    let i = 2
+    g[i] = g[1] + 1
+    print(g[i])
+    // CHECK: 410
+
+    let n = Names()
+    print(n[1], n["two"], n["none"])
+    // CHECK: 1 2 -1
+
+    let b = Box[str]("boxed")
+    print(b[0])
+    // CHECK: boxed
+}

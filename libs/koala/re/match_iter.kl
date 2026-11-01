@@ -1,0 +1,66 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The matches of a `Pattern` in a text, found one at a time.
+///
+/// `Pattern.finditer` creates it. Matches come in the order of the text and
+/// never overlap; as in Python, an empty match may come right after another
+/// match but not right after an empty one, so `a*` over `baaab` gives `""`,
+/// `aaa`, `""` and `""`.
+///
+/// The next match is searched for as soon as one has been returned, so
+/// `has_next` is exact.
+pub class MatchIter : Iterator[Match] {
+    let _re Pattern
+    let _src str
+    let _start int
+    let _stop int
+    var _raw list[int]
+
+    /// Start a search of `src[0:stop]` with `re` at byte offset `start`;
+    /// both are cut to `0..src.len()`, as `Pattern.finditer` does.
+    pub func __init__(re Pattern, src str, start int = 0, stop int = INT64_MAX) {
+        _re = re
+        _src = src
+        _start = _clamp(start, src.len())
+        _stop = _clamp(stop, src.len())
+        if _stop < _start {
+            _raw = list[int]()
+        } else {
+            _raw = re.next_match(src, _start, 0, _stop)
+        }
+    }
+
+    /// True if another match is left.
+    pub func has_next() bool = (_raw.len() > 0)
+
+    /// Return the next match and move on.
+    ///
+    /// Panic if there is none.
+    pub func next_strict() Match {
+        if _raw.len() == 0 { panic("No more matches in MatchIter") }
+
+        let k = _raw.len() - 2
+        let caps = list[int]()
+        for i in range(k) { caps.append(_raw[i]) }
+
+        let m = Match(_re, _src, caps, _start, _stop)
+        _raw = _re.next_match(_src, _raw[k], _raw[k + 1], _stop)
+        return m
+    }
+
+    /// Return the next match, or nil if there is none.
+    pub func next() Match? {
+        if _raw.len() == 0 { return nil }
+        return next_strict()
+    }
+
+    // `v` cut to `0..n`.
+    func _clamp(v int, n int) int {
+        if v < 0 { return 0 }
+        if v > n { return n }
+        return v
+    }
+}

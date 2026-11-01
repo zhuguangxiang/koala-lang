@@ -1,0 +1,63 @@
+// RUN: koala %s --test
+
+import "koala/re"
+import "std/ut"
+
+func assert_strs(got list[str], want list[str]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) {
+        ut.assert_eq(got[i], want[i])
+    }
+}
+
+// Expected values are what Python 3.14's re.split gives; a group that took no
+// part gives "" where Python gives None.
+
+@test
+func test_split_basic() {
+    assert_strs(re.compile(",").split("a,b,c"), ["a", "b", "c"])
+    assert_strs(re.compile(",").split(",a,"), ["", "a", ""])
+    assert_strs(re.compile("é").split("aébéc"), ["a", "b", "c"])
+}
+
+// maxsplit is Python's: 0 for no limit, k for at most k splits, negative for
+// no split at all
+@test
+func test_split_maxsplit() {
+    assert_strs(re.compile(",").split("a,b,c", 1), ["a", "b,c"])
+    assert_strs(re.compile(",").split("a,b,c"), ["a", "b", "c"])
+    assert_strs(re.compile(",").split("a,b,c", 5), ["a", "b", "c"])
+    assert_strs(re.compile(",").split("a,b,c", -1), ["a,b,c"])
+    assert_strs(re.compile("").split("", -1), [""])
+    assert_strs(re.compile("a*").split("abaabaccadaaae", 4), ["", "", "b", "", "baccadaaae"])
+}
+
+@test
+func test_split_empty_text() {
+    assert_strs(re.compile(",").split(""), [""])
+    assert_strs(re.compile("").split(""), ["", ""])
+}
+
+@test
+func test_split_empty_matches() {
+    assert_strs(re.compile("x*").split("axbxc"), ["", "a", "", "b", "", "c", ""])
+    assert_strs(re.compile("a*").split("abaabaccadaaae"), ["", "", "b", "", "b", "", "c", "c", "", "d", "", "e", ""])
+    assert_strs(re.compile("").split("héllo"), ["", "h", "é", "l", "l", "o", ""])
+}
+
+@test
+func test_split_inserts_groups() {
+    assert_strs(re.compile("(,)").split("a,b"), ["a", ",", "b"])
+    assert_strs(re.compile("(,)").split("a,b,c"), ["a", ",", "b", ",", "c"])
+    assert_strs(re.compile("(,)|(;)").split("a,b;c"), ["a", ",", "", "b", "", ";", "c"])
+    assert_strs(re.compile("(-)(x)?").split("a-b"), ["a", "-", "", "b"])
+    assert_strs(re.compile("(,)").split("a,b,c", 1), ["a", ",", "b,c"])
+    assert_strs(re.compile("^").split("ab"), ["", "ab"])
+}
+
+@test
+func test_package_split() {
+    assert_strs(re.split("\\s+", "a  b \t c"), ["a", "b", "c"])
+    assert_strs(re.split("X", "aXbxc", 1, re.IGNORECASE), ["a", "bxc"])
+    assert_strs(re.split("X", "aXbxc", flags = re.IGNORECASE), ["a", "b", "c"])
+}

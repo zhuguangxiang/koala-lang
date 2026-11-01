@@ -3,51 +3,49 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// Logger is the front end: it holds a `Handler` and any attributes
-/// attached via `with`, and turns level+message calls into `Record`s
-/// for the handler.
-///
-/// The level check happens before the `Record` is built, so a
-/// disabled call allocates nothing.
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Logger is the front end: it holds a Handler, a Formatter and a
+/// minimum level. A record is formatted and passed to the handler
+/// only when its level is at or above the minimum.
 pub class Logger {
-    let handler Handler
-    let attrs list[Attr]
+    let _handler Handler
+    let _fmt Formatter
+    var _level int
+    var attrs list[Attr]?
 
-    pub func __init__(_handler Handler, _attrs list[Attr]) {
-        handler = _handler
-        attrs = _attrs
+    pub func __init__(handler Handler, fmt Formatter, level int = INFO) {
+        _handler = handler
+        _fmt = fmt
+        _level = level
     }
 
-    /// Return a new Logger that carries `_attrs` in addition to the
-    /// receiver's attributes. The receiver is not modified.
-    pub func with(_attrs list[Attr]) Logger {
-        let merged = list[Attr]()
-        for a in attrs { merged.append(a) }
-        for a in _attrs { merged.append(a) }
-        return Logger(handler, merged)
+    /// Set the minimum level.
+    pub func set_level(level int) { _level = level }
+
+    /// Get the minimum level.
+    pub func get_level() int { return _level }
+
+    /// Get the attributes.
+    pub func get_attrs() list[Attr]? { return attrs }
+
+    /// Set the attributes. These are attached to every record emitted by this logger.
+    pub func set_attrs(xs list[Attr]?) { attrs = xs }
+
+    /// Emit a record at `lv`, or skip it when below the minimum.
+    pub func log(lv int, msg str) {
+        if lv < _level { return }
+        let text = _fmt.format(Record(lv, msg, attrs));
+        _handler.write(text)
     }
 
-    /// Emit a record at `lv` with `msg` and `_attrs`, if the handler
-    /// enables `lv`. Attributes from `with` come first, then `_attrs`.
-    pub func log(lv int, msg str, _attrs list[Attr]) {
-        if !handler.enabled(lv) {
-            return
-        }
-        let all = list[Attr]()
-        for a in attrs { all.append(a) }
-        for a in _attrs { all.append(a) }
-        handler.handle(Record(lv, msg, all))
-    }
-
-    pub func trace(msg str) { log(TRACE, msg, list[Attr]()) }
-    pub func debug(msg str) { log(DEBUG, msg, list[Attr]()) }
-    pub func info(msg str)  { log(INFO,  msg, list[Attr]()) }
-    pub func warn(msg str)  { log(WARN,  msg, list[Attr]()) }
-    pub func error(msg str) { log(ERROR, msg, list[Attr]()) }
-    pub func fatal(msg str) { log(FATAL, msg, list[Attr]()) }
-}
-
-/// Convenience constructor: a Logger with no attached attributes.
-pub func new_logger(handler Handler) Logger {
-    return Logger(handler, list[Attr]())
+    pub func trace(msg str) { log(TRACE, msg) }
+    pub func debug(msg str) { log(DEBUG, msg) }
+    pub func info(msg str)  { log(INFO,  msg) }
+    pub func warn(msg str)  { log(WARN,  msg) }
+    pub func error(msg str) { log(ERROR, msg) }
+    pub func fatal(msg str) { log(FATAL, msg) }
 }

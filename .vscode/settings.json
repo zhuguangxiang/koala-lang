@@ -149,7 +149,7 @@
     ],
     "editor.fontFamily": "'Ubuntu Mono', 'JetBrains Mono', 'Fira Code','Victor Mono'",
     "editor.fontLigatures": true,
-    "editor.fontSize": 14.5,
+    "editor.fontSize": 15,
     "editor.lineHeight": 22,
     // "editor.letterSpacing": 0.1,
     "editor.renderWhitespace": "none",
@@ -180,56 +180,19 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 14,
+    "terminal.integrated.fontSize": 15,
     // "terminal.integrated.fontWeight": "100",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",
     "editor.cursorSurroundingLines": 0,
     "cmake.setBuildTypeOnMultiConfig": true,
-    "editor.accessibilityPageSize": 14,
+    "editor.accessibilityPageSize": 15,
     "C_Cpp.errorSquiggles": "disabled",
     "dateTime.use24HourClock": false,
     "dateTime.showAMPM": true,
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
     // "editor.fontWeight": "100",
     "cmake.configureOnEdit": false,
-    // "clang-format.executable": "/usr/bin/clang-format",
-    // "http.proxy": "http://127.0.0.1:20171",
-    // "https.proxy": "http://127.0.0.1:20171"
-    "highlight.regexes": {
-        "(?<!\\/\\/.*)\\b(pub|trait|class|as|const|link|native|intrinsic|func|from|loop)\\b": {
-            "filterLanguageRegex": "swift",
-            "decorations": [
-                {
-                    "color": "#C678DD"
-                }
-            ]
-        },
-        "(?<!\\/\\/.*)\\btrait\\s+([a-zA-Z0-9_]+)": {
-            "filterLanguageRegex": "swift",
-            "decorations": [
-                {
-                    "color": "#E5C07B"
-                }
-            ]
-        },
-        "(?<!\\/\\/.*)\\b(bool|str|int|int8|int16|int32|uint8|uint16|uint32|float)\\b(\\?)?": {
-            "filterLanguageRegex": "swift",
-            "decorations": [
-                {
-                    "color": "#4EC9B0"
-                }
-            ]
-        },
-        "(?<!\\/\\/.*)\\bfunc\\s+([a-zA-Z0-9_]+)(?=\\(|\\[)": {
-            "filterLanguageRegex": "swift",
-            "decorations": [
-                {
-                    "color": "#61AFEF"
-                }
-            ]
-        }
-    },
     "cmake.configureArgs": [
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ],

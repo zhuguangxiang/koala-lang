@@ -1,0 +1,169 @@
+// RUN: koala %s --test
+
+import "koala/re"
+import "std/ut"
+
+// Expected values are what Python 3.14's re.sub / re.subn / Match.expand give.
+
+// ---------------------------------------------------------------------------
+// group references
+// ---------------------------------------------------------------------------
+
+@test
+func test_sub_groups() {
+    ut.assert_eq(re.sub("(\\w+)@(\\w+)", "\\2:\\1", "bob@home"), "home:bob")
+    ut.assert_eq(re.sub("(?P<k>a)", "[\\g<k>]", "xa"), "x[a]")
+    ut.assert_eq(re.sub("(?P<k>a)", "\\g<k>\\g<1>", "a"), "aa")
+    ut.assert_eq(re.sub("a", "<\\g<0>>", "xa"), "x<a>")
+    ut.assert_eq(re.sub("(a)", "\\g<01>", "a"), "a")
+    ut.assert_eq(re.sub("(a)(b)", "\\2\\1", "ab"), "ba")
+    ut.assert_eq(re.sub("(a)", "\\1a", "a"), "aa")
+    ut.assert_eq(re.sub("(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)", "\\10\\1", "abcdefghij"), "ja")
+    ut.assert_eq(re.sub("(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)", "\\g<10>", "abcdefghij"), "j")
+    ut.assert_eq(re.sub("(a)|(b)", "[\\2]", "a"), "[]")
+    ut.assert_eq(re.sub("\\d+", "<\\g<0>>", "a1b22c333"), "a<1>b<22>c<333>")
+}
+
+// escapes, and text that is not a reference
+
+@test
+func test_sub_escapes() {
+    ut.assert_eq(re.sub("a", "\\101", "a"), "A")
+    ut.assert_eq(re.sub("a", "<\\060>", "xa"), "x<0>")
+    ut.assert_eq(re.sub("a", "\\n\\t\\\\", "a"), "\n\t\\")
+    ut.assert_eq(re.sub("a", "\\a\\b\\f\\v\\r", "a"), "\x07\x08\x0c\x0b\r")
+    ut.assert_eq(re.sub("a", "\\&", "a"), "\\&")
+    ut.assert_eq(re.sub("a", "\\é", "a"), "\\é")
+    ut.assert_eq(re.sub("(a)", "$1", "a"), "$1")
+    ut.assert_eq(re.sub("é", "e", "aébé"), "aebe")
+    ut.assert_eq(re.sub("z", "-", "abc"), "abc")
+}
+
+// count: 0 for all, k for the first k, negative for none
+
+@test
+func test_sub_count() {
+    ut.assert_eq(re.sub("a", "x", "aaa", 0), "xxx")
+    ut.assert_eq(re.sub("a", "x", "aaa", 1), "xaa")
+    ut.assert_eq(re.sub("a", "x", "aaa", 2), "xxa")
+    ut.assert_eq(re.sub("a", "x", "aaa", 5), "xxx")
+    ut.assert_eq(re.sub("a", "x", "aaa", -1), "aaa")
+    let r = re.compile("a")
+    ut.assert_eq(r.sub("x", "aaa", count = 2), "xxa")
+    ut.assert_eq(re.sub("A", "-", "banana", flags = re.IGNORECASE), "b-n-n-")
+}
+
+@test
+func test_subn() {
+    let (a, n) = re.subn("a", "x", "aaa")
+    ut.assert_eq(a, "xxx")
+    ut.assert_eq(n, 3)
+    let (b, m) = re.subn("a", "x", "aaa", 2)
+    ut.assert_eq(b, "xxa")
+    ut.assert_eq(m, 2)
+    let (c, k) = re.subn("z", "x", "aaa")
+    ut.assert_eq(c, "aaa")
+    ut.assert_eq(k, 0)
+    let (d, j) = re.compile("a").subn("x", "aaa", -1)
+    ut.assert_eq(d, "aaa")
+    ut.assert_eq(j, 0)
+}
+
+// Empty matches are replaced as in Python 3.7+.
+
+@test
+func test_sub_empty_matches() {
+    ut.assert_eq(re.sub("a*", "-", "baaac"), "-b--c-")
+    ut.assert_eq(re.sub("", "-", "abc"), "-a-b-c-")
+    ut.assert_eq(re.sub("b*", "X", "abc"), "XaXXcX")
+    ut.assert_eq(re.sub("x*", "-", "abxd"), "-a-b--d-")
+}
+
+// ---------------------------------------------------------------------------
+// Match.expand
+// ---------------------------------------------------------------------------
+
+@test
+func test_match_expand() {
+    ut.assert_eq(re.search("(a)(b)?", "a")!.expand("[\\1][\\2]"), "[a][]")
+    ut.assert_eq(re.search("(a)", "a")!.expand("\\g<1>x"), "ax")
+}
+
+@should_panic("re: bad escape \\q at position 0")
+func test_match_expand_bad_escape() {
+    re.search("(a)", "a")!.expand("\\q")
+}
+
+// ---------------------------------------------------------------------------
+// invalid templates: checked even when nothing matches
+// ---------------------------------------------------------------------------
+
+@should_panic("re: bad escape \\q at position 0")
+func test_sub_bad_escape() {
+    re.sub("a", "\\q", "bbb")
+}
+
+@should_panic("re: bad escape \\q at position 2")
+func test_sub_bad_escape_after_group() {
+    re.sub("(a)", "\\1\\q", "b")
+}
+
+@should_panic("re: bad escape (end of pattern) at position 1")
+func test_sub_trailing_backslash() {
+    re.sub("a", "x\\", "a")
+}
+
+@should_panic("re: bad escape (end of pattern) at position 0")
+func test_sub_lone_backslash() {
+    re.sub("a", "\\", "a")
+}
+
+@should_panic("re: invalid group reference 2 at position 1")
+func test_sub_missing_group() {
+    re.sub("(a)", "\\2", "bbb")
+}
+
+@should_panic("re: invalid group reference 11 at position 1")
+func test_sub_two_digit_group() {
+    re.sub("(a)", "\\11", "a")
+}
+
+@should_panic("re: unknown group name 'x'")
+func test_sub_unknown_name() {
+    re.sub("(a)", "\\g<x>", "a")
+}
+
+@should_panic("re: bad character in group name ' 1' at position 3")
+func test_sub_bad_name() {
+    re.sub("(a)", "\\g< 1>", "a")
+}
+
+@should_panic("re: bad character in group name '1x' at position 3")
+func test_sub_bad_name_digits() {
+    re.sub("(a)", "\\g<1x>", "a")
+}
+
+@should_panic("re: missing >, unterminated name at position 3")
+func test_sub_unterminated_name() {
+    re.sub("(a)", "\\g<1", "a")
+}
+
+@should_panic("re: missing group name at position 3")
+func test_sub_empty_name() {
+    re.sub("(a)", "\\g<>", "a")
+}
+
+@should_panic("re: missing < at position 2")
+func test_sub_missing_lt() {
+    re.sub("(a)", "\\gx", "a")
+}
+
+@should_panic("re: invalid group reference 99999999999999 at position 3")
+func test_sub_huge_group() {
+    re.sub("(a)", "\\g<99999999999999>", "a")
+}
+
+@should_panic("re: octal escape value \\777 outside of range 0-0o377 at position 0")
+func test_sub_octal_range() {
+    re.sub("a", "\\777", "a")
+}
