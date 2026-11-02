@@ -1,0 +1,56 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/crypto" as cr
+import "koala/hex"
+
+@test
+func test_random_bytes_len() {
+    ut.assert_eq(cr.random_bytes(16).len(), 16)
+    ut.assert_eq(cr.random_bytes(0).len(), 0)
+    ut.assert_eq(cr.random_bytes(64).len(), 64)
+}
+
+@test
+func test_random_bytes_differs() {
+    let a = cr.random_bytes(32)
+    let b = cr.random_bytes(32)
+    ut.assert_true(hex.encode(a) != hex.encode(b))
+}
+
+@test
+func test_token_hex() {
+    // 16 bytes -> 32 hex chars
+    ut.assert_eq(cr.token_hex(16).len(), 32)
+}
+
+@test
+func test_token_urlsafe() {
+    // 32 bytes -> ceil(32 * 4 / 3) = 43 chars, no '=' padding
+    let t = cr.token_urlsafe(32)
+    ut.assert_eq(t.len(), 43)
+}
+
+@test
+func test_randbelow_bounds() {
+    var i = 0
+    while i < 100 {
+        let v = cr.randbelow(10)
+        ut.assert_true(v >= 0 && v < 10)
+        i += 1
+    }
+}
+
+@test
+func test_randbits_range() {
+    // Matches Python: randbits(k) is in [0, 2^k), top bit not forced.
+    var i = 0
+    while i < 100 {
+        let v = cr.randbits(8)
+        ut.assert_true(v >= 0 && v < 256)
+        i += 1
+    }
+}

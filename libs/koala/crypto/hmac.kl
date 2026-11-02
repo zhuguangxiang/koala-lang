@@ -1,0 +1,27 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// One-shot HMAC, the equivalent of Python's hmac.digest(key, msg, ...).
+
+/// HMAC-SHA-1 of `msg` keyed by `key`. 20 bytes. Legacy.
+@native
+pub func hmac_sha1(key bytes, msg bytes) bytes {}
+
+/// HMAC-SHA-256 of `msg` keyed by `key`. 32 bytes.
+@native
+pub func hmac_sha256(key bytes, msg bytes) bytes {}
+
+/// HMAC-SHA-512 of `msg` keyed by `key`. 64 bytes.
+@native
+pub func hmac_sha512(key bytes, msg bytes) bytes {}
+
+/// Compare two digests in constant time.
+///
+/// Returns false on length mismatch, then compares byte by byte with
+/// no early exit. Use this instead of `==` whenever one side is
+/// attacker-controlled (API signatures, password hashes). The
+/// equivalent of Python's hmac.compare_digest.
+@native
+pub func compare_digest(a bytes, b bytes) bool {}

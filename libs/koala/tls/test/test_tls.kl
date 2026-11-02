@@ -1,0 +1,91 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// TLS tests against public HTTPS endpoints. Tests that need the
+// network skip when the handshake cannot be established, so the suite
+// still passes on offline machines.
+
+import "std/ut"
+import "koala/tls"
+
+@test
+func test_tls_get_example_com() {
+    let c = tls.dial("example.com", 443)
+    if c == nil {
+        // No network or TLS handshake failed; skip rather than fail.
+        return
+    }
+
+    let req = "GET / HTTP/1.0\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+    let nw = c.write(req.to_bytes())
+    ut.assert_true(nw > 0)
+
+    let buf = bytes(4096)
+    let nr = c.read(buf)
+    ut.assert_true(nr > 0)
+
+    // The first line of an HTTP/1.x response starts with "HTTP/".
+    let head = buf[0:nr].to_str()
+    ut.assert_true(head.len() >= 5)
+    ut.assert_true(head[0:5] == "HTTP/")
+
+    c.close()
+}
+
+@test
+func test_tls_dial_bad_host() {
+    // .invalid is reserved by RFC 2606 and never resolves, so dial
+    // must fail at DNS and return nil.
+    let c = tls.dial("this-domain-should-not-exist-koala-test.invalid", 443)
+    ut.assert_true(c == nil)
+}
+
+@test
+func test_tls_dial_closed_port() {
+    // Loopback port 1 has no listener; TCP connect is refused before
+    // TLS even starts, so dial returns nil.
+    let c = tls.dial("127.0.0.1", 1)
+    ut.assert_true(c == nil)
+}
+
+@test
+func test_tls_read_timeout() {
+    let c = tls.dial("example.com", 443)
+    if c == nil { return }
+
+    // No request written: the server has nothing to say, so a read
+    // with a short timeout returns -2. The timeout is set on the
+    // underlying fd, which SSL_read inherits.
+    ut.assert_true(c.set_read_timeout(200))
+
+    let buf = bytes(1024)
+    let n = c.read(buf)
+    // -2 is TLS_TIMEOUT, the SSL_ERROR_WANT_READ path in conn.c.
+    ut.assert_eq(n, -2)
+
+    c.close()
+}
+
+@test
+func test_tls_multiple_reads() {
+    let c = tls.dial("example.com", 443)
+    if c == nil { return }
+
+    let req = "GET / HTTP/1.0\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+    ut.assert_true(c.write(req.to_bytes()) > 0)
+
+    // Read until the connection closes (n == 0 on clean shutdown) or
+    // an error/timeout stops the loop.
+    let buf = bytes(4096)
+    var total = 0
+    var n = c.read(buf)
+    while n > 0 {
+        total += n
+        n = c.read(buf)
+    }
+    ut.assert_true(total > 0)
+
+    c.close()
+}

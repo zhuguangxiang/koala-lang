@@ -12,8 +12,7 @@ extern "C" {
 static int can_swap(KlrValue *val)
 {
     TypeSpec *ts = val->ts;
-    if (ts->kind == TYPE_STR) return 0;
-    return 1;
+    return ts->kind == TYPE_INT || ts->kind == TYPE_FLOAT || ts->kind == TYPE_BFLOAT16;
 }
 
 int klr_normalize_pass(KlrFunc *fn, void *data)

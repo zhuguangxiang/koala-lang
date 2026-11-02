@@ -8,6 +8,7 @@
 #include "excobj.h"
 #include "listobj.h"
 #include "object.h"
+#include "tupleobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -343,38 +344,131 @@ static TValue _str_mul(TValue *self, TValue *args, int nargs)
     return kl_val_str_from_buf(buf);
 }
 
-static TValue _str_join(TValue *self, TValue *args, int nargs)
+/* Append one part of a join to `buf`, preceded by the separator unless it is
+ * the first part. The element type is checked by the compiler (`Iterable[str]`
+ * is the declared parameter type), so a non-`str` part is a type error at
+ * compile time and only asserted here. */
+static void _join_append(Buffer *buf, StringObject *sep, TValue *item, int64_t index)
 {
-    StringObject *s = SELF_AS(str_type);
-    ASSERT(nargs == 1);
-    Object *ob = to_obj(args);
+    Object *str = to_obj(item);
+    ASSERT(IS_STR(str));
 
-    BUF(buf);
-
-    if (IS_LIST(ob)) {
-        // FAST PATH: list
-        ListObject *list = (ListObject *)ob;
-
-        size_t i;
-
-        for (i = list->start; i < list->end - 1; i++) {
-            TValue *_v = list->array + i;
-            Object *_ob = to_obj(_v);
-            ASSERT(IS_STR(_ob));
-            buf_write_nstr(&buf, STR_BUF(_ob), STR_LEN(_ob));
-            // seperator
-            buf_write_nstr(&buf, STR_BUF(s), STR_LEN(s));
-        }
-
-        // last one
-        TValue *_v = list->array + i;
-        Object *_ob = to_obj(_v);
-        ASSERT(IS_STR(_ob));
-        buf_write_nstr(&buf, STR_BUF(_ob), STR_LEN(_ob));
-    } else {
-        NYI();
+    if (index > 0) {
+        buf_write_nstr(buf, STR_BUF(sep), STR_LEN(sep));
     }
 
+    buf_write_nstr(buf, STR_BUF(str), STR_LEN(str));
+}
+
+/* Append the parts of a `list` to `buf`, with `sep` between them. */
+static int _join_list(Buffer *buf, StringObject *sep, Object *ob)
+{
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+    int len = kl_list_len(ob);
+
+    for (int i = 0; i < len; i++) {
+        TValue *v = kl_list_get(ob, i);
+        _join_append(buf, sep, v, index++);
+    }
+
+    return 0;
+}
+
+/* Append the parts of a `tuple` to `buf`, with `sep` between them. */
+static int _join_tuple(Buffer *buf, StringObject *sep, Object *ob)
+{
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+    int len = (int)TUPLE_SIZE(ob);
+
+    for (int i = 0; i < len; i++) {
+        TValue *v = TUPLE_ITEMS(ob) + i;
+        _join_append(buf, sep, v, index++);
+    }
+
+    return 0;
+}
+
+/* Append a `Sequence[str]` to `buf`, read index by index through `len()` and
+ * `[i]`, which avoids allocating an iterator for a random-access sequence.
+ * Return 0 on success, or -1 with an exception raised if the sequence failed. */
+static int _join_seq(Buffer *buf, StringObject *sep, TValue *seq)
+{
+    TValue count = kl_call_len(seq);
+    if (is_error(&count)) return -1;
+    int64_t len = to_int64(&count);
+
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+
+    for (int64_t i = 0; i < len; i++) {
+        TValue idx = int64_value(i);
+        TValue part = kl_call_get_item(seq, &idx);
+        if (is_error(&part)) return -1;
+        _join_append(buf, sep, &part, index++);
+    }
+
+    return 0;
+}
+
+/* Append an `Iterable[str]` that is not a sequence to `buf`, drained through
+ * `iter()` and `next()`, which yields nil at the end. Return 0 on success, or
+ * -1 with an exception raised if the iterable failed. */
+static int _join_iter(Buffer *buf, StringObject *sep, TValue *seq)
+{
+    TValue it = kl_call_iter(seq, 1);
+    if (is_error(&it)) return -1;
+
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+
+    for (;;) {
+        TValue part = kl_call_next(&it);
+        if (is_error(&part)) return -1;
+        if (is_nil(&part)) break;
+        _join_append(buf, sep, &part, index++);
+    }
+
+    return 0;
+}
+
+// pub func join(seq Iterable[str]) str
+static TValue _str_join(TValue *self, TValue *args, int nargs)
+{
+    StringObject *sep = SELF_AS(str_type);
+
+    ASSERT(nargs == 1);
+    Object *seq = to_obj(args);
+
+    /* The parts are copied once into a growing buffer and once more into the
+     * fixed-size result, whose length is therefore known before it is built:
+     * no pre-pass to sum the sizes. Joining nothing yields `""`.
+     */
+    BUF(buf);
+
+    int ret = 0;
+
+    if (IS_LIST(seq)) {
+        /* Fast path: a `list` keeps its elements in a contiguous array. */
+        ret = _join_list(&buf, sep, seq);
+    } else if (IS_TUPLE(seq)) {
+        ret = _join_tuple(&buf, sep, seq);
+    } else if (kl_is_seq(seq)) {
+        ret = _join_seq(&buf, sep, args);
+    } else if (kl_is_iter(seq)) {
+        ret = _join_iter(&buf, sep, args);
+    } else {
+        UNREACHABLE();
+    }
+
+    if (ret < 0) {
+        FINI_BUF(buf);
+        return error_value;
+    }
+
+    /* The buffer is copied into the result and released here, so an empty join
+     * is the shared `""` and the caller owns nothing extra. */
     return kl_val_str_from_buf(buf);
 }
 

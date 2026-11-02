@@ -1,0 +1,15 @@
+[package]
+name = "koala/tls"
+version = "0.1.0"
+description = "TLS client over OpenSSL's libssl"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_tls"
+sources = ["native/tls_shim.c", "native/conn.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+link = ["ssl", "crypto"]

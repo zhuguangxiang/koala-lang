@@ -1,0 +1,33 @@
+// RUN: koala %s | filecheck %s
+// `lvn` numbers operators only on numbers / bool: two `a + b` on lists are two fresh
+// lists, and a user class `__add__` with side effects runs twice.
+
+class Counter {
+    var n int
+    func __init__() { n = 0 }
+    pub func __add__(rhs Counter) int {
+        n = n + 1
+        return n
+    }
+}
+
+func main() {
+    let a = [1, 2]
+    let b = [3]
+    let l1 = a + b
+    let l2 = a + b
+    l1.append(9)
+    print(l1)
+    print(l2)
+
+    let c = Counter()
+    let d = Counter()
+    let r1 = c + d
+    let r2 = c + d
+    print(r1, r2)
+}
+
+// CHECK: [1, 2, 3, 9]
+// CHECK-NEXT: [1, 2, 3]
+// CHECK-NEXT: 1 2
+// CHECK-NOT: {{.}}

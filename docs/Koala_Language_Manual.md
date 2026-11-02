@@ -554,6 +554,12 @@ A union-typed value must be narrowed before use: comparing values of different s
 (such as `1 == "abc"`) is a compile error, and the value must be narrowed to a member type before
 its type-specific operations become available.
 
+A literal narrows to the first union member that can hold it, so union-typed parameters accept
+literals directly. `bytes.__contains__` takes `uint8 | bytes`, which makes all three of
+`97 in bs`, `'a' in bs` and `b"bc" in bs` well typed — the integer and char literal become the
+`uint8` member — while `300 in bs` is rejected at compile time, because no integer member can hold
+it. The check is therefore static: bytes never truncate a value that is out of range.
+
 
 ## Strings and Characters
 

@@ -2,12 +2,17 @@
 name = "koala/crypto"
 version = "0.1.0"
 description = "Cryptographic primitives over OpenSSL's libcrypto"
-dependencies = []
+dependencies = ["koala/base64", "koala/hex"]
 natives = []
 
 [native]
 name = "koala_crypto"
-sources = ["native/crypto_shim.c"]
+sources = [
+    "native/crypto_shim.c",
+    "native/hash.c",
+    "native/hmac.c",
+    "native/random.c",
+]
 includes = [
     "/home/james/Codes/koala-lang/include/common",
     "/home/james/Codes/koala-lang/include/runtime",

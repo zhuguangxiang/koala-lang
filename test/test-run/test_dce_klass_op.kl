@@ -1,0 +1,22 @@
+// RUN: koala %s | filecheck %s
+// `dce` keeps an operator on a user class even when its result is unused: it calls
+// `__add__`, which may have side effects.
+
+class Counter {
+    var n int
+    func __init__() { n = 0 }
+    pub func __add__(rhs Counter) int {
+        n = n + 1
+        return n
+    }
+}
+
+func main() {
+    let c = Counter()
+    let d = Counter()
+    c + d
+    print(c + d)
+}
+
+// CHECK: 2
+// CHECK-NOT: {{.}}

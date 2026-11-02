@@ -15,4 +15,6 @@ packages = [
     "base64",
     "log",
     "re",
+    "tls",
+    "http",
 ]

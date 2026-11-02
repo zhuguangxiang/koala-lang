@@ -1,0 +1,30 @@
+// RUN: koala --dump=ir %s | filecheck %s
+// `lvn` canonicalizes the operand order of a commutative op only on numbers / bool;
+// on `str` / `bytes` `p + q` and `q + p` are two different values.
+
+func add_int(x int, y int) int = (x + y) * (y + x)
+
+func main() {
+    let p = "ab"
+    let q = "cd"
+    print(p + q)
+    print(q + p)
+
+    let x = b"ab"
+    let y = b"cd"
+    print(x + y)
+    print(y + x)
+
+    print(add_int(1, 2))
+}
+
+// CHECK-LABEL: --- IR Dump After lvn (Iter 1) [@add_int] ---
+// CHECK: %0 = add %x int64, %y int64
+// CHECK: %2 = mul %0 int64, %0 int64
+
+// CHECK: {{^}}abcd
+// CHECK-NEXT: cdab
+// CHECK-NEXT: b"abcd"
+// CHECK-NEXT: b"cdab"
+// CHECK-NEXT: 9
+// CHECK-NOT: {{.}}

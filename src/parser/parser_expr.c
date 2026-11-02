@@ -171,6 +171,74 @@ static void parse_under(ParserState *ps, Expr *exp)
     kl_error(exp->loc, "'_' cannot be used in this context.");
 }
 
+/* Narrow the integer literal to the integer type `ts`, updating the literal in
+ * place. Return 1 when the value fits and 0 when it does not. The overflow
+ * diagnostic is only emitted with `report` set, so that a union can first try
+ * every integer member it has. */
+static int narrow_lit_int(ParserState *ps, LitExpr *lit, TypeSpec *ts, int report)
+{
+    int width = ts->int_flt_info.width;
+    int sign = ts->int_flt_info.sign;
+    __int128 val = lit->ival_128;
+
+    // update literal integer's type as expected type
+    lit->ts = ts;
+    lit->sign = sign;
+    lit->len = width;
+
+    __uint128_t phys_max =
+        (width == 8) ? (__uint128_t)0xFFFFFFFFFFFFFFFFULL : ((__uint128_t)1 << (width * 8)) - 1;
+
+    if (lit->bit_mode) {
+        /* non-decimal literals */
+        if (val < 0) {
+            __int128 min_s = -((__int128)1 << (width * 8 - 1));
+            if (val < min_s || sign == 0) {
+                if (!report) return 0;
+                kl_error(lit->loc, "Negative hex literal %s overflows '%s%d' range", lit->orginal,
+                         (sign ? "int" : "uint"), width * 8);
+                return 0;
+            }
+        } else {
+            if ((__uint128_t)val > phys_max) {
+                if (!report) return 0;
+                kl_error(lit->loc, "Bit pattern exceeds the bit width of '%s%d'",
+                         (sign ? "int" : "uint"), width * 8);
+                return 0;
+            }
+            /* notes: allow 0xFF to be assigned to int8 as -1.
+               The pattern is read in the target's signedness: when a signed
+               target has its high bit set the value turns negative, and it is
+               stored sign-extended to 64 bits, exactly as the decimal path
+               stores -1. A 64-bit target needs no adjustment here because its
+               slot already reinterprets the pattern. */
+            if (sign && val > (__int128)(phys_max >> 1)) {
+                val -= (__int128)1 << (width * 8);
+            }
+        }
+    } else {
+        __int128 min_limit, max_limit;
+        if (sign) {
+            max_limit = (__int128)(phys_max >> 1); // 2^(n-1) - 1
+            min_limit = -(max_limit + 1);          // -2^(n-1)
+        } else {
+            min_limit = 0;
+            max_limit = (__int128)phys_max;
+        }
+
+        if (val < min_limit || val > max_limit) {
+            if (!report) return 0;
+            kl_error(lit->loc, "Value %s overflows '%s%d' range", lit->orginal,
+                     (sign ? "int" : "uint"), width * 8);
+            return 0;
+        }
+    }
+
+    lit->ival = (uint64_t)val;
+    lit->ival_128 = val;
+    return 1;
+}
+
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
@@ -190,69 +258,28 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         }
     }
 
-    // if (type_is_union(ts)) {
-    //     return;
-    // }
+    lit->ival = (uint64_t)lit->ival_128;
 
-    __int128 val = lit->ival_128;
-    lit->ival = (uint64_t)val;
+    if (type_is_union(ts)) {
+        /* A literal narrows to the first integer member of the union able to
+           hold it: `97 in bs` finds `uint8` inside `uint8 | bytes`, since a
+           union is the sanctioned way to accept heterogeneous arguments.
+           A value no integer member can hold is reported against the first
+           one, which is where the reader looks for the reason. */
+        TypeSpec *member;
+        TypeSpec *first_int = NULL;
+        vector_foreach(member, ts->union_type.args) {
+            if (!member || member->kind != TYPE_INT) continue;
+            if (!first_int) first_int = member;
+            if (narrow_lit_int(ps, lit, member, 0)) return;
+        }
+        if (first_int) narrow_lit_int(ps, lit, first_int, 1);
+        return;
+    }
 
     if (ts->kind != TYPE_INT) return;
 
-    int width = ts->int_flt_info.width;
-    int sign = ts->int_flt_info.sign;
-
-    // update literal integer's type as expected type
-    lit->ts = ts;
-    lit->sign = sign;
-    lit->len = width;
-
-    __uint128_t phys_max =
-        (width == 8) ? (__uint128_t)0xFFFFFFFFFFFFFFFFULL : ((__uint128_t)1 << (width * 8)) - 1;
-
-    if (lit->bit_mode) {
-        /* non-decimal literals */
-        if (val < 0) {
-            __int128 min_s = -((__int128)1 << (width * 8 - 1));
-            if (val < min_s || sign == 0) {
-                kl_error(lit->loc, "Negative hex literal %s overflows '%s%d' range", lit->orginal,
-                         (sign ? "int" : "uint"), width * 8);
-                return;
-            }
-        } else {
-            if ((__uint128_t)val > phys_max) {
-                kl_error(lit->loc, "Bit pattern exceeds the bit width of '%s%d'",
-                         (sign ? "int" : "uint"), width * 8);
-                return;
-            }
-            /* notes: allow 0xFF to be assigned to int8 as -1.
-               The pattern is read in the target's signedness: when a signed
-               target has its high bit set the value turns negative, and it is
-               stored sign-extended to 64 bits, exactly as the decimal path
-               stores -1. A 64-bit target needs no adjustment here because its
-               slot already reinterprets the pattern. */
-            if (sign && val > (__int128)(phys_max >> 1)) {
-                val -= (__int128)1 << (width * 8);
-                lit->ival = (uint64_t)val;
-                lit->ival_128 = val;
-            }
-        }
-    } else {
-        __int128 min_limit, max_limit;
-        if (sign) {
-            max_limit = (__int128)(phys_max >> 1); // 2^(n-1) - 1
-            min_limit = -(max_limit + 1);          // -2^(n-1)
-        } else {
-            min_limit = 0;
-            max_limit = (__int128)phys_max;
-        }
-
-        if (val < min_limit || val > max_limit) {
-            kl_error(lit->loc, "Value %s overflows '%s%d' range", lit->orginal,
-                     (sign ? "int" : "uint"), width * 8);
-            return;
-        }
-    }
+    narrow_lit_int(ps, lit, ts, 1);
 }
 
 static void parse_lit_float(ParserState *ps, LitExpr *lit)
@@ -272,9 +299,18 @@ static void parse_lit_float(ParserState *ps, LitExpr *lit)
         }
     }
 
-    // if (type_is_union(ts)) {
-    //     return;
-    // }
+    if (type_is_union(ts)) {
+        /* The same narrowing rule as integers: the first float member able to
+           hold the literal wins, so a `float64 | str` union accepts `1.5`. */
+        TypeSpec *member;
+        vector_foreach(member, ts->union_type.args) {
+            if (!member || member->kind != TYPE_FLOAT) continue;
+            lit->ts = member;
+            lit->len = member->int_flt_info.width;
+            return;
+        }
+        return;
+    }
 
     if (ts->kind != TYPE_FLOAT) return;
 
@@ -2123,6 +2159,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
 
     Symbol *lhs_ts_sym = get_symbol_by_id(sym_id);
     if (!lhs_ts_sym) {
+        // TODO: print detailed typespec
         kl_error(lhs->loc, "type symbol is not found.");
         return;
     }

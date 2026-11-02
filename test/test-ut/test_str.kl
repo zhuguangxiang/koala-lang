@@ -84,3 +84,123 @@ pub func test_str_empty_panic() {
     var iter = s.iter()
     iter.next_strict()
 }
+
+/// A `Sequence[str]` written in pure koala: `str.join` has to read it through
+/// `len()` and `[i]`, not through the list fast path.
+class StrSeq : Sequence[str] {
+    var parts list[str]
+
+    func __init__(_parts list[str]) {
+        parts = _parts
+    }
+
+    pub func iter(step = 1) Iterator[str] = parts.iter(step)
+
+    pub func len() int = parts.len()
+
+    pub func __contains__(v str) bool = v in parts
+
+    pub func __getitem__(index int) str = parts[index]
+
+    pub func index(value str, start = 0, end = -1) int = parts.index(value, start, end)
+
+    pub func count(value str, start = 0, end = -1) int = parts.count(value, start, end)
+}
+
+/// An `Iterable[str]` that is not a `Sequence`: there is no `len()` and no
+/// `[i]` to read, so `str.join` has to drain it through `iter()`/`next()`.
+class LazyParts : Iterable[str] {
+    var parts list[str]
+
+    func __init__(_parts list[str]) {
+        parts = _parts
+    }
+
+    pub func iter(step = 1) Iterator[str] = parts.iter(step)
+}
+
+/// A `Sequence[str]` whose `[i]` panics, to exercise the error path of
+/// `str.join`: the panic must surface unchanged and the join must stop.
+class BoomSeq : Sequence[str] {
+    pub func iter(step = 1) Iterator[str] = list[str]().iter(step)
+
+    pub func len() int = 1
+
+    pub func __contains__(v str) bool = false
+
+    pub func __getitem__(index int) str {
+        panic("boom")
+    }
+
+    pub func index(value str, start = 0, end = -1) int = -1
+
+    pub func count(value str, start = 0, end = -1) int = 0
+}
+
+@test
+pub func test_str_join() {
+    // The separator is the receiver; each element is copied verbatim.
+    let parts = list[str]()
+    parts.append("ab")
+    parts.append("cd")
+    parts.append("ef")
+    ut.assert_eq("".join(parts), "abcdef")
+    ut.assert_eq("-".join(parts), "ab-cd-ef")
+    ut.assert_eq("--".join(parts), "ab--cd--ef")
+
+    // One element: no separator at all.
+    ut.assert_eq(",".join(["only"]), "only")
+
+    // An empty sequence joins to an empty string, whatever the separator.
+    ut.assert_eq(",".join(list[str]()), "")
+    ut.assert_eq("".join(list[str]()), "")
+    ut.assert_eq(",".join(list[str]()).len(), 0)
+
+    // Empty elements still get their separators.
+    ut.assert_eq(",".join(["", ""]), ",")
+    ut.assert_eq(",".join(["", "a", ""]), ",a,")
+    ut.assert_eq("".join(["", ""]), "")
+
+    // The result is a fresh str: concatenating to it leaves the parts alone.
+    let joined = "".join(parts)
+    ut.assert_eq(joined + "!", "abcdef!")
+    ut.assert_eq(parts[0], "ab")
+}
+
+@test
+pub func test_str_join_iterables() {
+    let parts = list[str]()
+    parts.append("x")
+    parts.append("")
+    parts.append("yz")
+
+    // A tuple is joined through the same contiguous fast path as a list.
+    ut.assert_eq("+".join(("a", "bc")), "a+bc")
+    ut.assert_eq("".join(("a", "bc")), "abc")
+
+    // Any Sequence works, not only list and tuple: StrSeq is read through
+    // len() and [i], and both are pure koala code.
+    ut.assert_eq("/".join(StrSeq(parts)), "x//yz")
+    ut.assert_eq("".join(StrSeq(parts)), "xyz")
+    ut.assert_eq("/".join(StrSeq(list[str]())), "")
+    ut.assert_eq("/".join(StrSeq(list[str]())).len(), 0)
+
+    // A pure iterator (an Iterable with no len()/[i]) is drained by next(),
+    // which yields nil once it is exhausted.
+    ut.assert_eq("/".join(LazyParts(parts)), "x//yz")
+    ut.assert_eq("/".join(LazyParts(list[str]())), "")
+
+    // A str is itself a Sequence[str]: its characters are the parts.
+    ut.assert_eq("-".join("abc"), "a-b-c")
+    ut.assert_eq("-".join(""), "")
+
+    // Separators follow the part count, not the part sizes: empty parts in the
+    // middle of an iterable still get one separator each side.
+    ut.assert_eq("-".join(LazyParts(["", ""])), "-")
+}
+
+@should_panic("boom")
+pub func test_str_join_failing_sequence() {
+    // A part that panics aborts the join instead of being skipped silently.
+    "-".join(BoomSeq())
+}

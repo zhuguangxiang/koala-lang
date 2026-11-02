@@ -1,0 +1,90 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/http"
+from "koala/http" import Url, Request
+
+@test
+func test_get_request() {
+    let u = Url.parse("https://example.com/api")!
+    let r = Request.get(u)
+    let s = r.to_bytes().to_str()
+    ut.assert_eq(s,
+        "GET /api HTTP/1.1\r\n" +
+        "Host: example.com\r\n" +
+        "\r\n")
+}
+
+@test
+func test_get_with_explicit_port() {
+    let u = Url.parse("http://localhost:8080/")!
+    let s = Request.get(u).to_bytes().to_str()
+    ut.assert_eq(s,
+        "GET / HTTP/1.1\r\n" +
+        "Host: localhost:8080\r\n" +
+        "\r\n")
+}
+
+@test
+func test_post_request_with_body() {
+    let u = Url.parse("http://localhost:8080/submit")!
+    let s = Request.post(u, "hello".to_bytes()).to_bytes().to_str()
+    ut.assert_eq(s,
+        "POST /submit HTTP/1.1\r\n" +
+        "Host: localhost:8080\r\n" +
+        "Content-Type: application/octet-stream\r\n" +
+        "Content-Length: 5\r\n" +
+        "\r\n" +
+        "hello")
+}
+
+@test
+func test_extra_header_before_content_length() {
+    let u = Url.parse("https://example.com/")!
+    let r = Request.get(u)
+    r.header("Accept", "text/html")
+    r.header("User-Agent", "koala")
+    let s = r.to_bytes().to_str()
+    ut.assert_eq(s,
+        "GET / HTTP/1.1\r\n" +
+        "Host: example.com\r\n" +
+        "Accept: text/html\r\n" +
+        "User-Agent: koala\r\n" +
+        "\r\n")
+}
+
+@test
+func test_header_replaced_in_place() {
+    let u = Url.parse("https://example.com/")!
+    let r = Request.get(u)
+    r.header("X-A", "1")
+    r.header("X-B", "2")
+    r.header("X-A", "3")     // replaces, order kept
+    let s = r.to_bytes().to_str()
+    ut.assert_eq(s,
+        "GET / HTTP/1.1\r\n" +
+        "Host: example.com\r\n" +
+        "X-A: 3\r\n" +
+        "X-B: 2\r\n" +
+        "\r\n")
+}
+
+@test
+func test_user_content_length_wins() {
+    let u = Url.parse("https://example.com/")!
+    let r = Request.post(u, "hello".to_bytes())
+    r.header("Content-Length", "5")
+    // Content-Length set explicitly: the auto-added line must not
+    // appear, so exactly one occurrence in the output.
+    let s = r.to_bytes().to_str()
+    ut.assert_eq(s,
+        "POST / HTTP/1.1\r\n" +
+        "Host: example.com\r\n" +
+        "Content-Type: application/octet-stream\r\n" +
+        "Content-Length: 5\r\n" +
+        "\r\n" +
+        "hello")
+}

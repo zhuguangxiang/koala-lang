@@ -1,0 +1,40 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Cryptographically secure randomness, the equivalent of Python's
+// secrets module. Backed by OpenSSL's RAND_bytes, seeded from the OS
+// entropy source.
+
+import "koala/hex"
+import "koala/base64"
+
+/// `n` cryptographically secure random bytes.
+@native
+pub func random_bytes(n int) bytes {}
+
+/// A random integer in `[0, n)`, uniformly distributed. Panics when
+/// n <= 0. Rejection sampling with no modulo bias, matching Python's
+/// secrets.randbelow.
+@native
+pub func randbelow(n int) int {}
+
+/// A random integer with k bits, in `[0, 2^k)`. The top bit is not
+/// forced, so the result may have fewer than k significant bits;
+/// matches Python's secrets.randbits.
+@native
+pub func randbits(k int) int {}
+
+/// A random lowercase hex string of length 2 * `n`, for API keys and
+/// session ids. Equivalent to Python's secrets.token_hex(n).
+pub func token_hex(n int = 32) str {
+    return hex.encode(random_bytes(n))
+}
+
+/// A URL-safe random string with the trailing '=' padding removed.
+/// For `n` bytes the result is `ceil(n * 4 / 3)` characters.
+/// Equivalent to Python's secrets.token_urlsafe(n).
+pub func token_urlsafe(n int = 32) str {
+    return base64.url_safe_encode(random_bytes(n), false).to_str()
+}

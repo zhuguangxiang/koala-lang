@@ -90,7 +90,14 @@ pub class TcpConn : Conn {
         return _remote!
     }
 
-    pub func socket_type() int { return SOCKTYPE_TCP }
+    pub func socket_type() int = SOCKTYPE_TCP
+
+    /// The underlying file descriptor.
+    ///
+    /// Exposed so layers built on top of TCP (TLS, proxies) can hand
+    /// it to their own native code. The caller must not close it or
+    /// change its state directly; this TcpConn still owns the fd.
+    pub func fd() int = _fd
 
     pub func read(bs bytes) int {
         loop {

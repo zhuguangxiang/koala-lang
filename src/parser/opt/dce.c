@@ -11,6 +11,19 @@
 extern "C" {
 #endif
 
+/* Operators without side effects: on numbers / bool / str, and on optionals (`x != nil`). On any
+ * other type (bytes / list / user class) an operator is a method call, which may have side effects */
+static int is_value_insn(KlrInsn *insn)
+{
+    for (int i = 0; i < insn->num_opers; i++) {
+        TypeKind kind = insn_oper_value(insn, i)->ts->kind;
+        if (kind != TYPE_INT && kind != TYPE_FLOAT && kind != TYPE_BFLOAT16 && kind != TYPE_BOOL &&
+            kind != TYPE_STR && kind != TYPE_OPTIONAL)
+            return 0;
+    }
+    return 1;
+}
+
 static int has_side_effect(KlrInsn *insn)
 {
     switch (insn->code) {
@@ -28,6 +41,27 @@ static int has_side_effect(KlrInsn *insn)
         case OP_SEQ_SET_SLICE:
         case OP_FMT:
             return 1;
+
+        case OP_BINARY_ADD:
+        case OP_BINARY_SUB:
+        case OP_BINARY_MUL:
+        case OP_BINARY_DIV:
+        case OP_BINARY_MOD:
+        case OP_BINARY_AND:
+        case OP_BINARY_OR:
+        case OP_BINARY_XOR:
+        case OP_BINARY_SHL:
+        case OP_BINARY_SHR:
+        case OP_BINARY_EQ:
+        case OP_BINARY_NE:
+        case OP_BINARY_LT:
+        case OP_BINARY_LE:
+        case OP_BINARY_GT:
+        case OP_BINARY_GE:
+        case OP_UNARY_PLUS:
+        case OP_UNARY_NEG:
+        case OP_UNARY_NOT:
+            return !is_value_insn(insn);
 
         case OP_GLOBAL_SET: {
             KlrValue *gvar = insn_oper_value(insn, 0);

@@ -1,0 +1,125 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A parsed HTTP or HTTPS URL: scheme, host, port, and path.
+///
+/// The path keeps any query string intact; no decoding is performed.
+/// Only `http` and `https` schemes are accepted, since those are the
+/// two this package speaks.
+pub class Url {
+    let _scheme str
+    let _host str
+    let _port int
+    let _path str
+
+    pub func __init__(scheme str, host str, port int, path str) {
+        _scheme = scheme
+        _host = host
+        _port = port
+        _path = path
+    }
+
+    pub func scheme() str { return _scheme }
+    pub func host() str { return _host }
+    pub func port() int { return _port }
+    pub func path() str { return _path }
+
+    /// True when the scheme is https, i.e. the connection needs TLS.
+    pub func is_tls() bool { return _scheme == "https" }
+
+    /// The value for the Host header: "host" or "host:port" when the
+    /// port is not the scheme default.
+    pub func host_header() str {
+        if _port == _default_port(_scheme) {
+            return _host
+        }
+        return _host + ":" + str(_port)
+    }
+
+    /// Parse a URL string like "https://example.com:443/path?q=1".
+    ///
+    /// Returns nil on a missing or unsupported scheme, an empty host,
+    /// or a non-numeric port. A missing path is normalized to "/".
+    pub static func parse(s str) Url? {
+        let sep = "://"
+        let i = _find_str(s, sep)
+        if i < 0 { return nil }
+
+        let scheme = s[0:i]
+        if scheme != "http" && scheme != "https" { return nil }
+
+        let rest = s[i + 3:s.len()]
+        if rest.len() == 0 { return nil }
+
+        // Authority runs to the first "/"; everything after is path.
+        var authority = rest
+        var path = "/"
+        let slash = _find_char(rest, "/")
+        if slash >= 0 {
+            authority = rest[0:slash]
+            path = rest[slash:rest.len()]
+            if path.len() == 0 { path = "/" }
+        }
+        if authority.len() == 0 { return nil }
+
+        // host[:port]
+        let colon = _find_char(authority, ":")
+        var host = authority
+        var port = _default_port(scheme)
+        if colon >= 0 {
+            host = authority[0:colon]
+            let ps = authority[colon + 1:authority.len()]
+            if ps.len() == 0 { return nil }
+            port = _parse_int(ps)
+            if port <= 0 { return nil }
+        }
+        if host.len() == 0 { return nil }
+
+        return Url(scheme, host, port, path)
+    }
+}
+
+func _default_port(scheme str) int {
+    if scheme == "https" { return 443 }
+    return 80
+}
+
+func _find_str(s str, needle str) int {
+    let n = s.len()
+    let m = needle.len()
+    if m == 0 || n < m { return -1 }
+    var i = 0
+    while i <= n - m {
+        if s[i:i + m] == needle { return i }
+        i += 1
+    }
+    return -1
+}
+
+func _find_char(s str, c str) int {
+    let n = s.len()
+    var i = 0
+    while i < n {
+        if s[i] == c { return i }
+        i += 1
+    }
+    return -1
+}
+
+// Digit-by-digit parse. Returns -1 on any non-digit.
+func _parse_int(s str) int {
+    let b = s.to_bytes()
+    let n = b.len()
+    if n == 0 { return -1 }
+    var v = 0
+    var i = 0
+    while i < n {
+        let c = int(b[i])
+        if c < 48 || c > 57 { return -1 }
+        v = v * 10 + (c - 48)
+        i += 1
+    }
+    return v
+}

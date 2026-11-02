@@ -167,6 +167,19 @@ static int lvn_is_commutative(OpCode code)
     }
 }
 
+/* Pure value ops only on numbers / bool. On any other type (str / bytes / list / user class) an
+ * operator is a method call: its result may be a fresh object, it may have side effects, and `+`
+ * is not commutative, so such insns are not numbered */
+static int lvn_is_value(KlrInsn *insn)
+{
+    for (int i = 0; i < insn->num_opers; i++) {
+        TypeKind kind = insn_oper_value(insn, i)->ts->kind;
+        if (kind != TYPE_INT && kind != TYPE_FLOAT && kind != TYPE_BFLOAT16 && kind != TYPE_BOOL)
+            return 0;
+    }
+    return 1;
+}
+
 /* Memory-dependent pure reads: numberable, but subject to the invalidation rule */
 static int lvn_is_load_numberable(OpCode code)
 {
@@ -287,7 +300,7 @@ static void lvn_bb(LVNContext *ctx, KlrBasicBlock *bb)
             lvn_retire_local(&ctx->loads, dst);
             continue;
         }
-        if (lvn_is_numberable(insn->code)) {
+        if (lvn_is_numberable(insn->code) && lvn_is_value(insn)) {
             lvn_number_insn(ctx, insn, &ctx->exprs);
         } else if (lvn_is_load_numberable(insn->code)) {
             lvn_number_insn(ctx, insn, &ctx->loads);

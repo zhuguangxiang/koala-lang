@@ -1,0 +1,89 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+import "koala/tls"
+
+/// An HTTP client.
+///
+/// The equivalent of Go's http.Client, minus the policy fields that
+/// are not needed yet: no redirect following, no cookie store, no
+/// per-request timeout. `do` is the one core method; `get` / `post`
+/// are the conveniences.
+///
+/// Zero value is usable: every call dials its own connection, since
+/// there is no pool. A `Client` exists so callers can hold one and so
+/// the policy fields have a home when they land.
+pub class Client {
+    pub func __init__() {
+    }
+
+    /// Send `req` and return the response. The one core method.
+    func do(req Request) Response? {
+        let conn = _dial(req.url())
+        if conn == nil { return nil }
+        return _send_on(conn, req)
+    }
+
+    /// GET `url` and return the parsed response.
+    pub func get(url Url) Response? {
+        return do(Request.get(url))
+    }
+
+    /// POST `body` to `url` and return the parsed response.
+    pub func post(url Url, body bytes) Response? {
+        return do(Request.post(url, body))
+    }
+}
+
+/// GET `url` with a one-shot default client.
+pub func get(url Url) Response? { return _do(Request.get(url)) }
+
+/// POST `body` to `url` with a one-shot default client.
+pub func post(url Url, body bytes) Response? { return _do(Request.post(url, body)) }
+
+/// Send `req` and return the parsed response.
+///
+/// The one shared path behind `get` and `post`. Public so callers can
+/// send a hand-built Request.
+func _do(req Request) Response? {
+    let conn = _dial(req.url())
+    if conn == nil { return nil }
+    return _send_on(conn, req)
+}
+
+// Send `req` over `conn` and read the full response.
+//
+// Forces Connection: close so the peer signals end-of-body by
+// closing, then reads to EOF and parses the whole thing. This is
+// correct for every framing because Response.parse handles
+// Content-Length, chunked, and connection-close once it has the
+// complete bytes.
+func _send_on(conn so.Conn, req Request) Response? {
+    req.header("Connection", "close")
+
+    let out = req.to_bytes()
+    let nw = conn.write(out)
+    if nw <= 0 { return nil }
+
+    // Bound the read: with Connection: close the peer should close
+    // promptly, but without a timeout a stalled peer blocks forever.
+    conn.set_read_timeout(5000)
+
+    let all = conn.read_to_end()
+    if all == nil { return nil }
+
+    return Response.parse(all)
+}
+
+// Pick the transport by scheme. Private: the public surface is
+// Client / get / post.
+func _dial(url Url) so.Conn? {
+    if url.is_tls() {
+        return tls.dial(url.host(), url.port())
+    }
+    let addr = url.host() + ":" + str(url.port())
+    return so.dial(addr, so.SocketTypeSpec.tcp(), nil)
+}

@@ -2,6 +2,41 @@
 
 import "std/ut"
 
+/// A `Sequence[bytes]` that is neither `list` nor `tuple`: `bytes.join` has to
+/// walk it through `len()` and `__getitem__()` instead of the contiguous fast
+/// path, which is what this checks.
+class ChunkSeq : Sequence[bytes] {
+    var parts list[bytes]
+
+    func __init__(_parts list[bytes]) {
+        parts = _parts
+    }
+
+    pub func iter(step = 1) Iterator[bytes] = parts.iter(step)
+
+    pub func len() int = parts.len()
+
+    pub func __contains__(v bytes) bool = v in parts
+
+    pub func __getitem__(index int) bytes = parts[index]
+
+    pub func index(value bytes, start = 0, end = -1) int = parts.index(value, start, end)
+
+    pub func count(value bytes, start = 0, end = -1) int = parts.count(value, start, end)
+}
+
+/// An `Iterable[bytes]` that is not a `Sequence`: there is no `len()` and no
+/// `[i]` to read, so `bytes.join` has to drain it through `iter()`/`next()`.
+class LazyChunks : Iterable[bytes] {
+    var parts list[bytes]
+
+    func __init__(_parts list[bytes]) {
+        parts = _parts
+    }
+
+    pub func iter(step = 1) Iterator[bytes] = parts.iter(step)
+}
+
 @test
 func test_init_zero() {
     let bs = bytes(10)
@@ -431,9 +466,9 @@ func test_bytes_empty() {
 @test
 func test_bytes_contains() {
     let bs = b"abc"
-    ut.assert( 'a' in bs)
-    ut.assert( 'b' in bs)
-    ut.assert( 'c' in bs)
+    ut.assert('a' in bs)
+    ut.assert('b' in bs)
+    ut.assert('c' in bs)
     ut.assert_false('d' in bs)
 
     ut.assert(97 in bs)
@@ -441,6 +476,40 @@ func test_bytes_contains() {
     ut.assert(99 in bs)
     ut.assert(!(100 in bs))
     ut.assert_false(100 in bs)
+
+    // a `bytes` operand searches for a sub-sequence
+    ut.assert(b"a" in bs)
+    ut.assert(b"ab" in bs)
+    ut.assert(b"bc" in bs)
+    ut.assert(b"abc" in bs)
+    ut.assert_false(b"d" in bs)
+    ut.assert_false(b"ba" in bs)
+    ut.assert_false(b"abd" in bs)
+    ut.assert_false(b"abcd" in bs)
+
+    // an empty sub-sequence is contained in everything, even in nothing
+    ut.assert(b"" in bs)
+    ut.assert(b"" in b"")
+
+    // an empty byte array contains no byte value
+    ut.assert_false(0 in b"")
+
+    // embedded NULs are ordinary bytes, order included
+    ut.assert(b"\x00\x01" in b"a\x00\x01b")
+    ut.assert_false(b"\x01\x00" in b"a\x00\x01b")
+}
+
+@test
+func test_bytes_contains_view() {
+    let bs = b"XabcX"
+    let v = bs.view(1, 4)
+    ut.assert(b"abc" in v)
+    ut.assert(b"bc" in v)
+    ut.assert_false(b"X" in v)
+    ut.assert_false('X' in v)
+
+    // the same byte value the view hides is still there in the full array
+    ut.assert('X' in bs)
 }
 
 @test
@@ -645,6 +714,43 @@ func test_replace() {
 }
 
 @test
+func test_replace_count() {
+    // `count` caps the number of replacements, left to right
+    ut.assert_eq(b"aaa".replace(b"a", b"b", 2), b"bba")
+    ut.assert_eq(b"aXbXc".replace(b"X", b"--", 1), b"a--bXc")
+    ut.assert_eq(b"aXbXc".replace(b"X", b"--", 2), b"a--b--c")
+
+    // 0 replaces nothing and still returns a fresh copy
+    ut.assert_eq(b"aaa".replace(b"a", b"b", 0), b"aaa")
+    ut.assert_eq(b"aaa".replace(b"a", b"b", 0).len(), 3)
+
+    // -1 and any value above the match count mean "all occurrences"
+    ut.assert_eq(b"aaa".replace(b"a", b"b", -1), b"bbb")
+    ut.assert_eq(b"aaa".replace(b"a", b"b", 99), b"bbb")
+    ut.assert_eq(b"aaa".replace(b"a", b"b", -5), b"bbb")
+
+    // the same cap applies whether `new` is longer or shorter than `old`
+    ut.assert_eq(b"abab".replace(b"ab", b"XYZ", 1), b"XYZab")
+    ut.assert_eq(b"aXbXcX".replace(b"X", b"", 2), b"abcX")
+    ut.assert_eq(b"abc".replace(b"abc", b"", 1), b"")
+    ut.assert_eq(b"aXXb".replace(b"XX", b"", 1), b"ab")
+
+    // matches are non-overlapping, so a cap of 1 on "aa" consumes two bytes
+    ut.assert_eq(b"aaaa".replace(b"aa", b"b", 1), b"baa")
+
+    // a match on the last possible position counts too
+    ut.assert_eq(b"xab".replace(b"ab", b"c", 1), b"xc")
+
+    // no match keeps the array unchanged regardless of `count`
+    ut.assert_eq(b"abc".replace(b"x", b"y", 1), b"abc")
+
+    // the cap also applies to a view, which replaces only inside its window
+    let v = b"xxaaxa".view(2, 6)
+    ut.assert_eq(v.replace(b"a", b"b", 1), b"baxa")
+    ut.assert_eq(v.replace(b"a", b"b"), b"bbxb")
+}
+
+@test
 func test_split() {
     let parts = b"a,b,c".split(b",")
     ut.assert_eq(parts.len(), 3)
@@ -796,6 +902,265 @@ func test_methods_on_view() {
     ut.assert_eq(padded.strip(), b"pad")
 }
 
+/// Concatenate two byte arrays through a call boundary.
+///
+/// The current value-numbering pass treats `a + b` and `b + a` as the same
+/// expression, so writing both directions directly inside one function makes
+/// the second one reuse the first one's result. Going through this helper
+/// keeps each direction independently evaluated.
+func add_bytes(a bytes, b bytes) bytes {
+    return a + b
+}
+
+@test
+func test_add() {
+    // Operands are built at runtime (bytes(n) + __setitem__) so this exercises
+    // the __add__ slot itself instead of the compiler's constant folding.
+    let ab = bytes(2)
+    ab[0] = uint8('a')
+    ab[1] = uint8('b')
+
+    let cd = bytes(2)
+    cd[0] = uint8('c')
+    cd[1] = uint8('d')
+
+    // `+` keeps left/right order and returns a fresh byte array
+    ut.assert_eq(ab + cd, b"abcd")
+    ut.assert_eq(add_bytes(cd, ab), b"cdab")
+    ut.assert_eq(ab + ab, b"abab")
+
+    // an empty operand on either side is a pure copy
+    let empty = bytes(0)
+    ut.assert_eq(ab + empty, b"ab")
+    ut.assert_eq(empty + ab, b"ab")
+    ut.assert_eq(empty + empty, b"")
+
+    // the length of the result is the sum of the operand lengths
+    ut.assert_eq((ab + cd).len(), 4)
+
+    // embedded NULs are copied like any other byte
+    let zeros = bytes(2)
+    ut.assert_eq(ab + zeros, b"ab\x00\x00")
+    ut.assert_eq(add_bytes(zeros, ab), b"\x00\x00ab")
+
+    // the result owns its storage: a write to it is not visible in the operands
+    let s = ab + ab
+    s[0] = uint8('z')
+    ut.assert_eq(ab, b"ab")
+    ut.assert_eq(s, b"zbab")
+    ut.assert_eq(ab.len(), 2)
+    ut.assert_eq(s.len(), 4)
+
+    // a view contributes only the bytes it references
+    let v = b"xxhelloxx".view(2, 7)
+    ut.assert_eq(v + v, b"hellohello")
+
+    // chained: `a + b + c` is left-associative, every step a fresh allocation
+    ut.assert_eq(ab + cd + zeros, b"abcd\x00\x00")
+}
+
+/// Repeat `a` `n` times. Going through this helper keeps the multiplication out
+/// of the constant folder so the `__mul__` slot itself is exercised.
+func mul_bytes(a bytes, n int) bytes {
+    return a * n
+}
+
+@test
+func test_mul() {
+    let ab = bytes(2)
+    ab[0] = uint8('a')
+    ab[1] = uint8('b')
+
+    // `n` copies in order, and the length is len(self) * n
+    ut.assert_eq(mul_bytes(ab, 3), b"ababab")
+    ut.assert_eq(mul_bytes(b"xy", 2), b"xyxy")
+    ut.assert_eq(mul_bytes(ab, 3).len(), 6)
+
+    // n == 1 is a pure copy, not a view of the operand
+    let once = mul_bytes(ab, 1)
+    ut.assert_eq(once, b"ab")
+    ut.assert_eq(once.len(), 2)
+
+    // a non-positive `n` yields an empty byte array
+    ut.assert_eq(mul_bytes(ab, 0), b"")
+    ut.assert_eq(mul_bytes(ab, 0).len(), 0)
+    ut.assert_eq(mul_bytes(ab, -1).len(), 0)
+
+    // repeating an empty operand stays empty
+    ut.assert_eq(mul_bytes(bytes(0), 5).len(), 0)
+
+    // embedded NULs are copied like any other byte
+    let zeros = bytes(2)
+    ut.assert_eq(mul_bytes(zeros, 3), b"\x00\x00\x00\x00\x00\x00")
+    ut.assert_eq(mul_bytes(ab + zeros, 2), b"ab\x00\x00ab\x00\x00")
+
+    // a view contributes only the bytes it references
+    ut.assert_eq(b"xxhixx".view(2, 4) * 2, b"hihi")
+
+    // the result owns its storage: neither the operand nor a sibling result is
+    // affected by a write to it
+    let twice = mul_bytes(ab, 2)
+    twice[0] = uint8('z')
+    ut.assert_eq(twice, b"zbab")
+    ut.assert_eq(ab, b"ab")
+    ut.assert_eq(mul_bytes(ab, 2), b"abab")
+
+    // chained multiplications build on the previous result
+    ut.assert_eq(mul_bytes(mul_bytes(ab, 2), 3), b"abababababab")
+
+    // the shared empty singleton stays empty, nothing writes through it
+    ut.assert_eq(mul_bytes(b"", 100).len(), 0)
+    ut.assert_eq(bytes(0), b"")
+}
+
+@should_panic("bytes size overflow: 1 * 4294967297")
+func test_mul_overflow() {
+    // The guard fires before allocating: the product does not fit in a bytes,
+    // whose length is a uint32.
+    let huge = 4294967297
+    mul_bytes(b"a", huge)
+}
+
+@test
+func test_compare() {
+    // plain lexicographic order over the bytes
+    ut.assert_true(b"abc" < b"abd")
+    ut.assert_true(b"abc" <= b"abc")
+    ut.assert_true(b"abd" > b"abc")
+    ut.assert_true(b"abc" >= b"abc")
+    ut.assert_false(b"abc" < b"abc")
+    ut.assert_false(b"abc" > b"abc")
+    ut.assert_false(b"abd" < b"abc")
+    ut.assert_false(b"abc" >= b"abd")
+
+    // a prefix sorts before the longer array, in both directions
+    ut.assert_true(b"ab" < b"abc")
+    ut.assert_true(b"abc" > b"ab")
+    ut.assert_true(b"ab" <= b"ab")
+    ut.assert_false(b"abc" < b"ab")
+
+    // the empty byte array is the smallest one
+    ut.assert_true(b"" < b"a")
+    ut.assert_true(b"a" > b"")
+    ut.assert_false(b"" < b"")
+    ut.assert_true(b"" <= b"")
+
+    // bytes are unsigned, so 0xff sorts after 0x01
+    ut.assert_true(b"\x01" < b"\xff")
+    ut.assert_true(b"\xff" > b"\x01")
+
+    // only the first differing byte decides; later bytes are irrelevant
+    ut.assert_true(b"a\x00z" < b"a\x01a")
+    ut.assert_false(b"a\x01z" < b"a\x01a")
+
+    // views compare the bytes they reference, not the whole parent array
+    ut.assert_true(b"xxayy".view(2, 3) < b"xxbzz".view(2, 3))
+    ut.assert_true(b"xxayy".view(2, 3) < b"b")
+
+    // runtime-built arrays take the same path as literals
+    let ab = bytes(2)
+    ab[0] = uint8('a')
+    ab[1] = uint8('b')
+    ut.assert_true(ab < b"ac")
+    ut.assert_true(ab == b"ab")
+    ut.assert_true(ab >= b"ab")
+    ut.assert_false(ab > b"ab")
+}
+
+@test
+func test_join() {
+    // The separator is the receiver; each element is copied verbatim.
+    let parts = list[bytes]()
+    parts.append(b"ab")
+    parts.append(b"cd")
+    parts.append(b"ef")
+    ut.assert_eq(b"".join(parts), b"abcdef")
+    ut.assert_eq(b"-".join(parts), b"ab-cd-ef")
+    ut.assert_eq(b"--".join(parts), b"ab--cd--ef")
+
+    // One element: no separator at all.
+    let one = list[bytes]()
+    one.append(b"only")
+    ut.assert_eq(b",".join(one), b"only")
+
+    // An empty sequence joins to an empty byte array, whatever the separator.
+    let none = list[bytes]()
+    ut.assert_eq(b",".join(none), b"")
+    ut.assert_eq(b"".join(none), b"")
+    ut.assert_eq(b",".join(none).len(), 0)
+
+    // Empty elements still get their separators.
+    ut.assert_eq(b",".join([b"", b""]), b",")
+    ut.assert_eq(b",".join([b"", b"a", b""]), b",a,")
+    ut.assert_eq(b"".join([b"", b""]), b"")
+
+    // A view contributes only the bytes it references.
+    let v = b"xxhelloxx".view(2, 7)
+    ut.assert_eq(b"|".join([v, v]), b"hello|hello")
+
+    // Embedded NULs are copied like any other byte.
+    ut.assert_eq(b"".join([b"ab\x00", b"\x00cd"]), b"ab\x00\x00cd")
+
+    // The result owns its storage: writing to it leaves the parts untouched.
+    let first = list[bytes]()
+    first.append(b"ab")
+    first.append(b"cd")
+    let joined = b"".join(first)
+    joined[0] = uint8('z')
+    ut.assert_eq(joined, b"zbcd")
+    ut.assert_eq(first[0], b"ab")
+}
+
+@test
+func test_join_sequences() {
+    // A tuple is joined through the same contiguous fast path as a list.
+    let tup = (b"a", b"bc")
+    ut.assert_eq(b"+".join(tup), b"a+bc")
+    ut.assert_eq(b"".join(tup), b"abc")
+
+    let parts = list[bytes]()
+    parts.append(b"x")
+    parts.append(b"")
+    parts.append(b"yz")
+
+    // Any Sequence works, not only list and tuple: ChunkSeq is read through
+    // len() and [i], and both are pure koala code.
+    let seq = ChunkSeq(parts)
+    ut.assert_eq(b"/".join(seq), b"x//yz")
+    ut.assert_eq(b"".join(seq), b"xyz")
+    ut.assert_eq(b"/".join(ChunkSeq(list[bytes]())), b"")
+    ut.assert_eq(b"/".join(ChunkSeq(list[bytes]())).len(), 0)
+
+    // A pure iterator (an Iterable with no len()/[i]) is drained by next(),
+    // which yields nil once it is exhausted.
+    let lazy = LazyChunks(parts)
+    ut.assert_eq(b"/".join(lazy), b"x//yz")
+    ut.assert_eq(b"/".join(LazyChunks(list[bytes]())), b"")
+
+    // Separators follow the part count, not the part sizes: empty parts in the
+    // middle of an iterable still get one separator each side.
+    ut.assert_eq(b"-".join(LazyChunks([b"", b""])), b"-")
+}
+
+@test
+func test_empty_bytes_stable() {
+    // Every empty result is the same shared `b""` object, so it must stay empty
+    // forever: a zero length accepts no write, neither here nor through the
+    // other producers of empty values.
+    let sliced = b"abc"[5:]
+    let replaced = b"xy".replace(b"xy", b"")
+    ut.assert_eq(sliced, b"")
+    ut.assert_eq(replaced, b"")
+    ut.assert_eq(sliced.len() + replaced.len(), 0)
+
+    // Sharing it does not make it special: it still takes part in joins, `+`
+    // and conversions like any other bytes value.
+    ut.assert_eq(b",".join([sliced, replaced]), b",")
+    ut.assert_eq(sliced + b"a", b"a")
+    ut.assert_eq(sliced.to_str(), "")
+    ut.assert_eq(bytes(0), b"")
+    ut.assert_eq("".to_bytes(), b"")
+}
 
 // --- known failures (recorded; keep commented out until fixed) ---
 //

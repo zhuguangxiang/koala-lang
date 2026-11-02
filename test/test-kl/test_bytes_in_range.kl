@@ -1,0 +1,12 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+//
+// `in` on a bytes container takes a uint8 byte value or a bytes sub-sequence.
+// The byte value is a uint8, so a literal outside 0..255 is rejected while
+// compiling instead of being truncated to a byte at run time.
+
+func main() {
+    let bs = b"abc"
+
+    // CHECK: Value 300 overflows 'uint8' range
+    print(300 in bs)
+}

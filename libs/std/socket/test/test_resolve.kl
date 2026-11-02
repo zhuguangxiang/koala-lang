@@ -107,10 +107,10 @@ func test_resolve_empty() {
 // }
 
 @test
-func test_resolve_baidu() {
-    let r = so.resolve("baidu.com")
+func test_resolve_example() {
+    let r = so.resolve("example.com")
     let addrs = r.addrs()
-    // print(addrs)
+    print(addrs)
     ut.assert_eq(r.status(), so.DNS_OK)
     ut.assert_true(len(addrs) > 0)
 

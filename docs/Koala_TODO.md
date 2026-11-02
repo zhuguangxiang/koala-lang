@@ -21,11 +21,26 @@
 > `re`: what is not aligned (§41, to do / to discuss), indexing an instance of a user class aborts the
 > compiler (§42, to fix), `<<=` / `>>=` abort the compiler (§43, to fix), an empty list of tuples
 > cannot be created (§44, to fix), string literals have no `\u` / `\U` escapes and keep unknown
-> escapes silently (§45, to discuss), language issues met while writing `koala/re` (§46).
+> escapes silently (§45, to discuss), language issues met while writing `koala/re` (§46),
+> operators on non-number types treated as pure number ops by `normalize` / `lvn` / `dce` (§47,
+> fixed; the `lsra` stop-gap for an unused `num.*` is to discuss, unary operators on a user class
+> are still rejected, to implement),
+> `bytes` / `str` API surface and union literal narrowing: leftovers after the `in` refactor
+> (§48, to decide / to implement), side effects of operators and an explicit `pure` declaration
+> (§49, to design).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-30（新增 §34：泛型 bound 实参未转接口——泛型自由函数与泛型类 `__init__`，
+> 更新日期：2026-11-02 (added §49: operators are not assumed side-effect free; direction is a
+> compiler-checked `pure` modifier with "removable" / "mergeable" levels, to design)；2026-11-02 (§47 fixed: a type whitelist in `normalize` / `lvn` / `dce`, and `lsra` gives a kept
+> `OP_NUM_*` a register, 4 regression tests; §47.3 the `lsra` stop-gap is to discuss, §47.5 unary operators on a user class are left to implement)；2026-11-02（新增 §47：`+` 在 `bytes` / `str` 上被 `normalize` / `lvn` 当作可交换运算——
+> `b"ab" + q` 被交换成 `q + b"ab"`，且同一函数内 `a + b` 与 `b + a` 被值编号合并成同一个值；
+> 两处根因已定位到 `normalize.c:can_swap()` 与 `lvn.c:lvn_is_commutative()`，用例与修法均已记录，未修；
+> 起因是把 `bytes._concat` 换成 `+`，见 `libs/koala/http/request.kl`；同日新增 §48：`bytes` / `str`
+> 收尾清单——`in` 支持 `uint8 | bytes` 已落地（`contains_bytes` 不再需要），余下 8 项 API 待定、
+> 6 项 union 字面量收窄缺口、3 项待修（含实测：`var` / 字段不能写 union 类型、trait 方法签名不做
+> 一致性校验、`str * -1` 断言崩溃），以及 `kl-fmt` 重排注释内代码、`dist/*.klc` 提交策略与提交切分);
+> 2026-10-30（新增 §34：泛型 bound 实参未转接口——泛型自由函数与泛型类 `__init__`，
 > 用例留档为 `test/test-run/test_intf_generic_bounds.kl.disabled`；同批已修的接口槽位三 bug
 > 见 §34.4，回归测试为 `test/test-run/test_intf_{ext_inherit,local_inherit,optional}.kl`）; 2026-10-28 (§30 closed: `unreachable()` is terminal; no `unreachable` after `panic()`, to keep code size); 2026-10-27 (added §30: let-else is implemented); 2026-10-26（新增 §29：`is` / `as` 语义评估与遗留项）；2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§28：os.run 子进程管道大 payload 先写后读死锁、Process/Raw* 无 finalizer 致 fd 泄漏与 zombie，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
 
@@ -2486,3 +2501,441 @@ Also for `koala/re`: its C macros keep the `RE_*` prefix (`RE_FLAG_*`, `RE_ERR_*
 `RE_MATCH`) while the functions are `kl_re_*`. glibc's `<regex.h>` defines other `RE_*` macros
 (`RE_ICASE`, `RE_DUP_MAX`, `RE_SYNTAX_*`); none clashes today, but a source file that includes
 both headers could. Renaming them to `KL_RE_*` was left for later on purpose.
+
+## 47. `+` on `bytes` / `str` is treated as commutative: silent wrong values (2026-11-02, fixed; 47.3 to discuss, 47.5 to implement)
+
+Found while adding `bytes.__add__` (so that `a + b` works on `bytes`) and replacing the hand-written
+`_concat` helper in `libs/koala/http/request.kl`. Both bugs below are **silent** — no diagnostic, no
+crash, just the wrong value — and both hit `str` as well as `bytes`.
+
+1. **`normalize` swaps the operands when the left one is a constant** (expected `b"abcd"`, actual
+   `b"cdab"`):
+
+   ```kl
+   func main() {
+       let q = b"cd"
+       print(b"ab" + q)
+   }
+   ```
+
+   `--dump=no-opt-ir` is correct (`%0 = add b"ab" std/builtin.bytes, %q`); `--dump=ir` shows
+   `normalize (Iter 1)` rewriting it to `%0 = add %q, b"ab"`. `src/parser/opt/normalize.c:12`
+   `can_swap()` only returns 0 for `TYPE_STR`, so `bytes` — and any class with its own `__add__` —
+   falls through to the swap done by `normalize.c:27`.
+
+2. **`lvn` numbers `a + b` and `b + a` as one value** (expected `abcd` then `cdab`, actual `abcd`
+   twice):
+
+   ```kl
+   func main() {
+       let p = "ab"
+       let q = "cd"
+       print(p + q)
+       print(q + p)
+   }
+   ```
+
+   `src/parser/opt/lvn.c:154` `lvn_is_commutative()` includes `OP_BINARY_ADD`, and `lvn.c:208`
+   canonicalizes the operand order of the hash key without looking at the operand types, so the
+   second `add` is RAUW'd to the first one. The same happens with `bytes` operands, with two
+   constants in either order (`b"ab" + b"cd"` then `b"cd" + b"ab"` prints `b"abcd"` twice), and
+   inside a loop.
+
+Both are intra-function only: routing the `+` through a call boundary returns the right answers,
+which is how the new tests in `test/test-ut/test_bytes.kl` work around it (`add_bytes(a, b)`, with
+the reason written in a comment there). `-`, `/`, `%`, `<<`, `>>` are not affected (`a - b` /
+`b - a` and `a / b` / `b / a` print their four distinct values); `koala/http/request.kl` is safe
+because its left operand is a call (`head.to_bytes()`), not a constant.
+
+### 47.1 Root cause
+
+`src/parser/irgen.c` lowers every binary / unary operator to the same `OP_BINARY_*` / `OP_UNARY_*`
+insn whatever the operand type, but the passes treated these insns as pure number ops. That only
+holds on numbers. On `str` / `bytes` / `list` `+` is concatenation (not commutative, and a `list`
+result is a fresh mutable object), and on a user class an operator is a method call (`__add__`)
+that may have side effects. Besides the two cases above, the same assumption gave:
+
+3. **`lvn` merges two same-order `a + b`**: on lists `l1 = a + b; l2 = a + b; l1.append(9)` printed
+   `[1, 2, 3, 9]` for both; on a user class whose `__add__` bumps a counter, `c + d` twice printed
+   `1 1` instead of `1 2`.
+4. **`dce` deletes an unused operator on a user class**: `c + d` as a statement, then
+   `print(c + d)`, printed `1` instead of `2` — the first `__add__` call was dropped.
+
+The key `(op, lhs, rhs)` of `lvn` is enough for pure ops; what was missing is the admission check,
+so every fix below is a per-pass type whitelist.
+
+### 47.2 Fix (2026-11-02)
+
+- `normalize.c` `can_swap()`: whitelist `TYPE_INT` / `TYPE_FLOAT` / `TYPE_BFLOAT16` instead of
+  excluding only `TYPE_STR`.
+- `lvn.c` `lvn_is_value_insn()`: an `OP_BINARY_*` / `OP_UNARY_*` insn is numbered only when every
+  operand is int / float / bfloat16 / bool. `str` is left out on purpose, so the commutative key
+  reordering needs no extra type check.
+- `dce.c` `is_value_insn()`: in `has_side_effect()`, an operator is removable only on int / float /
+  bfloat16 / bool / str / optional (`x != nil`); on bytes / list / user class it is kept.
+- `backend/lsra.c` `unused_needs_reg()`: a kept `OP_NUM_*` with an unused result used to get no
+  interval and was emitted as `num.add r255, ...` (VM assertion `rd < max_regs`); the 16
+  `OP_NUM_*` codes now get a one-position interval. Calls still get none (`vreg -1` = no return
+  register, `call flg=0, #1`). This one is a stop-gap, see 47.3.
+
+Cost: `str` operators are no longer value-numbered, and unused operators on bytes / list are no
+longer deleted. Regression tests: `test/test-run/test_normalize_add_order.kl`,
+`test_lvn_add_order.kl`, `test_lvn_add_object.kl`, `test_dce_klass_op.kl`. The `add_bytes(a, b)`
+work-around in `test/test-ut/test_bytes.kl` can now go back to a plain `+`.
+
+### 47.3 `lsra` register for an unused `OP_NUM_*` (stop-gap, to discuss)
+
+The `lsra.c` `unused_needs_reg()` change in 47.2 works but is not a good design; revisit later.
+
+Why a register is needed at all: every `OP_NUM_*` handler in `include/runtime/vm_ops.h` decodes `rd`,
+checks it with `CHECK_REG_ID(rd)` (`src/runtime/eval.c:110`, `ASSERT((id) < max_regs)`) and writes
+`regs[rd] = ret` unconditionally. An unallocated value has `vreg -1`, encoded as `rd = 255`:
+
+- debug build: the assertion fails (`_eval_frame: Assertion '(rd) < max_regs' failed`);
+- release build: `ASSERT` is a no-op under `NDEBUG` (`include/common/common.h:84`), so the VM writes
+  `regs[255]` past the frame's registers — silent memory corruption.
+
+`OP_CALL` does not have this problem because it has a real "no result" encoding: cgen prints
+`call flg=0, #1` for `vreg -1`, and the VM only writes when `rd != 0xFFF`.
+
+Why the stop-gap is not satisfying:
+
+- the whitelist of 16 opcodes has to follow every opcode that a user-class operator may lower to
+  (it misses the future object unary op of 47.5, for instance);
+- it spends a register (and maybe one more `nlocals`) on a value nobody reads;
+- the rule "a value with no use gets no register" now has an exception that lives in `lsra`, far
+  from the `dce` decision that caused it.
+
+Options to discuss:
+
+1. a "discard result" encoding for `num.*`, like `call` (e.g. `rd == 255` skips the write): cgen
+   plus the 16 `OP_NUM_*` handlers, and one more test on a hot path;
+2. lower an operator on a user class to a real method call in `isel` (or `irgen`), so the unused
+   case reuses the no-result `call` form; this also matches the "operator is a method call" view
+   of 47.1;
+3. keep the stop-gap but derive it from the type, not the opcode.
+
+Option 2 is the one §49 leans to: it is also what lets a `pure` declaration on `__add__` decide
+whether the call may be deleted or merged.
+
+### 47.4 Note on `dce` vs `lvn` whitelists
+
+They differ on purpose: `dce` only needs "no side effect", so `str` / optional are removable; `lvn`
+also needs "same inputs give the same, interchangeable value", which rules out `str` (`+` is not
+commutative) and any object result.
+
+### 47.5 Unary operators on a user class (to implement)
+
+`__neg__` / `__bitnot__` / `__not__` are in the dunder table of `parser_expr.c` (`-c`, `~c`, `!c`),
+but the checker rejects them on a user class:
+
+```kl
+class Counter {
+    var n int
+    func __init__() { n = 0 }
+    pub func __neg__() int {
+        n = n + 10
+        return n
+    }
+}
+
+func main() {
+    let c = Counter()
+    -c
+    print(-c)    // expected 20
+}
+```
+
+reports `unary '-' operator requires int or float type.` (`parser_expr.c`, unary check; it carries
+a `// TODO: check _neg__ exists or not`). `+`, `~`, `!` have the same int / float / bool-only checks.
+When this is implemented, the unary path must match the binary one end to end:
+
+- `irgen.c` lowers `-x` to `OP_UNARY_NEG`, `~x` to `OP_UNARY_NOT`, `!x` to `OP_LNOT`, and `+x` to
+  nothing at all (no-op, there is no `__pos__`).
+- `backend/isel.c`: `isel_lower_unary_neg()` hits `UNREACHABLE()` on any type other than int / float,
+  and `isel_lower_unary_bit_not()` asserts int; both need an object path (an `OP_NUM_NEG`-like insn
+  or a call).
+- `lvn` / `dce`: `OP_UNARY_NEG` / `OP_UNARY_NOT` already go through `lvn_is_value_insn()` /
+  `is_value_insn()`, so a user-class operand is neither numbered nor deleted. `OP_LNOT` does not:
+  `dce` `has_side_effect()` returns 0 for it, so an unused `!c` on a user class would be deleted —
+  it needs the same whitelist case.
+- `lsra.c` `unused_needs_reg()`: add the object unary code, or a kept unused `-c` writes `r255`.
+- Test: the case above in `test_dce_klass_op.kl` (unused `-c`, then `print(-c)` prints `20`).
+
+---
+
+## 48. `bytes` / `str` leftovers after the `in` refactor (2026-11-02, to decide / to implement)
+
+**What landed (not a todo).** `bytes.__contains__` now takes `uint8 | bytes`, and `in` reads a
+`bytes` operand as a sub-sequence search (`src/objects/bytesobj.c:295`), so a separate
+`contains_bytes` method is not needed. To make that union parameter usable, an integer or float
+literal now narrows to the **first union member that can hold it** (`narrow_lit_int`,
+`src/parser/parser_expr.c:178`); a literal no integer member can hold is reported once, against the
+first integer member (`300 in bs` → `Value 300 overflows 'uint8' range`). The rule is documented in
+`docs/Koala_Language_Manual.md:557` (Union Types). Tests: `test/test-ut/test_bytes.kl`
+(`test_bytes_contains`, `test_bytes_contains_view`) and `test/test-kl/test_bytes_in_range.kl`.
+
+### 48.1 `bytes` API surface: to decide
+
+1. **Splitting on whitespace.** `split(sep bytes, maxsplit = -1)` / `rsplit` require a separator,
+   so `b"a b  c".split()` does not exist. Two shapes: a separate
+   `split_whitespace(maxsplit = -1)` (no signature change, no optional-argument work) or
+   `split(sep bytes? = nil, maxsplit = -1)` (closer to Python, needs a `nil` default and a `nil`
+   branch in C). `str.split` has the same gap — its default is `sep = " "`, so `"a  b".split()`
+   yields empty parts instead of splitting on a whitespace run.
+
+2. **`strip` / `lstrip` / `rstrip` accept no character set** — only the fixed whitespace set in
+   `bytes_is_space` (`src/objects/bytesobj.c:809`: space, `\t`, `\n`, `\r`). Two things to decide:
+   add `chars bytes? = nil`, and whether the whitespace set should match Python's `\t\n\v\f\r `
+   (we currently miss `\v` 0x0B and `\f` 0x0C, so `b"a\x0c".strip()` keeps the form feed).
+
+3. **`splitlines()` has no `keepends`.** The Python default matches ours; `keepends = true` is
+   missing.
+
+4. **`is_ascii()` is missing on both `bytes` and `str`.** `str` has `isalpha` / `isdigit` /
+   `isalnum` / `isspace` / `islower` / `isupper`; `bytes` has none of them (see item 7).
+
+5. **`count_bytes(sub, start, end)` is missing.** `count(value uint8, ...)` counts single bytes
+   only, while `index_bytes` / `rindex_bytes` already search sub-sequences, so a sub-sequence count
+   has no equivalent: `b"aaaa".count_bytes(b"aa")` (Python: 2, non-overlapping) is rejected with
+   `'count_bytes' is not found in class 'bytes'` (verified 2026-11-02).
+
+6. **`__eq__` / `__ne__` / `hash` are implemented and registered in C but not declared in
+   `bytes.kl`** (`src/objects/bytesobj.c:991-997`), and the class header is
+   `bytes : Sequence[uint8]` where `str` is `str : Sequence & Comparable & ToString`. Nothing breaks
+   today — trait bounds and method signatures are not checked (48.2 item 6), so `b"a" == b"a"`,
+   `b"a" < b"b"`, `hashset[bytes]`, `dict[bytes, int]` and even a `[T : Comparable]` generic called
+   with two `bytes` all run correctly (verified 2026-11-02). The question is whether the header
+   should tell the truth: declare the three natives plus `& Comparable & Hashable` (and use
+   `Comparable` instead of the hand-written `__lt__`…`__ge__` block), or record that `bytes` exposes
+   equality and ordering only through natives, without claiming the traits. Either way it is a
+   documentation/consistency decision until conformance checking exists.
+
+7. **`str` → `bytes` parity.** Comparing the two APIs today (`pub func` names in `bytes.kl` vs
+   `str.kl`):
+
+   | | names |
+   | --- | --- |
+   | `str` has, `bytes` lacks | `capitalize`, `center`, `ljust`, `rjust`, `zfill`, `lower`, `upper`, `isalpha`, `isdigit`, `isalnum`, `isspace`, `islower`, `isupper`, `remove_prefix`, `remove_suffix`, `substr`, `to_bytes`, `to_int`, `to_int_or`, `to_float`, `to_float_or`, and `__eq__` / `__ne__` (item 6) |
+   | `bytes` has, `str` lacks (by design) | `copy`, `copy_str`, `fill`, `zero`, `__setitem__`, `__setslice__`, `index_bytes`, `rindex_bytes` |
+
+   Both declare `__add__`, `__contains__`, `__getitem__`, `__getslice__`, `__lt__`…`__ge__`,
+   `__init__`, `__mul__`, `count`, `empty`, `ends_with`, `fmt`, `has_next`, `index`, `iter`, `join`,
+   `len`, `lstrip`, `next`, `next_strict`, `replace`, `reversed`, `rindex`, `rsplit`, `rstrip`,
+   `split`, `splitlines`, `starts_with`, `strip`, `to_str`, `view`.
+
+   Which of these belong on `bytes` at all? A byte array is a container, so `substr` /
+   `to_int` / `to_float` could stay off the API with `to_str()` as the bridge (`str.to_bytes` already
+   covers the other direction); the plausible additions are the byte-level case fold
+   (`lower` / `upper`) and the `is*` predicates, each needing an ASCII-only definition written down
+   (a byte array has no encoding).
+
+8. **Deliberately absent — record the decision so it is not re-litigated:** `hex()` / `fromhex()`
+   (both `koala/crypto/random.token_hex` and `koala/json/string.hex_byte` roll their own today),
+   `translate` / `maketrans`, `partition` / `rpartition`, `expandtabs`, printf-style `%` formatting,
+   and `decode(encoding)` (only UTF-8 via `to_str()`, which panics on invalid input — a
+   non-panicking `to_str_or` / `validate` is a separate gap).
+
+### 48.2 Union types and literal narrowing: remaining gaps
+
+1. **A union type is only accepted in a parameter position.** A `var` declaration or a class field
+   fails to parse (verified 2026-11-02):
+
+   ```kl
+   var v int | str = 0          // error: expected ';' or '='
+   var v (int | str) = 0        // error: expected a type or '='
+   class C { var v int | str }  // error: expected ';' or '=', then: expected field-decl or method-decl
+   ```
+
+   `docs/Koala_Language_Manual.md` shows exactly the `var v int | str = 0` example under Union
+   Types, so the manual is ahead of the parser: either teach the var-decl / field type-spec path to
+   take a union, or drop the example from the manual.
+
+2. **Narrowing is literal-only, by design.** `let i = 97; i in bs` is a compile error (an `int`
+   variable is not implicitly narrowed, matching the "no implicit narrowing" rule); `uint8(i) in bs`
+   works and truncates a runtime value, while a constant out of range is rejected
+   (`uint8(300)` → `constant integer overflow in cast`). `(i as uint8) in bs` fails with
+   `src of 'as' operator is not a valid type`, which looks like a separate `as` defect worth its own
+   report.
+
+3. **Float literal narrowing does not range-check.** The first float member is taken as is
+   (`src/parser/parser_expr.c:302-312`), so a `float16` member would accept `1e40` unchanged. No
+   such member exists in `std` today, so nothing breaks yet.
+
+4. **Several integer members: first-that-fits, no ambiguity diagnostic.** With
+   `func f(v uint8 | int)`, `f(7)` receives a `uint8` and `f(300)` an `int` (verified). The rule is
+   documented in the manual; add a warning only if the silent choice proves to confuse.
+
+5. **Only `TYPE_INT` / `TYPE_FLOAT` members participate.** Enums, aliases and `bool` members never
+   take a literal, so a union such as `uint8 | bool` keeps `true` on the `bool` member (correct) but
+   would never narrow an integer literal to an enum member.
+
+6. **Trait conformance does not check method signatures, and generic bounds are not checked
+   either.** A class declared as `Foo : Sequence[uint8]` with `__contains__(item str) bool` compiles
+   and runs (verified: `"x" in f` prints `false`), while
+   `libs/std/builtin/collection.kl:55` declares `func __contains__(item T) bool`; likewise
+   `func maxi[T : Comparable](a T, b T)` accepts two `bytes` although `bytes` does not declare
+   `Comparable` (verified). So the widened `bytes.__contains__(uint8 | bytes)` is accepted by
+   accident rather than by a contravariance rule. If conformance checking is ever tightened,
+   parameter widening (contravariant, sound) must become an explicit rule, otherwise `bytes` stops
+   conforming to `Sequence[uint8]`. The same hole applies to every trait method and bound in `std`.
+
+### 48.3 To fix in `str` / `bytes`
+
+1. **`str.__mul__` asserts on a non-positive count.** `"ab" * -1` aborts the process
+   (`strobj.c:336: Assertion 'n >= 0' failed`), while its own doc says "Return an empty string if
+   `n` is not positive" (`libs/std/builtin/str.kl:161`) and `bytes.__mul__` already returns the
+   shared empty array for `n <= 0`. Fix: drop the `ASSERT` and return the empty string, mirroring
+   `_bytes_mul`.
+
+2. **The whitespace set is narrower than Python's** (see 48.1 item 2): `\v` and `\f` are not
+   stripped, and the doc comments on `strip` / `lstrip` / `rstrip` enumerate the same four
+   characters, so doc and C agree with each other but not with Python.
+
+3. **`test/test-ut/test_bytes.kl` formatting leftovers.** Three stray double blank lines (around
+   lines 387, 635 and 782) that `kl-fmt` would delete, plus the comment block at 1180-1196 (see
+   48.4 item 1).
+
+### 48.4 Tooling, artifacts and commit scope
+
+1. **`kl-fmt` rewrites code inside comments.** `test/test-ut/test_bytes.kl:1180-1196` keeps verbatim
+   compiler diagnostics as documentation
+   (`// print(uint8(300)) // error: constant integer overflow in cast: cannot cast from int64 to uint8`);
+   `python3 tools/kl-fmt.py --diff` wants to wrap those lines at 100 columns and re-indent them.
+   Until this is settled the file can never be `--check`-clean. Decide: skip `//`-only blocks, add a
+   `// kl-fmt: off` / `on` directive, or accept the reflow.
+
+2. **`dist/std/*.klc` are build outputs that the compiler loads.** Every `.kl` edit needs
+   `libs/std/build-and-test.sh` (or `wombat`) re-run and the regenerated
+   `libs/std/dist/std/builtin.klc` committed together with the source — otherwise a fresh checkout
+   compiles against stale bytecode. To decide: always include the regenerated `.klc` in the commit
+   (recommended, since the compiler reads bytecode), and whether a CI check should verify that the
+   committed `.klc` matches a fresh build.
+
+3. **`libs/std/dist/std/fs.klc` is rewritten by every build although its source is untouched** —
+   same size, different bytes; it had to be `git checkout`-ed back several times on 2026-11-02. Find
+   the nondeterminism (timestamp / hash-map iteration order in the serializer?) or ignore the file
+   in git.
+
+4. **Commit split for the current working tree** (nothing is committed yet). Suggested:
+   (a) the `bytes` / `str` operator and method batch — `__mul__`, `__lt__`…`__ge__`, `join`,
+   `replace(count)`, the empty-`bytes` singleton, `test_empty_bytes_stable`, and the `str.join`
+   refactor (`strobj.c`, `str.kl`, `test_str.kl`);
+   (b) `bytes.__contains__(uint8 | bytes)` + union literal narrowing (`parser_expr.c`) + manual +
+   tests;
+   (c) `libs/koala/http/response.kl` (+ its `.klc`).
+   To decide as well: whether the staged binaries under `libs/koala/dist/**/*.so`
+   (`libkoala_crypto.so`, `libkoala_tls.so`) belong in the repository at all.
+
+### 48.5 Cross-references
+
+- Mutable `bytes` literals sharing the const pool: §37 "Open" item 1 (`docs/Koala_TODO.md:2072`) —
+  still open, unchanged by this refactor.
+- `+` on `bytes` / `str` treated as commutative by `normalize` / `lvn`: §47 — fixed on 2026-11-02
+  (47.2); the `lsra` stop-gap (47.3) is still to discuss.
+- Single-type-parameter generic **classes** whose type parameter has a trait bound crash the
+  compiler: §16.1b (`Heap[T : Comparable]`, `SortedSet[T : Comparable]`, …). Free generic functions
+  are unaffected (`maxi[T : Comparable]` works), so this does not block 48.1 item 6; it does block
+  the `sortedset` / `heapq` family that would use a `Comparable` `bytes`.
+- `is` / `as` operator leftovers: §29 — see 48.2 item 2 for the `i as uint8` failure.
+
+---
+
+## 49. Side effects of operators and an explicit `pure` declaration (2026-11-02, to design)
+
+### 49.1 Where it comes from
+
+While fixing §47, `dce` deleted an unused `c + d` on a user class whose `__add__` bumps a counter, and
+`lvn` merged two `c + d` (and two `a + b` on lists, which must be two fresh lists). One way out was
+to declare that operators must be side-effect free, so that both rewrites become legal. **Not
+adopted**: no mainstream language makes that rule, and side-effecting operators are an ordinary
+idiom (C++ `std::cout << x`, pipe / query-builder DSLs, counting or logging operators). Koala has
+`__shl__`, so `log << msg` is just as likely; under such a rule an unused `log << msg` would vanish
+without any diagnostic — the same kind of silent wrong value as §47.
+
+### 49.2 How other languages declare purity
+
+Written from memory, not checked online; details may be off.
+
+Operator overloads are plain calls in Python (`type(a).__add__(a, b)`, always called), C++
+(`operator+`), Rust (`Add::add`), Swift / Kotlin / C# / Scala (`operator` functions): the compiler
+may drop one only under the as-if rule, i.e. after inlining proves nothing observable happens. The
+one standard exception that skips user code with side effects is C++ copy elision. Haskell is pure
+as a whole language, not as an operator special case.
+
+Explicit declarations, by who guarantees them:
+
+| Kind | Language | Syntax | Meaning |
+|---|---|---|---|
+| compiler-checked | D | `pure int f(int x)` | no mutable globals, only calls `pure` functions, no IO; "weakly pure" may write through pointer params, only "strongly pure" (immutable params) is optimized; `debug` blocks are an escape hatch |
+| | Nim | `func f(x: int): int` = `proc` + `{.noSideEffect.}` | checked by the effect system |
+| | Fortran | `PURE FUNCTION`, `ELEMENTAL` | no IO, no global writes, function args `INTENT(IN)` |
+| | Haskell / Koka | default pure; effects in the type (`IO a`, Koka `console` / `exn`) | type system |
+| programmer-asserted (trusted, wrong = UB) | GCC / Clang | `__attribute__((pure))` / `__attribute__((const))` | `pure`: no side effects, may read global memory; `const`: depends only on args |
+| | C23 | `[[reproducible]]` / `[[unsequenced]]` | roughly `pure` / `const` |
+| | Julia | `Base.@assume_effects :effect_free :consistent :nothrow :terminates_globally ...` | finest split: `:consistent` means same result by `===` identity |
+| | Swift (stdlib only) | `@_effects(readnone / readonly)` | internal, underscored |
+| tooling only | C# | `[Pure]` | docs / analyzers, not used by the compiler |
+| | Java | `@Contract(pure = true)`, `@CheckReturnValue` | IDE warnings |
+| | Rust / Kotlin | `#[must_use]` / `@CheckResult` | the opposite tack: warn on an unused result instead of deleting the call (Rust dropped a `pure` keyword before 1.0) |
+
+### 49.3 What matters for Koala
+
+1. **"Removable" and "mergeable" need different properties.** `dce` deleting an unused call needs
+   no side effects, no panic, and termination (deleting an `__add__` that panics on mismatched sizes
+   swallows the error). `lvn` / CSE merging two calls also needs the results to be interchangeable —
+   Julia's `:consistent`, compared by identity — which is exactly why two `a + b` on lists (two
+   fresh mutable lists) cannot be merged. GCC's `pure` only covers the first part; in C it hardly
+   matters because results are mostly scalars.
+2. **Safe by default.** An undeclared user function or operator is an ordinary call. Built-in types
+   are known to the compiler, as the §47.2 whitelists do today.
+3. **Checked vs trusted.** D / Nim style needs a transitive check ("a `pure` function only calls
+   `pure` functions"), so the native functions of the standard library (`str.__add__`, ...) must be
+   annotated first. GCC / Julia style only reads a flag, but a wrong declaration is again a silent
+   wrong value.
+
+### 49.4 Direction (leaning, not decided)
+
+- A compiler-checked `pure` modifier in the D / Nim spirit, with Julia's split into at least two
+  levels: "removable" (unused call may be deleted) and "mergeable" (same-argument calls may be
+  merged; implies removable, and the result must be interchangeable).
+- For operators, together with §47.3 option 2: lower an operator on a user class to a real method
+  call, so `dce` / `lvn` / `lsra` all see a call, and the `pure` level of `__add__` decides whether
+  it may be deleted or merged. The §47.2 whitelists in `dce` / `lsra` could then go.
+
+### 49.5 What the compiler has today (survey, 2026-11-02)
+
+- **Modifiers / annotations**: the only modifier keywords are `pub` and `static`. Annotations are
+  `@name`, `@name(...)` on their own line, at most one per declaration (`koala.y` `prefix` /
+  `annotation`); `check_func_prefix()` in `parser.c` accepts `intrinsic`, `native`, `specialized`,
+  `test`, `should_panic`, `skip`, `bench`, anything else is "unknown annotation". Trait methods
+  (`trait_method`) take no annotation at all.
+- **Symbol flags**: `SYM_FLAGS_*` in `include/parser/symbol.h` (MUTABLE, CONST, PUBLIC, EXT,
+  GENERIC, NATIVE, STATIC), bit 7 and up free.
+- **`.klc`**: `KLC_FLAGS_*` in `include/common/klc.h` (bit 7 and up free); `write_meta_func()` in
+  `write_klc.c` writes only PUB / STATIC / METH to the meta `KlcFunc`, `read_klc.c`
+  `to_symbol_flags()` maps them back. Annotations are written but not read back into `FuncSymbol`
+  (only the test runner reads them), so a purity flag must be a real meta flag.
+- **Native methods**: `@native` / `@intrinsic` with an empty body, bound by name at load time
+  (`load_module.c`, `kl_get_native`); there is no purity metadata anywhere.
+- **No notion of a pure function** exists. `KLR_INSN_FLAGS_CONST` on a call (`[const]` in the IR
+  dump) only means every argument is a literal (`klr_build_call` in `klr/insn.c`). `dce.c` treats a
+  `[const]` call whose callee is a `KLR_VALUE_KLASS` (a local class constructor) as side-effect free,
+  which is unsound when `__init__` has side effects — the same assumption problem as §47.
+- **Operators**: the checker finds `__add__` on a user class (`parser_expr.c`) but does not attach
+  the `FuncSymbol` to the IR; `emit_ir_binary()` always emits `OP_BINARY_*`; the VM dispatches
+  `OP_NUM_ADD` through `kl_call_slot(..., SLOT_ADD)`. No operator is lowered to a method call today.
+- **Traits**: `build_class_intf_table()` in `symbol.c` matches trait methods to impls by name only —
+  no signature or flag check — so "`pure` on a trait method binds every impl" needs a new check
+  there (and the flag must survive the `.klc` round trip for imported traits).
+
+### 49.6 To design
+
+- Syntax: a new modifier keyword (like `pub`) or an annotation (`@pure`); note an annotation today
+  is one-per-declaration, on its own line, and not allowed on trait methods. Names of the two levels.
+- Check rules: transitivity; what a `pure` body may read (fields of `self`? globals declared
+  `let`?); allocation of a fresh object (fine for "removable", not for "mergeable"); panics.
+- Native functions: how a C-implemented method declares its level.
+- Traits: whether `pure` on a trait method (e.g. `Number.__add__`) binds every implementation.
+- Serialization: how the flag travels in `.klc` so an importing module can use it.
+- An escape hatch for debug logging inside a `pure` function (D's `debug` blocks).

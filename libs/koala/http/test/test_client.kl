@@ -1,0 +1,60 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Live HTTP tests against example.com. Tests skip when the network is
+// unreachable so the suite still passes offline.
+
+import "std/ut"
+from "koala/http" import Url, get, post
+
+@test
+func test_get_example_com() {
+    let u = Url.parse("https://example.com/")!
+    let r = get(u)
+    if r == nil { return }
+
+    ut.assert_eq(r.status(), 200)
+    ut.assert_true(r.body().len() > 0)
+    ut.assert_true(r.header("Content-Type") != nil)
+}
+
+@test
+func test_get_http_example_com() {
+    // Plain HTTP: same server, no TLS. Verifies the TcpConn path.
+    let u = Url.parse("http://example.com/")!
+    let r = get(u)
+    if r == nil { return }
+
+    ut.assert_eq(r.status(), 200)
+    ut.assert_true(r.body().len() > 0)
+}
+
+@test
+func test_get_404() {
+    let u = Url.parse("https://example.com/this-path-does-not-exist-koala")!
+    let r = get(u)
+    if r == nil { return }
+
+    // example.com returns 404 for unknown paths.
+    ut.assert_eq(r.status(), 404)
+}
+
+@test
+func test_post_example_com() {
+    let u = Url.parse("https://example.com/")!
+    let r = post(u, "hello".to_bytes())
+    if r == nil { return }
+
+    // example.com does not accept POST; any 4xx confirms the request
+    // went out and a response came back.
+    ut.assert_true(r.status() >= 400)
+}
+
+@test
+func test_connect_refused() {
+    let u = Url.parse("http://127.0.0.1:1/")!
+    let r = get(u)
+    ut.assert_true(r == nil)
+}

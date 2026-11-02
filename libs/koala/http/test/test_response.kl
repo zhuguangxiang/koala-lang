@@ -1,0 +1,100 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+from "koala/http" import Response, ResponseHead
+
+@test
+func test_parse_simple() {
+    let raw = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.status(), 200)
+    ut.assert_eq(r.reason(), "OK")
+    ut.assert_eq(r.body().to_str(), "hello")
+}
+
+@test
+func test_parse_no_body() {
+    let raw = "HTTP/1.1 204 No Content\r\n\r\n"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.status(), 204)
+    ut.assert_eq(r.reason(), "No Content")
+    ut.assert_eq(r.body().len(), 0)
+}
+
+@test
+func test_parse_404() {
+    let raw = "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nnot found"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.status(), 404)
+    ut.assert_eq(r.reason(), "Not Found")
+    ut.assert_eq(r.body().to_str(), "not found")
+}
+
+@test
+func test_header_lookup_case_insensitive() {
+    let raw = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\ncontent-length: 3\r\n\r\nabc"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.body().to_str(), "abc")
+    ut.assert_eq(r.header("Content-Type")!, "text/plain")
+    ut.assert_eq(r.header("CONTENT-LENGTH")!, "3")
+    ut.assert_eq(r.header("Content-Type")!, "text/plain")
+    ut.assert_true(r.header("X-Missing") == nil)
+}
+
+@test
+func test_parse_chunked() {
+    let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" +
+              "5\r\nhello\r\n" +
+              "6\r\n world\r\n" +
+              "0\r\n\r\n"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.status(), 200)
+    ut.assert_eq(r.body().to_str(), "hello world")
+}
+
+@test
+func test_parse_chunked_hex_size() {
+    // 0x10 = 16 bytes in one chunk.
+    let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" +
+              "10\r\n0123456789abcdef\r\n" +
+              "0\r\n\r\n"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.body().to_str(), "0123456789abcdef")
+}
+
+@test
+func test_parse_connection_close_body() {
+    // No Content-Length, no chunked: body runs to end of input.
+    let raw = "HTTP/1.0 200 OK\r\n\r\nwhole body here"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.body().to_str(), "whole body here")
+}
+
+@test
+func test_head_offset() {
+    let raw = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello"
+    let h = ResponseHead.parse(raw.to_bytes())!
+    ut.assert_eq(h.body_offset(), 38)  // offset of 'h' in "hello"
+}
+
+@test
+func test_parse_incomplete_head() {
+    ut.assert_true(Response.parse("HTTP/1.1 200".to_bytes()) == nil)
+    ut.assert_true(Response.parse("HTTP/1.1 200 OK\r\n".to_bytes()) == nil)
+}
+
+@test
+func test_parse_truncated_body() {
+    // Content-Length says 10, only 5 bytes present.
+    let raw = "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nhello"
+    ut.assert_true(Response.parse(raw.to_bytes()) == nil)
+}
+
+@test
+func test_parse_bad_status_line() {
+    ut.assert_true(Response.parse("garbage\r\n\r\n".to_bytes()) == nil)
+    ut.assert_true(Response.parse("HTTP/1.1 abc OK\r\n\r\n".to_bytes()) == nil)
+}

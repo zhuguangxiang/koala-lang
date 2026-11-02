@@ -1,0 +1,117 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An HTTP/1.1 request: method, URL, ordered headers, and body.
+///
+/// Headers are kept as an ordered list rather than a map so the wire
+/// format is deterministic and caller-controlled, which makes the
+/// serialized bytes easy to assert against in tests.
+///
+/// `Host` is added from the URL unless the caller already set it, so a
+/// request always carries exactly one `Host` field (RFC 7230 §5.4).
+/// `Content-Length` is added when the body is non-empty and the caller
+/// has not already set it.
+pub class Request {
+    let _method str
+    let _url Url
+    let _headers list[list[str]]
+    let _body bytes
+
+    pub func __init__(method str, url Url, headers list[list[str]], body bytes) {
+        _method = method
+        _url = url
+        _headers = headers
+        _body = body
+    }
+
+    pub func method() str { return _method }
+    pub func url() Url { return _url }
+    pub func body() bytes { return _body }
+
+    /// Build a GET request with no body and no extra headers.
+    pub static func get(url Url) Request {
+        return Request("GET", url, list[list[str]](), bytes(0))
+    }
+
+    /// Build a POST request with `body` and an octet-stream content type.
+    pub static func post(url Url, body bytes) Request {
+        let r = Request("POST", url, list[list[str]](), body)
+        r.header("Content-Type", "application/octet-stream")
+        return r
+    }
+
+    /// Set a header, replacing the value of an existing field with the
+    /// same name. Comparison is case-insensitive as HTTP requires, so
+    /// `Content-Length` and `content-length` name the same field.
+    pub func header(name str, value str) {
+        var i = 0
+        while i < _headers.len() {
+            if _header_name_eq(_headers[i][0], name) {
+                _headers[i][1] = value
+                return
+            }
+            i += 1
+        }
+        let pair = list[str]()
+        pair.append(name)
+        pair.append(value)
+        _headers.append(pair)
+    }
+
+    /// Serialize this request to the exact bytes sent over the wire.
+    ///
+    /// The output is `METHOD path HTTP/1.1\r\n`, the `Host` field (from
+    /// the URL unless the caller set one), every user header in
+    /// insertion order, `Content-Length` when applicable, a blank line,
+    /// and the body.
+    pub func to_bytes() bytes {
+        let buf = Buffer()
+        buf.write_str(_method)
+        buf.write_str(" ")
+        buf.write_str(_url.path())
+        buf.write_str(" HTTP/1.1\r\n")
+
+        if !_has_header("Host") {
+            _write_field(buf, "Host", _url.host_header())
+        }
+        var i = 0
+        while i < _headers.len() {
+            _write_field(buf, _headers[i][0], _headers[i][1])
+            i += 1
+        }
+        if _body.len() > 0 && !_has_header("Content-Length") {
+            _write_field(buf, "Content-Length", str(_body.len()))
+        }
+
+        buf.write_str("\r\n")
+        buf.write(_body)
+        return buf.to_bytes()
+    }
+
+    func _has_header(name str) bool {
+        var i = 0
+        while i < _headers.len() {
+            if _header_name_eq(_headers[i][0], name) { return true }
+            i += 1
+        }
+        return false
+    }
+}
+
+// Append one header field line, `name: value` with a trailing CRLF.
+func _write_field(buf Buffer, name str, value str) {
+    buf.write_str(name)
+    buf.write_str(": ")
+    buf.write_str(value)
+    buf.write_str("\r\n")
+}
+
+// Compare two header names ignoring ASCII case (RFC 7230 §3.2). Folding
+// through `lower()` keeps the comparison in native code; walking the
+// bytes from Koala is an order of magnitude slower.
+func _header_name_eq(a str, b str) bool {
+    if a.len() != b.len() { return false }
+    return a.lower() == b.lower()
+}

@@ -143,6 +143,34 @@ static int val_last_use_pos(KlrValue *val)
     return max;
 }
 
+/* Insns that always write a result register, even when the result is unused: an operator on a
+ * user class is kept by dce for its side effects. A call with an unused result needs none
+ * (vreg -1 means no return register). */
+static int unused_needs_reg(KlrInsn *insn)
+{
+    switch (insn->code) {
+        case OP_NUM_ADD:
+        case OP_NUM_SUB:
+        case OP_NUM_MUL:
+        case OP_NUM_DIV:
+        case OP_NUM_MOD:
+        case OP_NUM_AND:
+        case OP_NUM_OR:
+        case OP_NUM_XOR:
+        case OP_NUM_SHL:
+        case OP_NUM_SHR:
+        case OP_NUM_EQ:
+        case OP_NUM_NE:
+        case OP_NUM_LT:
+        case OP_NUM_LE:
+        case OP_NUM_GT:
+        case OP_NUM_GE:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 static void klr_build_intervals(KlrLSRAContext *ctx)
 {
     KlrFunc *fn = ctx->func;
@@ -179,6 +207,10 @@ static void klr_build_intervals(KlrLSRAContext *ctx)
                 intv.allocated = 0;
                 intv.start = insn->pos;
                 intv.end = val_last_use_pos((KlrValue *)insn);
+                if (intv.start >= intv.end && unused_needs_reg(insn)) {
+                    // never used, but still writes its result: one-position interval
+                    intv.end = intv.start + 1;
+                }
                 if (intv.start < intv.end) {
                     // If start >= end, it means this value is not used, skip interval
                     vector_push_back(&ctx->intervals, &intv);

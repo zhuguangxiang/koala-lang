@@ -1,0 +1,67 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+from "koala/http" import Url
+
+@test
+func test_parse_https() {
+    let u = Url.parse("https://example.com/path")!
+    ut.assert_eq(u.scheme(), "https")
+    ut.assert_eq(u.host(), "example.com")
+    ut.assert_eq(u.port(), 443)
+    ut.assert_eq(u.path(), "/path")
+    ut.assert_true(u.is_tls())
+    ut.assert_eq(u.host_header(), "example.com")
+}
+
+@test
+func test_parse_http_default_port() {
+    let u = Url.parse("http://example.com/")!
+    ut.assert_eq(u.scheme(), "http")
+    ut.assert_eq(u.host(), "example.com")
+    ut.assert_eq(u.port(), 80)
+    ut.assert_eq(u.path(), "/")
+    ut.assert_true(!u.is_tls())
+}
+
+@test
+func test_parse_explicit_port() {
+    let u = Url.parse("http://localhost:8080/api")!
+    ut.assert_eq(u.host(), "localhost")
+    ut.assert_eq(u.port(), 8080)
+    ut.assert_eq(u.path(), "/api")
+    ut.assert_eq(u.host_header(), "localhost:8080")
+}
+
+@test
+func test_parse_https_explicit_443() {
+    // Explicit default port collapses in the Host header.
+    let u = Url.parse("https://example.com:443/")!
+    ut.assert_eq(u.port(), 443)
+    ut.assert_eq(u.host_header(), "example.com")
+}
+
+@test
+func test_parse_no_path() {
+    let u = Url.parse("https://example.com")!
+    ut.assert_eq(u.path(), "/")
+}
+
+@test
+func test_parse_with_query() {
+    let u = Url.parse("https://example.com/search?q=koala&n=10")!
+    ut.assert_eq(u.path(), "/search?q=koala&n=10")
+}
+
+@test
+func test_parse_bad() {
+    ut.assert_true(Url.parse("") == nil)
+    ut.assert_true(Url.parse("example.com/path") == nil)
+    ut.assert_true(Url.parse("ftp://example.com/") == nil)
+    ut.assert_true(Url.parse("http://") == nil)
+    ut.assert_true(Url.parse("http:///path") == nil)
+    ut.assert_true(Url.parse("http://example.com:abc/") == nil)
+}

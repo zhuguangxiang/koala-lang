@@ -161,8 +161,13 @@ pub class str : Sequence & Comparable & ToString {
     pub func __mul__(n int) str {}
 
     /// Return a string made by joining the elements of `seq`, with `self` as the separator.
+    ///
+    /// Each element of `seq` must be a `str`. Any iterable works: a sequence
+    /// such as `list` or `tuple` is read index by index, anything else (for
+    /// example a bare iterator) is drained through `iter()`/`next()`. Joining
+    /// nothing yields an empty string, so no separator is allocated.
     @native
-    pub func join(seq Sequence[str]) str {}
+    pub func join(seq Iterable[str]) str {}
 
     /// Return the UTF-8 encoded bytes of the string.
     @native

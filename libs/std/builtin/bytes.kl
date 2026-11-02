@@ -60,9 +60,62 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func __setslice__(s slice, val bytes) {}
 
-    /// Return true if the byte array contains `value`.
+    /// Return a new byte array with `self` followed by `rhs` (`self + rhs`).
+    ///
+    /// A fresh byte array of length `self.len() + rhs.len()` is allocated and
+    /// both operands are copied into it, so neither operand is modified.
+    /// Because `bytes` is fixed-size there is no in-place variant: `a += b`
+    /// rebinds `a` to the new array rather than growing `a`.
     @native
-    pub func __contains__(value uint8) bool {}
+    pub func __add__(rhs bytes) bytes {}
+
+    /// Return a new byte array with `self` repeated `n` times (`self * n`).
+    ///
+    /// A non-positive `n` yields an empty byte array. The result is a fresh
+    /// fixed-size array, so neither operand is modified.
+    @native
+    pub func __mul__(n int) bytes {}
+
+    /// Return true if `self` sorts before `rhs` (`self < rhs`).
+    ///
+    /// Bytes are compared left to right by unsigned value, so `b"\x01" <
+    /// b"\xff"`; if one array is a prefix of the other, the shorter one sorts
+    /// first. `==` and `!=` compare the same way, byte by byte.
+    @native
+    pub func __lt__(rhs bytes) bool {}
+
+    /// Return true if `self` sorts before or equal to `rhs` (`self <= rhs`).
+    @native
+    pub func __le__(rhs bytes) bool {}
+
+    /// Return true if `self` sorts after `rhs` (`self > rhs`).
+    @native
+    pub func __gt__(rhs bytes) bool {}
+
+    /// Return true if `self` sorts after or equal to `rhs` (`self >= rhs`).
+    @native
+    pub func __ge__(rhs bytes) bool {}
+
+    /// Return a new byte array made by joining the elements of `seq`,
+    /// with `self` as the separator.
+    ///
+    /// Each element of `seq` must be a `bytes`. Any iterable works: a sequence
+    /// such as `list` or `tuple` is read index by index, anything else (for
+    /// example a bare iterator) is drained through `iter()`/`next()`. Joining
+    /// nothing yields an empty byte array, so no separator is allocated.
+    @native
+    pub func join(seq Iterable[bytes]) bytes {}
+
+    /// Return true if the byte array contains `value`.
+    ///
+    /// `value` is either a `uint8` byte value or a `bytes` sub-sequence, so
+    /// `97 in bs` and `b"bc" in bs` both work: `in` reads a `bytes` operand as
+    /// a sub-sequence search, anything else as a single byte value. A char
+    /// literal such as `'a'` is a `uint8`, so it matches a byte. An `int`
+    /// variable does not narrow to a byte, write `uint8(i) in bs` for that. An
+    /// empty sub-sequence is always contained, even in an empty byte array.
+    @native
+    pub func __contains__(value uint8 | bytes) bool {}
 
     /// Copy `src[start:end]` into the beginning of this byte array.
     ///
@@ -146,9 +199,14 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func ends_with(suffix bytes) bool {}
 
-    /// Replace all occurrences of `old` with `new`, returning a new byte array.
+    /// Replace occurrences of `old` with `new`, returning a new byte array.
+    ///
+    /// `count` is the maximum number of replacements and defaults to -1,
+    /// meaning every occurrence; 0 returns an unchanged copy. Matches are
+    /// non-overlapping and taken left to right. An empty `old` has nothing to
+    /// replace, so the byte array is copied unchanged.
     @native
-    pub func replace(old bytes, new bytes) bytes {}
+    pub func replace(old bytes, new bytes, count = -1) bytes {}
 
     /// Split the byte array by `sep` and return the parts as a list.
     ///

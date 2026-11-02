@@ -1,0 +1,21 @@
+// tls
+
+link "koala_tls"
+
+import "std/socket" as so
+
+@native
+pub func probe() bool {}
+
+/// Connect to `host:port` over TCP, then upgrade to TLS.
+///
+/// `host` is both the connect target and the SNI name, the way Go's
+/// tls.Dial uses its address argument. Returns nil on TCP or TLS
+/// failure.
+pub func dial(host str, port int) TlsConn? {
+    let url = host + ":" + str(port)
+    let c = so.dial(url, so.SocketTypeSpec.tcp(), nil)
+    if c == nil { return nil }
+    let tcp = (c as so.TcpConn)!
+    return TlsConn.wrap(tcp, host)
+}

@@ -10,6 +10,7 @@
 #include "excobj.h"
 #include "hashmap.h"
 #include "listobj.h"
+#include "tupleobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -290,16 +291,34 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
     return no_value;
 }
 
+/* pub func __contains__(value uint8 | bytes) bool */
 static TValue _bytes_contains(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 1);
-    uint8_t value = kl_arg_uint8(0);
-    for (int64_t i = 0; i < bytes->size; ++i) {
-        if (bytes->data[bytes->offset + i] == value) {
-            return bool_value(true);
+    uint8_t *base = bytes->data + bytes->offset;
+    int64_t size = bytes->size;
+
+    /* A `bytes` operand is a sub-sequence search, anything else is a single
+     * byte value, so `b"bc" in bs` and `97 in bs` both work. An empty
+     * sub-sequence is contained in every byte array, including an empty one. */
+    if (is_ref(args) && IS_BYTES(args->obj)) {
+        BytesObject *sub = (BytesObject *)args->obj;
+        int64_t sub_size = sub->size;
+        if (sub_size == 0) return bool_value(true);
+        if (sub_size > size) return bool_value(false);
+
+        uint8_t *sub_data = sub->data + sub->offset;
+        for (int64_t i = 0; i + sub_size <= size; ++i) {
+            if (memcmp(base + i, sub_data, (size_t)sub_size) == 0) return bool_value(true);
         }
+        return bool_value(false);
+    }
+
+    uint8_t value = kl_arg_uint8(0);
+    for (int64_t i = 0; i < size; ++i) {
+        if (base[i] == value) return bool_value(true);
     }
     return bool_value(false);
 }
@@ -393,6 +412,207 @@ static TValue _bytes_setslice(TValue *self, TValue *args, int nargs)
     return no_value;
 }
 
+/* pub func __add__(rhs bytes) bytes */
+static TValue _bytes_add(TValue *self, TValue *args, int nargs)
+{
+    Object *lhs = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    Object *rhs = kl_arg_obj_as(0, bytes_type);
+
+    /* Fresh 0-based result: one allocation and two memcpys, never a view of
+     * either operand, which is exactly what `a + b` promises. Because `bytes`
+     * is fixed-size there is deliberately no __iadd__: `a += b` rebinds `a`
+     * to this new object instead of growing `a` in place. */
+    Object *out = kl_new_bytes(BYTES_SIZE(lhs) + BYTES_SIZE(rhs));
+
+    uint8_t *dst = BYTES_DATA(out);
+    uint8_t *src = BYTES_DATA(lhs) + BYTES_OFFSET(lhs);
+    size_t size = BYTES_SIZE(lhs);
+
+    memcpy(dst, src, size);
+
+    dst += size;
+    src = BYTES_DATA(rhs) + BYTES_OFFSET(rhs);
+    size = BYTES_SIZE(rhs);
+
+    memcpy(dst, src, size);
+
+    return obj_value(out);
+}
+
+/* pub func __mul__(n int) bytes */
+static TValue _bytes_mul(TValue *self, TValue *args, int nargs)
+{
+    Object *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    int64_t n = kl_arg_int64(0);
+
+    /* `b * n` repeats the bytes, like `str * n`. A non-positive `n` yields the
+     * shared empty bytes, so `b"ab" * 0` allocates nothing. */
+    if (n <= 0) {
+        return obj_value(kl_new_bytes(0));
+    }
+
+    uint32_t size = BYTES_SIZE(bytes);
+
+    /* Compare before multiplying so a huge `n` cannot overflow the product. */
+    if (size > 0 && (uint64_t)n > (uint64_t)UINT32_MAX / size) {
+        raise_exc_fmt("bytes size overflow: %u * %ld", size, (long)n);
+        return error_value;
+    }
+
+    int64_t total = (int64_t)size * n;
+
+    /* Fresh 0-based result copied `n` times, never a view of the operand. */
+    Object *out = kl_new_bytes((uint32_t)total);
+
+    uint8_t *dst = BYTES_DATA(out);
+    uint8_t *src = BYTES_DATA(bytes) + BYTES_OFFSET(bytes);
+
+    for (int64_t i = 0; i < n; i++) {
+        memcpy(dst, src, size);
+        dst += size;
+    }
+
+    return obj_value(out);
+}
+
+/* Append one part of a join to `buf`, preceded by the separator unless it is
+ * the first part. The element type is checked by the compiler (`Iterable[bytes]`
+ * is the declared parameter type), so a non-`bytes` part is a type error at
+ * compile time and only asserted here. */
+static void _join_append(Buffer *buf, BytesObject *sep, TValue *item, int64_t index)
+{
+    Object *bytes = to_obj(item);
+    ASSERT(IS_BYTES(bytes));
+
+    if (index > 0) {
+        char *data = (char *)BYTES_DATA(sep) + BYTES_OFFSET(sep);
+        buf_write_nstr(buf, data, BYTES_SIZE(sep));
+    }
+
+    char *data = (char *)BYTES_DATA(bytes) + BYTES_OFFSET(bytes);
+    buf_write_nstr(buf, data, (int)BYTES_SIZE(bytes));
+}
+
+/* Append the parts of a `list` to `buf`, with `sep` between them. */
+static int _join_list(Buffer *buf, BytesObject *sep, Object *ob)
+{
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+    int len = kl_list_len(ob);
+
+    for (int i = 0; i < len; i++) {
+        TValue *v = kl_list_get(ob, i);
+        _join_append(buf, sep, v, index++);
+    }
+
+    return 0;
+}
+
+/* Append the parts of a `tuple` to `buf`, with `sep` between them. */
+static int _join_tuple(Buffer *buf, BytesObject *sep, Object *ob)
+{
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+    int len = (int)TUPLE_SIZE(ob);
+
+    for (int i = 0; i < len; i++) {
+        TValue *v = TUPLE_ITEMS(ob) + i;
+        _join_append(buf, sep, v, index++);
+    }
+
+    return 0;
+}
+
+/* Append a `Sequence[bytes]` to `buf`, read index by index through `len()` and
+ * `[i]`, which avoids allocating an iterator for a random-access sequence.
+ * Return 0 on success, or -1 with an exception raised if the sequence failed. */
+static int _join_seq(Buffer *buf, BytesObject *sep, TValue *seq)
+{
+    TValue count = kl_call_len(seq);
+    if (is_error(&count)) return -1;
+    int64_t len = to_int64(&count);
+
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+
+    for (int64_t i = 0; i < len; i++) {
+        TValue idx = int64_value(i);
+        TValue part = kl_call_get_item(seq, &idx);
+        if (is_error(&part)) return -1;
+        _join_append(buf, sep, &part, index++);
+    }
+
+    return 0;
+}
+
+/* Append an `Iterable[bytes]` that is not a sequence to `buf`, drained through
+ * `iter()` and `next()`, which yields nil at the end. Return 0 on success, or
+ * -1 with an exception raised if the iterable failed. */
+static int _join_iter(Buffer *buf, BytesObject *sep, TValue *seq)
+{
+    TValue it = kl_call_iter(seq, 1);
+    if (is_error(&it)) return -1;
+
+    /* Number of parts appended so far, which decides where the separators go. */
+    int64_t index = 0;
+
+    for (;;) {
+        TValue part = kl_call_next(&it);
+        if (is_error(&part)) return -1;
+        if (is_nil(&part)) break;
+        _join_append(buf, sep, &part, index++);
+    }
+
+    return 0;
+}
+
+/* pub func join(seq Iterable[bytes]) bytes */
+static TValue _bytes_join(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *sep = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    Object *seq = to_obj(args);
+
+    /* The parts are copied once into a growing buffer and once more into the
+     * fixed-size result, whose length is therefore known before it is built:
+     * no pre-pass to sum the sizes. Joining nothing yields `b""`.
+     */
+    BUF(buf);
+
+    int ret = 0;
+
+    if (IS_LIST(seq)) {
+        /* Fast path: a `list` keeps its elements in a contiguous array. */
+        ret = _join_list(&buf, sep, seq);
+    } else if (IS_TUPLE(seq)) {
+        ret = _join_tuple(&buf, sep, seq);
+    } else if (kl_is_seq(seq)) {
+        ret = _join_seq(&buf, sep, args);
+    } else if (kl_is_iter(seq)) {
+        ret = _join_iter(&buf, sep, args);
+    } else {
+        UNREACHABLE();
+    }
+
+    if (ret < 0) {
+        FINI_BUF(buf);
+        return error_value;
+    }
+
+    /* `kl_bytes_from_data` copies the buffer, so `buf` is released below. An
+     * empty join is the shared `b""`: no part was written, so the buffer may be
+     * empty as well. */
+    Object *out = kl_bytes_from_data((uint8_t *)BUF_STR(buf), BUF_LEN(buf));
+
+    FINI_BUF(buf);
+    return obj_value(out);
+}
+
 static TValue _bytes_eq(TValue *self, TValue *args, int nargs)
 {
     BytesObject *lhs = SELF_AS(bytes_type);
@@ -410,6 +630,33 @@ static TValue _bytes_ne(TValue *self, TValue *args, int nargs)
     TValue v = _bytes_eq(self, args, nargs);
     return bool_value(v.ival == 0);
 }
+
+/* Lexicographic order over the bytes themselves: memcmp on the common prefix,
+ * then the shorter operand sorts first. memcmp compares as `unsigned char`, so
+ * 0xff is the largest byte, which is what binary protocols expect. `__eq__` is
+ * separate because it can shortcut on a size mismatch. */
+#define DEFINE_BYTES_CMP_CODE(op) \
+    do { \
+        BytesObject *lhs = SELF_AS(bytes_type); \
+        ASSERT(nargs == 1); \
+        BytesObject *rhs = kl_arg_obj_as(0, bytes_type); \
+        int64_t n = lhs->size < rhs->size ? lhs->size : rhs->size; \
+        int r = memcmp(lhs->data + lhs->offset, rhs->data + rhs->offset, n); \
+        if (r == 0) r = (lhs->size > rhs->size) - (lhs->size < rhs->size); \
+        return bool_value(r op 0); \
+    } while (0)
+
+/* pub func __lt__(rhs bytes) bool */
+static TValue _bytes_lt(TValue *self, TValue *args, int nargs) { DEFINE_BYTES_CMP_CODE(<); }
+
+/* pub func __le__(rhs bytes) bool */
+static TValue _bytes_le(TValue *self, TValue *args, int nargs) { DEFINE_BYTES_CMP_CODE(<=); }
+
+/* pub func __gt__(rhs bytes) bool */
+static TValue _bytes_gt(TValue *self, TValue *args, int nargs) { DEFINE_BYTES_CMP_CODE(>); }
+
+/* pub func __ge__(rhs bytes) bool */
+static TValue _bytes_ge(TValue *self, TValue *args, int nargs) { DEFINE_BYTES_CMP_CODE(>=); }
 
 static TValue _bytes_hash(TValue *self, TValue *args, int nargs)
 {
@@ -499,16 +746,18 @@ static TValue _bytes_replace(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
 
-    ASSERT(nargs == 2);
+    ASSERT(nargs == 3);
     BytesObject *old = kl_arg_obj_as(0, bytes_type);
     BytesObject *neu = kl_arg_obj_as(1, bytes_type);
+    int64_t limit = kl_arg_int64(2);
 
     uint8_t *base = bytes->data + bytes->offset;
     int64_t size = bytes->size;
     int64_t old_size = old->size;
     int64_t new_size = neu->size;
 
-    if (old_size == 0) {
+    /* `count` defaults to -1, meaning "every occurrence"; 0 replaces nothing. */
+    if (old_size == 0 || limit == 0) {
         Object *res = kl_bytes_from_data(base, (uint32_t)size);
         return obj_value(res);
     }
@@ -516,8 +765,11 @@ static TValue _bytes_replace(TValue *self, TValue *args, int nargs)
     uint8_t *old_data = old->data + old->offset;
     uint8_t *new_data = neu->data + neu->offset;
 
+    /* Number of replacements to perform, capped at `limit` and counted on
+     * non-overlapping matches left to right, so `b"aaa".replace(b"a", b"b", 2)`
+     * leaves the third byte alone. */
     int64_t count = 0;
-    for (int64_t i = 0; i + old_size <= size;) {
+    for (int64_t i = 0; i + old_size <= size && (limit < 0 || count < limit);) {
         if (memcmp(base + i, old_data, old_size) == 0) {
             count++;
             i += old_size;
@@ -534,11 +786,16 @@ static TValue _bytes_replace(TValue *self, TValue *args, int nargs)
     int64_t out_size = size + count * (new_size - old_size);
     uint8_t *out = mm_alloc(out_size);
     int64_t oi = 0;
+
+    /* Replacements left to make, which keeps this pass and the counting pass in
+     * agreement without a second cap check on `limit`. */
+    int64_t left = count;
     for (int64_t i = 0; i < size;) {
-        if (i + old_size <= size && memcmp(base + i, old_data, old_size) == 0) {
+        if (left > 0 && i + old_size <= size && memcmp(base + i, old_data, old_size) == 0) {
             if (new_size > 0) memcpy(out + oi, new_data, new_size);
             oi += new_size;
             i += old_size;
+            left--;
         } else {
             out[oi++] = base[i++];
         }
@@ -727,9 +984,16 @@ static MethodDef bytes_methods[] = {
     { "__setitem__", _bytes_setitem },
     { "__getslice__", _bytes_getslice },
     { "__setslice__", _bytes_setslice },
+    { "__add__", _bytes_add },
+    { "__mul__", _bytes_mul },
+    { "join", _bytes_join },
     { "__contains__", _bytes_contains },
     { "__eq__", _bytes_eq },
     { "__ne__", _bytes_ne },
+    { "__lt__", _bytes_lt },
+    { "__le__", _bytes_le },
+    { "__gt__", _bytes_gt },
+    { "__ge__", _bytes_ge },
     { "hash", _bytes_hash },
     { "index", _bytes_index },
     { "rindex", _bytes_rindex },
@@ -763,8 +1027,26 @@ TypeObject bytes_type = {
     .methdefs = (bytes_methods),
 };
 
+/* `b""` is the only `bytes` of length zero, so every empty result is this one
+ * object instead of a fresh allocation: a literal, a suffix, an empty join.
+ * Nothing can be written through it because `bytes` is fixed-size, and being
+ * static it is never freed. The data is a real object rather than NULL so that
+ * a zero-length `memcpy` is never handed one. */
+static uint8_t empty_bytes_data[1];
+
+static BytesObject empty_bytes = {
+    ._type = &bytes_type,
+    .offset = 0,
+    .size = 0,
+    .data = empty_bytes_data,
+};
+
 Object *kl_new_bytes(uint32_t size)
 {
+    if (size == 0) {
+        return (Object *)&empty_bytes;
+    }
+
     BytesObject *bytes = mm_alloc_obj(bytes);
     INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
     bytes->offset = 0;
@@ -775,6 +1057,10 @@ Object *kl_new_bytes(uint32_t size)
 
 Object *kl_bytes_from_data(uint8_t *data, uint32_t size)
 {
+    if (size == 0) {
+        return (Object *)&empty_bytes;
+    }
+
     BytesObject *bytes = mm_alloc_obj(bytes);
     INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
     bytes->offset = 0;

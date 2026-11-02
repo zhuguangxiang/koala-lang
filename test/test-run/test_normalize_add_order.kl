@@ -1,0 +1,24 @@
+// RUN: koala --dump=ir %s | filecheck %s
+// `normalize` moves a constant left operand of `+` to the right only for numbers;
+// on `bytes` / `str` `+` is concatenation and the order must be kept.
+
+func add_int(x int) int = 1 + x
+
+func main() {
+    let q = b"cd"
+    print(b"ab" + q)
+    let s = "cd"
+    print("ab" + s)
+    print(add_int(2))
+}
+
+// CHECK-LABEL: --- IR Dump After normalize (Iter 1) [@add_int] ---
+// CHECK: add %x int64, 1 int64
+
+// CHECK-LABEL: --- IR Dump After normalize (Iter 1) [@main] ---
+// CHECK: add b"ab" std/builtin.bytes, %q std/builtin.bytes
+
+// CHECK: {{^}}b"abcd"
+// CHECK-NEXT: abcd
+// CHECK-NEXT: 3
+// CHECK-NOT: {{.}}

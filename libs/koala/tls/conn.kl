@@ -1,0 +1,145 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+
+// The four @native declarations below mirror conn.c. They are not part
+// of the package's public API; TlsConn calls them and callers only see
+// the class.
+
+/// Wrap an established TCP fd in a TLS session. Returns 0 on failure.
+@native
+func tls_conn_new(fd int, hostname str) int {}
+
+/// Read up to `buf.len()` bytes. >0 count, 0 EOF, -1 error, -2 timeout.
+@native
+func tls_read(ssl int, buf bytes) int {}
+
+/// Write `data`. >0 count, -1 error, -2 would-block.
+@native
+func tls_write(ssl int, data bytes) int {}
+
+/// Tear down the TLS session. Does not close the underlying fd.
+@native
+func tls_conn_close(ssl int) {}
+
+/// A TLS connection over an already-connected TCP socket.
+///
+/// Follows Go's crypto/tls: TlsConn only wraps an existing connection,
+/// it never dials. The `tls.dial` convenience does
+/// `TcpConn.connect` + `TlsConn.wrap`.
+pub class TlsConn : so.Conn {
+    let _ssl int
+    let _tcp so.TcpConn
+
+    func __init__(ssl int, tcp so.TcpConn) {
+        _ssl = ssl
+        _tcp = tcp
+    }
+
+    /// Perform the TLS handshake over `tcp`, using `hostname` for SNI
+    /// and certificate verification. Returns nil when the handshake or
+    /// verification fails.
+    pub static func wrap(tcp so.TcpConn, hostname str) TlsConn? {
+        let h = tls_conn_new(tcp.fd(), hostname)
+        if h == 0 { return nil }
+        return TlsConn(h, tcp)
+    }
+
+    /// Read up to `buf.len()` bytes. >0 count, 0 EOF, <0 error/timeout.
+    pub func read(buf bytes) int {
+        return tls_read(_ssl, buf)
+    }
+
+    /// Write `data`. >0 count, <0 error/would-block.
+    pub func write(data bytes) int {
+        return tls_write(_ssl, data)
+    }
+
+    /// Tear down TLS and close the underlying TCP socket.
+    pub func close() {
+        if _ssl != 0 { tls_conn_close(_ssl) }
+        _tcp.close()
+    }
+
+    // ---- Conn ----
+
+    pub func local_addr() so.SocketAddr {
+        return _tcp.local_addr()
+    }
+
+    pub func remote_addr() so.SocketAddr {
+        return _tcp.remote_addr()
+    }
+
+    /// TLS is TCP plus encryption, so the transport kind is still TCP.
+    pub func socket_type() int {
+        return _tcp.socket_type()
+    }
+
+    /// Set the read timeout on the underlying fd. SSL_read blocks on
+    /// the fd, so the timeout is the socket's, not a TLS-level one.
+    pub func set_read_timeout(ms int) bool {
+        return _tcp.set_read_timeout(ms)
+    }
+
+    pub func set_write_timeout(ms int) bool {
+        return _tcp.set_write_timeout(ms)
+    }
+
+    pub func set_blocking(blocking bool) bool {
+        return _tcp.set_blocking(blocking)
+    }
+
+    pub func take_error() int? {
+        return _tcp.take_error()
+    }
+
+    /// Read exactly `n` bytes. Returns nil on EOF, error, or timeout
+    /// before `n` bytes arrive.
+    ///
+    /// `tls_read` can return fewer bytes than requested; the loop
+    /// keeps reading until `n` are collected or a non-positive return
+    /// stops it.
+    pub func read_exact(n int) bytes? {
+        if n < 0 { return nil }
+        if n == 0 { return bytes(0) }
+
+        let out = bytes(n)
+        var total = 0
+        while total < n {
+            let tmp = bytes(n - total)
+            let r = tls_read(_ssl, tmp)
+            if r <= 0 { return nil }
+            var i = 0
+            while i < r {
+                out[total + i] = tmp[i]
+                i += 1
+            }
+            total += r
+        }
+        return out
+    }
+
+    /// Read until EOF and return everything. Returns nil on error or
+    /// timeout before EOF.
+    pub func read_to_end() bytes? {
+        let chunks = list[bytes]()
+        let buf = bytes(4096)
+        var n = tls_read(_ssl, buf)
+        while n > 0 {
+            // `buf` is reused by the next read, so each chunk must own a
+            // copy of the bytes just received.
+            let chunk = bytes(n)
+            chunk.copy(buf, 0, n)
+            chunks.append(chunk)
+            n = tls_read(_ssl, buf)
+        }
+        if n < 0 { return nil }
+
+        // n == 0: clean EOF. Concatenate the chunks.
+        return b"".join(chunks)
+    }
+}
