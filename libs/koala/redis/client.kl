@@ -1,0 +1,214 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A synchronous Redis client.
+///
+/// `RedisClient` is the command-level facade. Every call turns into a
+/// `Command`, wraps it in a `Request`, and hands the request to
+/// `execute`, which is the single request/response path. `Connection`
+/// moves bytes underneath and `protocol.kl` frames and parses them.
+///
+/// It is not safe to share one instance between coroutines; create one
+/// client per connection. Use `connect` to open it and `close` to
+/// release the socket.
+///
+/// Example:
+///     if let c = RedisClient.connect() {
+///         c.set("greeting", "hello")
+///         print(c.get("greeting")!)
+///         c.close()
+///     }
+pub class RedisClient {
+    /// The transport this client sends requests over.
+    let _connection Connection
+
+    /// Wrap an already opened connection. Prefer `connect`, which also
+    /// handles the address and transport.
+    pub func __init__(conn Connection) {
+        _connection = conn
+    }
+
+    /// Connect to a Redis server on `host:port`.
+    ///
+    /// Returns nil when the address cannot be resolved or the connection
+    /// is refused. The connection is blocking and has no timeout; call
+    /// `set_timeout` to bound hangs.
+    pub static func connect(host = "127.0.0.1", port = 6379) RedisClient? {
+        let conn = Connection.open(host, port)
+        if conn == nil { return nil }
+        return RedisClient(conn)
+    }
+
+    /// Set the read and write timeout in milliseconds. 0 clears it.
+    pub func set_timeout(ms int) {
+        _connection.set_timeout(ms)
+    }
+
+    /// Close the connection. No further commands may be sent.
+    pub func close() {
+        _connection.close()
+    }
+
+    /// Send a request and return every reply, in order.
+    ///
+    /// Even a single command travels as a one-command request. A
+    /// multi-command request is a pipeline: the frames are written back
+    /// to back and the server answers with exactly `req.len()` replies.
+    /// `ErrorReply` is returned as data, not raised here.
+    pub func execute(req Request) Response {
+        if req.empty() { return Response() }
+
+        _connection.send(req.to_bytes())
+
+        let resp = Response()
+        var i = 0
+        while i < req.len() {
+            resp.add(_connection.receive())
+            i += 1
+        }
+        return resp
+    }
+
+    /// Send one command and return its single reply.
+    ///
+    /// `ErrorReply` is returned as data, not raised here.
+    pub func exec(cmd Command) Reply {
+        let resp = execute(Request().add(cmd))
+        return resp.reply(0)
+    }
+
+    /// PING the server; true when it answers `PONG`.
+    pub func ping() bool {
+        let r = exec(Command("PING"))
+        _raise_error(r)
+        if r is StatusReply {
+            return r.value == "PONG"
+        }
+        panic("redis: unexpected reply to PING")
+    }
+
+    /// ECHO `msg` and return the echoed string.
+    pub func echo(msg str) str {
+        let r = exec(Command("ECHO", msg))
+        _raise_error(r)
+        if r is BulkReply {
+            return r.value
+        }
+        panic("redis: unexpected reply to ECHO")
+    }
+
+    /// Return the value of `key`, or nil when the key does not exist.
+    pub func get(key str) str? {
+        let r = exec(Command("GET", key))
+        _raise_error(r)
+        if r is BulkReply {
+            return r.value
+        }
+        if r is NilReply {
+            return nil
+        }
+        panic("redis: unexpected reply to GET")
+    }
+
+    /// Set `key` to `value`; true when the server replies `OK`.
+    pub func set(key str, value str) bool {
+        let r = exec(Command("SET", key, value))
+        _raise_error(r)
+        if r is StatusReply {
+            return r.value == "OK"
+        }
+        panic("redis: unexpected reply to SET")
+    }
+
+    /// Delete `key`; returns the number of keys removed (0 or 1).
+    pub func del(key str) int {
+        let r = exec(Command("DEL", key))
+        _raise_error(r)
+        if r is IntReply {
+            return r.value
+        }
+        panic("redis: unexpected reply to DEL")
+    }
+
+    /// Return true when `key` exists.
+    pub func exists(key str) bool {
+        let r = exec(Command("EXISTS", key))
+        _raise_error(r)
+        if r is IntReply {
+            return r.value == 1
+        }
+        panic("redis: unexpected reply to EXISTS")
+    }
+
+    /// Increment the integer stored at `key` and return the new value.
+    pub func incr(key str) int {
+        let r = exec(Command("INCR", key))
+        _raise_error(r)
+        if r is IntReply {
+            return r.value
+        }
+        panic("redis: unexpected reply to INCR")
+    }
+
+    /// Prepend `value` to the list at `key`; returns the new length.
+    pub func lpush(key str, value str) int {
+        let r = exec(Command("LPUSH", key, value))
+        _raise_error(r)
+        if r is IntReply {
+            return r.value
+        }
+        panic("redis: unexpected reply to LPUSH")
+    }
+
+    /// Append `value` to the list at `key`; returns the new length.
+    pub func rpush(key str, value str) int {
+        let r = exec(Command("RPUSH", key, value))
+        _raise_error(r)
+        if r is IntReply {
+            return r.value
+        }
+        panic("redis: unexpected reply to RPUSH")
+    }
+
+    /// Return the length of the list at `key`.
+    pub func llen(key str) int {
+        let r = exec(Command("LLEN", key))
+        _raise_error(r)
+        if r is IntReply {
+            return r.value
+        }
+        panic("redis: unexpected reply to LLEN")
+    }
+
+    /// Return the list elements between `start` and `stop` (inclusive,
+    /// negative indexes count from the tail).
+    pub func lrange(key str, start int, stop int) list[str] {
+        let r = exec(Command("LRANGE", key, str(start), str(stop)))
+        _raise_error(r)
+        if r is ArrayReply {
+            let out = list[str]()
+            for elem in r.items {
+                if elem is BulkReply {
+                    out.append(elem.value)
+                } else {
+                    panic("redis: unexpected element in LRANGE reply")
+                }
+            }
+            return out
+        }
+        panic("redis: unexpected reply to LRANGE")
+    }
+}
+
+/// Raise a Redis error reply as a panic.
+///
+/// The raw request paths return `ErrorReply` untouched; typed helpers
+/// call this first so a server error surfaces with its message instead
+/// of turning into a confusing type mismatch.
+func _raise_error(r Reply) {
+    if r is ErrorReply {
+        panic("redis error: " + r.value)
+    }
+}

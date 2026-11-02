@@ -1,0 +1,67 @@
+// RUN: koala %s | filecheck %s
+// After '}', a newline followed by 'else' inserts no ';', so 'else' may start a new line.
+
+func elsewhere() { print("elsewhere") }
+
+func classify(i int) {
+    if i > 1 { print("i > 1") }
+    else if i == 1 { print("i == 1") } // xxx
+    else { print("i < 1") }
+}
+
+func blank_lines(i int) {
+    if i > 0 {
+        print("positive")
+    } // xxx
+
+    // xxx
+    else {
+        print("not positive")
+    }
+}
+
+func line_comment(i int) {
+    if i > 0 { print("yes") } // trailing comment
+    else { print("no") }
+}
+
+func block_comments(i int) {
+    if i > 0 { print("big") }
+    /* a block comment
+       over two lines */
+    else if i == 0 { print("zero") }
+    # hash comment
+    /* mixed */ // comments
+    else { print("small") }
+}
+
+func if_expr(c bool) int {
+    let x = if c { 1 }
+    else { 2 }
+    return x
+}
+
+func main() {
+    classify(10)
+    classify(1)
+    classify(0)
+    blank_lines(0)
+    line_comment(1)
+    block_comments(0)
+    block_comments(-1)
+    print(if_expr(false))
+    if true { print("then") }
+    elsewhere()
+}
+
+// CHECK: i > 1
+// CHECK-NEXT: i == 1
+// CHECK-NEXT: i < 1
+// CHECK-NEXT: not positive
+// CHECK-NEXT: yes
+// CHECK-NEXT: zero
+// CHECK-NEXT: small
+// CHECK-NEXT: 2
+// CHECK-NEXT: then
+// CHECK-NEXT: elsewhere
+// CHECK-NOT: {{.}}

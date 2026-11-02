@@ -1,0 +1,73 @@
+// RUN: koala %s | filecheck %s
+// An 'if' expression may be the right side of a compound assignment: `x op= if c { a } else { b }`.
+
+class Counter {
+    let value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+
+    func __iadd__(rhs Counter) Counter {
+        return Counter(value + rhs.value + 10)
+    }
+}
+
+class Box {
+    var n int
+
+    func __init__() {
+        n = 1
+    }
+}
+
+var total = 100
+
+func main() {
+    let c = true
+    let d = false
+
+    var g = 0
+    g += if c { 1 } else { 2 }
+    g += if d { 10 } else { 20 }
+    print(g)
+
+    g -= if c { 1 } else { 2 }
+    g *= if d { 3 } else { 4 }
+    print(g)
+
+    var f = 1.5
+    f += if c { 1.0 } else { 2.0 }
+    print(f)
+
+    var s = "ab"
+    s += if d { "x" } else { "cd" }
+    print(s)
+
+    // else-if chain
+    var n = 0
+    n += if d { 1 } else if c { 2 } else { 3 }
+    print(n)
+
+    // a field and a global
+    let b = Box()
+    b.n += if c { 5 } else { 6 }
+    print(b.n)
+    total += if d { 1 } else { 2 }
+    print(total)
+
+    // a class with __iadd__
+    var k = Counter(1)
+    k += if c { Counter(2) } else { Counter(3) }
+    print(k.value)
+}
+
+// CHECK: 21
+// CHECK-NEXT: 80
+// CHECK-NEXT: 2.5
+// CHECK-NEXT: abcd
+// CHECK-NEXT: 2
+// CHECK-NEXT: 6
+// CHECK-NEXT: 102
+// CHECK-NEXT: 13
+// CHECK-NOT: {{.}}

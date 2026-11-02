@@ -1,0 +1,66 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/socket" as so
+
+/// A blocking byte-level connection to a Redis server.
+///
+/// Owns the socket and the buffered reader, and knows how to write one
+/// RESP frame and read one parsed reply. It deliberately knows nothing
+/// about individual Redis commands: command framing belongs to the RESP
+/// codec (`encode`), and the command API to `RedisClient`.
+pub class Connection {
+    /// The underlying TCP connection.
+    let _conn so.Conn
+
+    /// Buffered view of `_conn`; replies are read through it so that
+    /// small reads do not turn into one syscall each.
+    let _reader io.BufReader
+
+    /// Wrap an already connected socket. Prefer `open`, which also
+    /// handles the address and transport.
+    pub func __init__(conn so.Conn) {
+        _conn = conn
+        _reader = io.BufReader(conn)
+    }
+
+    /// Connect to a Redis server on `host:port`.
+    ///
+    /// Returns nil when the address cannot be resolved or the connection
+    /// is refused. The connection is blocking and has no timeout; call
+    /// `set_timeout` to bound hangs.
+    pub static func open(host = "127.0.0.1", port = 6379) Connection? {
+        let conn = so.dial(host + ":" + str(port), so.SocketTypeSpec.tcp(), nil)
+        if conn == nil { return nil }
+        return Connection(conn)
+    }
+
+    /// Write a complete frame, retrying partial writes.
+    ///
+    /// Panics when the socket cannot take the whole frame; a half
+    /// command would desynchronize the reply stream.
+    pub func send(frame bytes) {
+        if io.write_all(_conn, frame) != frame.len() {
+            panic("redis: write failed")
+        }
+    }
+
+    /// Read and parse exactly one reply from the stream.
+    pub func receive() Reply {
+        return parse_reply(_reader)
+    }
+
+    /// Set the read and write timeout in milliseconds. 0 clears it.
+    pub func set_timeout(ms int) {
+        _conn.set_read_timeout(ms)
+        _conn.set_write_timeout(ms)
+    }
+
+    /// Close the connection. No further commands may be sent.
+    pub func close() {
+        _conn.close()
+    }
+}

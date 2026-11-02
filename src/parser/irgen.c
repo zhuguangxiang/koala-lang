@@ -3320,15 +3320,18 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = loop_end;
 }
 
+/* A bare `{ ... }` only opens a scope: its statements go on in the current block, and the block
+ * where they end (moved on by a nested if / while) becomes the outer one's current block. */
 static void emit_ir_block(ParserState *ps, Stmt *stmt)
 {
-    KlrValue *fn = (KlrValue *)ps->scope->bb->func;
-    KlrBasicBlock *block = klr_append_block(fn, "block");
+    KlrBasicBlock *cur = ps->scope->bb;
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "block");
     BlockStmt *s = (BlockStmt *)stmt;
-    sc->bb = block;
+    sc->bb = cur;
     emit_ir_visit_block(ps, s->stmts);
+    KlrBasicBlock *last = sc->bb;
     exit_scope(ps);
+    ps->scope->bb = last;
 }
 
 static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)

@@ -1,0 +1,49 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/redis"
+
+@test
+func test_empty() {
+    let req = redis.Request()
+    ut.assert_true(req.empty())
+    ut.assert_eq(req.len(), 0)
+    ut.assert_eq(req.to_bytes().len(), 0)
+}
+
+@test
+func test_add() {
+    let req = redis.Request().add(redis.Command("PING"))
+    ut.assert_true(!req.empty())
+    ut.assert_eq(req.len(), 1)
+}
+
+@test
+func test_to_bytes_pipeline() {
+    let req = redis.Request()
+    req.add(redis.Command("PING"))
+    req.add(redis.Command("GET").arg("k"))
+    ut.assert_eq(req.to_bytes().to_str(),
+                 "*1\r\n$4\r\nPING\r\n*2\r\n$3\r\nGET\r\n$1\r\nk\r\n")
+}
+
+@test
+func test_add_words() {
+    let words = list[str]()
+    words.append("PING")
+
+    let req = redis.Request().add_words(words)
+    ut.assert_eq(req.len(), 1)
+    ut.assert_eq(req.commands()[0].op(), "PING")
+}
+
+@test
+func test_commands_is_copy() {
+    let req = redis.Request().add(redis.Command("PING"))
+    let cmds = req.commands()
+    cmds.append(redis.Command("GET"))
+    ut.assert_eq(req.len(), 1)
+}

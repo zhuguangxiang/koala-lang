@@ -2709,6 +2709,32 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
     }
 }
 
+/* `&&`, `||`, `!` are not overloadable: their methods belong to bool only. Another class or trait
+ * defining one is reported, pointing to the bitwise method of the same operator character. */
+static void check_logical_op_method(ParserState *ps, Symbol *kls, FuncDeclStmt *fn)
+{
+    static const struct {
+        const char *name;
+        const char *bit_name;
+        const char *bit_op;
+    } table[] = {
+        { "__and__", "__bitand__", "&" },
+        { "__or__", "__bitor__", "|" },
+        { "__not__", "__bitnot__", "~" },
+    };
+
+    if (str_equal(kls->path, "std/builtin") && str_equal(kls->name, "bool")) return;
+
+    for (int i = 0; i < COUNT_OF(table); i++) {
+        if (str_equal(fn->id.name, table[i].name)) {
+            kl_error(fn->id.loc,
+                     "logical operator method '%s' can only be defined by bool; use '%s' for '%s'.",
+                     table[i].name, table[i].bit_name, table[i].bit_op);
+            return;
+        }
+    }
+}
+
 // only add klass/trait symbol and add tp, fields and methods
 static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, int is_trait)
 {
@@ -2782,6 +2808,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
             Symbol *var = _add_field(ps, sym->stbl, (VarDeclStmt *)stmt);
             if (var) vector_push_back(kls_sym->fields, &var);
         } else if (stmt->kind == STMT_FUNC_KIND) {
+            check_logical_op_method(ps, sym, (FuncDeclStmt *)stmt);
             Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt, 0);
             if (fn) {
                 fn->parent = kls_sym;
@@ -3429,52 +3456,34 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         return -1;
     }
 
+    /* `a op= b` uses the in-place hook `__iop__` if the type has it, else the binary hook `__op__`
+     * (`a = a op b`); either way it takes one argument of the type of `b` and its result is
+     * assigned back to `a`. */
     char *op_name = get_inplace_op_str(op);
-    /* `|=` fallback: `__ior__` is the in-place bit-or hook (dict declares it).
-     * bool is excluded on purpose: its `__or__` marker belongs to the `||`
-     * operator, so `b |= x` must stay a compile error. */
-    char *or_op_name = (op == OP_OR_ASSIGN && !type_is_bool(lhs->ts)) ? "__ior__" : NULL;
+    char *bi_op_name = get_inplace_binary_op_str(op);
+    char *fn_name = op_name;
     Symbol *op_sym = get_operator_method(ps, kls_sym, op_name);
-    if (!op_sym && or_op_name) {
-        op_sym = get_operator_method(ps, kls_sym, or_op_name);
+    if (!op_sym) {
+        fn_name = bi_op_name;
+        op_sym = get_operator_method(ps, kls_sym, bi_op_name);
     }
 
     if (!op_sym) {
-        char *bi_op_name = get_inplace_binary_op_str(op);
-        char *bi_or_op_name = (op == OP_OR_ASSIGN && !type_is_bool(lhs->ts)) ? "__or__" : NULL;
-        op_sym = get_operator_method(ps, kls_sym, bi_op_name);
-        if (!op_sym && bi_or_op_name) {
-            op_sym = get_operator_method(ps, kls_sym, bi_or_op_name);
-        }
-
-        if (!op_sym) {
-            kl_error(assign->loc, "neither '%s' nor '%s' is defined for class '%s'.", op_name,
-                     bi_op_name, kls_sym->name);
-            return -1;
-        }
-
-        if (op_sym->kind != SYM_FUNC) {
-            kl_error(assign->loc, "binary operator '%s' in class '%s' is not a function.",
-                     bi_op_name, kls_sym->name);
-            return -1;
-        }
-
-        assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
-        expr_set_loc(assign->bin_exp, assign->loc);
-        return 0;
+        kl_error(assign->loc, "neither '%s' nor '%s' is defined for class '%s'.", op_name,
+                 bi_op_name, kls_sym->name);
+        return -1;
     }
 
     if (op_sym->kind != SYM_FUNC) {
-        kl_error(assign->loc, "'%s' in class '%s' is not a function.", op_name, kls_sym->name);
+        kl_error(assign->loc, "'%s' in class '%s' is not a function.", fn_name, kls_sym->name);
         return -1;
     }
 
     FuncSymbol *fn_sym = (FuncSymbol *)op_sym;
     if (vector_size(fn_sym->params) != 1) {
         kl_error(assign->loc,
-                 "inplace operator '%s' in class '%s' must have exactly one "
-                 "parameter.",
-                 op_name, kls_sym->name);
+                 "inplace operator '%s' in class '%s' must have exactly one parameter.", fn_name,
+                 kls_sym->name);
         return -1;
     }
 
@@ -3489,6 +3498,28 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         print_type_spec(rhs->ts);
         printf("\n");
         return -1;
+    }
+
+    if (!fn_sym->ret || !type_spec_compatible(lhs->ts, fn_sym->ret)) {
+        BUF(lbuf);
+        BUF(rbuf);
+        type_spec_print(lhs->ts, &lbuf);
+        if (fn_sym->ret) {
+            type_spec_print(fn_sym->ret, &rbuf);
+        } else {
+            buf_write_str(&rbuf, "void");
+        }
+        kl_error(assign->loc, "the result '%s' of '%s' cannot be assigned back to '%s'.",
+                 BUF_STR(rbuf), fn_name, BUF_STR(lbuf));
+        FINI_BUF(lbuf);
+        FINI_BUF(rbuf);
+        return -1;
+    }
+
+    if (fn_name == bi_op_name) {
+        assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
+        expr_set_loc(assign->bin_exp, assign->loc);
+        return 0;
     }
 
     assign->fn_sym = fn_sym;

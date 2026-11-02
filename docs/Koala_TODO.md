@@ -27,11 +27,14 @@
 > are still rejected, to implement),
 > `bytes` / `str` API surface and union literal narrowing: leftovers after the `in` refactor
 > (§48, to decide / to implement), side effects of operators and an explicit `pure` declaration
-> (§49, to design).
+> (§49, to design), a bare `{ ... }` block statement is never executed (§50, fixed),
+> `break` / `continue` look for a loop past a function boundary (§51, latent, fix with closures).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-02 (added §49: operators are not assumed side-effect free; direction is a
+> 更新日期：2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
+> until closures exist)；2026-11-02 (added §50: a bare `{ ... }` block statement is lowered to an unreachable basic
+> block, found while adding "last statement before `}` may drop its `;`")；2026-11-02 (added §49: operators are not assumed side-effect free; direction is a
 > compiler-checked `pure` modifier with "removable" / "mergeable" levels, to design)；2026-11-02 (§47 fixed: a type whitelist in `normalize` / `lvn` / `dce`, and `lsra` gives a kept
 > `OP_NUM_*` a register, 4 regression tests; §47.3 the `lsra` stop-gap is to discuss, §47.5 unary operators on a user class are left to implement)；2026-11-02（新增 §47：`+` 在 `bytes` / `str` 上被 `normalize` / `lvn` 当作可交换运算——
 > `b"ab" + q` 被交换成 `q + b"ab"`，且同一函数内 `a + b` 与 `b + a` 被值编号合并成同一个值；
@@ -2939,3 +2942,63 @@ Explicit declarations, by who guarantees them:
 - Traits: whether `pure` on a trait method (e.g. `Number.__add__`) binds every implementation.
 - Serialization: how the flag travels in `.klc` so an importing module can use it.
 - An escape hatch for debug logging inside a `pure` function (D's `debug` blocks).
+
+---
+
+## 50. A bare `{ ... }` block statement is never executed (2026-11-02, fixed 2026-11-02)
+
+Found while testing "the `;` of the last statement before `}` may be left out" (Manual, Branching and
+Loops). Unrelated to that change: it fails the same way with explicit `;`. **Silent**: no
+diagnostic, the statements in the block just never run.
+
+```kl
+func main() {
+    var x = 0
+    { x = 1; }
+    print(x)                  // expected 1, prints 0
+    { print("a"); print("b"); }   // prints nothing
+    if true { print("d") }    // fine
+}
+```
+
+`--dump=no-opt-ir` shows each bare block as its own basic block with `;; No preds!`, after the
+`print(x)` of the entry block. Cause, `src/parser/irgen.c` `emit_ir_block()`:
+
+- it appends a new basic block (`klr_append_block(fn, "block")`) and emits the statements there,
+  but never emits a `jmp` from the current block into it;
+- it never emits a `jmp` out of it either, and after `exit_scope()` the statements that follow go
+  on in the old block (`ps->scope->bb` is unchanged), so the new block is dead and later passes
+  drop it.
+
+Fix (2026-11-02): `emit_ir_block()` no longer creates a basic block. A block statement only opens a
+scope: its statements go on in the current block (`sc->bb = ps->scope->bb` before entering), and the
+block where they end — moved on by a nested `if` / `while` — is written back to the outer scope after
+`exit_scope()`. A body ending in `return` / `break` / `continue` needs no special case: its last block
+already has a terminator. The other option (keep the block and add `jmp` in / `jmp` out) gives a
+block with one unconditional predecessor and one successor, which `cfg_merge_block_pass` would merge
+back anyway.
+
+Tests: `test/test-run/test_bare_block.kl` (runs with `--dump=no-opt-ir` and checks no `(block)`
+basic block is left; covers empty `{}`, nested empty and nested blocks, a block entered from the
+entry block and from the join block of an `if` / a `while`, blocks inside branches and loop bodies,
+scoping, a `while` inside a block, `return` / `continue` inside a block);
+`test/test-run/test_block_last_stmt.kl` is back to bare blocks.
+
+---
+
+## 51. `break` / `continue` look for a loop past a function boundary (2026-11-02, latent)
+
+Found while discussing statement blocks in `if` expressions (not adopted: an `if` expression stays
+one value per branch, it only replaces `?:`). Read from the code, not reproducible today.
+
+`find_loop_scope()` (`src/parser/parser.c`), used by `parse_break()` / `parse_continue()`, walks
+`ps->scope` outwards until it meets a `WHILE_BLOCK` / `WHILE_LET_BLOCK` / `FOR_BLOCK`, but it never
+stops at a `SCOPE_FUNC` or `SCOPE_ANONY` scope. A `break` in a function body nested inside a loop
+would therefore find the outer function's loop and pass the check, and irgen would jump to a block of
+another function.
+
+It cannot happen today: anonymous functions and closures are not part of the language (Manual,
+Functions), and a `func` declared inside a function body is a syntax error. Fix it together with
+closures (or local functions): stop the walk at `SCOPE_FUNC` / `SCOPE_ANONY` and report "break
+statement must be inside a loop." there; `return` already resolves through `get_current_function()`,
+which stops at the nearest `SCOPE_FUNC` (check that it also stops at `SCOPE_ANONY` then).

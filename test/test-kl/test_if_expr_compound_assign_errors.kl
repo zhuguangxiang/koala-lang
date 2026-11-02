@@ -1,0 +1,14 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A compound assignment with an 'if' expression is checked like any other right side.
+
+func main() {
+    let c = true
+    var g = 0
+    g += if c { 1 } else { "x" }
+    // CHECK: branches of 'if' expression have incompatible types
+    let h = 0
+    h += if c { 1 } else { 2 }
+    // CHECK: cannot assign to immutable variable 'h'
+}
+
+// CHECK-NOT: error:

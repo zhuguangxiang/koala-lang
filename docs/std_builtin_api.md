@@ -1521,7 +1521,7 @@ pub class dict[K, V] : MutableMap[K, V] {
     pub func update(src Iterable[(K, V)])
     pub func setdefault(key K, default_value V) V
     pub func __bitor__(src Iterable[(K, V)]) dict[K, V]
-    pub func __ior__(src Iterable[(K, V)]) dict[K, V]
+    pub func __ibitor__(src Iterable[(K, V)]) dict[K, V]
     pub func reversed(step = 1) Iterator[(K, V)]
     pub func fmt(f Formatter)
 }
@@ -1656,9 +1656,9 @@ Otherwise insert `key` with `default_value` and return `default_value`.
 Return a new dict with mappings of `self` followed by `src` (`self | src`).
 Values from `src` replace those of duplicate keys.
 
-<a id="dict.__ior__"></a>
+<a id="dict.__ibitor__"></a>
 
-**`__ior__(src Iterable[(K, V)]) dict[K, V]`** — *`@native`*
+**`__ibitor__(src Iterable[(K, V)]) dict[K, V]`** — *`@native`*
 
 Merge all (key, value) pairs from `src` into the dict in place,
 replacing the values of existing keys (`self |= src`).

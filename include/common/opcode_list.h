@@ -2198,10 +2198,10 @@ X(OP_NUM_MOD, FORMAT_RRR, "num.mod")
  *     Performs bitwise AND on ra and rb using the number protocol.
  *
  * Behavior:
- *     - Operands must implement __and__
+ *     - Operands must implement __bitand__
  *
  * Types:
- *     - User-defined numeric types implementing __and__
+ *     - User-defined numeric types implementing __bitand__
  *
  * Notes:
  *     - Protocol-level bitwise AND; built-in int/float use dedicated opcodes

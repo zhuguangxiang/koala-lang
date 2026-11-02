@@ -3358,9 +3358,8 @@ static void parse_binary(ParserState *ps, Expr *exp)
         return;
     }
 
-    /* `&&` / `||` are bool-only and are not overloadable: a container class
-     * declaring `__or__` (the logic or hook) must not make `d1 || d2` resolve —
-     * fail early instead of emitting a non-bool branch.
+    /* `&&` / `||` are bool-only and are not overloadable (only bool may define `__and__` /
+     * `__or__`): fail early instead of emitting a non-bool branch.
      */
     if ((op == BINARY_AND || op == BINARY_OR) && !type_is_bool(lhs->ts)) {
         kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.", get_binary_op_str(op),
@@ -3370,11 +3369,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     Symbol *fn = NULL;
     char *op_name = get_binary_op_name(op);
-    /* `|` fallback: `__bitor__` is the bit-or hook name.
-     * bool is excluded on purpose: its `__or__` intrinsic is the `||` marker,
-     * so `true | false` must stay a compile error.
-     */
-    char *or_op_name = (op == BINARY_BIT_OR && !type_is_bool(lhs->ts)) ? "__bitor__" : NULL;
 
     if (sym->kind == SYM_TYPE_PARAM) {
         fn = get_func_from_tp(ps, (TypeParamSymbol *)sym, op_name);
@@ -3400,10 +3394,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
         // dunder through the instance interface like an explicit member call
         fn = get_instance_method((InstanceSymbol *)sym, op_name, ps);
 
-        if (!fn && or_op_name) {
-            fn = get_instance_method((InstanceSymbol *)sym, or_op_name, ps);
-        }
-
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
                      get_binary_op_str(op), sym->name);
@@ -3412,10 +3402,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
     } else {
         HashMap *stbl = ((KlassSymbol *)sym)->stbl;
         fn = stbl_get(stbl, op_name);
-
-        if (!fn && or_op_name) {
-            fn = stbl_get(stbl, or_op_name);
-        }
 
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",

@@ -1,0 +1,8 @@
+// RUN: koala %s | filecheck %s
+// The last line has no newline: end of input ends its statement like a newline.
+
+// CHECK: 1
+// CHECK-NOT: {{.}}
+
+let a = 1
+print(a)

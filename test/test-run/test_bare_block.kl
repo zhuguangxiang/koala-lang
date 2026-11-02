@@ -1,0 +1,138 @@
+// RUN: koala --dump=no-opt-ir %s | filecheck %s
+// A bare `{ ... }` block statement runs in place and only opens a scope: no basic block of its own,
+// so it is reached whatever block it starts in (entry, an if / while join, a loop body, a branch).
+
+func early(c bool) int {
+    {
+        if c { return 1 }
+        print("after if")
+    }
+    return 2
+}
+
+func empty_only() {
+    {}
+}
+
+func nested_empty() {
+    { {} }
+    { { {} } }
+    {
+        {}
+    }
+}
+
+// empty blocks mixed with statements and nested groups, on one line and over several lines
+func mixed_blocks() {
+    var x = 0
+    { {} print("m1"); {} print("m2"); {} {} { {} {} } }
+    { {}; print("m3"); {}; }
+    { {} {} }
+    { { {} {} } {} }
+    { print("m4"); {} }
+    { {} x = 1 }
+    { { print("m5") } { print("m6") } }
+    {
+        {}
+        x += 10
+        {}
+        { {} {} }
+        { {} print("m7"); {} }
+        {}
+    }
+    print("x", x)
+}
+
+func main() {
+    // entered from the entry block
+    var x = 0
+    { x = 1; }
+    print(x)
+    { print("a"); print("b"); }
+
+    // empty and nested empty blocks
+    {}
+    { {} }
+    { { {} } }
+    empty_only()
+    nested_empty()
+    mixed_blocks()
+    print("empty ok")
+
+    // nested blocks
+    { { x = 2 } }
+    print(x)
+    { { { x += 10 } } }
+    print(x)
+    {
+        print("outer")
+        { print("inner") }
+        print("outer again")
+    }
+
+    // scope
+    let v = 10
+    {
+        let v = 20
+        print(v)
+    }
+    print(v)
+
+    // a loop inside a block: the code after it goes on in the loop's end block
+    var n = 0
+    {
+        while n < 3 { n += 1 }
+        print("n", n)
+    }
+    print("after", n)
+
+    // entered from the join block of an if / a while
+    if x > 0 { print("then") } else { print("else") }
+    { print("after if-else") }
+    while n > 0 { n -= 1 }
+    { print("after while", n) }
+
+    // inside branches and loop bodies
+    if x > 0 { { print("in then") } } else { { print("in else") } }
+    for i in range(3) {
+        { if i == 1 { continue } }
+        { print("i", i) }
+    }
+
+    // return inside a block
+    print(early(true))
+    print(early(false))
+}
+
+// CHECK-NOT: (block)
+// CHECK: {{^}}1
+// CHECK-NEXT: a
+// CHECK-NEXT: b
+// CHECK-NEXT: m1
+// CHECK-NEXT: m2
+// CHECK-NEXT: m3
+// CHECK-NEXT: m4
+// CHECK-NEXT: m5
+// CHECK-NEXT: m6
+// CHECK-NEXT: m7
+// CHECK-NEXT: x 11
+// CHECK-NEXT: empty ok
+// CHECK-NEXT: 2
+// CHECK-NEXT: 12
+// CHECK-NEXT: outer
+// CHECK-NEXT: inner
+// CHECK-NEXT: outer again
+// CHECK-NEXT: 20
+// CHECK-NEXT: 10
+// CHECK-NEXT: n 3
+// CHECK-NEXT: after 3
+// CHECK-NEXT: then
+// CHECK-NEXT: after if-else
+// CHECK-NEXT: after while 0
+// CHECK-NEXT: in then
+// CHECK-NEXT: i 0
+// CHECK-NEXT: i 2
+// CHECK-NEXT: 1
+// CHECK-NEXT: after if
+// CHECK-NEXT: 2
+// CHECK-NOT: {{.}}

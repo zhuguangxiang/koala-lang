@@ -1,0 +1,67 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/redis"
+
+@test
+func test_build() {
+    let cmd = redis.Command("SET").arg("foo").arg("bar")
+    ut.assert_eq(cmd.op(), "SET")
+
+    let args = cmd.args()
+    ut.assert_eq(args.len(), 2)
+    ut.assert_eq(args[0], "foo")
+    ut.assert_eq(args[1], "bar")
+}
+
+@test
+func test_ctor_args() {
+    let cmd = redis.Command("SET", "foo", "bar")
+    ut.assert_eq(cmd.op(), "SET")
+    ut.assert_eq(cmd.args().len(), 2)
+    ut.assert_eq(cmd.args()[0], "foo")
+    ut.assert_eq(cmd.args()[1], "bar")
+}
+
+@test
+func test_arg_int() {
+    let cmd = redis.Command("INCRBY").arg("k").arg_int(42)
+    let words = cmd.words()
+    ut.assert_eq(words.len(), 3)
+    ut.assert_eq(words[2], "42")
+}
+
+@test
+func test_to_bytes() {
+    let cmd = redis.Command("SET").arg("foo").arg("bar")
+    ut.assert_eq(cmd.to_bytes().to_str(),
+                 "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+}
+
+@test
+func test_ping_frame() {
+    let cmd = redis.Command("PING")
+    ut.assert_eq(cmd.to_bytes().to_str(), "*1\r\n$4\r\nPING\r\n")
+}
+
+@test
+func test_from_words() {
+    let words = list[str]()
+    words.append("GET")
+    words.append("k")
+
+    let cmd = redis.Command.from_words(words)
+    ut.assert_eq(cmd.op(), "GET")
+    ut.assert_eq(cmd.args()[0], "k")
+}
+
+@test
+func test_args_is_copy() {
+    let cmd = redis.Command("SET").arg("a")
+    let args = cmd.args()
+    args.append("b")
+    ut.assert_eq(cmd.args().len(), 1)
+}

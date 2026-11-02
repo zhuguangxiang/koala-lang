@@ -57,10 +57,10 @@ typedef enum {
     /* bitwise protocol */
     SLOT_SHL,     // __shl__
     SLOT_SHR,     // __shr__
-    SLOT_BIT_AND, // __and__
-    SLOT_BIT_OR,  // __or__
-    SLOT_BIT_XOR, // __xor__
-    SLOT_BIT_NOT, // __invert__
+    SLOT_BIT_AND, // __bitand__
+    SLOT_BIT_OR,  // __bitor__
+    SLOT_BIT_XOR, // __bitxor__
+    SLOT_BIT_NOT, // __bitnot__
 
     /* other slots */
     SLOT_INIT, // __init__

@@ -1,0 +1,121 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Live tests against a Redis server on 127.0.0.1:6379. Tests skip when
+// no server is reachable so the suite still passes offline.
+
+import "std/ut"
+import "koala/redis"
+
+@test
+func test_ping() {
+    if let c = redis.RedisClient.connect() {
+        ut.assert_true(c.ping())
+        c.close()
+    }
+}
+
+@test
+func test_set_get_del() {
+    if let c = redis.RedisClient.connect() {
+        let key = "koala:test:str"
+        c.del(key)
+
+        ut.assert_true(c.set(key, "hello"))
+        ut.assert_eq(c.get(key)!, "hello")
+        ut.assert_true(c.exists(key))
+        ut.assert_eq(c.del(key), 1)
+        ut.assert_true(c.get(key) == nil)
+
+        c.close()
+    }
+}
+
+@test
+func test_incr() {
+    if let c = redis.RedisClient.connect() {
+        let key = "koala:test:incr"
+        c.del(key)
+
+        ut.assert_eq(c.incr(key), 1)
+        ut.assert_eq(c.incr(key), 2)
+
+        c.del(key)
+        c.close()
+    }
+}
+
+@test
+func test_list() {
+    if let c = redis.RedisClient.connect() {
+        let key = "koala:test:list"
+        c.del(key)
+
+        ut.assert_eq(c.rpush(key, "a"), 1)
+        ut.assert_eq(c.rpush(key, "b"), 2)
+        ut.assert_eq(c.lpush(key, "z"), 3)
+        ut.assert_eq(c.llen(key), 3)
+
+        let xs = c.lrange(key, 0, -1)
+        ut.assert_eq(xs.len(), 3)
+        ut.assert_eq(xs[0], "z")
+        ut.assert_eq(xs[1], "a")
+        ut.assert_eq(xs[2], "b")
+
+        c.del(key)
+        c.close()
+    }
+}
+
+@test
+func test_pipeline() {
+    if let c = redis.RedisClient.connect() {
+        let key = "koala:test:pipe"
+        c.del(key)
+
+        let req = redis.Request()
+        req.add(redis.Command("SET").arg(key).arg("v1"))
+        req.add(redis.Command("GET").arg(key))
+        req.add(redis.Command("DEL").arg(key))
+
+        let resp = c.execute(req)
+        ut.assert_eq(resp.len(), 3)
+
+        let r0 = resp.reply(0)
+        ut.assert_true(r0 is redis.StatusReply)
+        if r0 is redis.StatusReply {
+            ut.assert_eq(r0.value, "OK")
+        }
+
+        let r1 = resp.reply(1)
+        ut.assert_true(r1 is redis.BulkReply)
+        if r1 is redis.BulkReply {
+            ut.assert_eq(r1.value, "v1")
+        }
+
+        let r2 = resp.reply(2)
+        ut.assert_true(r2 is redis.IntReply)
+        if r2 is redis.IntReply {
+            ut.assert_eq(r2.value, 1)
+        }
+
+        c.close()
+    }
+}
+
+@test
+func test_error_reply() {
+    if let c = redis.RedisClient.connect() {
+        let key = "koala:test:err"
+        c.del(key)
+        c.set(key, "not-a-list")
+
+        let r = c.exec(redis.Command("LPUSH", key, "x"))
+        ut.assert_true(r is redis.ErrorReply)
+
+        c.del(key)
+        c.close()
+    }
+}

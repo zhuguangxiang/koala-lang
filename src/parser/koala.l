@@ -190,7 +190,7 @@ static char hex2byte(const char *s)
         ++loc_last_line; \
         loc_last_col = 1; \
     } else { \
-        int ignore = (YY_START == COMMENT || YY_START == LINE_COMMENT); \
+        int ignore = (YY_START == COMMENT); \
         if (!ignore) { \
             if (yyps->multi) { \
                 loc_last_col += yyleng; \
@@ -204,6 +204,12 @@ static char hex2byte(const char *s)
 }
 
 #define YY_RETURN(x) yyps->token = x; return x
+
+/* a newline after '}' followed by 'else' inserts no ';' */
+#define YY_NEWLINE_ELSE do {                  \
+    if (yyps->token != '}') YY_NEWLINE;       \
+} while (0)
+
 #define YY_IDENT_VALUE(s, len) yylval->sval = atom_nstr(s, len)
 
 #define YY_INT_VALUE(s, len, base) \
@@ -238,7 +244,10 @@ static char hex2byte(const char *s)
 %option noinput
 %option never-interactive
 
-%x S STR BYTE_S TXT COMMENT LINE_COMMENT
+%x S STR BYTE_S TXT COMMENT
+
+ELSE_SKIP   ([ \t\r\n]|("//"|"#")[^\n]*|"/*"([^*]|"*"+[^*/])*"*"+"/")
+ELSE_NEXT   {ELSE_SKIP}*"else"[^A-Za-z0-9_]
 
 /* rules */
 
@@ -432,17 +441,23 @@ b\"              { YY_BYTES_BEGIN; }
 <TXT>\"\"\"     { YY_TXT_END;              }
 <TXT>(\n|.)          { YY_TXT_WRITE(yytext[0]); }
 
-"//"            { BEGIN(LINE_COMMENT); }
-"#"             { BEGIN(LINE_COMMENT); }
-<LINE_COMMENT>.           { /* ignore non-newline chars */ }
-<LINE_COMMENT>\n          { BEGIN(INITIAL); YY_NEWLINE; }
+("//"|"#")[^\n]*  { /* line comment: the newline is left to the "\n" rules */ }
 
 "/*"                { BEGIN(COMMENT); }
 <COMMENT>"*/"       { BEGIN(INITIAL); }
 <COMMENT>"\n"       { /* ignore any char except newline (handled below) */ }
 <COMMENT>.          { /* newline, location updated by YY_USER_ACTION, no ASI */}
 
+"\n"/{ELSE_NEXT} { YY_NEWLINE_ELSE; }
 "\n"            { YY_NEWLINE; }
+
+<INITIAL><<EOF>> {
+    /* the last line has no newline: end its statement as a newline would. Once ';' is
+       returned the token is ';', so the next call ends the input */
+    YY_NEWLINE;
+    yyterminate();
+}
+
 [ \t\r]         { }
 .               { }
 

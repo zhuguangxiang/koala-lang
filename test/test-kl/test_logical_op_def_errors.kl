@@ -1,0 +1,23 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// `&&`, `||`, `!` are not overloadable: only bool may define `__and__` / `__or__` / `__not__`.
+// A class or a trait defining one is told to use the bitwise method instead.
+
+class Flags {
+    func __or__(rhs Flags) Flags = self
+    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__or__' can only be defined by bool; use '__bitor__' for '|'.
+    func __and__(rhs Flags) Flags = self
+    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__and__' can only be defined by bool; use '__bitand__' for '&'.
+    func __not__() Flags = self
+    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__not__' can only be defined by bool; use '__bitnot__' for '~'.
+
+    // the bitwise methods are fine
+    func __bitor__(rhs Flags) Flags = self
+    func __bitand__(rhs Flags) Flags = self
+}
+
+trait Logic {
+    func __or__(rhs int) int
+    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__or__' can only be defined by bool; use '__bitor__' for '|'.
+}
+
+// CHECK-NOT: error:

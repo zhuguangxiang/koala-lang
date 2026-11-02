@@ -1,0 +1,106 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+
+/// Encode a command as a RESP array of bulk strings.
+///
+/// ```
+/// ["SET", "foo", "bar"]  ->
+/// *3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n
+/// ```
+///
+/// Arguments
+/// - `args`: The command words, e.g. the command name followed by its
+///   arguments. Each element is encoded as one bulk string.
+///
+/// Returns
+/// The complete command frame as bytes, ready to write to a connection.
+pub func encode(args list[str]) bytes {
+    let buf = Buffer()
+    buf.write_byte('*')
+    buf.write_str(str(args.len()))
+    buf.write_str("\r\n")
+    for a in args {
+        buf.write_byte('$')
+        buf.write_str(str(a.len()))
+        buf.write_str("\r\n")
+        buf.write_str(a)
+        buf.write_str("\r\n")
+    }
+    return buf.to_bytes()
+}
+
+/// Parse one RESP2 reply from `r`.
+///
+/// The five RESP2 reply types map to:
+/// - `+` -> `StatusReply`
+/// - `-` -> `ErrorReply` (the server error is data, not a panic)
+/// - `:` -> `IntReply`
+/// - `$` -> `BulkReply`, or `NilReply` for `$-1`
+/// - `*` -> `ArrayReply`, or `NilReply` for `*-1`
+///
+/// Panics if the stream ends mid-reply, or if the type byte is not one
+/// of the RESP2 prefixes above. Any reply that starts on the stream is
+/// consumed in full, so the reader is positioned at the next reply.
+pub func parse_reply(r io.BufReader) Reply {
+    let t = r.read_byte()
+    if t < 0 {
+        panic("redis: connection closed")
+    }
+
+    let line = Buffer()
+    if r.read_line(line) < 0 {
+        panic("redis: connection closed")
+    }
+    let s = line.to_str().remove_suffix("\r")
+
+    if t == int('+') {
+        return StatusReply(s)
+    }
+
+    if t == int('-') {
+        return ErrorReply(s)
+    }
+
+    if t == int(':') {
+        return IntReply(s.to_int())
+    }
+
+    if t == int('$') {
+        let n = s.to_int()
+        if n < 0 {
+            return NilReply()
+        }
+
+        let buf = bytes(n)
+        if io.read_exact(r, buf) != n {
+            panic("redis: truncated bulk string")
+        }
+
+        let crlf = bytes(2)
+        if io.read_exact(r, crlf) != 2 {
+            panic("redis: truncated bulk string")
+        }
+        return BulkReply(buf.to_str())
+    }
+
+    if t == int('*') {
+        let n = s.to_int()
+        if n < 0 {
+            return NilReply()
+        }
+
+        let out = ArrayReply()
+        var i = 0
+        while i < n {
+            out.items.append(parse_reply(r))
+            i += 1
+        }
+        return out
+    }
+
+    panic("redis: unknown reply type " + str(t))
+}

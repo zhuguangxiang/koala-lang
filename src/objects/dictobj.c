@@ -262,7 +262,7 @@ static inline void _dict_update_one(DictObject *dict, TValue *item)
 }
 
 /* Merge every (key, value) pair yielded by `src` into `dict`, replacing the
- * values of existing keys. Shared by update(), __or__() and __ior__(); `src`
+ * values of existing keys. Shared by update(), __bitor__() and __ibitor__(); `src`
  * is the single argument of those methods and its type Iterable[(K, V)] is
  * enforced by the compiler, so every yielded element is a 2-tuple of (K, V).
  * Returns no_value on success, error_value if the protocol call failed. */
@@ -352,12 +352,12 @@ static TValue _dict_bitor(TValue *self, TValue *args, int nargs)
     return obj_value(res);
 }
 
-/* pub func __ior__(src Iterable[(K, V)]) dict[K, V]
+/* pub func __ibitor__(src Iterable[(K, V)]) dict[K, V]
  *
  * Merge all (key, value) pairs from `src` into the dict in place
  * (`self |= src`), replacing the values of existing keys. Returns the
  * receiver so the compound assignment keeps the same object. */
-static TValue _dict_ior(TValue *self, TValue *args, int nargs)
+static TValue _dict_ibitor(TValue *self, TValue *args, int nargs)
 {
     DictObject *dict = SELF_AS(dict_type);
     ASSERT(nargs == 1);
@@ -632,7 +632,7 @@ static MethodDef dict_methods[] = {
     { "update", _dict_update },
     { "setdefault", _dict_setdefault },
     { "__bitor__", _dict_bitor },
-    { "__ior__", _dict_ior },
+    { "__ibitor__", _dict_ibitor },
     { "keys", _dict_keys },
     { "values", _dict_values },
     { NULL },

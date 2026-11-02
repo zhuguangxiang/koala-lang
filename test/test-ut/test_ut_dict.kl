@@ -1179,7 +1179,7 @@ func test_dict_setdefault_after_clear() {
 }
 
 // ---------------------------------------------------------------------------
-// __bitor__ / __ior__  (self | src, self |= src)
+// __bitor__ / __ibitor__  (self | src, self |= src)
 //   - `|` returns a NEW dict: the mappings of self followed by `src`; values
 //     from `src` replace those of duplicate keys; neither operand is mutated
 //   - `|=` merges `src` into the receiver in place (the same object, so

@@ -634,14 +634,35 @@ if a > b {
 }
 ```
 
+A line break ends a statement after a name, a literal, `)`, `]`, `}` and a few keywords, as if a
+`;` were written. Two exceptions keep short code readable:
+
+- `else` may start a new line after the `}` of its `if`, with only spaces, blank lines and
+  comments between them:
+
+  ```kl
+  if i > 1 { print("i > 1") }
+  else if i == 1 { print("i == 1") }
+  else { print("i < 1") }
+  ```
+
+- the `;` of the last statement before a `}` may be left out, so a block fits on one line:
+
+  ```kl
+  loop {
+      if ln.len() == 0 { i += 1; continue }
+  }
+  ```
+
 **`if` as a value.** Koala has no `?:` operator. Instead, `if ... else ...` gives a value where a
-single value is expected: a `let` / `var` initializer, the right side of `=`, after `return`, and
-as a `= expr` function body:
+single value is expected: a `let` / `var` initializer, the right side of `=` or of a compound
+assignment (`+=`, `-=`, ...), after `return`, and as a `= expr` function body:
 
 ```kl
 let sign = if n < 0 { -1 } else if n == 0 { 0 } else { 1 }
 var label str = if ok { "yes" } else { "no" }
 label = if done { "done" } else { label }
+total += if big { 10 } else { 1 }
 func abs(n int) int = if n < 0 { -n } else { n }
 func name(n int) str {
     return if n == 1 { "one" } else { "many" }
@@ -654,8 +675,8 @@ func name(n int) str {
   it: `let f Fly = if c { Bird() } else { Plane() }`. Without one, the branches must have the same
   type, or `T` and `nil` (giving `T?`), or one must fit the other (`T` and `T?` give `T?`).
 - Only the taken branch is evaluated.
-- It is not allowed inside other expressions (`print(if ...)`, `1 + if ...`), nor with a compound
-  assignment (`x += if ...`): bind it with `let` first. `else` stays on the line of the `}`.
+- It is not allowed inside other expressions (`print(if ...)`, `1 + if ...`): bind it with `let`
+  first. `else` may start a new line, as above.
 
 Loops come in two forms. `while` repeats on a condition, and `while let` repeats on a `T?` value:
 

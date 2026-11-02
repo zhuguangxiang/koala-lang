@@ -1,0 +1,73 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The root trait of all RESP2 replies.
+///
+/// Replies are heterogeneous: an array may contain strings, integers
+/// and nested arrays. Concrete reply classes make that tree type-safe
+/// without an `any` escape hatch. New RESP3 types (map, set, double,
+/// boolean, push) can be added as further classes without changing
+/// `Request`, `Response` or `RedisClient`.
+pub trait Reply {}
+
+/// A simple-string reply, e.g. `+OK\r\n`.
+pub class StatusReply : Reply {
+    /// The status text without the leading `+` or the trailing CRLF.
+    pub let value str
+
+    /// Create a status reply holding `_value`.
+    pub func __init__(_value str) {
+        value = _value
+    }
+}
+
+/// An error reply, e.g. `-ERR unknown command\r\n`.
+pub class ErrorReply : Reply {
+    /// The error text without the leading `-` or the trailing CRLF.
+    pub let value str
+
+    /// Create an error reply holding `_value`.
+    pub func __init__(_value str) {
+        value = _value
+    }
+}
+
+/// A bulk-string reply, e.g. `$3\r\nfoo\r\n`.
+pub class BulkReply : Reply {
+    /// The string content without the length header or the trailing CRLF.
+    pub let value str
+
+    /// Create a bulk reply holding `_value`.
+    pub func __init__(_value str) {
+        value = _value
+    }
+}
+
+/// An integer reply, e.g. `:42\r\n`.
+pub class IntReply : Reply {
+    /// The integer value.
+    pub let value int
+
+    /// Create an integer reply holding `_value`.
+    pub func __init__(_value int) {
+        value = _value
+    }
+}
+
+/// A nil reply, i.e. `$-1\r\n` for a missing bulk string or
+/// `*-1\r\n` for a missing array.
+pub class NilReply : Reply {
+    pub func __init__() {}
+}
+
+/// An array reply, e.g. `*2\r\n$1\r\na\r\n$1\r\nb\r\n`.
+pub class ArrayReply : Reply {
+    /// The elements in wire order. Elements may be nested arrays.
+    pub let items list[Reply]
+
+    pub func __init__() {
+        items = list[Reply]()
+    }
+}

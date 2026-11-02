@@ -1,0 +1,92 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A complete Redis command: an operation (the command name) plus its
+/// argument words.
+///
+/// `Command` is the request value object. It holds the operation and
+/// arguments and can encode itself as one RESP frame, but performs no
+/// I/O. A single command is the smallest unit of a `Request`.
+///
+/// Arguments are passed at construction or appended fluently; both read
+/// top to bottom in wire order:
+///
+///     let cmd = Command("SET", "foo", "bar")
+///     let cmd = Command("SET").arg("foo").arg("bar")
+///     let frame = cmd.to_bytes()
+pub class Command {
+    /// The operation, i.e. the Redis command name, e.g. `"SET"`.
+    let _op str
+
+    /// The argument words, in wire order, without the operation.
+    let _args list[str]
+
+    /// Create a complete command from its operation and argument words.
+    pub func __init__(op str, args ...str) {
+        _op = op
+        _args = list[str]()
+        for a in args {
+            _args.append(a)
+        }
+    }
+
+    /// Append one argument and return `self` so calls chain.
+    pub func arg(value str) Command {
+        _args.append(value)
+        return self
+    }
+
+    /// Append the decimal form of `value` and return `self`.
+    ///
+    /// RESP carries every argument as a bulk string, so numeric
+    /// arguments are converted here rather than at the call site.
+    pub func arg_int(value int) Command {
+        _args.append(str(value))
+        return self
+    }
+
+    /// Return the operation (the command name).
+    pub func op() str {
+        return _op
+    }
+
+    /// Return a copy of the argument words, without the command name.
+    ///
+    /// The copy keeps the internal list private: mutate a command only
+    /// through `arg` / `arg_int`.
+    pub func args() list[str] {
+        return _args.copy()
+    }
+
+    /// Return the full wire word list: operation first, then arguments.
+    pub func words() list[str] {
+        let out = list[str]()
+        out.append(_op)
+        out.extend(_args)
+        return out
+    }
+
+    /// Encode the command as one RESP array of bulk strings.
+    pub func to_bytes() bytes {
+        return encode(words())
+    }
+
+    /// Build a command from a word list whose first element is the name.
+    ///
+    /// Panics if `words` is empty, since a Redis command needs a name.
+    pub static func from_words(words list[str]) Command {
+        if words.len() == 0 {
+            panic("redis: empty command")
+        }
+
+        let cmd = Command(words[0])
+        var i = 1
+        while i < words.len() {
+            cmd.arg(words[i])
+            i += 1
+        }
+        return cmd
+    }
+}

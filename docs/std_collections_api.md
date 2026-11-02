@@ -1401,8 +1401,8 @@ pub class SortedSet[T : Comparable] : MutableSet[T] {
     pub func intersect(other Iterable[T]) SortedSet[T]
     pub func diff(other Iterable[T]) SortedSet[T]
     pub func sym_diff(other Iterable[T]) SortedSet[T]
-    pub func __or__(other Iterable[T]) SortedSet[T]
-    pub func __and__(other Iterable[T]) SortedSet[T]
+    pub func __bitor__(other Iterable[T]) SortedSet[T]
+    pub func __bitand__(other Iterable[T]) SortedSet[T]
     pub func __sub__(other Iterable[T]) SortedSet[T]
     pub func reversed(step = 1) Iterator[T]
     pub func to_list() list[T]
@@ -1515,15 +1515,15 @@ Return a new sorted set with elements in the set that are not in `other`.
 
 Return a new sorted set with elements in the set or `other`, but not both.
 
-<a id="sortedset.__or__"></a>
+<a id="sortedset.__bitor__"></a>
 
-**`__or__(other Iterable[T]) SortedSet[T]`** — *`@native`*
+**`__bitor__(other Iterable[T]) SortedSet[T]`** — *`@native`*
 
 Return a new sorted set with elements from the set and `other` (`self | other`).
 
-<a id="sortedset.__and__"></a>
+<a id="sortedset.__bitand__"></a>
 
-**`__and__(other Iterable[T]) SortedSet[T]`** — *`@native`*
+**`__bitand__(other Iterable[T]) SortedSet[T]`** — *`@native`*
 
 Return a new sorted set with elements common to the set and `other` (`self & other`).
 

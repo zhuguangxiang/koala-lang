@@ -2610,6 +2610,28 @@ block
         stmt_set_loc(s, loc(@2));
         vector_push_back($$, &s);
     }
+    | '{' local_list expr '}'
+    {
+        $$ = $2;
+        Stmt *s = stmt_from_expr($3);
+        stmt_set_loc(s, loc(@3));
+        vector_push_back($$, &s);
+    }
+    | '{' local_list assignment '}'
+    {
+        $$ = $2;
+        vector_push_back($$, &$3);
+    }
+    | '{' local_list jump_stmt '}'
+    {
+        $$ = $2;
+        vector_push_back($$, &$3);
+    }
+    | '{' local_list return_stmt '}'
+    {
+        $$ = $2;
+        vector_push_back($$, &$3);
+    }
     | '{' local_list error
     {
         free_stmt_list($2);
@@ -2716,9 +2738,6 @@ assignment
     {
         $$ = stmt_from_assignment($2, $1, $3);
         stmt_set_loc($$, lloc(@1, @3));
-        if ($2 != OP_ASSIGN && $3->kind == EXPR_IF_KIND) {
-            kl_error(loc(@3), "an 'if' expression can only be assigned with '='.");
-        }
     }
     | assign_left_expr assign_operator error
     {

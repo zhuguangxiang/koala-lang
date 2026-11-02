@@ -92,7 +92,7 @@ pub class dict[K, V] : MutableMap[K, V] {
     /// Merge all (key, value) pairs from `src` into the dict in place,
     /// replacing the values of existing keys (`self |= src`).
     @native
-    pub func __ior__(src Iterable[(K, V)]) dict[K, V] {}
+    pub func __ibitor__(src Iterable[(K, V)]) dict[K, V] {}
 
     /// Return a reverse iterator over the (key, value) pairs in reverse insertion order.
     pub func reversed(step = 1) Iterator[(K, V)] = DictRevIter(self, step)

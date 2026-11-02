@@ -1,0 +1,27 @@
+// RUN: koala %s | filecheck %s
+// An 'if' expression whose branches are bool, wherever an 'if' expression is allowed.
+
+func pick(c bool) bool = if c { false } else { true }
+
+func main() {
+    let c = true
+    let g bool = if c { true } else { false }
+    print(g)
+    var h bool = if !c { true } else { false }
+    print(h)
+    h = if c { true } else { false }
+    print(h)
+    let k = if c { 1 > 2 } else { 3 > 2 }
+    print(k)
+    print(pick(c))
+    let n bool? = if c { nil } else { true }
+    print(n)
+}
+
+// CHECK: true
+// CHECK-NEXT: false
+// CHECK-NEXT: true
+// CHECK-NEXT: false
+// CHECK-NEXT: false
+// CHECK-NEXT: nil
+// CHECK-NOT: {{.}}

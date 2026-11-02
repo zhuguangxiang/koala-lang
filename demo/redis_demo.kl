@@ -1,0 +1,81 @@
+/*
+ * redis_demo.kl — koala/redis 用法示例。
+ *
+ * 先写入数据，再从服务器读出来；最后演示一次 pipeline。
+ */
+
+import "koala/redis"
+
+func main() {
+    let c = redis.RedisClient.connect()
+    if c == nil {
+        print("redis demo: cannot connect to 127.0.0.1:6379")
+        return
+    }
+
+    let str_key = "koala:demo:greeting"
+    let list_key = "koala:demo:queue"
+    let pipe_key = "koala:demo:pipeline"
+
+    // 清掉上次运行残留
+    c.del(str_key)
+    c.del(list_key)
+    c.del(pipe_key)
+
+    //-----------------------------------------------------------------
+    // 1. 写入
+    print("-- write --")
+
+    if c.set(str_key, "hello koala") {
+        print("SET   ", str_key, "=", "hello koala")
+    }
+
+    print("RPUSH ", list_key, "first  ->", c.rpush(list_key, "first"))
+    print("RPUSH ", list_key, "second ->", c.rpush(list_key, "second"))
+    print("LPUSH ", list_key, "zeroth ->", c.lpush(list_key, "zeroth"))
+
+    //-----------------------------------------------------------------
+    // 2. 从服务器读回
+    print("-- read --")
+
+    print("GET   ", str_key, "->", c.get(str_key)!)
+
+    let items = c.lrange(list_key, 0, -1)
+    print("LRANGE", list_key, "0 -1 ->", items.len(), "items")
+    var i = 0
+    while i < items.len() {
+        print("  [", i, "]", items[i])
+        i += 1
+    }
+    print("LLEN  ", list_key, "->", c.llen(list_key))
+
+    //-----------------------------------------------------------------
+    // 3. 一次请求发送多条命令（pipeline）
+    print("-- pipeline --")
+
+    let req = redis.Request()
+    req.add(redis.Command("SET").arg(pipe_key).arg("pipelined"))
+    req.add(redis.Command("GET").arg(pipe_key))
+
+    let resp = c.execute(req)
+    print("replies:", resp.len())
+
+    let r0 = resp.reply(0)
+    if r0 is redis.StatusReply {
+        print("  SET ->", r0.value)
+    }
+
+    let r1 = resp.reply(1)
+    if r1 is redis.BulkReply {
+        print("  GET ->", r1.value)
+    }
+
+    //-----------------------------------------------------------------
+    // 4. 清理
+    c.del(str_key)
+    c.del(list_key)
+    c.del(pipe_key)
+
+    c.close()
+    print("done")
+}

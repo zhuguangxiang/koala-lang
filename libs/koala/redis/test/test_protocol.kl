@@ -1,0 +1,102 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/ut"
+import "koala/redis"
+
+/// Wrap `text` in a buffered reader so parse_reply has a byte stream.
+func _reader(text str) io.BufReader {
+    return io.BufReader(io.BytesIO.from_str(text))
+}
+
+@test
+func test_encode_set() {
+    let args = list[str]()
+    args.append("SET")
+    args.append("foo")
+    args.append("bar")
+    let bs = redis.encode(args)
+    ut.assert_eq(bs.to_str(), "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+}
+
+@test
+func test_parse_status() {
+    let r = (redis.parse_reply(_reader("+OK\r\n")) as redis.StatusReply)!
+    ut.assert_eq(r.value, "OK")
+}
+
+@test
+func test_parse_pong() {
+    let r = (redis.parse_reply(_reader("+PONG\r\n")) as redis.StatusReply)!
+    ut.assert_eq(r.value, "PONG")
+}
+
+@test
+func test_parse_integer() {
+    let r = (redis.parse_reply(_reader(":42\r\n")) as redis.IntReply)!
+    ut.assert_eq(r.value, 42)
+}
+
+@test
+func test_parse_bulk() {
+    let r = (redis.parse_reply(_reader("$3\r\nfoo\r\n")) as redis.BulkReply)!
+    ut.assert_eq(r.value, "foo")
+}
+
+@test
+func test_parse_nil_bulk() {
+    let r = redis.parse_reply(_reader("$-1\r\n"))
+    ut.assert_true(r is redis.NilReply)
+}
+
+@test
+func test_parse_array() {
+    let r = (redis.parse_reply(_reader("*2\r\n$1\r\na\r\n$1\r\nb\r\n")) as redis.ArrayReply)!
+    ut.assert_eq(r.items.len(), 2)
+    ut.assert_eq((r.items[0] as redis.BulkReply)!.value, "a")
+    ut.assert_eq((r.items[1] as redis.BulkReply)!.value, "b")
+}
+
+@test
+func test_parse_error() {
+    let r = (redis.parse_reply(_reader("-ERR bad command\r\n")) as redis.ErrorReply)!
+    ut.assert_eq(r.value, "ERR bad command")
+}
+
+@test
+func test_parse_nil_array() {
+    let r = redis.parse_reply(_reader("*-1\r\n"))
+    ut.assert_true(r is redis.NilReply)
+}
+
+@test
+func test_parse_empty_array() {
+    let r = (redis.parse_reply(_reader("*0\r\n")) as redis.ArrayReply)!
+    ut.assert_eq(r.items.len(), 0)
+}
+
+@test
+func test_parse_nested_array() {
+    let r = (redis.parse_reply(_reader("*2\r\n*1\r\n:1\r\n$1\r\na\r\n")) as redis.ArrayReply)!
+    ut.assert_eq(r.items.len(), 2)
+    ut.assert_true(r.items[0] is redis.ArrayReply)
+    ut.assert_true(r.items[1] is redis.BulkReply)
+
+    let inner = (r.items[0] as redis.ArrayReply)!
+    ut.assert_eq(inner.items.len(), 1)
+    ut.assert_eq((inner.items[0] as redis.IntReply)!.value, 1)
+    ut.assert_eq((r.items[1] as redis.BulkReply)!.value, "a")
+}
+
+@test
+func test_encode_utf8_byte_length() {
+    let args = list[str]()
+    args.append("SET")
+    args.append("k")
+    args.append("你好")
+    let bs = redis.encode(args)
+    ut.assert_eq(bs.to_str(), "*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$6\r\n你好\r\n")
+}
