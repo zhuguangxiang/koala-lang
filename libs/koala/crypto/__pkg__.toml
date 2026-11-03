@@ -2,7 +2,7 @@
 name = "koala/crypto"
 version = "0.1.0"
 description = "Cryptographic primitives over OpenSSL's libcrypto"
-dependencies = ["koala/base64", "koala/hex"]
+dependencies = ["koala/base64"]
 natives = []
 
 [native]

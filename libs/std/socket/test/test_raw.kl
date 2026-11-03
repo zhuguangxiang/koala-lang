@@ -18,7 +18,7 @@ func test_raw_open() {
     // Either the environment grants CAP_NET_RAW (returns a RawConn)
     // or it does not (returns nil). Both are acceptable; the point is
     // that the open path does not crash.
-    let c = so.dial("127.0.0.1:0", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP), nil)
+    let c = so.dial("127.0.0.1:0", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP))
     if c != nil {
         ut.assert_eq(c.socket_type(), so.SOCKTYPE_RAW)
         c.close()
@@ -29,13 +29,13 @@ func test_raw_open() {
 func test_raw_port_must_be_zero() {
     // Raw sockets have no ports; a non-zero port in the url is
     // rejected before the socket is even created.
-    let c = so.dial("127.0.0.1:53", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP), nil)
+    let c = so.dial("127.0.0.1:53", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP))
     ut.assert_true(c == nil)
 }
 
 @test
 func test_raw_icmp_loopback() {
-    let c = so.dial("127.0.0.1:0", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP), nil)
+    let c = so.dial("127.0.0.1:0", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP))
     if c == nil {
         // No CAP_NET_RAW; the open path was already exercised by
         // test_raw_open.

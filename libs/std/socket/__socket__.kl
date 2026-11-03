@@ -28,7 +28,7 @@ import "std/os"
 ///
 /// Returns nil on any failure: bad url, DNS failure, socket creation
 /// failure, bind failure, or connect failure.
-pub func dial(url str, spec SocketTypeSpec, options DialOptions?) Conn? {
+pub func dial(url str, spec SocketTypeSpec, options DialOptions? = nil) Conn? {
     let (host, port) = split_host_port(url) else { return nil }
     // let _host_port = split_host_port(url) else { return nil }
     // let (host, port) = _host_port

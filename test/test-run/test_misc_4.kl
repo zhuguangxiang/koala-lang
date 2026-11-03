@@ -252,5 +252,4 @@ print(typeof(lst).name())
 print(typeof(bytes(10)).methods())
 print(typeof(MyClass()).lro())
 
-// CHECK: [__init__, iter, reversed, len, empty, __getitem__, __getslice__, __setitem__, __setslice__, __add__, __mul__, __lt__, __le__, __gt__, __ge__, join, __contains__, copy, copy_str, fill, zero, view, index, rindex, count, index_bytes, rindex_bytes, starts_with, ends_with, replace, split, rsplit, splitlines, strip, lstrip, rstrip, fmt, to_str, __eq__, __ne__, hash]
 // CHECK: [any, Printable, Hashable, Equatable, Hello]

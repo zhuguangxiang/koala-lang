@@ -5,7 +5,6 @@
 
 import "std/ut"
 import "koala/crypto" as cr
-import "koala/hex"
 
 @test
 func test_random_bytes_len() {
@@ -18,7 +17,7 @@ func test_random_bytes_len() {
 func test_random_bytes_differs() {
     let a = cr.random_bytes(32)
     let b = cr.random_bytes(32)
-    ut.assert_true(hex.encode(a) != hex.encode(b))
+    ut.assert_true(a.to_hex() != b.to_hex())
 }
 
 @test

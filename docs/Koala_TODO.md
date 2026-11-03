@@ -28,11 +28,17 @@
 > `bytes` / `str` API surface and union literal narrowing: leftovers after the `in` refactor
 > (§48, to decide / to implement), side effects of operators and an explicit `pure` declaration
 > (§49, to design), a bare `{ ... }` block statement is never executed (§50, fixed),
-> `break` / `continue` look for a loop past a function boundary (§51, latent, fix with closures).
+> `break` / `continue` look for a loop past a function boundary (§51, latent, fix with closures),
+> `BufReader.read_line` keeps the '\r' of a CRLF line (§52, to decide), reading an uninitialized
+> local gives a garbage value: no definite-assignment check (§53, to fix), a type name used as a
+> value crashes the backend (§54, to fix with an error).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
+> 更新日期：2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
+> 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
+> decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
 > until closures exist)；2026-11-02 (added §50: a bare `{ ... }` block statement is lowered to an unreachable basic
 > block, found while adding "last statement before `}` may drop its `;`")；2026-11-02 (added §49: operators are not assumed side-effect free; direction is a
 > compiler-checked `pure` modifier with "removable" / "mergeable" levels, to design)；2026-11-02 (§47 fixed: a type whitelist in `normalize` / `lvn` / `dce`, and `lsra` gives a kept
@@ -2737,11 +2743,18 @@ first integer member (`300 in bs` → `Value 300 overflows 'uint8' range`). The 
    (`lower` / `upper`) and the `is*` predicates, each needing an ASCII-only definition written down
    (a byte array has no encoding).
 
-8. **Deliberately absent — record the decision so it is not re-litigated:** `hex()` / `fromhex()`
-   (both `koala/crypto/random.token_hex` and `koala/json/string.hex_byte` roll their own today),
+8. **Deliberately absent — record the decision so it is not re-litigated:**
    `translate` / `maketrans`, `partition` / `rpartition`, `expandtabs`, printf-style `%` formatting,
    and `decode(encoding)` (only UTF-8 via `to_str()`, which panics on invalid input — a
    non-panicking `to_str_or` / `validate` is a separate gap).
+
+   Hex was on this list and was reversed on 2026-11-03: `bytes.to_hex(sep = "", bytes_per_sep = 1)`
+   and the static `bytes.from_hex(s)` now carry the hexadecimal text of a byte array (`sep` is any
+   string, wider than Python's single character; separator groups counted from the right for a
+   positive `bytes_per_sep`, from the left for a negative one;
+   `from_hex` skips ASCII whitespace between bytes and panics with the position of a bad digit).
+   The `koala/hex` package is removed and `koala/crypto` uses `to_hex()`; `koala/json/string.hex_byte`
+   still formats its single `\u00XX` byte by hand. Tests: `test/test-ut/test_bytes_hex.kl`.
 
 ### 48.2 Union types and literal narrowing: remaining gaps
 
@@ -3006,3 +3019,105 @@ Functions), and a `func` declared inside a function body is a syntax error. Fix 
 closures (or local functions): stop the walk at `SCOPE_FUNC` / `SCOPE_ANONY` and report "break
 statement must be inside a loop." there; `return` already resolves through `get_current_function()`,
 which stops at the nearest `SCOPE_FUNC` (check that it also stops at `SCOPE_ANONY` then).
+
+---
+
+## 52. `BufReader.read_line` keeps the '\r' of a CRLF line (2026-11-03, to decide)
+
+`read_line` (`libs/std/io/bufio.kl`) is `read_until(out, '\n')`: the '\n' is consumed and not
+appended, but the '\r' before it is kept, so `"a\r\nb"` reads `"a\r"`. `Lines` strips both
+(`libs/std/io/splitter.kl`), so line iteration and `read_line` disagree, and every CRLF protocol has
+to strip it by hand (`koala/redis/protocol.kl` does `line.to_str().remove_suffix("\r")`).
+`test/test-ut/test_read_line_byte.kl` (`test_read_line_keeps_cr`, and its header comment) pins the
+current behavior.
+
+Other languages: a call that drops the '\n' also drops the '\r' (Go `bufio.Reader.ReadLine` and
+`Scanner`, Java `BufferedReader.readLine`, C# `StreamReader.ReadLine`, Rust `lines()`); a call that
+keeps the '\n' keeps the '\r' (Go `ReadString('\n')`, Rust `read_line`, Python binary
+`readline`). Koala's `read_line` is in between.
+
+Plan (not applied, open to adjustment):
+
+- Semantics: drop the one '\r' right before the '\n'; keep a '\r' inside a line (a lone '\r' is not
+  a line end); drop a trailing '\r' of a last line without '\n' (as Go's `Scanner`); the returned
+  count excludes the dropped '\r'. `read_until`, `Lines` and `Splitter` are unchanged; raw bytes
+  stay available through `read_until(out, '\n')`.
+- Implementation, `bufio.kl` only: `read_line` gets its own loop with a local "held-back '\r'"
+  flag, since the '\r' may end one chunk and the '\n' start the next. When a chunk without '\n'
+  ends in '\r', that byte is not written and the flag is set; the next chunk drops it if it starts
+  the line end, otherwise writes it first; at EOF it is dropped. A flag rather than leaving the '\r'
+  unconsumed in the read buffer: with capacity 1 the held byte would fill the buffer and `fill()`
+  could never read again. No `Buffer.truncate` is needed. The parameter is renamed `_buf` -> `out`
+  as in `read_until`.
+- Docs: the `read_line` doc comment and its entry in `docs/std_io_api.md`.
+- Tests: change `test_read_line_keeps_cr` to expect `1` / `"a"` and fix the header comment (an
+  existing test, to be agreed first); add: '\r' and '\n' in two chunks (capacity 2), a '\r' inside a
+  line, a held '\r' followed by another byte, an empty CRLF line, a '\r' at EOF without '\n',
+  capacity 1 with CRLF lines, CRLF lines interleaved with `read_byte`.
+- Open points: whether a lone '\r' should also end a line (Java does); whether to add a variant
+  that keeps the line ending.
+
+---
+
+## 53. Reading an uninitialized local gives a garbage value: no definite-assignment check (2026-11-03, to fix)
+
+Found in `test2.kl`. **Silent** wrong values, then a VM crash:
+
+```kl
+func test(j int) {
+    var i int
+    if j > 10 { i = 10 } else { }
+    print(i, typeof(i))   // j = 2: prints the module search-path list and <class 'list'>
+    print(i + 1)          // VM assertion in vm_ops.h (operand tag check)
+}
+
+func t() {
+    var i int
+    print(i)              // prints 40960
+}
+```
+
+The compiler has no definite-assignment analysis at all: a local declared without an initializer
+gets a register that still holds whatever an earlier use left there, and reading it is accepted.
+`docs/Koala_Language_Manual.md` (Constants and Variables) states the opposite: "Every variable must
+be definitely assigned before it is read; the compiler rejects uses of uninitialized values" — the
+manual is ahead of the compiler.
+
+Fix direction (not applied): a definite-assignment pass in the checker (`parser.c` /
+`parser_expr.c`) over each function body, tracking per local whether it is assigned on every path
+reaching a read: assigned after `x = ...` / `let` / `var` with an initializer / tuple assignment;
+an `if` assigns only when every branch assigns (a branch that ends in `return` / `break` /
+`continue` / `panic` does not need to); a loop body does not assign for the code after the loop;
+let-else, `if let`, `while let`, `for` variables and `if` expressions included; report
+"variable 'i' is used before being assigned" at the read. Until then, either give such locals a
+zero value of their type or keep the manual honest.
+
+---
+
+## 54. A type name used as a value crashes the backend (2026-11-03, to fix with an error)
+
+Found together with §53 in `test2.kl`.
+
+```kl
+class P {}
+print(int)       // isel.c: lower_call_argument: Assertion `arg->kind == KLR_VALUE_INSN'
+print(P)         // same
+print(ToString)  // irgen.c: "Why goes here?" (a trait has no case there)
+let t = int      // compilation failed, no useful message
+```
+
+A type name in a value position is checked as a type expression and irgen lowers it to a class
+reference (`KLR_VALUE_KLASS`), but the backend has no instruction that loads a type object into a
+register, so it cannot be an argument or the value of a variable. `typeof(x)` is the existing way
+to get a type object at runtime (`let x = typeof(1)` prints `<class 'int64'>`).
+
+Supporting types as first-class values (a load-type instruction, isel and the VM) is not a small
+change. The simple fix (not applied): report in the checker when a type name is used where a value
+is needed — call arguments, `let` / `var` initializers, the right side of an assignment, `return` —
+e.g. "type 'int' cannot be used as a value", keeping the legal uses: a constructor or conversion
+call (`int(x)`, `P()`), a generic type argument (`list[int]`), a static method (`bytes.from_hex`),
+and the result of `typeof`.
+
+Fixed alongside (2026-11-03): `list[any]()` asserted in `parse_type` (`parser_expr.c`), which
+expected a class while the keyword type `any` is a trait (`libs/std/builtin/any.kl`); it now accepts
+a class or a trait and reports anything else. Test: `test/test-run/test_generic_any_arg.kl`.

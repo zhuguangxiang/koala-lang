@@ -1,0 +1,149 @@
+// RUN: koala --test %s
+// bytes.to_hex() / bytes.from_hex(): hexadecimal text of a byte array.
+
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// to_hex
+// ---------------------------------------------------------------------------
+
+@test
+func test_to_hex_empty() {
+    ut.assert_eq(b"".to_hex(), "")
+    ut.assert_eq(b"".to_hex("-", 2), "")
+}
+
+@test
+func test_to_hex_lowercase() {
+    // every byte is two digits, including 0x00 (it is not a terminator)
+    ut.assert_eq(b"\x00\x0f\x10\xff".to_hex(), "000f10ff")
+    ut.assert_eq(b"koala".to_hex(), "6b6f616c61")
+}
+
+@test
+func test_to_hex_view() {
+    // a view encodes only the bytes it covers
+    ut.assert_eq(b"xxhelloxx".view(2, 7).to_hex(), "68656c6c6f")
+}
+
+@test
+func test_to_hex_sep() {
+    let b = b"\xb9\x01\xef"
+    ut.assert_eq(b.to_hex("-"), "b9-01-ef")
+    ut.assert_eq(b.to_hex(" ", 1), "b9 01 ef")
+    ut.assert_eq(b"\x01".to_hex("-"), "01")
+}
+
+@test
+func test_to_hex_groups() {
+    let b = b"\xb9\x01\xef"
+    // a positive count groups from the right, a negative one from the left
+    ut.assert_eq(b.to_hex(":", 2), "b9:01ef")
+    ut.assert_eq(b.to_hex(":", -2), "b901:ef")
+    ut.assert_eq(b"\x01\x02\x03\x04".to_hex(":", 2), "0102:0304")
+    ut.assert_eq(b"\x01\x02\x03\x04".to_hex(":", -3), "010203:04")
+    // a group as large as the bytes, or 0, puts no separator
+    ut.assert_eq(b.to_hex(":", 3), "b901ef")
+    ut.assert_eq(b.to_hex(":", 5), "b901ef")
+    ut.assert_eq(b.to_hex(":", -5), "b901ef")
+    ut.assert_eq(b.to_hex(":", 0), "b901ef")
+    // without a sep the count is ignored
+    ut.assert_eq(b.to_hex("", 2), "b901ef")
+}
+
+@test
+func test_to_hex_string_sep() {
+    // the separator is any string, copied as is
+    let b = b"\xb9\x01\xef"
+    ut.assert_eq(b.to_hex(", "), "b9, 01, ef")
+    ut.assert_eq(b.to_hex("::"), "b9::01::ef")
+    ut.assert_eq(b.to_hex(" | ", 2), "b9 | 01ef")
+    ut.assert_eq(b.to_hex(" | ", -2), "b901 | ef")
+    ut.assert_eq(b.to_hex("é"), "b9é01éef")
+    ut.assert_eq(b"\x01".to_hex(", "), "01")
+    // a multi-character separator still round-trips when it is whitespace
+    ut.assert_eq(bytes.from_hex(b.to_hex("  ")), b)
+}
+
+// ---------------------------------------------------------------------------
+// from_hex
+// ---------------------------------------------------------------------------
+
+@test
+func test_from_hex_lowercase() {
+    ut.assert_eq(bytes.from_hex("000f10ff"), b"\x00\x0f\x10\xff")
+    ut.assert_eq(bytes.from_hex("6b6f616c61"), b"koala")
+}
+
+@test
+func test_from_hex_mixed_case() {
+    ut.assert_eq(bytes.from_hex("00AbCdEf"), b"\x00\xab\xcd\xef")
+}
+
+@test
+func test_from_hex_empty() {
+    let b = bytes.from_hex("")
+    ut.assert_eq(b.len(), 0)
+    ut.assert_eq(b, bytes(0))
+    ut.assert_eq(bytes.from_hex(" \t\n").len(), 0)
+}
+
+@test
+func test_from_hex_whitespace() {
+    // ASCII whitespace between bytes is skipped
+    ut.assert_eq(bytes.from_hex("de ad\nbe\tef"), b"\xde\xad\xbe\xef")
+    ut.assert_eq(bytes.from_hex("  00 ff  "), b"\x00\xff")
+    ut.assert_eq(bytes.from_hex("01\r\n02\x0b03\x0c"), b"\x01\x02\x03")
+}
+
+// ---------------------------------------------------------------------------
+// round trip
+// ---------------------------------------------------------------------------
+
+@test
+func test_roundtrip() {
+    let b = bytes(4)
+    b[0] = 0
+    b[1] = 127
+    b[2] = 128
+    b[3] = 255
+
+    ut.assert_eq(bytes.from_hex(b.to_hex()), b)
+    ut.assert_eq(bytes.from_hex(b.to_hex(" ")), b)
+    ut.assert_eq(bytes.from_hex("00ff").to_hex(), "00ff")
+}
+
+// ---------------------------------------------------------------------------
+// errors: the position of the first bad character, or the length for a missing digit
+// ---------------------------------------------------------------------------
+
+@should_panic("non-hexadecimal number found in from_hex() arg at position 3")
+func test_from_hex_odd_length() {
+    bytes.from_hex("abc")
+}
+
+@should_panic("non-hexadecimal number found in from_hex() arg at position 0")
+func test_from_hex_bad_digit() {
+    bytes.from_hex("zz")
+}
+
+@should_panic("non-hexadecimal number found in from_hex() arg at position 2")
+func test_from_hex_separator() {
+    bytes.from_hex("aa:bb")
+}
+
+@should_panic("non-hexadecimal number found in from_hex() arg at position 1")
+func test_from_hex_space_inside_byte() {
+    // whitespace is not allowed between the two digits of a byte
+    bytes.from_hex("a b")
+}
+
+@should_panic("non-hexadecimal number found in from_hex() arg at position 1")
+func test_from_hex_prefix() {
+    bytes.from_hex("0x12")
+}
+
+@should_panic("non-hexadecimal number found in from_hex() arg at position 0")
+func test_from_hex_non_ascii() {
+    bytes.from_hex("你好")
+}

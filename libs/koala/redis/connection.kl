@@ -33,7 +33,7 @@ pub class Connection {
     /// is refused. The connection is blocking and has no timeout; call
     /// `set_timeout` to bound hangs.
     pub static func open(host = "127.0.0.1", port = 6379) Connection? {
-        let conn = so.dial(host + ":" + str(port), so.SocketTypeSpec.tcp(), nil)
+        let conn = so.dial(host + ":" + str(port), so.SocketTypeSpec.tcp())
         if conn == nil { return nil }
         return Connection(conn)
     }

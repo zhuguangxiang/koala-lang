@@ -1,0 +1,73 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+import "std/io"
+
+/// A blocking connection to a Redis server.
+///
+/// `write_cmd`/`write_commands` encode into the `BufWriter` without touching the socket,
+/// `flush` pushes the buffer out in one syscall.
+/// `receive` decodes one RESP frame from the `BufReader`.
+pub class Conn {
+    /// Underlying socket.
+    let _sock so.Conn
+
+    /// Read buffer bound to the socket.
+    let _br io.BufReader
+
+    /// Write buffer bound to the socket.
+    let _bw io.BufWriter
+
+    /// Create a Conn over `sock`, allocating both buffers once.
+    pub func __init__(sock so.Conn) {
+        _sock = sock
+        _br = io.BufReader(sock)
+        _bw = io.BufWriter(sock)
+    }
+
+    /// Connect to `host:port` over TCP.
+    ///
+    /// Returns nil when the address cannot be resolved or the connection is
+    /// refused. Blocking; call `set_timeout` to bound hangs.
+    pub static func open(host = "127.0.0.1", port = 6379) Conn? {
+        let sock = so.dial(host + ":" + str(port), so.SocketTypeSpec.tcp())
+        if sock != nil { return Conn(sock) }
+        return nil
+    }
+
+    /// Encode `cmd` and append it to the write buffer.
+    pub func write_cmd(cmd Cmd) {
+        _bw.write(encode(cmd.id(), cmd.args()))
+    }
+
+    /// Encode every command in `cmds` into the write buffer.
+    pub func write_commands(cmds list[Cmd]) {
+        for cmd in cmds { write_cmd(cmd) }
+    }
+
+    /// Flush the write buffer to the socket in one syscall.
+    pub func flush() { _bw.flush() }
+
+    /// Decode one RESP frame from the read buffer.
+    ///
+    /// IO and protocol failures are surfaced as `Result.error(ERR_IO, "")`
+    /// or `Result.error(ERR_PROTOCOL, "")`; this method never panics on
+    /// wire-level problems.
+    pub func receive() Result { return decode(_br) }
+
+    /// Close the underlying socket.
+    pub func close() { _sock.close() }
+
+    /// Set the read timeout in milliseconds. 0 clears it.
+    pub func set_read_timeout(ms int) {
+        _sock.set_read_timeout(ms)
+    }
+
+    /// Set the write timeout in milliseconds. 0 clears it.
+    pub func set_write_timeout(ms int) {
+        _sock.set_write_timeout(ms)
+    }
+}

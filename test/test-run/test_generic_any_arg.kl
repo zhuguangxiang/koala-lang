@@ -1,0 +1,35 @@
+// RUN: koala %s | filecheck %s
+// `any` is a keyword type and a trait: it can be the type argument of a generic constructor
+// call, as `list[any]()`, like a trait name (`list[ToString]()`).
+
+func collect(v int) list[any] {
+    let items = list[any]()
+    for i in range(v) {
+        items.append(i)
+    }
+    items.append("s")
+    return items
+}
+
+func main() {
+    print(collect(3))
+
+    let nested = list[list[any]]()
+    nested.append([1, "a"])
+    print(nested)
+
+    let d = dict[str, any]()
+    d["k"] = 1
+    d["v"] = "x"
+    print(d)
+
+    let t = list[ToString]()
+    t.append(1)
+    print(t)
+}
+
+// CHECK: [0, 1, 2, s]
+// CHECK-NEXT: {{\[\[}}1, a]]
+// CHECK-NEXT: {k: 1, v: x}
+// CHECK-NEXT: [1]
+// CHECK-NOT: {{.}}

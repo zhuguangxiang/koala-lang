@@ -5,29 +5,28 @@
 
 import "std/ut"
 import "koala/crypto" as cr
-import "koala/hex"
 
 @test
 func test_hmac_sha1_rfc2202() {
     // RFC 2202 Test Case 2
-    ut.assert_eq(hex.encode(cr.hmac_sha1("Jefe".to_bytes(),
-                                        "what do ya want for nothing?".to_bytes())),
+    ut.assert_eq(cr.hmac_sha1("Jefe".to_bytes(),
+                             "what do ya want for nothing?".to_bytes()).to_hex(),
         "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79")
 }
 
 @test
 func test_hmac_sha256_rfc4231() {
     // RFC 4231 Test Case 2
-    ut.assert_eq(hex.encode(cr.hmac_sha256("Jefe".to_bytes(),
-                                          "what do ya want for nothing?".to_bytes())),
+    ut.assert_eq(cr.hmac_sha256("Jefe".to_bytes(),
+                               "what do ya want for nothing?".to_bytes()).to_hex(),
         "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843")
 }
 
 @test
 func test_hmac_sha512_rfc4231() {
     // RFC 4231 Test Case 2
-    ut.assert_eq(hex.encode(cr.hmac_sha512("Jefe".to_bytes(),
-                                          "what do ya want for nothing?".to_bytes())),
+    ut.assert_eq(cr.hmac_sha512("Jefe".to_bytes(),
+                               "what do ya want for nothing?".to_bytes()).to_hex(),
         "164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea250554" +
         "9758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737")
 }

@@ -18,7 +18,7 @@ import "std/socket" as so
 func _pair() (so.Conn, so.Conn, so.Listener) {
     let l = so.listen("127.0.0.1:0", nil)!
     let port = l.local_addr().port()
-    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp(), nil)!
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp())!
     let r = l.accept()
     let s so.Conn = r.conn()!
     return (c, s, l)

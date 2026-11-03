@@ -7,7 +7,6 @@
 // secrets module. Backed by OpenSSL's RAND_bytes, seeded from the OS
 // entropy source.
 
-import "koala/hex"
 import "koala/base64"
 
 /// `n` cryptographically secure random bytes.
@@ -29,7 +28,7 @@ pub func randbits(k int) int {}
 /// A random lowercase hex string of length 2 * `n`, for API keys and
 /// session ids. Equivalent to Python's secrets.token_hex(n).
 pub func token_hex(n int = 32) str {
-    return hex.encode(random_bytes(n))
+    return random_bytes(n).to_hex()
 }
 
 /// A URL-safe random string with the trailing '=' padding removed.

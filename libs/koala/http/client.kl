@@ -85,5 +85,5 @@ func _dial(url Url) so.Conn? {
         return tls.dial(url.host(), url.port())
     }
     let addr = url.host() + ":" + str(url.port())
-    return so.dial(addr, so.SocketTypeSpec.tcp(), nil)
+    return so.dial(addr, so.SocketTypeSpec.tcp())
 }

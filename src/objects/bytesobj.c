@@ -262,6 +262,107 @@ static TValue _bytes_tostr(TValue *self, TValue *args, int nargs)
     return obj_value(kl_new_nstr((char *)base, size));
 }
 
+static const char hex_digits[] = "0123456789abcdef";
+
+/* pub func to_hex(sep str = "", bytes_per_sep int = 1) str */
+static TValue _bytes_to_hex(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 2);
+    Object *sep_obj = kl_arg_obj_as(0, str_type);
+    int64_t per = kl_arg_int64(1);
+
+    const char *sep_buf = STR_BUF(sep_obj);
+    size_t sep_len = STR_LEN(sep_obj);
+
+    const uint8_t *in = bytes->data + bytes->offset;
+    size_t n = bytes->size;
+
+    /* a separator after every `group` bytes, counted from the right when `per` > 0 and from the
+     * left when `per` < 0; none without a sep or with `per` == 0 */
+    uint64_t group = 0;
+    if (sep_len > 0 && per != 0) group = per > 0 ? (uint64_t)per : (uint64_t)(-(per + 1)) + 1;
+    size_t nseps = (group && n > 0) ? (n - 1) / group : 0;
+
+    if (n > INT32_MAX / 2 || (nseps && sep_len > (INT32_MAX - n * 2) / nseps)) {
+        raise_exc_str("to_hex: bytes too large");
+        return error_value;
+    }
+    size_t out_len = n * 2 + nseps * sep_len;
+
+    char *out = mm_alloc(out_len ? (int)out_len : 1);
+    size_t o = 0;
+    for (size_t i = 0; i < n; i++) {
+        out[o++] = hex_digits[in[i] >> 4];
+        out[o++] = hex_digits[in[i] & 0x0f];
+        if (group && i + 1 < n) {
+            size_t done = per > 0 ? n - (i + 1) : i + 1;
+            if (done % group == 0) {
+                memcpy(out + o, sep_buf, sep_len);
+                o += sep_len;
+            }
+        }
+    }
+    ASSERT(o == out_len);
+
+    Object *res = kl_new_nstr(out, out_len);
+    mm_free(out);
+    return obj_value(res);
+}
+
+static int _hex_value(uint8_t c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static int _is_ascii_space(uint8_t c)
+{
+    return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r';
+}
+
+/* pub static func from_hex(s str) bytes */
+static TValue _bytes_from_hex(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Object *so = kl_arg_obj_as(0, str_type);
+    const uint8_t *in = (const uint8_t *)STR_BUF(so);
+    size_t n = STR_LEN(so);
+
+    uint8_t *out = mm_alloc((int)(n / 2 + 1));
+    size_t i = 0, o = 0;
+    while (i < n) {
+        /* whitespace is skipped between bytes only, never between the two digits */
+        if (_is_ascii_space(in[i])) {
+            i++;
+            continue;
+        }
+
+        int hi = _hex_value(in[i]);
+        size_t bad = i;
+        if (hi >= 0) {
+            bad = i + 1;
+            int lo = i + 1 < n ? _hex_value(in[i + 1]) : -1;
+            if (lo >= 0) {
+                out[o++] = (uint8_t)(hi * 16 + lo);
+                i += 2;
+                continue;
+            }
+        }
+
+        mm_free(out);
+        raise_exc_fmt("non-hexadecimal number found in from_hex() arg at position %zu", bad);
+        return error_value;
+    }
+
+    Object *res = kl_bytes_from_data(out, (uint32_t)o);
+    mm_free(out);
+    return obj_value(res);
+}
+
 static TValue _bytes_getitem(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
@@ -1004,6 +1105,8 @@ static MethodDef bytes_methods[] = {
     { "zero", _bytes_zero },
     { "view", _bytes_view },
     { "to_str", _bytes_tostr },
+    { "to_hex", _bytes_to_hex },
+    { "from_hex", _bytes_from_hex },
     { "index_bytes", _bytes_index_bytes },
     { "rindex_bytes", _bytes_rindex_bytes },
     { "starts_with", _bytes_starts_with },

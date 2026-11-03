@@ -1,0 +1,63 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// ---------- error codes ----------
+
+pub let ERR_NOERR     int = 0
+pub let ERR_SERVER    int = 1
+pub let ERR_WRONGTYPE int = 2
+pub let ERR_NOAUTH    int = 3
+pub let ERR_IO        int = 4
+pub let ERR_TIMEOUT   int = 5
+pub let ERR_PROTOCOL  int = 6
+
+// ---------- code -> messages ----------
+
+let error_msg = [
+    "",                        // 0 NOERR
+    "server error",            // 1 SERVER
+    "wrong kind of value",     // 2 WRONGTYPE
+    "authentication required", // 3 NOAUTH
+    "io error",                // 4 IO
+    "timeout",                 // 5 TIMEOUT
+    "protocol error",          // 6 PROTOCOL
+]
+
+/// NilValue marks a Redis nil reply in Result.val.
+pub class NilValue {}
+
+/// Result holds the outcome of one Redis command.
+pub class Result {
+    /// Decoded payload; NilValue for nil replies.
+    var val any = NilValue()
+
+    /// Error code, one of ERR_*. ERR_NOERR means success.
+    var err int = ERR_NOERR
+
+    /// Human-readable error message; empty on success.
+    var errmsg str = ""
+
+    /// Zero result: no value, no error.
+    pub func __init__() {}
+
+    /// Successful result carrying a value.
+    pub static func ok(v any?) Result {
+        let r = Result()
+        r.val = v
+        return r
+    }
+
+    /// Failed result. If `msg` is empty, the default message for `code` is used.
+    pub static func error(code int, msg str) Result {
+        let r = Result()
+        r.err = code
+        if msg.len() > 0 {
+            r.errmsg = msg
+        } else {
+            r.errmsg = error_msg[code]
+        }
+        return r
+    }
+}

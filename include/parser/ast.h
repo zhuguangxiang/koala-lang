@@ -437,6 +437,8 @@ typedef enum _StmtKind {
     STMT_TUPLE_DECL_KIND,
     /* (a, b) = t */
     STMT_TUPLE_ASSIGN_KIND,
+    /* enum */
+    STMT_ENUM_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -688,6 +690,26 @@ Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases, 
     stmt_from_type(STMT_CLASS_KIND, name, tps, bases, stmts)
 #define stmt_from_trait(name, tps, bases, stmts) \
     stmt_from_type(STMT_TRAIT_KIND, name, tps, bases, stmts)
+
+/* one member of an enum: `NAME` or `NAME = <int literal>` */
+typedef struct _EnumMember {
+    Ident id;
+    // 0: no explicit value, the value follows the previous member
+    int has_value;
+    int64_t value;
+    Loc value_loc;
+} EnumMember;
+
+EnumMember *enum_member_new(Ident id, int has_value, int64_t value, Loc value_loc);
+
+typedef struct _EnumDeclStmt {
+    STMT_HEAD
+    Ident id;
+    // Vector<EnumMember *>, in declaration order
+    Vector *members;
+} EnumDeclStmt;
+
+Stmt *stmt_from_enum(Ident id, Vector *members);
 
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_continue(void);

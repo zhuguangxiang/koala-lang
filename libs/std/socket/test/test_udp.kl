@@ -109,7 +109,7 @@ func test_udp_connected_client() {
     let s = so.listen_packet("127.0.0.1:0", nil)!
     let port = s.local_addr().port()
 
-    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.udp(), nil)
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.udp())
     ut.assert_true(c != nil)
     let client = c!
 

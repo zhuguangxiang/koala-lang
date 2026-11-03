@@ -1072,6 +1072,8 @@ pub class bytes : Sequence[uint8] {
     pub func rstrip() bytes
     pub func fmt(f Formatter)
     pub func to_str() str
+    pub func to_hex(sep str = "", bytes_per_sep int = 1) str
+    pub static func from_hex(s str) bytes
 }
 ```
 **Bases:** [`Sequence[uint8]`](#sequence)
@@ -1340,6 +1342,29 @@ Format the byte array for display.
 Decode the bytes as UTF-8 and return a new `str`.
 
 Panic if the bytes are not valid UTF-8.
+
+<a id="bytes.to_hex"></a>
+
+**`to_hex(sep str = "", bytes_per_sep int = 1) str`** — *`@native`*
+
+Return the bytes as a string of lowercase hexadecimal digits, two per byte.
+
+A non-empty `sep`, any string, is put between groups of `bytes_per_sep` bytes: a
+positive count groups from the right, a negative one from the left, and 0 puts no
+separator, e.g. for `b"\xb9\x01\xef"`:
+`to_hex("-") == "b9-01-ef"`, `to_hex(":", 2) == "b9:01ef"`, `to_hex(":", -2) == "b901:ef"`,
+`to_hex(", ") == "b9, 01, ef"`.
+
+<a id="bytes.from_hex"></a>
+
+**`static from_hex(s str) bytes`** — *`@native`*
+
+Return the bytes written in `s` as hexadecimal digits, two per byte, in either case.
+
+ASCII whitespace between bytes is skipped (`from_hex("de ad\nbe ef")`), but not
+between the two digits of a byte; there is no `0x` prefix.
+
+Panic if a character is not a hexadecimal digit or a digit is missing, with its position.
 
 <a id="bytesiter"></a>
 

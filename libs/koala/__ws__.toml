@@ -11,11 +11,9 @@ packages = [
     "icmp",
     "csv",
     "crypto",
-    "hex",
     "base64",
     "log",
     "re",
     "tls",
     "http",
-    "redis",
 ]

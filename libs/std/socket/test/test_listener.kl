@@ -34,7 +34,7 @@ func test_listen_accept_and_echo() {
 
     // Dial the listener. The handshake completes here, so the
     // connection is queued in the backlog before accept runs.
-    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp(), nil)
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp())
     ut.assert_true(c != nil)
     let client = c!
 
@@ -67,7 +67,7 @@ func test_listen_peer_addr() {
     let listener = l!
     let port = listener.local_addr().port()
 
-    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp(), nil)
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp())
     let client = c!
 
     let r = listener.accept()

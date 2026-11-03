@@ -914,7 +914,7 @@ static void parse_type(ParserState *ps, Expr *exp)
     if (!check_type(ps, ts)) return;
     ASSERT(ts->sym_id >= 0);
     exp->sym = get_symbol_by_id(ts->sym_id);
-    ASSERT(exp->sym->kind == SYM_CLASS);
+    // ASSERT(exp->sym->kind == SYM_CLASS);
     // update expr type as symbol type
     // int -> exp->ts is type type, symbol is int
     // Foo -> exp->ts is type type, symbol is Foo

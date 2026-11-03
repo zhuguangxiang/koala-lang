@@ -29,7 +29,7 @@ pub class IcmpSocket {
     /// `IPPROTO_ICMP`, typically because the caller's group is
     /// outside `net.ipv4.ping_group_range`.
     pub static func open() IcmpSocket? {
-        let c = so.dial("0.0.0.0:0", so.SocketTypeSpec.dgram(so.IP_PROTO_ICMP), nil)
+        let c = so.dial("0.0.0.0:0", so.SocketTypeSpec.dgram(so.IP_PROTO_ICMP))
         if c == nil { return nil }
         let udp = (c as so.UdpConn)!
         return IcmpSocket(udp)
