@@ -1592,6 +1592,10 @@ done. The tasks below are not started; planned for about a month later (around 2
    early-return path without detached symbols.
    Tests: a test-run case for the narrowed results; a test-kl case for the non-narrowed ones
    (`||` in the then-block, `&&` in the else block, `&&` + early return).
+   Note (2026-11-03): an `if` expression narrows its branches through the same `unwrap_for_if()` /
+   `inherit_if_shadows()` as `parse_if` (`parse_if_expr()` in `parser_expr.c`), so items 4 and 5
+   apply to `let n = if v != nil && v.len() > 1 { ... } else { ... }` too; add if-expression cases
+   to the tests then.
 
 5. **Narrowing inside the right operand (level 3)** (size S–M, after item 4). Goal:
    `if s != nil && s.len() > 0`, where `s` is already narrowed while `s.len()` is checked.

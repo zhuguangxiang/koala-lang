@@ -3947,15 +3947,31 @@ static void parse_if_expr(ParserState *ps, Expr *exp)
         return;
     }
 
-    // 2. both branches get the expected type, e.g. `let x Fly = if c { Bird() } else { Fish() }`
+    // 2. both branches get the expected type, e.g. `let x Fly = if c { Bird() } else { Fish() }`;
+    //    the condition narrows them as in an 'if' statement: `if v == nil { 0 } else { v.len() }`
     Expr *then_exp = ie->then_exp;
     Expr *else_exp = ie->else_exp;
+
+    enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-expr-then");
+
+    Vector shadows = VECTOR_INIT_PTR;
+
+    unwrap_for_if(ps, cond, &shadows);
     then_exp->ctx = EXPR_CTX_LOAD;
     then_exp->expected = exp->expected;
     parser_visit_expr(ps, then_exp);
+
+    exit_scope(ps);
+
+    enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "if-expr-else");
+
+    inherit_if_shadows(ps, &shadows);
     else_exp->ctx = EXPR_CTX_LOAD;
     else_exp->expected = exp->expected;
     parser_visit_expr(ps, else_exp);
+
+    exit_scope(ps);
+
     if (!then_exp->ts || !else_exp->ts) return;
 
     // 3. the result type: the expected type, or the one both branches fit into

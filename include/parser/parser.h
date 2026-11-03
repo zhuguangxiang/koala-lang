@@ -224,6 +224,8 @@ void parse_stmt(ParserState *ps, Stmt *stmt);
 ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char *name);
 void exit_scope(ParserState *ps);
 ParserScope *find_loop_scope(ParserState *ps);
+void unwrap_for_if(ParserState *ps, Expr *exp, Vector *shadows);
+void inherit_if_shadows(ParserState *ps, Vector *shadows);
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);

@@ -2030,10 +2030,40 @@ static void unwrap_is_as(ParserState *ps, Expr *exp, Vector *shadows)
     if (shadows) vector_push_back(shadows, &narrow);
 }
 
-static void unwrap_for_if(ParserState *ps, Expr *exp, Vector *shadows)
+// Narrow the variables of an 'if' condition in the current (then) scope; the shadows are kept
+// in 'shadows' for the else branch.
+void unwrap_for_if(ParserState *ps, Expr *exp, Vector *shadows)
 {
     unwrap_optional(ps, exp, shadows);
     unwrap_is_as(ps, exp, shadows);
+}
+
+// The else branch of an 'if': add to the current scope the opposite of the then branch's
+// shadows ('v == nil' gives a non-null 'v', a negated 'is' narrows), then release the vector.
+void inherit_if_shadows(ParserState *ps, Vector *shadows)
+{
+    if (vector_empty(shadows)) {
+        log_trace("no shadow vars in if-block to inherit");
+        return;
+    }
+
+    ParserScope *sc = ps->scope;
+    log_trace("inherit shadow vars from if-block to else-block");
+    ShadowVarSymbol *sym;
+    vector_foreach(sym, shadows) {
+        ASSERT(sym->kind == SYM_SHADOW_VAR);
+        if (sym->is_narrow) {
+            if (sym->narrow_negated) {
+                stbl_add_narrow_var(sc->stbl, sym->origin, sym->ts);
+            }
+            continue;
+        }
+        stbl_add_shadow_var(sc->stbl, (Symbol *)sym->origin, !sym->is_null);
+        log_trace("added shadow variable '%s'(%s) in scope '%s'", sym->name,
+                  sym->is_null ? "null" : "non-null", sc->name);
+    }
+    // finalize vector only
+    vector_fini(shadows);
 }
 
 static void parse_if(ParserState *ps, Stmt *stmt)
@@ -2079,26 +2109,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
 
         // inherit shadow vars from if-block
-        if (!vector_empty(&shadows)) {
-            log_trace("inherit shadow vars from if-block to else-block");
-            ShadowVarSymbol *sym;
-            vector_foreach(sym, &shadows) {
-                ASSERT(sym->kind == SYM_SHADOW_VAR);
-                if (sym->is_narrow) {
-                    if (sym->narrow_negated) {
-                        stbl_add_narrow_var(sc->stbl, sym->origin, sym->ts);
-                    }
-                    continue;
-                }
-                stbl_add_shadow_var(sc->stbl, (Symbol *)sym->origin, !sym->is_null);
-                log_trace("added shadow variable '%s'(%s) in scope '%s'", sym->name,
-                          sym->is_null ? "null" : "non-null", sc->name);
-            }
-            // finalize vector only
-            vector_fini(&shadows);
-        } else {
-            log_trace("no shadow vars in if-block to inherit");
-        }
+        inherit_if_shadows(ps, &shadows);
 
         ASSERT(s->_else->kind == STMT_BLOCK_KIND || s->_else->kind == STMT_IF_KIND);
 

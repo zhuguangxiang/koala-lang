@@ -370,6 +370,12 @@ func first_char(msg str?) {
 }
 ```
 
+An `if` expression narrows its branches the same way (see [Branching and Loops](#branching-and-loops)):
+
+```kl
+func size(msg str?) int = if msg == nil { 0 } else { msg.len() }
+```
+
 **`if let`.** `if let` binds the unwrapped value to a new name for the branch; the binding has
 type `T` and costs nothing at runtime:
 
@@ -675,6 +681,10 @@ func name(n int) str {
   it: `let f Fly = if c { Bird() } else { Plane() }`. Without one, the branches must have the same
   type, or `T` and `nil` (giving `T?`), or one must fit the other (`T` and `T?` give `T?`).
 - Only the taken branch is evaluated.
+- The condition narrows the branches as in an `if` statement: with `v == nil` / `v != nil` on a
+  `T?` variable, `v` is `T` in the branch where it is present (`if v == nil { 0 } else { v.len() }`),
+  and `x is T` narrows `x` to `T`. The narrowing stays inside the branch; only a single comparison
+  narrows, not one combined with `&&` / `||`.
 - It is not allowed inside other expressions (`print(if ...)`, `1 + if ...`): bind it with `let`
   first. `else` may start a new line, as above.
 

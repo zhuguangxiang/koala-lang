@@ -1,0 +1,46 @@
+// RUN: koala %s | filecheck %s
+// The condition of an 'if' expression narrows its branches as in an 'if' statement:
+// `v == nil` gives a non-null `v` in the else branch, `v != nil` in the then branch.
+
+func eq_nil(v str?) int = if v == nil { 0 } else { v.len() }
+func ne_nil(v str?) int = if v != nil { v.len() } else { -1 }
+func nil_first(v str?) int = if nil == v { 0 } else { v.len() }
+
+func chain(v str?) int {
+    return if v == nil { 0 } else if v.len() > 3 { 100 } else { v.len() }
+}
+
+func compound(v str?) int {
+    var n = 10
+    n += if v == nil { 0 } else { v.len() }
+    return n
+}
+
+func with_type(v str?) str {
+    let s str = if v == nil { "none" } else { v }
+    return s
+}
+
+func is_int(x int | str) int = if x is int { x + 1 } else { 0 }
+func not_int(x int | str) int = if !(x is int) { 0 } else { x * 2 }
+
+func main() {
+    print(eq_nil("abc"), eq_nil(nil))
+    print(ne_nil("ab"), ne_nil(nil))
+    print(nil_first("a"), nil_first(nil))
+    print(chain("abcde"), chain("ab"), chain(nil))
+    print(compound("abc"), compound(nil))
+    print(with_type("x"), with_type(nil))
+    print(is_int(1), is_int("a"))
+    print(not_int(3), not_int("b"))
+}
+
+// CHECK: 3 0
+// CHECK-NEXT: 2 -1
+// CHECK-NEXT: 1 0
+// CHECK-NEXT: 100 2 0
+// CHECK-NEXT: 13 10
+// CHECK-NEXT: x none
+// CHECK-NEXT: 2 0
+// CHECK-NEXT: 6 0
+// CHECK-NOT: {{.}}
