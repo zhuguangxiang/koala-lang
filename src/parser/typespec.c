@@ -546,7 +546,8 @@ TypeSpec *type_spec_intern(TypeSpec *ts)
         type_spec_free(ts);
         return old_ts;
     } else {
-        hashmap_put(&type_map, ts);
+        void *old = hashmap_put(&type_map, ts);
+        ASSERT(!old);
         ASSERT(ts->type_id < 0);
         ts->type_id = vector_size(&type_list);
         vector_push_back(&type_list, &ts);

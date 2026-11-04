@@ -1,0 +1,118 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// Buffer as a MutableSequence[uint8] (src/objects/bytebuf.c): iteration, element
+// access, searching, insert and pop. extend and remove are covered by
+// test_buffer_extend_remove.kl.
+
+func make(s str) Buffer {
+    let b = Buffer()
+    b.write_str(s)
+    return b
+}
+
+@test
+func test_for_loop() {
+    let out = Buffer()
+    for c in make("abcd") { out.write_byte(c) }
+    ut.assert_eq(out.to_str(), "abcd")
+}
+
+@test
+func test_iter_step_and_snapshot() {
+    let b = make("abcd")
+    let it = b.iter(2)
+    ut.assert_eq(it.next_strict(), 'a')
+    // The iterator holds a snapshot, so mutating the buffer does not affect it.
+    b.clear()
+    ut.assert_eq(it.next_strict(), 'c')
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_through_trait() {
+    let m MutableSequence[uint8] = make("abc")
+    m.append('d')
+    m.insert(0, 'z')
+    ut.assert_eq(m.pop(), 'd')
+    ut.assert_eq(m.pop(0), 'z')
+    m.remove('b')
+    m[0] = 'q'
+    ut.assert_eq(m[0], 'q')
+    ut.assert_eq(m.index('c'), 1)
+    ut.assert_eq(m.count('c'), 1)
+    ut.assert_true('c' in m)
+    ut.assert_eq(m.len(), 2)
+    m.clear()
+    ut.assert_eq(m.len(), 0)
+}
+
+@test
+func test_high_bytes_on_unallocated_buffer() {
+    // Buffer(0) has no storage yet, and bytes >= 0x80 must not sign-extend.
+    let b = Buffer(0)
+    ut.assert_eq(b.index(1), -1)
+    ut.assert_eq(b.count(1), 0)
+    ut.assert_false(1 in b)
+    b.extend(b)
+    ut.assert_true(b.empty())
+
+    b.insert(0, 128)
+    b.insert(0, 255)
+    ut.assert_eq(b[0], uint8(255))
+    ut.assert_eq(b.index(128), 1)
+    ut.assert_eq(b.count(255), 1)
+    ut.assert_true(255 in b)
+    ut.assert_eq(b.pop(), uint8(128))
+    ut.assert_eq(b.pop(), uint8(255))
+}
+
+@test
+func test_index_count_ranges() {
+    let b = make("abca")
+    ut.assert_eq(b.index('a', 1), 3)
+    ut.assert_eq(b.index('a', 1, 3), -1)
+    ut.assert_eq(b.index('a', 99), -1)
+    ut.assert_eq(b.index('a', -5), 0)
+    ut.assert_eq(b.count('a', 1), 1)
+    ut.assert_eq(b.count('a', 3, 1), 0)
+    ut.assert_eq(b.count('a', 99), 0)
+    ut.assert_eq(b.count('a', 0, 99), 2)
+}
+
+@test
+func test_insert_and_pop_positions() {
+    let b = make("ac")
+    b.insert(1, 'b')
+    b.insert(3, 'd')
+    ut.assert_eq(b.to_str(), "abcd")
+    ut.assert_eq(b.pop(1), 'b')
+    ut.assert_eq(b.to_str(), "acd")
+}
+
+@test
+func test_write_after_pop() {
+    let b = make("abc")
+    b.pop()
+    b.write_str("X")
+    ut.assert_eq(b.to_str(), "abX")
+}
+
+@should_panic("Buffer pop: index out of range")
+func test_pop_empty_panics() { Buffer().pop() }
+
+@should_panic("Buffer pop: index out of range")
+func test_pop_negative_panics() { make("abc").pop(-2) }
+
+@should_panic("Buffer.insert: index out of range")
+func test_insert_out_of_range_panics() { make("abc").insert(4, 'x') }
+
+@should_panic("Buffer index out of range")
+func test_getitem_out_of_range_panics() { print(make("a")[1]) }
+
+@should_panic("Buffer index out of range")
+func test_setitem_negative_panics() {
+    let b = make("a")
+    b[-1] = 'x'
+}

@@ -1,0 +1,19 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// Buffer.extend takes Iterable[uint8] and Buffer.remove takes uint8. Passing a
+// non-Iterable, an Iterable of the wrong element type, or a non-uint8 to remove
+// is rejected at COMPILE time. That is why the native extend's final fallback
+// is UNREACHABLE() and to_uint8() may ASSERT: no ill-typed argument ever gets
+// there in a well-typed program.
+
+func main() {
+    let b = Buffer()
+    b.extend(123)
+    // CHECK: Incompatible type: expected 'std/builtin.Iterable<C>', but got 'int64'.
+    b.extend([1, 2, 3])
+    // CHECK-NEXT: Incompatible type: expected 'std/builtin.Iterable<C>', but got 'std/builtin.list<j>'.
+    b.remove("x")
+    // CHECK-NEXT: Incompatible type: expected 'uint8', but got 'str'.
+}
+
+// CHECK-NOT: error:

@@ -3766,8 +3766,13 @@ atom_expr
     }
     | atom_type '?'
     {
-        type_spec_free($1);
-        $$ = NULL;
+        if ($1 == NULL) {
+            $$ = NULL;
+        } else {
+            TypeSpec *ts = optional_type_spec($1);
+            $$ = expr_from_type(ts);
+            expr_set_loc($$, lloc(@1, @2));
+        }
     }
     | ARRAY
     {

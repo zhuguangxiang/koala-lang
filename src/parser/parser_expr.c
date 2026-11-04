@@ -912,6 +912,14 @@ static void parse_type(ParserState *ps, Expr *exp)
     ts = resolve_type(ps, ts);
     if (!ts) return;
     if (!check_type(ps, ts)) return;
+
+    if (type_is_optional(ts)) {
+        log_warn("optional type has no symbol, check source type:\n");
+        log_type_spec(ts->opt.src);
+        exp->ts = ts;
+        return;
+    }
+
     ASSERT(ts->sym_id >= 0);
     exp->sym = get_symbol_by_id(ts->sym_id);
     // ASSERT(exp->sym->kind == SYM_CLASS);
@@ -921,7 +929,6 @@ static void parse_type(ParserState *ps, Expr *exp)
     exp->ts = exp->sym->ts;
     log_info("type '%s' is resolved as: ", exp->sym->name);
     log_type_spec(exp->ts);
-    return;
 }
 
 static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceSymbol *sym,
@@ -2656,10 +2663,16 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
             return;
         }
 
-        ASSERT(arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR);
+        // ASSERT(arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR);
+        if (type_is_optional(arg->ts)) {
+            // Place at the correct index position
+            vector_set(tp_args, i__, &arg->ts);
+            continue;
+        }
 
         TypeSpec *arg_ts;
         Symbol *arg_sym = arg->sym;
+
         if (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT) {
             arg_ts = ((KlassSymbol *)arg->sym)->instance_ts;
         } else if (arg_sym->kind == SYM_INSTANCE) {

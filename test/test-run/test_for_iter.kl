@@ -15,7 +15,7 @@ class Foo : Iterator[int] & Iterable[int] {
         return val
     }
 
-    func iter() Iterator[int] {
+    func iter(step = 1) Iterator[int] {
         panic("Foo:iter() must not be called")
         return self
     }
@@ -24,7 +24,7 @@ class Foo : Iterator[int] & Iterable[int] {
 class Bar : Iterable[int] {
     let lst = [1, 2, 3]
 
-    func iter() BarIter {
+    func iter(step = 1) BarIter {
         return BarIter(self)
     }
 }

@@ -1,0 +1,49 @@
+// RUN: koala %s | filecheck %s
+
+// list.extend from an Iterable appends after the existing items.
+
+class Bag : Iterable[int] {
+    let items list[int]
+
+    pub func __init__(_items list[int]) {
+        items = _items
+    }
+
+    pub func iter(step = 1) Iterator[int] {
+        return items.iter(step)
+    }
+}
+
+func main() {
+    let a = list[int](1, 2, 3)
+    a.extend(Bag(list[int](7, 8)))
+    print(a)
+    // CHECK: [1, 2, 3, 7, 8]
+
+    let b = list[int](1)
+    b.extend(Bag(list[int]()))
+    print(b)
+    // CHECK-NEXT: [1]
+
+    // pop(0) leaves a non-zero start.
+    let c = list[int](0, 1, 2)
+    c.pop(0)
+    c.extend(Bag(list[int](7)))
+    print(c)
+    // CHECK-NEXT: [1, 2, 7]
+
+    // More items than the capacity.
+    let big = list[int]()
+    for i in range(0, 100) {
+        big.append(i)
+    }
+    let d = list[int](-1)
+    d.extend(Bag(big))
+    print(d.len(), d[0], d[100])
+    // CHECK-NEXT: 101 -1 99
+
+    var e = list[int](1)
+    e += Bag(list[int](2))
+    print(e)
+    // CHECK-NEXT: [1, 2]
+}

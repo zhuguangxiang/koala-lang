@@ -69,7 +69,7 @@ pub func decode(br io.BufReader) Result {
         return Result.error(ERR_IO, "")
     }
 
-    let body = line.to_str().remove_suffix("\r")
+    let body = line.to_str()
 
     if t == '+' {
         return Result.ok(body)

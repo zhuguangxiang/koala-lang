@@ -31,11 +31,16 @@
 > `break` / `continue` look for a loop past a function boundary (§51, latent, fix with closures),
 > `BufReader.read_line` keeps the '\r' of a CRLF line (§52, to decide), reading an uninitialized
 > local gives a garbage value: no definite-assignment check (§53, to fix), a type name used as a
-> value crashes the backend (§54, to fix with an error).
+> value crashes the backend (§54, to fix with an error), `sealed trait`: a closed set of implementers
+> (§55, to design), a value converted to `any` has no `make_intf`, and returning it mostly fails
+> (§56, to fix), no check that a class method matches its trait (§57, postponed),
+> `obj["key"]` on a plain class fails inside the compiler (§58, to decide), nullable generic elements
+> do not compile (§59, to fix), a tuple type argument asserts in the compiler (§60, to fix), a field
+> named `f` conflicts with the generated `fmt` (§61, to fix).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> 更新日期：2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
 > 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
 > decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
@@ -3121,3 +3126,264 @@ and the result of `typeof`.
 Fixed alongside (2026-11-03): `list[any]()` asserted in `parse_type` (`parser_expr.c`), which
 expected a class while the keyword type `any` is a trait (`libs/std/builtin/any.kl`); it now accepts
 a class or a trait and reports anything else. Test: `test/test-run/test_generic_any_arg.kl`.
+
+---
+
+## 55. `sealed trait`: a closed set of implementers (2026-11-04, to design)
+
+A root trait such as `Value` in `koala/toml` (`Integer`, `String`, `Table`, ...) gives a type a
+limited set of cases without `any`, and reads go through `as`. The set is not closed: another
+package can write `class Foo : toml.Value`. The risk is small, because `as` is a checked conversion:
+the worst result is a panic or a default branch, not a garbage value.
+
+```kl
+pub sealed trait Value {
+    func to_toml() str
+}
+```
+
+Agreed so far:
+
+- A `sealed trait` can only be implemented by a class in the same package, following Kotlin. The
+  limit is the package and not the file, since `koala/toml` keeps one type per file.
+- Another package can still use it: declare variables, call its methods and convert with `as`.
+- A trait in another package cannot inherit it, or that trait would be a way around the limit.
+- An enum is a kind of sealed type, whose cases are created in its own definition.
+
+To decide when this is designed, together with enum and `match`:
+
+- Whether enum is sugar over `sealed trait`, sharing one implementation of narrowing and `match`.
+- Whether `match` must handle every case.
+- `permits`, listing existing types such as `int` and `str`, is not planned. Wrapping them as
+  `koala/toml` does is acceptable. It could only work for a trait without methods, because the
+  interface tables of builtin types do not include a trait from another package.
+
+Motivation: `Result.val` in `libs/koala/redis_refactor/result.kl` is `any` with a `NilValue` marker.
+It can follow the `koala/toml` pattern today, with no new syntax.
+
+---
+
+## 56. A value converted to `any` has no `make_intf`, and returning it mostly fails (2026-11-04, to fix)
+
+The intended IR, as decided by the author:
+
+| Conversion | IR |
+|---|---|
+| `T` -> `T?` | no op |
+| `int` or a class -> `any` | `make_intf` |
+| `any` -> `any?` | no op |
+
+What the compiler does today: `_build_obj_intf_upcast` (`irgen.c`) returns early when the target is
+`any`, so no conversion to `any` makes an interface value. `any?` is not caught by that check and
+goes on to `make_intf`.
+
+| Form | no-opt IR | Result |
+|---|---|---|
+| `let a any = 1`, `let a any = n`, `let a any = foo` | `move` | works |
+| `take(1)`, `take(n)`, `take(foo)` with `a any` | the value is passed as it is | works |
+| `func f() any? { return 1 }` | `make_intf ... to any`, `ret %1 any` | works |
+| `func f(x int) any { return x }` | `cast %x int64 to any` | fails, `isel.c:875` |
+| `func f() any { return Foo() }` | `cast %0 Foo to any` | fails, `isel.c:875` |
+| `func f() any { return "x" }` | not captured | fails, `isel.c:875` |
+| `func f() any { return -1 }`, `return 100000` | LIR: `ret_const ... any` | fails, `klc.c:775` |
+| `func f() any { return 1 }` | `cast 1 int64 to any`, LIR: `ret_uint_imm 1 any` | runs, but `typeof` says `uint8` |
+
+The failures come from `build_return` (`irgen.c`): when `_build_obj_intf_upcast` returns `NULL` and
+the types differ, it adds a `cast` that `isel_lower_cast` has no case for. A constant is folded
+instead, and the literal loses its type.
+
+```kl
+func one() any { return 1 }
+
+func main() {
+    print(typeof(one()))    // <class 'uint8'>, expected int64
+}
+```
+
+A value of type `any` therefore has two representations: a tagged value after `int -> any`, and an
+interface value after `int -> any?` followed by `!`. `_int_to_buf` was fixed on 2026-11-04 to accept
+both, so `print` works (`test/test-run/test_print_int_as_optional_any.kl`). Other code that reads the
+tag directly may have the same problem, for example `any -> T`, which `isel_lower_cast` lowers to a
+plain move.
+
+This one is confirmed. The cast from `any` to `int` crashes on the interface value:
+
+```kl
+func get() any? { return 1 }
+
+func main() {
+    let v any = get()!
+    let n = (v as int)!
+    print(n + 1)    // vm_ops.h:72: assertion on the tag of the operand, exit code 134
+}
+```
+
+To check before fixing: generating `make_intf` for `int -> any` also changes assignments and
+arguments, so `any -> T` and the native code that reads a tag have to be reviewed.
+
+---
+
+## 57. No check that a class method matches its trait (2026-11-04, postponed)
+
+The compiler does not compare a class method with the trait method it implements. For now the author
+of the code is responsible for keeping them consistent. A mismatch compiles and misbehaves at run
+time:
+
+```kl
+trait P { func f(x int) int }
+trait Q { func f(x str) int }
+
+class C : P & Q {
+    pub func f(x int) int { return x + 1 }
+}
+
+func main() {
+    let q Q = C()
+    print(q.f("amy"))    // prints a garbage value such as 107969185864193
+}
+```
+
+```kl
+class ScoreTable : Sequence[uint8] {
+    pub func __getitem__(name str) uint8 { return 'q' }    // the trait takes `index int`
+}
+```
+
+Rules agreed for the check, with `T` bound to the actual type:
+
+- A method the trait declares and the class implements is checked. A method the class does not
+  implement passes.
+- The number of parameters must be the same. Parameter names and default values are not compared.
+- Parameters are contravariant in only three forms, which keep the value's representation:
+  `uint8` -> `uint8 | bytes`, `str` -> `any`, `T` -> `T?`. A parameter never widens from a class to a
+  trait, such as `hashset[T]` -> `Set[T]`: the caller only sees the trait's declaration and cannot
+  know which interface value the implementation needs.
+- The return type is covariant, such as `Set[T]` -> `hashset[T]` or `T?` -> `T`. A union is not
+  allowed as a return type.
+- Generic type arguments are invariant: `Set[Animal]` -> `hashset[Dog]` is not allowed.
+- A method with an `infer` type parameter, such as `tuple.__getitem__[infer U]`, is not checked.
+- `any` is the parent of every type, but `T?` -> `any` needs a cast, as does any `T?` -> `T`.
+
+Implementation notes:
+
+- Walk the symbol table as `build_intf_table` does. `lro` lists every trait of a class, and
+  `find_matched_tp_args` gives the bound type arguments.
+- Compare the function types (`fn->ts`) with `type_spec_compatible`, which needs a `TYPE_PROTO` case.
+  `inst_type_spec` needs one too, to bind `T`.
+
+Problems found in `type_spec_compatible` while trying this:
+
+- `compatible_generic_ref` compares only the arguments when their number is the same, not the types:
+  `Set[T]` and `hashset[T]` are compatible in both directions.
+- `compatible_union` is `ASSERT(0)`.
+- `dst` of `any` accepts `T?`, so `let v any = get()` with `get() int?` compiles and `v` can be nil.
+- `type_spec_equal_strict` compares generic arguments by kind and `sym_id` only, not their own
+  arguments.
+
+Existing code that would need attention:
+
+- `hashset`, `FrozenSet` and `SortedSet` return their own type from `union`, `intersect` and `diff`,
+  where the trait returns `Set[T]`. Using the result through `Set[T]` crashes today, because the
+  value has no interface table (`vm_ops.h:430`):
+
+  ```kl
+  func main() {
+      let h = hashset[int]()
+      let s Set[int] = h
+      let r = s.union(list[int](2))
+      print(r.len())
+  }
+  ```
+
+  A covariant return through a trait call needs a conversion on the caller side, whose mechanism is
+  not decided.
+- `str : Sequence` and `int64 : Comparable` have no type arguments, so `T` is unbound for them.
+- `class C : G[int] & G[str]` has one entry for `G` in `lro`.
+- `test/test-kl/test_trait_impl_mismatch.kl` and `test/test-kl/test_any_rejects_optional.kl` expect
+  these errors and fail until the check and the `any` rule exist.
+
+---
+
+## 58. `obj["key"]` on a plain class fails inside the compiler (2026-11-04, to decide)
+
+```kl
+class T {
+    pub func __getitem__(name str) int { return 1 }
+}
+
+func main() {
+    let t = T()
+    print(t["amy"])    // irgen.c:1490: Why goes here?, then "koala: compilation failed"
+}
+```
+
+The checker accepts the index, but irgen only handles sequences and maps, and everything else reaches
+`UNREACHABLE()`. The error has no source location.
+
+To decide: if `[]` is meant only for sequences and `Map`, this is a misuse that needs a proper error
+from the checker. Otherwise irgen needs to call `__getitem__`.
+
+---
+
+## 59. Nullable generic elements do not compile (2026-11-04, to fix)
+
+```kl
+func main() {
+    let d = list[str?]()
+    d.append("a")    // the same with d.append(nil)
+    print(d.len())
+}
+```
+
+The code is correct: `T` is `str?`, and passing a `str` to a `str?` parameter is an ordinary implicit
+conversion, which works for a plain function. `koalac` crashes with a segmentation fault in
+`check_call_args` (`parser_expr.c:830`), because the parameter type is `NULL`, and `koala` only prints
+`koala: compilation failed`. The same happens for `list[int?]` and a user class `Box[str?]`. Creating
+the list alone compiles: `list[str?]()` followed by `d.len()` prints `0`.
+
+The type argument is lost when the instance is created: the type of `list[str?]()` prints as
+`std/builtin.list<>`. `parse_index_new_type` takes each type argument from `arg->sym`, as a class,
+trait, instance or type parameter, which does not describe an optional type. Why the argument ends up
+empty has not been traced further. §60 asserts in the same function.
+
+Once these types compile, the native paths that loop on `kl_call_next` and stop at nil, such as the
+iterator branch of `_list_extend`, would cut the elements at the first nil. `for` loops use
+`has_next` / `next_strict` and do not have this problem.
+
+---
+
+## 60. A tuple type argument asserts in the compiler (2026-11-04, to fix)
+
+```kl
+func main() {
+    let l = list[(str, int)]()
+    print(l.len())
+}
+```
+
+```text
+koalac: src/parser/parser_expr.c:2659: parse_index_new_type: Assertion
+`arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR' failed.
+koala: compilation failed
+```
+
+---
+
+## 61. A field named `f` conflicts with the generated `fmt` (2026-11-04, to fix)
+
+```kl
+class Box {
+    var f any = 1
+}
+
+func main() {
+    print(Box().f)
+}
+```
+
+```text
+error: parameter 'f' conflicts with field name in class 'Box'
+```
+
+The reported location is `0:0`. The user did not write the parameter: it comes from the generated
+`fmt(f Formatter)`. A generated method should not take a name away from user fields.

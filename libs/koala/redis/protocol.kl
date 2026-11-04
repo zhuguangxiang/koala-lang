@@ -55,7 +55,7 @@ pub func parse_reply(r io.BufReader) Reply {
     if r.read_line(line) < 0 {
         panic("redis: connection closed")
     }
-    let s = line.to_str().remove_suffix("\r")
+    let s = line.to_str()
 
     if t == int('+') {
         return StatusReply(s)

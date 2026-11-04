@@ -1,0 +1,71 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// Functional coverage for the native Buffer.extend() and Buffer.remove()
+// (src/objects/bytebuf.c). extend accepts any Iterable[uint8]: bytes and Buffer
+// take a bulk-copy fast path; everything else, including extending a Buffer
+// with itself, goes through the generic Sequence/Iterable path.
+
+@test
+func test_extend_from_bytes() {
+    let b = Buffer()
+    b.write_str("ab")
+    b.extend(b"cd")
+    ut.assert_eq(b.to_str(), "abcd")
+}
+
+@test
+func test_extend_from_buffer() {
+    let src = Buffer()
+    src.write_str("xy")
+    let b = Buffer()
+    b.write_str("z")
+    b.extend(src)
+    ut.assert_eq(b.to_str(), "zxy")
+}
+
+@test
+func test_extend_self_doubles() {
+    // Extending a Buffer with itself must snapshot and double, not corrupt or
+    // spin forever; this exercises the generic Sequence path.
+    let b = Buffer()
+    b.write_str("ab")
+    b.extend(b)
+    ut.assert_eq(b.to_str(), "abab")
+}
+
+@test
+func test_extend_empty_bytes() {
+    let b = Buffer()
+    b.write_str("k")
+    b.extend(b"")
+    ut.assert_eq(b.to_str(), "k")
+}
+
+@test
+func test_remove_first_middle_last() {
+    let b = Buffer()
+    b.write_str("abc")
+    b.remove('a')
+    ut.assert_eq(b.to_str(), "bc")
+    b.remove('c')
+    ut.assert_eq(b.to_str(), "b")
+    b.remove('b')
+    ut.assert_true(b.empty())
+}
+
+@test
+func test_remove_only_first_occurrence() {
+    let b = Buffer()
+    b.write_str("abcbd")
+    b.remove('b')
+    ut.assert_eq(b.to_str(), "acbd")
+}
+
+@should_panic("Buffer.remove: value not present")
+func test_remove_absent_panics() {
+    let b = Buffer()
+    b.write_str("abc")
+    b.remove('z')
+}

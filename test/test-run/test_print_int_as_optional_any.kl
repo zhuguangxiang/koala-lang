@@ -1,0 +1,30 @@
+// RUN: koala %s | filecheck %s
+
+// `int -> any?` makes an interface value, whose tag is the interface table, so
+// formatting an int must read its type from there.
+
+func get() any? {
+    return 1
+}
+
+func main() {
+    print(get()!)
+    // CHECK: 1
+
+    let o any? = 2
+    let w any = o!
+    print(w)
+    // CHECK-NEXT: 2
+
+    let n any? = -3
+    print(n!)
+    // CHECK-NEXT: -3
+
+    let u uint8 = 200
+    let v any? = u
+    print(v!)
+    // CHECK-NEXT: 200
+
+    print(str(5))
+    // CHECK-NEXT: 5
+}

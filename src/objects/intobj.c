@@ -13,14 +13,23 @@ extern "C" {
 static int _int_to_buf(char *buf, size_t size, TValue *self)
 {
     uint64_t tag = self->tag;
+
+    if (is_intf(self)) {
+        IntfTable *itab = (IntfTable *)(self)->itab;
+        ASSERT(itab);
+        TypeObject *tp = itab->tp;
+        tag = tp->tag;
+    }
+
     if (is_int_tag(tag)) {
         return snprintf(buf, size, "%" PRId64, (int64_t)self->ival);
-    } else if (is_uint_tag(tag)) {
-        return snprintf(buf, size, "%" PRIu64, (uint64_t)self->ival);
-    } else {
-        UNREACHABLE();
-        return 0;
     }
+
+    if (is_uint_tag(tag)) {
+        return snprintf(buf, size, "%" PRIu64, (uint64_t)self->ival);
+    }
+
+    UNREACHABLE();
 }
 
 static uint64_t _get_raw_bits(TValue *self)

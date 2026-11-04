@@ -208,12 +208,25 @@ pub class BufReader : Reader {
         }
     }
 
-    /// Read one line up to '\n', appending it to `buf`.
+    /// Read one line up to '\n', appending it to `out`.
     ///
-    /// The '\n' is consumed but not appended, and a trailing '\r' is
-    /// NOT stripped (use Lines for that). Returns the number of bytes appended
-    /// (0 for an empty line), or -1 at EOF; bytes read before EOF are still appended to `buf`.
-    pub func read_line(_buf Buffer) int { return read_until(_buf, '\n') }
+    /// The '\n' is consumed but not appended. A single trailing '\r' of a CRLF
+    /// ending is stripped, but only on '\n'-terminated lines: a truncated final
+    /// line at EOF is appended verbatim, keeping any trailing '\r'. Returns the
+    /// number of bytes appended (0 for an empty line), or -1 at EOF.
+    pub func read_line(out Buffer) int {
+        let n = read_until(out, '\n')
+
+        // `n > 0` means a '\n' was found and the last byte is one this call
+        // appended, never a byte the caller already had in `out`.
+        if n <= 0 { return n }
+
+        let last = out.len() - 1
+        if out[last] != '\r' { return n }
+
+        out.pop()
+        return n - 1
+    }
 
     /// Read a single byte and return its value (0-255), or -1 at EOF.
     ///

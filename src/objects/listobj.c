@@ -309,15 +309,20 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
             vector_push_back(&items, &item);
         }
 
-        if (is_error(&item)) return error_value;
+        if (is_error(&item)) {
+            vector_fini(&items);
+            return error_value;
+        }
 
         int size = vector_size(&items);
-        expand_capacity(list, size);
+        expand_capacity(list, list->end + size);
 
         TValue *items_array = VECTOR_ITEMS(&items, TValue);
-        memcpy(list->array + list->start, items_array, sizeof(TValue) * size);
+        memcpy(list->array + list->end, items_array, sizeof(TValue) * size);
 
         list->end += size;
+
+        vector_fini(&items);
         return no_value;
     }
 

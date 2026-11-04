@@ -20,7 +20,7 @@ class Foo : Iterator[int] & Iterable[int] {
         return val
     }
 
-    func iter() Iterator[int] {
+    func iter(step = 1) Iterator[int] {
         return self
     }
 }

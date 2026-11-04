@@ -1487,7 +1487,11 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
                 item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SEQ_SET);
             }
         } else {
-            UNREACHABLE();
+            if (exp->ctx == EXPR_CTX_LOAD) {
+                item = klr_build_seq_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+            } else {
+                item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SEQ_SET);
+            }
         }
 
         SET_IR_LOC(item, exp);

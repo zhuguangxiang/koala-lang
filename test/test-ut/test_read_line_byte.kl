@@ -7,8 +7,9 @@ import "std/ut"
 // convenience methods (libs/std/io/bufio.kl).
 //
 // read_line appends one '\n'-terminated line to the given buffer (delimiter
-// consumed, not appended, no '\r' stripping) and returns the appended byte
-// count, or -1 at EOF with any trailing bytes still appended.
+// consumed, not appended, a single trailing '\r' of a CRLF ending stripped)
+// and returns the appended byte count, or -1 at EOF with any trailing bytes
+// still appended.
 // read_byte consumes exactly one byte and returns its value 0-255 (NUL is
 // data, not EOF), or -1 at EOF. Neither method may read ahead of what it
 // reports, so both can be interleaved on the shared stream.
@@ -57,12 +58,37 @@ func test_read_line_appends() {
 }
 
 @test
-func test_read_line_keeps_cr() {
-    // '\r' is NOT stripped: CRLF lines keep the carriage return.
+func test_read_line_strips_cr() {
+    // A trailing '\r' of a CRLF ending is stripped (delimiter path).
     let br = io.BufReader(io.StringIO("a\r\nb"), 4)
     let buf = Buffer()
-    ut.assert_eq(br.read_line(buf), 2)
+    ut.assert_eq(br.read_line(buf), 1)
+    ut.assert_eq(buf.to_str(), "a")
+
+    // The final partial line at EOF has no '\r' to strip.
+    buf.clear()
+    ut.assert_eq(br.read_line(buf), -1)
+    ut.assert_eq(buf.to_str(), "b")
+}
+
+@test
+func test_read_line_keeps_cr_at_eof() {
+    // A truncated final line at EOF is kept verbatim: with no following '\n'
+    // there is no CRLF to strip, so the trailing '\r' stays (Rust lines()
+    // semantics). Contrast test_read_line_strips_cr, where '\r\n' is stripped.
+    let br = io.BufReader(io.StringIO("a\r"), 4)
+    let buf = Buffer()
+    ut.assert_eq(br.read_line(buf), -1)
     ut.assert_eq(buf.to_str(), "a\r")
+}
+
+@test
+func test_read_line_empty_crlf() {
+    // A bare CRLF is an empty line: the '\r' is stripped, 0 bytes appended.
+    let br = io.BufReader(io.StringIO("\r\nx"), 4)
+    let buf = Buffer()
+    ut.assert_eq(br.read_line(buf), 0)
+    ut.assert_true(buf.empty())
 }
 
 @test
