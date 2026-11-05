@@ -1,0 +1,61 @@
+// RUN: koala %s ++ --dump=no-opt-ir,ir | filecheck %s
+// no-opt IR: `n!` / `u!` unwrap `any?` / `uint8?` with a cast, and the print
+// tuple holds the unwrapped type (tuple<o>, tuple<C>); `print(n)` passes the
+// optional as-is (no cast, tuple<o?>).
+// optimized IR: const-copy-prop folds all print arguments to constants
+// (-3 int64 / -3 int64 / 200 uint8), the unwrap casts disappear.
+
+func test_5() {
+    let n any? = -3
+    print(n!)
+}
+
+func test_6() {
+    let n any? = -3
+    print(n)
+}
+
+func test_7() {
+    let u uint8? = 200
+    print(u!)
+}
+
+func main() {
+    test_5()
+    test_6()
+    test_7()
+}
+
+// no-opt IR: the unwrap emits a cast, tuple<o>
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @test_5() <NO-TYPE> {
+// CHECK: cast %n any? to any
+// CHECK: std/builtin.tuple<o>, ' ' str
+
+// no-opt IR: no cast for the optional itself, tuple<o?>
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @test_6() <NO-TYPE> {
+// CHECK-NOT: cast
+// CHECK: std/builtin.tuple<o?>, ' ' str
+
+// no-opt IR: uint8? unwrap, tuple<C>
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @test_7() <NO-TYPE> {
+// CHECK: cast %u uint8? to uint8
+// CHECK: std/builtin.tuple<C>, ' ' str
+
+// optimized IR: the casts are folded away, both any? prints load -3 int64
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_5] ---
+// CHECK: build_intern @tuple, -3 int64
+// CHECK: std/builtin.tuple<o>, ' ' str
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_6] ---
+// CHECK: build_intern @tuple, -3 int64
+// CHECK: std/builtin.tuple<o?>, ' ' str
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_7] ---
+// CHECK: build_intern @tuple, 200 uint8
+// CHECK: std/builtin.tuple<C>, ' ' str
+
+// output
+// CHECK: {{^}}-3{{$}}
+// CHECK-NEXT: {{^}}-3{{$}}
+// CHECK-NEXT: {{^}}200{{$}}

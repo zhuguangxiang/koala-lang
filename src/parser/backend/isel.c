@@ -859,20 +859,182 @@ static void isel_lower_cast(KlrInsn *insn)
     } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
         insn->code = OP_NIL_CHECK;
         insn->cast_flag = 0;
-    } else if (src_ts->kind == TYPE_UNION ||
-               (src_ts->kind == TYPE_KLASS && dst_ts->kind == TYPE_KLASS) ||
-               src_ts->kind == TYPE_ANY || src_ts->kind == TYPE_GENERIC_VAR) {
-        // Narrowing cast produced by an `is` check: the runtime value already
-        // *is* the target type, so no real conversion is needed. All these
-        // source kinds behave identically — keep OP_IR_CAST so cgen lowers it
-        // to a plain OP_MOVE (bit-copy, same semantics as `as`):
-        //   1. union -> member:  the union value already holds the member object.
-        //   2. trait -> class:   the intf value's obj field is the class object.
-        //   3. any -> T:         the tagged value is already the target value.
-        //   4. T -> trait:       the marker irgen leaves for a specialized clone
-        //                        (specialize.c), the value as is in the generic func.
+    } else if (type_is_union(src_ts)) {
+        ASSERT(type_is_union_member(src_ts, dst_ts));
+        /*
+        // union type only allowed in parameter type.
+
+        class Cat {
+            pub func name() str { return "cat" }
+        }
+
+        class Dog {
+            pub func bark() str { return "woof" }
+        }
+
+        func narrow_auto(v Cat | Dog) str {
+            if v is Cat {
+                return v.name()
+            } else if v is Dog {
+                return v.bark()
+            }
+            return ""
+        }
+
+        func @narrow_auto(%v test_tmp.Cat | test_tmp.Dog) str {
+        %bb0(entry):
+                %0 = is %v test_tmp.Cat | test_tmp.Dog, test_tmp.Cat
+                branch %0 bool, label %bb1, label %bb2
+
+        %bb1(if-then):                                  ;; preds = %bb0
+                %1 = cast %v test_tmp.Cat | test_tmp.Dog to test_tmp.Cat [fixedslot = 0(next)]
+                %2 = call @Cat:name, nargs=1
+                ret %2 str
+
+        %bb2(if-else):                                  ;; preds = %bb0
+                %3 = is %v test_tmp.Cat | test_tmp.Dog, test_tmp.Dog
+                branch %3 bool, label %bb4, label %bb3
+
+        %bb3(if-end):                                   ;; preds = %bb2
+                ret_const '(null)' str
+
+        %bb4(if-then):                                  ;; preds = %bb2
+                %4 = cast %v test_tmp.Cat | test_tmp.Dog to test_tmp.Dog [fixedslot = 0(next)]
+                %5 = call @Dog:bark, nargs=1
+                ret %5 str
+        }
+
+        `if v is Cat { v.name() }` will generate `cast` to Cat in if-then-block for type narrowing.
+        This is only let type checker pass. And there is no runtime check needed.
+        */
+        // TODO: why need to generate `cast` here? Can we remove it?
+        // union -> member
+        // DO NOTHING: keep OP_IR_CAST so cgen will handle it.
+    } else if (type_is_generic_var(src_ts)) {
+        /*
+        func probe[T: ToString](x T, y T) str {
+            let s = x.to_str()
+            let t ToString = x
+            return s + t.to_str()
+        }
+        func @probe(%x probe:T, %y probe:T) str {
+        %bb0(entry):
+            %0 = call @std/builtin.ToString:to_str [intf-index = 0], %x probe:T
+            %t = local [immutable] std/builtin.ToString
+            %1 = cast %x probe:T to std/builtin.ToString
+            move %t std/builtin.ToString, %1 std/builtin.ToString
+            %2 = call @std/builtin.ToString:to_str [intf-index = 0], %t std/builtin.ToString
+            %3 = add %0 str, %2 str
+            ret %3 str
+        }
+        */
+        // T -> trait
+        // DO NOTHING: keep OP_IR_CAST so cgen will handle it.
+    } else if (type_is_klass(src_ts) && type_is_klass(dst_ts)) {
+        ASSERT(ts_symbol_is_trait(src_ts) && ts_symbol_is_klass(dst_ts));
+        /*
+        trait Value {}
+
+        class Integer : Value {
+            func int_to_str() str { return "int" }
+        }
+
+        class Float : Value {
+            func flt_to_str() str { return "float" }
+        }
+
+        func narrow_auto(v Value) str {
+            if v is Integer {
+                return v.int_to_str()
+            } else if v is Float {
+                return v.flt_to_str()
+            }
+            return "other"
+        }
+
+        func @narrow_auto(%v test_tmp.Value) str {
+        %bb0(entry):
+                %0 = is %v test_tmp.Value, test_tmp.Integer
+                branch %0 bool, label %bb1, label %bb2
+
+        %bb1(if-then):                                  ;; preds = %bb0
+                %1 = cast %v test_tmp.Value to test_tmp.Integer        [fixedslot = 0(next)]
+                %2 = call @Integer:int_to_str, nargs=1
+                ret %2 str
+
+        %bb2(if-else):                                  ;; preds = %bb0
+                %3 = is %v test_tmp.Value, test_tmp.Float
+                branch %3 bool, label %bb4, label %bb3
+
+        %bb3(if-end):                                   ;; preds = %bb2
+                ret_const 'other' str
+
+        %bb4(if-then):                                  ;; preds = %bb2
+                %4 = cast %v test_tmp.Value to test_tmp.Float        [fixedslot = 0(next)]
+                %5 = call @Float:flt_to_str, nargs=1
+                ret %5 str
+        }
+        */
+        // TODO: why need to generate `cast` here? Can we remove it?
+        // trait -> class
+        // DO NOTHING: keep OP_IR_CAST so cgen will handle it.
+    } else if (type_is_any(src_ts) || type_is_any(dst_ts)) {
+        // `any` keeps the raw representation, so the value already is a valid `any`;
+        // kl_typeof recovers its dynamic type from the native tag.
+        // `any?` shares this: irgen casts it to the inner `any`.
+        /*
+        trait Value {}
+
+        class Integer : Value {
+            func int_to_str() str { return "int" }
+        }
+
+        class Float : Value {
+            func flt_to_str() str { return "float" }
+        }
+
+        func narrow_auto() str {
+            var v any = Integer()
+            if v is Integer {
+                return v.int_to_str()
+            } else if v is Float {
+                return v.flt_to_str()
+            }
+            return "other"
+        }
+
+        func @narrow_auto() str {
+        %bb0(entry):
+                %0 = new @test_tmp.Integer
+                call @Integer:__init__, %0 test_tmp.Integer
+                %v = local any
+                move %v any, %0 test_tmp.Integer
+                %1 = is %v any, test_tmp.Integer
+                branch %1 bool, label %bb1, label %bb2
+
+        %bb1(if-then):                                  ;; preds = %bb0
+                %2 = cast %v any to test_tmp.Integer
+                %3 = call @Integer:int_to_str, %2 test_tmp.Integer
+                ret %3 str
+
+        %bb2(if-else):                                  ;; preds = %bb0
+                %4 = is %v any, test_tmp.Float
+                branch %4 bool, label %bb4, label %bb3
+
+        %bb3(if-end):                                   ;; preds = %bb2
+                ret 'other' str
+
+        %bb4(if-then):                                  ;; preds = %bb2
+                %5 = cast %v any to test_tmp.Float
+                %6 = call @Float:flt_to_str, %5 test_tmp.Float
+                ret %6 str
+        }
+        */
+        // TODO: Should be revmoed in cgen stage?
+        // any -> class, because it is in if-narrow block, so the type is narrowed to class.
+        // DO NOTHING: keep OP_IR_CAST so cgen SHOULD remove it.
     } else {
-        NYI();
+        UNREACHABLE();
     }
 }
 

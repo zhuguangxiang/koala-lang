@@ -179,10 +179,13 @@ static inline int int_type_width(TypeSpec *ts) { return ts->int_flt_info.width; 
 static inline int float_type_width(TypeSpec *ts) { return ts->int_flt_info.width; }
 
 static inline int type_is_any(TypeSpec *ts) { return ts->kind == TYPE_ANY; }
+int type_is_any_or_opt_any(TypeSpec *ts);
+
 static inline int type_is_str(TypeSpec *ts) { return ts->kind == TYPE_STR; }
 static inline int type_is_float(TypeSpec *ts) { return ts->kind == TYPE_FLOAT; }
 static inline int type_is_type(TypeSpec *ts) { return ts->kind == TYPE_TYPE; }
 static inline int type_is_union(TypeSpec *ts) { return ts->kind == TYPE_UNION; }
+int type_is_union_member(TypeSpec *union_ts, TypeSpec *mbr_ts);
 static inline int type_is_generic_var(TypeSpec *ts) { return ts->kind == TYPE_GENERIC_VAR; }
 static inline int type_is_generic_ref(TypeSpec *ts) { return ts->kind == TYPE_GENERIC_REF; }
 static inline int type_is_klass(TypeSpec *ts) { return ts->kind == TYPE_KLASS; }
@@ -245,6 +248,9 @@ char *mangle_func_name(char *base_name, Vector *tp_args);
 TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args);
 
 bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b);
+
+int ts_symbol_is_klass(TypeSpec *ts);
+int ts_symbol_is_trait(TypeSpec *ts);
 
 #ifndef NOLOG
 /* clang-format off */

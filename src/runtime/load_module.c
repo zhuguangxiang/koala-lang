@@ -281,11 +281,37 @@ static Object *_load_module(char *path)
         kc = klc_get_rt_const(klc, item->name_index);
         Object *_co;
         if (item->flags & KLC_FLAGS_NATIVE) {
-            // if koala's function is marked as native, it must be implemented by a native function
-            // in the module's native library.
+            _co = kl_get_native(m, kc->sval);
+            if (_co) {
+                ASSERT(IS_CFUNC(_co));
+                CFuncObject *cfn = (CFuncObject *)_co;
+                if (cfn->owner == NULL) {
+                    cfn->owner = m;
+                }
+            } else if (item->flags & KLC_FLAGS_NATIVE_BODY) {
+                // no native impl: run the koala body bytecode
+                _co = kl_new_code(kc->sval, m);
+                CodeObject *co = (CodeObject *)_co;
+                if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
+                if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
+                co->cs.nlocals = item->nlocals;
+                co->cs.max_call_args = item->max_call_args;
+                co->cs.start_pc = item->start_pc;
+                co->cs.num_insns = item->num_insns;
+            } else {
+                // body-less @native without an impl: not_impl traps
+                _co = new_not_impl_func(m, kc->sval);
+                ASSERT(IS_CFUNC(_co));
+                CFuncObject *cfn = (CFuncObject *)_co;
+                if (cfn->owner == NULL) {
+                    cfn->owner = m;
+                }
+            }
+        } else if (item->flags & KLC_FLAGS_INTRINSIC) {
+            // @intrinsic has no koala body: look up the native impl, else not_impl
             _co = kl_get_native(m, kc->sval);
             if (!_co) _co = new_not_impl_func(m, kc->sval);
-            ASSERT(_co && IS_CFUNC(_co));
+            ASSERT(IS_CFUNC(_co));
             CFuncObject *cfn = (CFuncObject *)_co;
             if (cfn->owner == NULL) {
                 cfn->owner = m;

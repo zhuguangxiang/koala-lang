@@ -31,9 +31,23 @@ static TValue _bool_to_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
+static TValue _bool_eq(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    return bool_value(to_raw_bool(self) == to_raw_bool(&args[0]));
+}
+
+static TValue _bool_ne(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    return bool_value(to_raw_bool(self) != to_raw_bool(&args[0]));
+}
+
 static MethodDef bool_methods[] = {
     { "fmt", _bool_fmt },
     { "to_str", _bool_to_str },
+    { "__eq__", _bool_eq },
+    { "__ne__", _bool_ne },
     { NULL },
 };
 

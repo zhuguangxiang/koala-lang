@@ -23,6 +23,7 @@ func narrow_auto(v Cat | Dog) str {
 // Auto narrowing followed by an explicit 'as' on the narrowed variable.
 func narrow_then_as(v Cat | Dog) str {
     if v is Cat {
+        // warning: 'as' check is always true: 'Ltest_if_is_narrow.Cat;' is always 'Ltest_if_is_narrow.Cat;'.
         let c = v as Cat
         return c.name()
     }

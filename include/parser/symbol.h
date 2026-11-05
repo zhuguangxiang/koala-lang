@@ -33,13 +33,15 @@ typedef enum _SymKind {
     SYM_MAX,
 } SymKind;
 
-#define SYM_FLAGS_MUTABLE   (1 << 0)
-#define SYM_FLAGS_CONST     (1 << 1)
-#define SYM_FLAGS_PUBLIC    (1 << 2)
-#define SYM_FLAGS_EXT       (1 << 3)
-#define SYM_FLAGS_GENERIC   (1 << 4)
-#define SYM_FLAGS_NATIVE    (1 << 5)
-#define SYM_FLAGS_STATIC    (1 << 6)
+#define SYM_FLAGS_MUTABLE     (1 << 0)
+#define SYM_FLAGS_CONST       (1 << 1)
+#define SYM_FLAGS_PUBLIC      (1 << 2)
+#define SYM_FLAGS_EXT         (1 << 3)
+#define SYM_FLAGS_GENERIC     (1 << 4)
+#define SYM_FLAGS_NATIVE      (1 << 5)
+#define SYM_FLAGS_STATIC      (1 << 6)
+#define SYM_FLAGS_NATIVE_BODY (1 << 7) // @native func with a koala body
+#define SYM_FLAGS_INTRINSIC   (1 << 8) // @intrinsic func backed by a native impl
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1
@@ -260,7 +262,7 @@ Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags);
 Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *owner_kls,
-                               KlassSymbol *origin_trait);
+                                KlassSymbol *origin_trait);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);

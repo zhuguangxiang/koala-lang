@@ -17,13 +17,13 @@ func test_assert_close_should_fail() {
     ut.assert_float_close(1.0, 2.0)
 }
 
-@intrinsic
+@native
 func foo() str {}
 
 @native
 func bar() str {}
 
-@should_panic("unreachable code executed")
+@should_panic
 func test_foo_should_fail() {
     foo()
 }

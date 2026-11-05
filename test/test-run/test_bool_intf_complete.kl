@@ -44,6 +44,10 @@ func main() {
     let e Equatable[bool] = false
     print(e)
 
+    // test Equatable intf value __eq__ (bool __eq__ is @intrinsic, C-backed)
+    let b Equatable[bool] = true
+    print(b == true)
+
     print(true.hash() == true.hash())
 }
 
@@ -53,4 +57,5 @@ func main() {
 // CHECK: false
 // CHECK: true
 // CHECK: false
+// CHECK: true
 // CHECK: true

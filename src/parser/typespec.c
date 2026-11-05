@@ -837,6 +837,22 @@ int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_t
     return 0;
 }
 
+int type_is_union_member(TypeSpec *union_ts, TypeSpec *mbr_ts)
+{
+    ASSERT(union_ts && mbr_ts);
+    ASSERT(union_ts->kind == TYPE_UNION);
+
+    /* Union members are resolved and interned before code generation, so their
+       signatures are atoms: pointer identity decides equality exactly. */
+    TypeSpec *member;
+    vector_foreach(member, union_ts->union_type.args) {
+        if (!member) continue;
+        if (member == mbr_ts) return 1;
+    }
+
+    return 0;
+}
+
 int type_spec_to_str(TypeSpec *ts, Buffer *buf)
 {
     if (!ts) return 0;
@@ -1670,6 +1686,35 @@ bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b)
             return false;
         }
     }
+}
+
+int type_is_any_or_opt_any(TypeSpec *ts)
+{
+    if (ts->kind == TYPE_ANY) return 1;
+
+    if (ts->kind == TYPE_OPTIONAL) {
+        TypeSpec *src = ts->opt.src;
+        // `nil` literal value type is optional with no src type.
+        if (!src) return 0;
+        if (src && src->kind == TYPE_ANY) return 1;
+    }
+    return 0;
+}
+
+int ts_symbol_is_klass(TypeSpec *ts)
+{
+    if (!ts) return 0;
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) return 0;
+    return sym->kind == SYM_CLASS;
+}
+
+int ts_symbol_is_trait(TypeSpec *ts)
+{
+    if (!ts) return 0;
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) return 0;
+    return sym->kind == SYM_TRAIT;
 }
 
 #ifdef __cplusplus

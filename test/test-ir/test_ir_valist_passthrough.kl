@@ -5,7 +5,7 @@
 import "std/io"
 import "std/sys"
 
-@intrinsic
+@native
 func my_print_intern(w io.Writer, sep str, end str, objs ...) {}
 
 pub func my_print(objs ..., sep = " ", end = "\n") {

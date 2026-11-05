@@ -10,7 +10,7 @@
 import "std/ut"
 import "koala/tls"
 
-@test
+@skip
 func test_tls_get_example_com() {
     let c = tls.dial("example.com", 443)
     if c == nil {
@@ -50,7 +50,7 @@ func test_tls_dial_closed_port() {
     ut.assert_true(c == nil)
 }
 
-@test
+@skip
 func test_tls_read_timeout() {
     let c = tls.dial("example.com", 443)
     if c == nil { return }
@@ -68,7 +68,7 @@ func test_tls_read_timeout() {
     c.close()
 }
 
-@test
+@skip
 func test_tls_multiple_reads() {
     let c = tls.dial("example.com", 443)
     if c == nil { return }

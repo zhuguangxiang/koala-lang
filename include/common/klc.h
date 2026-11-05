@@ -80,13 +80,15 @@ typedef struct _KlcConst {
 #define KLC_CONST_SHORT_TUPLE ')'
 #define KLC_CONST_SHORT_LIST  ']'
 
-#define KLC_FLAGS_PUB    (1 << 0)
-#define KLC_FLAGS_MUT    (1 << 1)
-#define KLC_FLAGS_CONST  (1 << 2)
-#define KLC_FLAGS_TRAIT  (1 << 3)
-#define KLC_FLAGS_METH   (1 << 4)
-#define KLC_FLAGS_NATIVE (1 << 5)
-#define KLC_FLAGS_STATIC (1 << 6)
+#define KLC_FLAGS_PUB         (1 << 0)
+#define KLC_FLAGS_MUT         (1 << 1)
+#define KLC_FLAGS_CONST       (1 << 2)
+#define KLC_FLAGS_TRAIT       (1 << 3)
+#define KLC_FLAGS_METH        (1 << 4)
+#define KLC_FLAGS_NATIVE      (1 << 5)
+#define KLC_FLAGS_STATIC      (1 << 6)
+#define KLC_FLAGS_NATIVE_BODY (1 << 7) // @native func with a koala body
+#define KLC_FLAGS_INTRINSIC   (1 << 8) // @intrinsic func backed by a native impl
 
 typedef struct _KlcVar {
     /* flags */

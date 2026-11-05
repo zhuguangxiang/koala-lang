@@ -1081,7 +1081,11 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     double f = 0.0;
                     if (!check_int_const_cast_valid(insn, c, m, &f)) {
                         KlrValue *v;
-                        if (insn->ts->kind == TYPE_FLOAT) {
+
+                        if (type_is_any_or_opt_any(insn->ts)) {
+                            // cast int to any(any?)
+                            v = src;
+                        } else if (insn->ts->kind == TYPE_FLOAT) {
                             v = klr_const_float(f, insn->ts, fn->module);
                         } else {
                             int sign = insn->ts->int_flt_info.sign;
@@ -1091,6 +1095,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                                 v = klr_const_uint(c->ival, insn->ts, fn->module);
                             }
                         }
+
                         if (replace_all_uses_with(v, (KlrValue *)insn)) {
                             changed = 1;
                         }
@@ -1101,7 +1106,11 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     double f = 0.0;
                     if (!check_uint_const_cast_valid(insn, c, m, &f)) {
                         KlrValue *v;
-                        if (insn->ts->kind == TYPE_FLOAT) {
+
+                        if (type_is_any_or_opt_any(insn->ts)) {
+                            // cast uint to any(any?)
+                            v = src;
+                        } else if (insn->ts->kind == TYPE_FLOAT) {
                             v = klr_const_float(f, insn->ts, fn->module);
                         } else {
                             int sign = insn->ts->int_flt_info.sign;
@@ -1111,6 +1120,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                                 v = klr_const_uint(c->ival, insn->ts, fn->module);
                             }
                         }
+
                         if (replace_all_uses_with(v, (KlrValue *)insn)) {
                             changed = 1;
                         }
@@ -1122,7 +1132,11 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     int64_t iv = 0;
                     if (!check_float_const_cast_valid(insn, c, m, &f, &iv)) {
                         KlrValue *v;
-                        if (insn->ts->kind == TYPE_FLOAT) {
+
+                        if (type_is_any_or_opt_any(insn->ts)) {
+                            // cast float to any(any?)
+                            v = src;
+                        } else if (insn->ts->kind == TYPE_FLOAT) {
                             v = klr_const_float(f, insn->ts, fn->module);
                         } else {
                             int sign = insn->ts->int_flt_info.sign;
@@ -1132,6 +1146,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                                 v = klr_const_uint(iv, insn->ts, fn->module);
                             }
                         }
+
                         if (replace_all_uses_with(v, (KlrValue *)insn)) {
                             changed = 1;
                         }

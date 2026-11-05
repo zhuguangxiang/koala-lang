@@ -1,0 +1,13 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// no C impl named `add_native` in this test package: the koala body runs
+@native
+func add_native(a int, b int) int {
+    return a + b
+}
+
+func test_native_body() {
+    ut.assert_eq(add_native(1, 2), 3)
+}

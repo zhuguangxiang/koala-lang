@@ -150,8 +150,10 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
     // 1. the same type, no cast needed
     if (ts == obj->ts) return NULL;
 
-    // 2. if target is any, no cast needed
-    if (type_is_any(ts)) return NULL;
+    // 2. if target is `any` or `any?`, no intf conversion is needed: both keep the
+    //    raw representation (a plain cast, no make_intf). `any` is special; only a
+    //    real trait target (class -> trait, incl. class -> optional trait) boxes.
+    if (type_is_any_or_opt_any(ts)) return NULL;
 
     // an optional source (`A?` -> `C?`): its value is converted under a nil check
     if (type_is_optional(obj->ts) && obj->ts->opt.src) {
@@ -223,7 +225,7 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
 // `src_ts` (a class or a trait) needs a conversion to the trait `ts`.
 static int _intf_upcast_needed(TypeSpec *src_ts, TypeSpec *ts)
 {
-    if (!src_ts || !ts || type_is_any(ts)) return 0;
+    if (!src_ts || !ts || type_is_any_or_opt_any(ts)) return 0;
 
     ts = intf_canonical_ts(ts);
     if (!ts || ts == src_ts) return 0;
@@ -2517,7 +2519,9 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
 
     KlrBasicBlock *last = scope->bb;
     Annotation *ann = &fn->flags.ann;
-    if (ann && ann->ident && (!strcmp(ann->ident, "native") || !strcmp(ann->ident, "intrinsic"))) {
+    if (ann && ann->ident &&
+        (!strcmp(ann->ident, "intrinsic") ||
+         (!strcmp(ann->ident, "native") && vector_empty(fn->body)))) {
         KlrBuilder bldr;
         klr_builder_end(&bldr, last);
         KlrValue *op = klr_build_unreachable(&bldr);

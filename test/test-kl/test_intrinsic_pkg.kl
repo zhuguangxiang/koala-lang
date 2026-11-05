@@ -1,0 +1,6 @@
+// RUN: ! koalac %s --package-name=foo | filecheck %s
+
+@intrinsic
+func my_intrinsic() {}
+
+// CHECK: func 'my_intrinsic' with 'intrinsic' annotation can only be used in the builtin package (current package 'foo').

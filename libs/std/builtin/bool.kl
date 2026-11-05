@@ -34,7 +34,7 @@ pub class bool : ToString {
     @native
     pub func to_str() str {}
 
-    /// Return 1 for `true` and 0 for `false`, e.g. for a C flag argument.
+    /// Return 1 for `true` and 0 for `false`.
     @intrinsic
     pub func to_int() int {}
 }

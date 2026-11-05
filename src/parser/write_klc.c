@@ -473,6 +473,14 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
             flags_ |= KLC_FLAGS_NATIVE;
         }
 
+        if (fn_sym->flags & SYM_FLAGS_NATIVE_BODY) {
+            flags_ |= KLC_FLAGS_NATIVE_BODY;
+        }
+
+        if (fn_sym->flags & SYM_FLAGS_INTRINSIC) {
+            flags_ |= KLC_FLAGS_INTRINSIC;
+        }
+
         int index = klc_add_code(klc, BUF_STR(buf), flags_, fn->nlocals, fn->max_call_args,
                                  mach->start_pc, mach->total_insns);
         ASSERT(index >= 1);

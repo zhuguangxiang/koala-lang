@@ -7,35 +7,32 @@
 //     print(mk2(1), mk2(2))
 // }
 
-
-func for_list() {
-    let pairs = [(1, "a"), (2, "b"), (3, "c")]
-    for (n, s) in pairs {
-        print(n, s)
-    }
+class Box {
+    var f any = 1
 }
 
-for_list()
+// func main() {
+//     print(Box().f)
+// }
 
-func test(j int) {
-    var i int
-    if j > 10 { i  = 10 } else { }
-    print(i, typeof(i))
-}
+func f(x int) any { return 100 }
 
-test(2)
+func f2(x int) any { return x }
 
-func test2(i uint8) {
-    let s = "hello"
-    print(s[int(i)])
-}
+func f3(x int) any { return Box() }
 
-// test2(10)
-print(typeof(nil))
+func f4(x int) any? { return 100 }
 
-func main() {
-    let a int? = 10
-    print(a ?? 5)
-}
-// let a int? = 10
-// print(a ?? 5)
+func f5(x int) any? { return x }
+
+func f6(x int) any? { return Box() }
+
+func f7(x int) Arithmetic[int] { return 100 }
+
+func f8(x int) Arithmetic[int]? { return 100 }
+
+func f9(x int) Arithmetic[int] { return 100 + x }
+
+func f10(x int) Arithmetic[int]? { return x }
+
+print(f7(10) + 1100)

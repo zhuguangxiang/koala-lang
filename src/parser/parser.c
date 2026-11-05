@@ -1380,6 +1380,13 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     sym->status = SYM_RESOLVED;
 }
 
+// `@intrinsic` funcs are compiler magic backed by runtime/C implementations
+// (builtin dunders, `print_intern`): only the builtin system packages may use it.
+static int is_allow_intrinsic_annotation(const char *pkg_path)
+{
+    return str_equal(pkg_path, "std/builtin") || str_equal(pkg_path, "std/prelude");
+}
+
 static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
 {
     PrefixFlags *flags = &fn->flags;
@@ -1388,6 +1395,13 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
     if (!ann->ident) return;
 
     if (str_equal(ann->ident, "intrinsic")) {
+        if (!is_allow_intrinsic_annotation(ps->pm->pkg_path)) {
+            kl_error(ann->id_loc,
+                     "func '%s' with 'intrinsic' annotation can only be used in the "
+                     "builtin package (current package '%s').",
+                     fn->id.name, ps->pm->pkg_path);
+        }
+
         if (!vector_empty(fn->body)) {
             kl_error(ann->id_loc, "func '%s' with 'intrinsic' annotation needs empty body.",
                      fn->id.name);
@@ -1397,11 +1411,6 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
     }
 
     if (str_equal(ann->ident, "native")) {
-        if (!vector_empty(fn->body)) {
-            kl_error(ann->id_loc, "func '%s' with 'native' annotation needs empty body.",
-                     fn->id.name);
-        }
-
         return;
     }
 
@@ -1604,6 +1613,12 @@ static int is_native_func(FuncDeclStmt *fn)
 {
     Annotation *ann = &fn->flags.ann;
     return ann->ident && !strcmp(ann->ident, "native");
+}
+
+static int is_intrinsic_func(FuncDeclStmt *fn)
+{
+    Annotation *ann = &fn->flags.ann;
+    return ann->ident && !strcmp(ann->ident, "intrinsic");
 }
 
 // only add function symbol and don't add parameters and return type.
@@ -1872,11 +1887,33 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     ParserScope *sc = ps->scope;
 
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
-    if (is_native_func(fn)) sym->flags |= SYM_FLAGS_NATIVE;
+    // `@native` funcs may have no koala body and are backed by a native C
+    // implementation resolved at load time (kl_get_native), so mark them
+    // SYM_FLAGS_NATIVE: write_klc then emits KLC_FLAGS_NATIVE and the loader
+    // binds the native impl instead of an empty (unreachable) body. A
+    // `@intrinsic` *method* is likewise backed by a native impl but never
+    // carries a koala body, so it gets its own SYM_FLAGS_INTRINSIC. Without
+    // these, a method reached via itable/slot dispatch (e.g. an
+    // `Arithmetic[int]` trait value's `__add__`) executes `unreachable` and
+    // traps. A *top-level* `@intrinsic` func is never slot-dispatched, so it
+    // keeps its `unreachable` body (distinct from `@native`).
+    int is_method = (sc->kind == SCOPE_CLASS || sc->kind == SCOPE_TRAIT);
+    if (is_native_func(fn)) {
+        sym->flags |= SYM_FLAGS_NATIVE;
+        // a @native func may carry a koala body: the body runs when no native
+        // impl is found at load time (KLC_FLAGS_NATIVE_BODY)
+        if (!vector_empty(fn->body)) sym->flags |= SYM_FLAGS_NATIVE_BODY;
+    } else if (is_intrinsic_func(fn) && is_method) {
+        sym->flags |= SYM_FLAGS_INTRINSIC;
+    }
 
     log_info("parse func '%s' body", sym->name);
 
-    check_param_name_with_field_name(ps, fn->args);
+    // native funcs (including auto-generated __eq__/__ne__/fmt) have no Koala body,
+    // so a param named like a field can't create ambiguity
+    if (!is_native_func(fn) && !is_intrinsic_func(fn)) {
+        check_param_name_with_field_name(ps, fn->args);
+    }
 
     sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
