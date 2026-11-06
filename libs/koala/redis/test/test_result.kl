@@ -1,0 +1,43 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/redis"
+
+@test
+func test_zero_result_is_noexec() {
+    let r = redis.Result()
+    ut.assert_eq(r.err, redis.ERR_NOEXEC)
+    ut.assert_eq(r.errmsg, "command not executed")
+    ut.assert_true(r.val is redis.NilReply)
+}
+
+@test
+func test_ok() {
+    let r = redis.Result.ok(redis.IntReply(7))
+    ut.assert_eq(r.err, redis.ERR_NOERR)
+    ut.assert_eq(r.errmsg, "")
+    ut.assert_eq((r.val as redis.IntReply)!.value, 7)
+}
+
+@test
+func test_error_keeps_message() {
+    let r = redis.Result.error(redis.ERR_SERVER, "ERR unknown command")
+    ut.assert_eq(r.err, redis.ERR_SERVER)
+    ut.assert_eq(r.errmsg, "ERR unknown command")
+    ut.assert_true(r.val is redis.NilReply)
+}
+
+/// An empty message falls back to the default message of the code.
+@test
+func test_error_default_messages() {
+    ut.assert_eq(redis.Result.error(redis.ERR_SERVER, "").errmsg, "server error")
+    ut.assert_eq(redis.Result.error(redis.ERR_WRONGTYPE, "").errmsg, "wrong kind of value")
+    ut.assert_eq(redis.Result.error(redis.ERR_NOAUTH, "").errmsg, "authentication required")
+    ut.assert_eq(redis.Result.error(redis.ERR_IO, "").errmsg, "io error")
+    ut.assert_eq(redis.Result.error(redis.ERR_TIMEOUT, "").errmsg, "timeout")
+    ut.assert_eq(redis.Result.error(redis.ERR_PROTOCOL, "").errmsg, "protocol error")
+    ut.assert_eq(redis.Result.error(redis.ERR_NOEXEC, "").errmsg, "command not executed")
+}

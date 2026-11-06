@@ -1,0 +1,32 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/redis"
+
+@test
+func test_defaults() {
+    let opts = redis.Options()
+    ut.assert_eq(opts.host, "127.0.0.1")
+    ut.assert_eq(opts.port, 6379)
+    ut.assert_eq(opts.name, "")
+    ut.assert_eq(opts.connect_timeout_ms, 5000)
+    ut.assert_eq(opts.read_timeout_ms, 3000)
+    ut.assert_eq(opts.write_timeout_ms, 3000)
+}
+
+@test
+func test_set_fields() {
+    let opts = redis.Options()
+    opts.host = "redis.local"
+    opts.port = 6380
+    opts.name = "app"
+    opts.read_timeout_ms = 0
+
+    ut.assert_eq(opts.host, "redis.local")
+    ut.assert_eq(opts.port, 6380)
+    ut.assert_eq(opts.name, "app")
+    ut.assert_eq(opts.read_timeout_ms, 0)
+}

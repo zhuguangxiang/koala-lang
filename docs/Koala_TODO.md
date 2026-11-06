@@ -36,11 +36,12 @@
 > (§56, to fix), no check that a class method matches its trait (§57, postponed),
 > `obj["key"]` on a plain class fails inside the compiler (§58, to decide), nullable generic elements
 > do not compile (§59, to fix), a tuple type argument asserts in the compiler (§60, to fix), a field
-> named `f` conflicts with the generated `fmt` (§61, to fix).
+> named `f` conflicts with the generated `fmt` (§61, to fix), `koala/redis`: tests that wait for a
+> mock annotation, and TLS (§62, to do).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> 更新日期：2026-11-06 (added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
 > 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
 > decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
@@ -3387,3 +3388,28 @@ error: parameter 'f' conflicts with field name in class 'Box'
 
 The reported location is `0:0`. The user did not write the parameter: it comes from the generated
 `fmt(f Formatter)`. A generated method should not take a name away from user fields.
+
+---
+
+## 62. `koala/redis`: tests that wait for a mock annotation, and TLS (2026-11-06, to do)
+
+**Tests that wait for a mock annotation.** These paths need a socket that fails on demand.
+
+- `Conn.receive`: a reset peer gives `ERR_IO`, an expired read timeout gives `ERR_TIMEOUT`, and both
+  mark the Conn broken.
+- Writing to a closed connection returns a short count and does not panic (`TcpConn.write`).
+- `Pipeline`: after a wire-level failure nothing more is read, and the remaining commands share the
+  failed Result.
+- `SingleTcpPool`: a broken Conn is discarded, and the next acquire reconnects.
+- `Conn.setup`: a rejected `Options.name` closes the Conn, and acquire returns nil.
+- `TcpConn.read` returns -2 on a timeout. Whether the VM maps `SO_RCVTIMEO` to `IO_TIMEDOUT` or
+  `IO_WOULDBLOCK` is not checked yet.
+
+Tests against a real server check that it is up first, and return without panicking when it is not.
+
+**TLS, left as it is for now.**
+
+- `SingleTlsPool` has no `_in_use` flag: a second acquire returns the same Conn, unlike
+  `SingleTcpPool`.
+- `tls.dial` takes no options, so `Options.connect_timeout_ms` has no effect over TLS.
+- `connect_tls` and `SingleTlsPool` have never been run against a server.

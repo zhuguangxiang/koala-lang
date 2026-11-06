@@ -1,0 +1,136 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A Redis command: an operation plus its argument words, and the Result of running it.
+///
+/// Arguments are passed at construction or appended fluently; both read in wire order. Running the
+/// same Command again overwrites its Result.
+///
+/// Example:
+///     let g = Command(CMD_GET, "k")
+///     p.add(g)
+///     p.exec()
+///     print(g.result().err)
+pub class Command {
+    /// The operation, e.g. "GET" or "CLIENT".
+    let _op str
+
+    /// Argument words that follow the operation on the wire.
+    let _args list[str]
+
+    /// The stored reply; err is ERR_NOEXEC before set_result() runs.
+    var _res Result = Result()
+
+    /// Create a command from its operation and argument words.
+    pub func __init__(op str, args ...str) {
+        _op = op
+        _args = list[str]()
+        for a in args {
+            _args.append(a)
+        }
+    }
+
+    /// Append one argument and return `self` so calls chain.
+    pub func arg(value str) Command {
+        _args.append(value)
+        return self
+    }
+
+    /// Append every word in `values` and return `self`.
+    pub func extend(values list[str]) Command {
+        _args.extend(values)
+        return self
+    }
+
+    /// Return the operation.
+    pub func op() str = _op
+
+    /// Return the argument words, without the operation.
+    pub func args() list[str] = _args
+
+    /// Store the decoded reply; called by the pipeline.
+    pub func set_result(r Result) { _res = r }
+
+    /// Return the stored reply; err is ERR_NOEXEC before set_result() runs.
+    pub func result() Result = _res
+}
+
+// ---------- command ids ----------
+
+// generic
+pub let CMD_DEL     = "DEL"
+pub let CMD_EXISTS  = "EXISTS"
+pub let CMD_EXPIRE  = "EXPIRE"
+pub let CMD_TTL     = "TTL"
+pub let CMD_KEYS    = "KEYS"
+pub let CMD_RENAME  = "RENAME"
+pub let CMD_PERSIST = "PERSIST"
+pub let CMD_TYPE    = "TYPE"
+
+// string
+pub let CMD_GET    = "GET"
+pub let CMD_SET    = "SET"
+pub let CMD_INCR   = "INCR"
+pub let CMD_MGET   = "MGET"
+pub let CMD_APPEND = "APPEND"
+pub let CMD_STRLEN = "STRLEN"
+pub let CMD_DECR   = "DECR"
+pub let CMD_INCRBY = "INCRBY"
+pub let CMD_DECRBY = "DECRBY"
+pub let CMD_SETEX  = "SETEX"
+pub let CMD_SETNX  = "SETNX"
+pub let CMD_MSET   = "MSET"
+
+// list
+pub let CMD_LPUSH  = "LPUSH"
+pub let CMD_RPUSH  = "RPUSH"
+pub let CMD_LLEN   = "LLEN"
+pub let CMD_LRANGE = "LRANGE"
+pub let CMD_LPOP   = "LPOP"
+pub let CMD_RPOP   = "RPOP"
+pub let CMD_LINDEX = "LINDEX"
+pub let CMD_LREM   = "LREM"
+pub let CMD_LTRIM  = "LTRIM"
+
+// hash
+pub let CMD_HSET    = "HSET"
+pub let CMD_HGET    = "HGET"
+pub let CMD_HDEL    = "HDEL"
+pub let CMD_HEXISTS = "HEXISTS"
+pub let CMD_HLEN    = "HLEN"
+pub let CMD_HINCRBY = "HINCRBY"
+pub let CMD_HKEYS   = "HKEYS"
+pub let CMD_HVALS   = "HVALS"
+pub let CMD_HGETALL = "HGETALL"
+
+// set
+pub let CMD_SADD      = "SADD"
+pub let CMD_SREM      = "SREM"
+pub let CMD_SISMEMBER = "SISMEMBER"
+pub let CMD_SCARD     = "SCARD"
+pub let CMD_SMEMBERS  = "SMEMBERS"
+
+// sorted set
+pub let CMD_ZADD   = "ZADD"
+pub let CMD_ZREM   = "ZREM"
+pub let CMD_ZSCORE = "ZSCORE"
+pub let CMD_ZRANK  = "ZRANK"
+pub let CMD_ZCARD  = "ZCARD"
+pub let CMD_ZRANGE = "ZRANGE"
+
+// server
+pub let CMD_DBSIZE  = "DBSIZE"
+pub let CMD_FLUSHDB = "FLUSHDB"
+
+// connection
+pub let CMD_PING   = "PING"
+pub let CMD_ECHO   = "ECHO"
+pub let CMD_CLIENT = "CLIENT"
+
+// transactions (Phase 2)
+pub let CMD_MULTI   = "MULTI"
+pub let CMD_EXEC    = "EXEC"
+pub let CMD_DISCARD = "DISCARD"
+pub let CMD_WATCH   = "WATCH"

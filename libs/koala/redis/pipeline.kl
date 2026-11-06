@@ -1,0 +1,69 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Pipeline batches Commands and runs them over one Conn.
+///
+/// Write path: write_commands encodes every command into the Conn's
+/// BufWriter, then flush pushes the batch out in one syscall.
+///
+/// Read path: receive one Result per command, in submission order. If a receive fails at the wire
+/// level, the remaining commands get the same failed Result so every one has a defined result and
+/// nothing is read from the broken stream. On any failure the Conn is discarded rather than
+/// released: a partially read batch leaves the stream in an unknown state.
+pub class Pipeline {
+    /// Pool this pipeline borrows Conns from.
+    let _pool ConnPool
+
+    /// Pending commands, in submission order.
+    let _cmds = list[Command]()
+
+    /// Create an empty pipeline over `pool`.
+    pub func __init__(pool ConnPool) {
+        _pool = pool
+    }
+
+    /// Append one command to the batch.
+    pub func add(cmd Command) {
+        _cmds.append(cmd)
+    }
+
+    /// Submit the batch: write, flush, read one Result per command. The batch is then empty,
+    /// so the pipeline can be reused; each Command keeps its Result.
+    pub func exec() {
+        if _cmds.len() == 0 { return }
+
+        if let conn = _pool.acquire() {
+            _run(conn)
+        } else {
+            for cmd in _cmds {
+                cmd.set_result(Result.error(ERR_IO, "connection unavailable"))
+            }
+        }
+
+        _cmds.clear()
+    }
+
+    /// Execute the batch on `conn`, releasing it on success and discarding
+    /// it on any failure.
+    func _run(conn Conn) {
+        conn.write_commands(_cmds)
+        conn.flush()
+
+        // Once the stream is broken nothing more is read: the rest share the failed Result.
+        var last = Result()
+        for cmd in _cmds {
+            if !conn.is_broken() {
+                last = conn.receive()
+            }
+            cmd.set_result(last)
+        }
+
+        if conn.is_broken() {
+            _pool.discard(conn)
+        } else {
+            _pool.release(conn)
+        }
+    }
+}

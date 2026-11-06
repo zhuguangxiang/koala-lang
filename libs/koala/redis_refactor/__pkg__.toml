@@ -1,6 +1,0 @@
-[package]
-name = "koala/redis"
-version = "0.1.0"
-description = "Redis RESP2 client"
-dependencies = []
-natives = []

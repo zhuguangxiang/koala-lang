@@ -7,17 +7,16 @@
 ///
 /// `Conn` is the uniform contract for every connected socket. It
 /// inherits `read` from `io.Reader` and `write` / `write_str` /
-/// `flush` from `io.Writer`. The I/O trait contracts apply: `read`
-/// returns 0 on EOF, `write` returns the byte count (a short write
-/// is a failure), and a closed or broken descriptor panics.
+/// `flush` from `io.Writer`. `read` returns 0 on EOF and `write` returns the byte count
+/// (a short write is a failure).
 ///
 /// The semantics of `read` / `write` depend on `socket_type()`. TCP's
 /// `write` loops until every byte is written; UDP and raw `write` one
-/// complete datagram. Every I/O method loops on EINTR and treats any
-/// other failure as fatal. The blocking sockets this package creates
-/// never return EAGAIN, so the loop only needs the EINTR retry; a
-/// coroutine-backed socket would surface EAGAIN as IO_WOULDBLOCK, and
-/// the suspension hook would go on that branch.
+/// complete datagram. Every I/O method loops on EINTR. A reset peer or an expired timeout is an
+/// expected failure on TCP, so `TcpConn.read` returns -1 (-2 on timeout) and `TcpConn.write`
+/// returns the bytes written so far. UDP and raw sockets still treat any other failure as fatal. A
+/// coroutine-backed socket would surface EAGAIN as IO_WOULDBLOCK, and the suspension hook would go
+/// on that branch.
 ///
 /// `read_exact` and `read_to_end` are declared as pure virtuals on the
 /// trait and implemented in each concrete class: Koala traits do not
@@ -99,15 +98,22 @@ pub class TcpConn : Conn {
     /// change its state directly; this TcpConn still owns the fd.
     pub func fd() int = _fd
 
+    /// Read up to `bs.len()` bytes. Returns the count, 0 on EOF, -2 on an expired timeout,
+    /// or -1 on any other failure (reset peer).
     pub func read(bs bytes) int {
         loop {
             let r = sys_recv(_fd, bs, 0)
             if r >= 0 { return r }
-            if _last_io_status() == IO_INTERRUPTED { continue }
-            panic("TcpConn.read: syscall failed")
+
+            let status = _last_io_status()
+            if status == IO_INTERRUPTED { continue }
+            if status == IO_TIMEDOUT || status == IO_WOULDBLOCK { return -2 }
+            return -1
         }
     }
 
+    /// Write all of `bs`. Returns the byte count; a short count means the write failed
+    /// (broken pipe, expired timeout).
     pub func write(bs bytes) int {
         let n = bs.len()
         var total = 0
@@ -118,7 +124,7 @@ pub class TcpConn : Conn {
                 continue
             }
             if _last_io_status() == IO_INTERRUPTED { continue }
-            panic("TcpConn.write: syscall failed")
+            return total
         }
         return total
     }
@@ -137,24 +143,25 @@ pub class TcpConn : Conn {
 
     pub func take_error() int? { return _take_io_error(_fd) }
 
-    /// Read exactly `n` bytes. Returns nil on EOF or short read.
+    /// Read exactly `n` bytes. Returns nil on EOF, failure or short read.
     pub func read_exact(n int) bytes? {
         let scratch = bytes(n)
         var got = 0
         while got < n {
             let r = read(scratch[got:n])
-            if r == 0 { return nil }
+            if r <= 0 { return nil }
             got += r
         }
         return scratch
     }
 
-    /// Read until EOF and return everything.
+    /// Read until EOF and return everything. Returns nil if a read fails.
     pub func read_to_end() bytes? {
         let buf = Buffer(4096)
         let scratch = bytes(4096)
         loop {
             let r = read(scratch)
+            if r < 0 { return nil }
             if r == 0 { return buf.to_bytes() }
             buf.write(scratch[0:r])
         }
@@ -195,9 +202,8 @@ pub class TcpConn : Conn {
 
     /// Peek at the next bytes without consuming them.
     ///
-    /// Returns the number of bytes peeked, 0 if the peer has closed, or
-    /// -1 on error. Unlike `read`, a failure does not panic: peeking is
-    /// a best-effort operation and the caller decides whether to retry.
+    /// Returns the number of bytes peeked, 0 if the peer has closed, or -1 on error. Peeking is a
+    /// best-effort operation and the caller decides whether to retry.
     pub func peek(bs bytes) int {
         return sys_recv(_fd, bs, MSG_PEEK)
     }

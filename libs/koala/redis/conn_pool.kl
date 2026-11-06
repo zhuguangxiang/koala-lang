@@ -1,0 +1,159 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+import "koala/tls"
+
+/// ConnPool supplies Conn instances to the pipeline.
+///
+/// The pipeline acquires a Conn before each command batch and releases it
+/// afterwards. If a batch fails partway (IO error, malformed reply), the
+/// pipeline calls discard() instead, so a Conn whose read/write state can no
+/// longer be trusted never returns to the pool.
+///
+/// Implementations may serve a single shared Conn (SingleTcpPool, SingleTlsPool) or
+/// maintain a set of idle Conns (a real pool); the pipeline only sees
+/// acquire/release/discard.
+pub trait ConnPool {
+    /// Return a Conn ready for use.
+    func acquire() Conn?
+
+    /// Return a healthy Conn to the pool.
+    func release(conn Conn)
+
+    /// Drop an unusable Conn; it must be closed and never reused.
+    func discard(conn Conn)
+
+    /// Close every Conn the pool holds; acquire returns nil from then on.
+    func close()
+}
+
+/// SingleTcpPool holds at most one TCP Conn, created lazily on first acquire.
+///
+/// The Conn is lent exclusively: acquire returns nil until release or discard gives it back.
+///
+/// It is not safe for concurrent use: two goroutines calling acquire() may
+/// race on the lazy creation and on the shared Conn's buffers. Use a real
+/// pool implementation for multi-threaded clients.
+pub class SingleTcpPool : ConnPool {
+    /// Configuration of every Conn this pool creates.
+    let _opts Options
+
+    /// The cached Conn; nil until the first acquire.
+    var _conn Conn? = nil
+
+    /// True once close ran; acquire then refuses to hand out a Conn.
+    var _closed bool = false
+
+    /// True while the Conn is lent out; acquire then returns nil.
+    var _in_use bool = false
+
+    /// Create a TCP pool configured by `opts`.
+    pub func __init__(opts Options) {
+        _opts = opts
+    }
+
+    /// Return the cached Conn, creating it if necessary.
+    pub func acquire() Conn? {
+        if _closed || _in_use { return nil }
+
+        if let c = _conn {
+            _in_use = true
+            return c
+        }
+
+        let url = _opts.host + ":" + str(_opts.port)
+        let spec = so.SocketTypeSpec.tcp()
+        let dial_opts = so.DialOptions().set_timeout_ms(_opts.connect_timeout_ms)
+
+        let sock = so.dial(url, spec, dial_opts)
+        if sock == nil { return nil }
+
+        let c = Conn(sock)
+        if !c.setup(_opts) {
+            c.close()
+            return nil
+        }
+
+        _conn = c
+        _in_use = true
+        return c
+    }
+
+    /// Keep the Conn for reuse. The caller must only pass a healthy Conn.
+    pub func release(conn Conn) {
+        _in_use = false
+    }
+
+    /// Close the Conn and clear the cache so the next acquire reconnects.
+    pub func discard(conn Conn) {
+        conn.close()
+        _conn = nil
+        _in_use = false
+    }
+
+    /// Close the cached Conn, if any, and refuse further acquires.
+    pub func close() {
+        _closed = true
+        if let c = _conn { c.close() }
+        _conn = nil
+    }
+}
+
+/// SingleTlsPool holds at most one TLS Conn, created lazily on first acquire.
+///
+/// It differs from SingleTcpPool only in how acquire dials, and has the same concurrency limits.
+pub class SingleTlsPool : ConnPool {
+    /// Configuration of every Conn this pool creates.
+    let _opts Options
+
+    /// The cached Conn; nil until the first acquire.
+    var _conn Conn? = nil
+
+    /// True once close ran; acquire then refuses to hand out a Conn.
+    var _closed bool = false
+
+    /// Create a TLS pool configured by `opts`.
+    pub func __init__(opts Options) {
+        _opts = opts
+    }
+
+    /// Return the cached Conn, creating it if necessary.
+    pub func acquire() Conn? {
+        if _closed { return nil }
+
+        if let c = _conn { return c }
+
+        let sock = tls.dial(_opts.host, _opts.port)
+        if sock == nil { return nil }
+
+        let c = Conn(sock)
+        if !c.setup(_opts) {
+            c.close()
+            return nil
+        }
+
+        _conn = c
+        return c
+    }
+
+    /// Keep the Conn for reuse. The caller must only pass a healthy Conn.
+    pub func release(conn Conn) {
+        // Nothing to do: the single Conn is already cached.
+    }
+
+    /// Close the Conn and clear the cache so the next acquire reconnects.
+    pub func discard(conn Conn) {
+        conn.close()
+        _conn = nil
+    }
+
+    /// Close the cached Conn, if any, and refuse further acquires.
+    pub func close() {
+        _closed = true
+        if let c = _conn { c.close() }
+        _conn = nil
+    }
+}

@@ -1,0 +1,49 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// A closed pool refuses to acquire before it dials, so no socket is involved.
+
+import "std/ut"
+import "koala/redis"
+
+@test
+func test_closed_pool_acquires_nil() {
+    let pool = redis.SingleTcpPool(redis.Options())
+    pool.close()
+    ut.assert_true(pool.acquire() == nil)
+}
+
+@test
+func test_close_twice() {
+    let pool = redis.SingleTcpPool(redis.Options())
+    pool.close()
+    pool.close()
+    ut.assert_true(pool.acquire() == nil)
+}
+
+/// No command can run after close, whatever server the pool points at.
+@test
+func test_client_after_close() {
+    let c = redis.connect()
+    c.close()
+
+    ut.assert_true(!c.ping())
+    ut.assert_true(c.get("k") == nil)
+    ut.assert_eq(c.incr("k"), -1)
+}
+
+@test
+func test_pipeline_after_close() {
+    let c = redis.connect()
+    c.close()
+
+    let cmd = redis.Command("PING")
+    let p = c.pipeline()
+    p.add(cmd)
+    p.exec()
+
+    ut.assert_eq(cmd.result().err, redis.ERR_IO)
+    ut.assert_eq(cmd.result().errmsg, "connection unavailable")
+}

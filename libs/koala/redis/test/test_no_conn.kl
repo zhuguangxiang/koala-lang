@@ -1,0 +1,215 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Pipeline and RedisClient over a pool that never has a Conn, so no socket is involved.
+
+import "std/ut"
+import "koala/redis"
+
+/// A pool that never has a Conn and counts how it is used.
+class NoConnPool : redis.ConnPool {
+    var acquires = 0
+    var closes = 0
+
+    func __init__() {}
+
+    pub func acquire() redis.Conn? {
+        acquires += 1
+        return nil
+    }
+
+    pub func release(conn redis.Conn) {}
+
+    pub func discard(conn redis.Conn) {}
+
+    pub func close() {
+        closes += 1
+    }
+}
+
+// ---------- pipeline ----------
+
+@test
+func test_exec_empty_does_not_acquire() {
+    let pool = NoConnPool()
+    let p = redis.Pipeline(pool)
+    p.exec()
+    ut.assert_eq(pool.acquires, 0)
+}
+
+/// Every command gets a defined result when there is no Conn.
+@test
+func test_exec_no_conn_fills_results() {
+    let a = redis.Command("GET", "a")
+    let b = redis.Command("GET", "b")
+
+    let p = redis.Pipeline(NoConnPool())
+    p.add(a)
+    p.add(b)
+    p.exec()
+
+    ut.assert_eq(a.result().err, redis.ERR_IO)
+    ut.assert_eq(a.result().errmsg, "connection unavailable")
+    ut.assert_eq(b.result().err, redis.ERR_IO)
+    ut.assert_true(b.result().val is redis.NilReply)
+}
+
+/// A command that never ran stays ERR_NOEXEC.
+@test
+func test_command_not_added_stays_noexec() {
+    let a = redis.Command("GET", "a")
+    let b = redis.Command("GET", "b")
+
+    let p = redis.Pipeline(NoConnPool())
+    p.add(a)
+    p.exec()
+
+    ut.assert_eq(b.result().err, redis.ERR_NOEXEC)
+}
+
+/// exec empties the batch: a second exec has nothing to run.
+@test
+func test_exec_clears_batch() {
+    let pool = NoConnPool()
+    let a = redis.Command("INCR", "n")
+
+    let p = redis.Pipeline(pool)
+    p.add(a)
+    p.exec()
+    ut.assert_eq(pool.acquires, 1)
+
+    a.set_result(redis.Result.ok(redis.IntReply(1)))
+
+    p.exec()
+    ut.assert_eq(pool.acquires, 1)
+    ut.assert_eq(a.result().err, redis.ERR_NOERR)
+}
+
+/// A reused pipeline runs only the commands added since the last exec.
+@test
+func test_exec_reuse_runs_new_commands_only() {
+    let pool = NoConnPool()
+    let a = redis.Command("INCR", "n")
+    let b = redis.Command("GET", "n")
+
+    let p = redis.Pipeline(pool)
+    p.add(a)
+    p.exec()
+
+    a.set_result(redis.Result.ok(redis.IntReply(1)))
+
+    p.add(b)
+    p.exec()
+
+    ut.assert_eq(pool.acquires, 2)
+    ut.assert_eq(a.result().err, redis.ERR_NOERR)
+    ut.assert_eq(b.result().err, redis.ERR_IO)
+}
+
+// ---------- client ----------
+
+@test
+func test_pipeline_uses_client_pool() {
+    let pool = NoConnPool()
+    let c = redis.RedisClient(pool)
+
+    let p = c.pipeline()
+    p.add(redis.Command("PING"))
+    p.exec()
+
+    ut.assert_eq(pool.acquires, 1)
+}
+
+@test
+func test_close_closes_pool() {
+    let pool = NoConnPool()
+    let c = redis.RedisClient(pool)
+    c.close()
+    ut.assert_eq(pool.closes, 1)
+}
+
+/// Each method runs exactly one command.
+@test
+func test_method_acquires_once() {
+    let pool = NoConnPool()
+    let c = redis.RedisClient(pool)
+    c.get("k")
+    ut.assert_eq(pool.acquires, 1)
+}
+
+@test
+func test_failure_returns_false() {
+    let c = redis.RedisClient(NoConnPool())
+    let pairs = dict[str, str]()
+    pairs["a"] = "1"
+
+    ut.assert_true(!c.ping())
+    ut.assert_true(!c.client_setname("app"))
+    ut.assert_true(!c.set("k", "v"))
+    ut.assert_true(!c.setex("k", 10, "v"))
+    ut.assert_true(!c.setnx("k", "v"))
+    ut.assert_true(!c.mset(pairs))
+    ut.assert_true(!c.exists("k"))
+    ut.assert_true(!c.expire("k", 10))
+    ut.assert_true(!c.rename("k", "k2"))
+    ut.assert_true(!c.persist("k"))
+    ut.assert_true(!c.ltrim("k", 0, -1))
+    ut.assert_true(!c.hexists("k", "f"))
+    ut.assert_true(!c.sismember("k", "m"))
+    ut.assert_true(!c.flushdb())
+}
+
+@test
+func test_failure_returns_nil() {
+    let c = redis.RedisClient(NoConnPool())
+
+    ut.assert_true(c.echo("x") == nil)
+    ut.assert_true(c.get("k") == nil)
+    ut.assert_true(c.mget(["k"]) == nil)
+    ut.assert_true(c.keys("*") == nil)
+    ut.assert_true(c.type_of("k") == nil)
+    ut.assert_true(c.lrange("k", 0, -1) == nil)
+    ut.assert_true(c.lpop("k") == nil)
+    ut.assert_true(c.rpop("k") == nil)
+    ut.assert_true(c.lindex("k", 0) == nil)
+    ut.assert_true(c.hget("k", "f") == nil)
+    ut.assert_true(c.hkeys("k") == nil)
+    ut.assert_true(c.hvals("k") == nil)
+    ut.assert_true(c.hgetall("k") == nil)
+    ut.assert_true(c.smembers("k") == nil)
+    ut.assert_true(c.zscore("k", "m") == nil)
+    ut.assert_true(c.zrange("k", 0, -1) == nil)
+}
+
+@test
+func test_failure_returns_minus_one() {
+    let c = redis.RedisClient(NoConnPool())
+
+    ut.assert_eq(c.client_id(), -1)
+    ut.assert_eq(c.incr("k"), -1)
+    ut.assert_eq(c.append("k", "v"), -1)
+    ut.assert_eq(c.strlen("k"), -1)
+    ut.assert_eq(c.decr("k"), -1)
+    ut.assert_eq(c.incrby("k", 2), -1)
+    ut.assert_eq(c.decrby("k", 2), -1)
+    ut.assert_eq(c.del(["k"]), -1)
+    ut.assert_eq(c.ttl("k"), -1)
+    ut.assert_eq(c.lpush("k", "v"), -1)
+    ut.assert_eq(c.rpush("k", "v"), -1)
+    ut.assert_eq(c.llen("k"), -1)
+    ut.assert_eq(c.lrem("k", 1, "v"), -1)
+    ut.assert_eq(c.hset("k", "f", "v"), -1)
+    ut.assert_eq(c.hdel("k", ["f"]), -1)
+    ut.assert_eq(c.hlen("k"), -1)
+    ut.assert_eq(c.hincrby("k", "f", 1), -1)
+    ut.assert_eq(c.sadd("k", "m"), -1)
+    ut.assert_eq(c.srem("k", "m"), -1)
+    ut.assert_eq(c.scard("k"), -1)
+    ut.assert_eq(c.zadd("k", 1.5, "m"), -1)
+    ut.assert_eq(c.zrem("k", "m"), -1)
+    ut.assert_eq(c.zrank("k", "m"), -1)
+    ut.assert_eq(c.zcard("k"), -1)
+    ut.assert_eq(c.dbsize(), -1)
+}

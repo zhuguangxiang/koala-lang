@@ -1,0 +1,127 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/socket" as so
+
+/// Reader over a socket that remembers whether the last read timed out.
+///
+/// BufReader drops a failed read's return value, so Conn asks here after a failed decode.
+class SockReader : io.Reader {
+    /// Underlying socket.
+    let _sock so.Conn
+
+    /// True if the last read returned -2.
+    var _timed_out bool = false
+
+    /// Create a SockReader over `sock`.
+    func __init__(sock so.Conn) {
+        _sock = sock
+    }
+
+    /// Read from the socket and record whether the read timed out.
+    pub func read(bs bytes) int {
+        let r = _sock.read(bs)
+        _timed_out = r == -2
+        return r
+    }
+
+    /// True if the last read timed out.
+    func timed_out() bool { return _timed_out }
+}
+
+/// A blocking connection to a Redis server.
+///
+/// `write_cmd`/`write_commands` encode into the `BufWriter` without touching the socket,
+/// `flush` pushes the buffer out in one syscall.
+/// `receive` decodes one RESP frame from the `BufReader`.
+pub class Conn {
+    /// Underlying socket.
+    let _sock so.Conn
+
+    /// Reads from the socket for `_br`, recording timeouts.
+    let _reader SockReader
+
+    /// Read buffer bound to `_reader`.
+    let _br io.BufReader
+
+    /// Write buffer bound to the socket.
+    let _bw io.BufWriter
+
+    /// True once a receive failed at the wire level; a broken Conn must be
+    /// discarded, not returned to the pool.
+    var _broken bool = false
+
+    /// Create a Conn over `sock`, allocating both buffers once.
+    pub func __init__(sock so.Conn) {
+        _sock = sock
+        _reader = SockReader(sock)
+        _br = io.BufReader(_reader)
+        _bw = io.BufWriter(sock)
+    }
+
+    /// Apply `opts` to this new Conn: set the timeouts and report the name.
+    ///
+    /// Returns false when the server does not accept the name; the caller must close the Conn.
+    pub func setup(opts Options) bool {
+        set_read_timeout(opts.read_timeout_ms)
+        set_write_timeout(opts.write_timeout_ms)
+
+        if opts.name.len() == 0 { return true }
+
+        write_cmd(Command(CMD_CLIENT, "SETNAME", opts.name))
+        flush()
+
+        let r = receive()
+        return r.err == ERR_NOERR
+    }
+
+    /// Encode `cmd` and append it to the write buffer.
+    pub func write_cmd(cmd Command) {
+        _bw.write(encode(cmd.op(), cmd.args()))
+    }
+
+    /// Encode every command in `cmds` into the write buffer.
+    pub func write_commands(cmds list[Command]) {
+        for cmd in cmds { write_cmd(cmd) }
+    }
+
+    /// Flush the write buffer to the socket in one syscall.
+    pub func flush() { _bw.flush() }
+
+    /// Decode one RESP frame from the read buffer.
+    ///
+    /// IO, timeout and protocol failures are surfaced as `Result.error` with ERR_IO, ERR_TIMEOUT or
+    /// ERR_PROTOCOL; this method never panics on wire-level problems. Any of them marks
+    /// this Conn broken.
+    pub func receive() Result {
+        let r = decode(_br)
+        if r.err == ERR_IO && _reader.timed_out() {
+            _broken = true
+            return Result.error(ERR_TIMEOUT, "")
+        }
+
+        if r.err == ERR_IO || r.err == ERR_PROTOCOL {
+            _broken = true
+        }
+        return r
+    }
+
+    /// True if a previous receive failed at the wire level.
+    pub func is_broken() bool { return _broken }
+
+    /// Close the underlying socket.
+    pub func close() { _sock.close() }
+
+    /// Set the read timeout in milliseconds. 0 clears it.
+    pub func set_read_timeout(ms int) {
+        _sock.set_read_timeout(ms)
+    }
+
+    /// Set the write timeout in milliseconds. 0 clears it.
+    pub func set_write_timeout(ms int) {
+        _sock.set_write_timeout(ms)
+    }
+}

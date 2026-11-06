@@ -3,5 +3,25 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-// Package entry for koala/redis. The pub declarations in sibling files
-// are this package's public API.
+/// Create a client for a Redis server over TCP. Without `opts`, a default `Options()` is used.
+///
+/// The connection is made lazily: the first command dials, and a failure surfaces as that command's
+/// failure value. Call `ping` to check the server early. The returned Client owns a single Conn;
+/// call `close` to release the socket.
+///
+/// Example:
+///     let c = redis.connect()
+///     c.set("greeting", "hello")
+///     print(c.get("greeting")!)
+///     c.close()
+pub func connect(opts Options? = nil) RedisClient {
+    return RedisClient(SingleTcpPool(opts ?? Options()))
+}
+
+/// Create a client for a Redis server over TLS.
+///
+/// Same as `connect`, but the transport is TLS and `opts` is required: `opts.host` is also used for
+/// SNI and certificate verification.
+pub func connect_tls(opts Options) RedisClient {
+    return RedisClient(SingleTlsPool(opts))
+}

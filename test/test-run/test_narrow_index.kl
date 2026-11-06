@@ -1,0 +1,84 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Indexing a variable narrowed from an optional. A narrowed variable resolves to a shadow symbol;
+// parse_index() only took the type symbol of a plain variable and reported
+// "type 'v' is not subscriptable".
+
+func maybe(ok bool) list[int]? {
+    if ok { return [10, 20, 30] }
+    return nil
+}
+
+func let_else_load(ok bool) int {
+    let v = maybe(ok) else { return -1 }
+    return v[1]
+}
+
+func let_else_store() int {
+    let v = maybe(true) else { return -1 }
+    v[0] = 5
+    return v[0]
+}
+
+func let_else_slice() list[int] {
+    let v = maybe(true) else { return list[int]() }
+    return v[1:3]
+}
+
+func let_else_slice_store() list[int] {
+    let v = maybe(true) else { return list[int]() }
+    v[0:2] = [1, 2]
+    return v
+}
+
+func let_else_loop() int {
+    let v = maybe(true) else { return -1 }
+    var sum = 0
+    var i = 0
+    while i < v.len() {
+        sum += v[i]
+        i += 1
+    }
+    return sum
+}
+
+// both sides of the store are narrowed subscripts
+func let_else_both_sides() int {
+    let v = maybe(true) else { return -1 }
+    let out = dict[int, int]()
+    out[v[0]] = v[1]
+    return out[10]
+}
+
+func early_return() int {
+    let v = maybe(true)
+    if v == nil { return -1 }
+    return v[2]
+}
+
+func not_nil_block() int {
+    let v = maybe(true)
+    if v != nil {
+        return v[0]
+    }
+    return -1
+}
+
+print("load:", let_else_load(true))
+print("nil:", let_else_load(false))
+print("store:", let_else_store())
+print("slice:", let_else_slice())
+print("slice store:", let_else_slice_store())
+print("loop:", let_else_loop())
+print("both sides:", let_else_both_sides())
+print("early return:", early_return())
+print("not nil:", not_nil_block())
+
+// CHECK: {{^}}load: 20{{$}}
+// CHECK-NEXT: {{^}}nil: -1{{$}}
+// CHECK-NEXT: {{^}}store: 5{{$}}
+// CHECK-NEXT: {{^}}slice: [20, 30]{{$}}
+// CHECK-NEXT: {{^}}slice store: [1, 2, 30]{{$}}
+// CHECK-NEXT: {{^}}loop: 60{{$}}
+// CHECK-NEXT: {{^}}both sides: 20{{$}}
+// CHECK-NEXT: {{^}}early return: 30{{$}}
+// CHECK-NEXT: {{^}}not nil: 10{{$}}

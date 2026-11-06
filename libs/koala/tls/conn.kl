@@ -58,6 +58,10 @@ pub class TlsConn : so.Conn {
         return tls_write(_ssl, data)
     }
 
+    pub func write_str(s str) int { return tls_write(_ssl, s.to_bytes()) }
+
+    pub func flush() {}
+
     /// Tear down TLS and close the underlying TCP socket.
     pub func close() {
         if _ssl != 0 { tls_conn_close(_ssl) }

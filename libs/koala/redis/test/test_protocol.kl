@@ -7,54 +7,55 @@ import "std/io"
 import "std/ut"
 import "koala/redis"
 
-/// Wrap `text` in a buffered reader so parse_reply has a byte stream.
+/// Wrap `text` in a buffered reader so decode has a byte stream.
 func _reader(text str) io.BufReader {
     return io.BufReader(io.BytesIO.from_str(text))
 }
 
+/// Decode one reply from `text`.
+func _decode(text str) redis.Result {
+    return redis.decode(_reader(text))
+}
+
 @test
 func test_encode_set() {
-    let args = list[str]()
-    args.append("SET")
-    args.append("foo")
-    args.append("bar")
-    let bs = redis.encode(args)
+    let bs = redis.encode("SET", ["foo", "bar"])
     ut.assert_eq(bs.to_str(), "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
 }
 
 @test
 func test_parse_status() {
-    let r = (redis.parse_reply(_reader("+OK\r\n")) as redis.StatusReply)!
+    let r = (_decode("+OK\r\n").val as redis.StatusReply)!
     ut.assert_eq(r.value, "OK")
 }
 
 @test
 func test_parse_pong() {
-    let r = (redis.parse_reply(_reader("+PONG\r\n")) as redis.StatusReply)!
+    let r = (_decode("+PONG\r\n").val as redis.StatusReply)!
     ut.assert_eq(r.value, "PONG")
 }
 
 @test
 func test_parse_integer() {
-    let r = (redis.parse_reply(_reader(":42\r\n")) as redis.IntReply)!
+    let r = (_decode(":42\r\n").val as redis.IntReply)!
     ut.assert_eq(r.value, 42)
 }
 
 @test
 func test_parse_bulk() {
-    let r = (redis.parse_reply(_reader("$3\r\nfoo\r\n")) as redis.BulkReply)!
+    let r = (_decode("$3\r\nfoo\r\n").val as redis.BulkReply)!
     ut.assert_eq(r.value, "foo")
 }
 
 @test
 func test_parse_nil_bulk() {
-    let r = redis.parse_reply(_reader("$-1\r\n"))
+    let r = _decode("$-1\r\n").val
     ut.assert_true(r is redis.NilReply)
 }
 
 @test
 func test_parse_array() {
-    let r = (redis.parse_reply(_reader("*2\r\n$1\r\na\r\n$1\r\nb\r\n")) as redis.ArrayReply)!
+    let r = (_decode("*2\r\n$1\r\na\r\n$1\r\nb\r\n").val as redis.ArrayReply)!
     ut.assert_eq(r.items.len(), 2)
     ut.assert_eq((r.items[0] as redis.BulkReply)!.value, "a")
     ut.assert_eq((r.items[1] as redis.BulkReply)!.value, "b")
@@ -62,25 +63,26 @@ func test_parse_array() {
 
 @test
 func test_parse_error() {
-    let r = (redis.parse_reply(_reader("-ERR bad command\r\n")) as redis.ErrorReply)!
-    ut.assert_eq(r.value, "ERR bad command")
+    let res = _decode("-ERR bad command\r\n")
+    ut.assert_eq(res.err, redis.ERR_SERVER)
+    ut.assert_eq(res.errmsg, "ERR bad command")
 }
 
 @test
 func test_parse_nil_array() {
-    let r = redis.parse_reply(_reader("*-1\r\n"))
+    let r = _decode("*-1\r\n").val
     ut.assert_true(r is redis.NilReply)
 }
 
 @test
 func test_parse_empty_array() {
-    let r = (redis.parse_reply(_reader("*0\r\n")) as redis.ArrayReply)!
+    let r = (_decode("*0\r\n").val as redis.ArrayReply)!
     ut.assert_eq(r.items.len(), 0)
 }
 
 @test
 func test_parse_nested_array() {
-    let r = (redis.parse_reply(_reader("*2\r\n*1\r\n:1\r\n$1\r\na\r\n")) as redis.ArrayReply)!
+    let r = (_decode("*2\r\n*1\r\n:1\r\n$1\r\na\r\n").val as redis.ArrayReply)!
     ut.assert_eq(r.items.len(), 2)
     ut.assert_true(r.items[0] is redis.ArrayReply)
     ut.assert_true(r.items[1] is redis.BulkReply)
@@ -93,10 +95,251 @@ func test_parse_nested_array() {
 
 @test
 func test_encode_utf8_byte_length() {
-    let args = list[str]()
-    args.append("SET")
-    args.append("k")
-    args.append("你好")
-    let bs = redis.encode(args)
+    let bs = redis.encode("SET", ["k", "你好"])
     ut.assert_eq(bs.to_str(), "*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$6\r\n你好\r\n")
+}
+
+// ---------- encode ----------
+
+/// PING has no arguments.
+@test
+func test_encode_ping() {
+    let frame = redis.encode("PING", list[str]())
+    ut.assert_eq(frame.to_str(), "*1\r\n$4\r\nPING\r\n")
+}
+
+@test
+func test_encode_get() {
+    let frame = redis.encode("GET", ["foo"])
+    ut.assert_eq(frame.to_str(), "*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n")
+}
+
+/// The sub-command is the first argument.
+@test
+func test_encode_client_setname() {
+    let frame = redis.encode("CLIENT", ["SETNAME", "app"])
+    ut.assert_eq(frame.to_str(), "*3\r\n$6\r\nCLIENT\r\n$7\r\nSETNAME\r\n$3\r\napp\r\n")
+}
+
+@test
+func test_encode_empty_arg() {
+    let frame = redis.encode("SET", ["k", ""])
+    ut.assert_eq(frame.to_str(), "*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$0\r\n\r\n")
+}
+
+/// An argument may contain CRLF: its length frames it.
+@test
+func test_encode_crlf_in_arg() {
+    let frame = redis.encode("ECHO", ["a\r\nb"])
+    ut.assert_eq(frame.to_str(), "*2\r\n$4\r\nECHO\r\n$4\r\na\r\nb\r\n")
+}
+
+// ---------- decode: status ----------
+
+@test
+func test_decode_status_noerr() {
+    let r = _decode("+OK\r\n")
+    ut.assert_eq(r.err, redis.ERR_NOERR)
+    ut.assert_eq(r.errmsg, "")
+    ut.assert_true(r.val is redis.StatusReply)
+}
+
+@test
+func test_decode_empty_status() {
+    let r = (_decode("+\r\n").val as redis.StatusReply)!
+    ut.assert_eq(r.value, "")
+}
+
+// ---------- decode: server errors ----------
+
+/// The error class is the first word; errmsg keeps the original text.
+@test
+func test_decode_wrongtype() {
+    let r = _decode("-WRONGTYPE bad op\r\n")
+    ut.assert_eq(r.err, redis.ERR_WRONGTYPE)
+    ut.assert_eq(r.errmsg, "WRONGTYPE bad op")
+    ut.assert_true(r.val is redis.NilReply)
+}
+
+@test
+func test_decode_noauth() {
+    let r = _decode("-NOAUTH Authentication required.\r\n")
+    ut.assert_eq(r.err, redis.ERR_NOAUTH)
+    ut.assert_eq(r.errmsg, "NOAUTH Authentication required.")
+}
+
+@test
+func test_decode_error_single_word() {
+    let r = _decode("-ERR\r\n")
+    ut.assert_eq(r.err, redis.ERR_SERVER)
+    ut.assert_eq(r.errmsg, "ERR")
+}
+
+// ---------- decode: integer ----------
+
+@test
+func test_decode_negative_int() {
+    let r = (_decode(":-5\r\n").val as redis.IntReply)!
+    ut.assert_eq(r.value, -5)
+}
+
+/// -1 is a real value, not the invalid-text marker of `to_int_or`.
+@test
+func test_decode_minus_one_int() {
+    let r = _decode(":-1\r\n")
+    ut.assert_eq(r.err, redis.ERR_NOERR)
+    ut.assert_eq((r.val as redis.IntReply)!.value, -1)
+}
+
+@test
+func test_decode_bad_int() {
+    let r = _decode(":abc\r\n")
+    ut.assert_eq(r.err, redis.ERR_PROTOCOL)
+}
+
+// ---------- decode: bulk string ----------
+
+@test
+func test_decode_empty_bulk() {
+    let r = (_decode("$0\r\n\r\n").val as redis.BulkReply)!
+    ut.assert_eq(r.value, "")
+}
+
+/// The length frames the body, so it may contain CRLF.
+@test
+func test_decode_crlf_in_bulk() {
+    let r = (_decode("$4\r\na\r\nb\r\n").val as redis.BulkReply)!
+    ut.assert_eq(r.value, "a\r\nb")
+}
+
+@test
+func test_decode_utf8_bulk() {
+    let r = (_decode("$6\r\n你好\r\n").val as redis.BulkReply)!
+    ut.assert_eq(r.value, "你好")
+}
+
+@test
+func test_decode_bad_bulk_length() {
+    let r = _decode("$abc\r\n")
+    ut.assert_eq(r.err, redis.ERR_PROTOCOL)
+}
+
+/// The two bytes after the body must be CRLF.
+@test
+func test_decode_bulk_bad_terminator() {
+    let r = _decode("$3\r\nfooXX")
+    ut.assert_eq(r.err, redis.ERR_PROTOCOL)
+}
+
+@test
+func test_decode_truncated_bulk_body() {
+    let r = _decode("$3\r\nfo")
+    ut.assert_eq(r.err, redis.ERR_IO)
+}
+
+@test
+func test_decode_truncated_bulk_terminator() {
+    let r = _decode("$3\r\nfoo")
+    ut.assert_eq(r.err, redis.ERR_IO)
+}
+
+// ---------- decode: array ----------
+
+@test
+func test_decode_array_mixed() {
+    let r = (_decode("*3\r\n:1\r\n+OK\r\n$1\r\na\r\n").val as redis.ArrayReply)!
+    ut.assert_eq(r.items.len(), 3)
+    ut.assert_true(r.items[0] is redis.IntReply)
+    ut.assert_true(r.items[1] is redis.StatusReply)
+    ut.assert_true(r.items[2] is redis.BulkReply)
+}
+
+/// MGET replies with a nil element for a missing key.
+@test
+func test_decode_array_nil_element() {
+    let r = (_decode("*2\r\n$-1\r\n$1\r\na\r\n").val as redis.ArrayReply)!
+    ut.assert_eq(r.items.len(), 2)
+    ut.assert_true(r.items[0] is redis.NilReply)
+    ut.assert_true(r.items[1] is redis.BulkReply)
+}
+
+@test
+func test_decode_bad_array_length() {
+    let r = _decode("*abc\r\n")
+    ut.assert_eq(r.err, redis.ERR_PROTOCOL)
+}
+
+@test
+func test_decode_truncated_array() {
+    let r = _decode("*2\r\n:1\r\n")
+    ut.assert_eq(r.err, redis.ERR_IO)
+}
+
+/// A server error inside an array is reported, and the rest of the array is consumed.
+@test
+func test_decode_array_server_error() {
+    let br = _reader("*2\r\n-ERR x\r\n:1\r\n+OK\r\n")
+
+    let r1 = redis.decode(br)
+    ut.assert_eq(r1.err, redis.ERR_SERVER)
+    ut.assert_eq(r1.errmsg, "ERR x")
+
+    let r2 = redis.decode(br)
+    ut.assert_eq(r2.err, redis.ERR_NOERR)
+    ut.assert_eq((r2.val as redis.StatusReply)!.value, "OK")
+}
+
+/// Only the first of several server errors is reported.
+@test
+func test_decode_array_first_error_wins() {
+    let r = _decode("*2\r\n-ERR first\r\n-ERR second\r\n")
+    ut.assert_eq(r.errmsg, "ERR first")
+}
+
+// ---------- decode: stream ----------
+
+@test
+func test_decode_two_frames() {
+    let br = _reader("+OK\r\n:7\r\n")
+    let r1 = redis.decode(br)
+    let r2 = redis.decode(br)
+    ut.assert_eq((r1.val as redis.StatusReply)!.value, "OK")
+    ut.assert_eq((r2.val as redis.IntReply)!.value, 7)
+}
+
+@test
+func test_decode_frames_of_every_type() {
+    let br = _reader("+OK\r\n-ERR x\r\n:1\r\n$1\r\na\r\n*0\r\n$-1\r\n")
+    ut.assert_true(redis.decode(br).val is redis.StatusReply)
+    ut.assert_eq(redis.decode(br).err, redis.ERR_SERVER)
+    ut.assert_true(redis.decode(br).val is redis.IntReply)
+    ut.assert_true(redis.decode(br).val is redis.BulkReply)
+    ut.assert_true(redis.decode(br).val is redis.ArrayReply)
+    ut.assert_true(redis.decode(br).val is redis.NilReply)
+}
+
+@test
+func test_decode_eof() {
+    let r = _decode("")
+    ut.assert_eq(r.err, redis.ERR_IO)
+}
+
+/// EOF after the last frame is a failure of the next decode only.
+@test
+func test_decode_eof_after_frame() {
+    let br = _reader("+OK\r\n")
+    ut.assert_eq(redis.decode(br).err, redis.ERR_NOERR)
+    ut.assert_eq(redis.decode(br).err, redis.ERR_IO)
+}
+
+@test
+func test_decode_truncated_line() {
+    let r = _decode("+OK")
+    ut.assert_eq(r.err, redis.ERR_IO)
+}
+
+@test
+func test_decode_unknown_type() {
+    let r = _decode("?x\r\n")
+    ut.assert_eq(r.err, redis.ERR_PROTOCOL)
 }

@@ -1,0 +1,509 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Live tests against a Redis server on 127.0.0.1:6379. Each test checks that the server is up first
+// and returns when it is not, so the suite still passes offline. Tests only touch koala:test:* keys;
+// `flushdb` is left out because it would delete the server's other keys.
+
+import "std/ut"
+import "koala/redis"
+
+/// Return a client, or nil when no server is reachable.
+func _connect() redis.RedisClient? {
+    let c = redis.connect()
+    if c.ping() { return c }
+
+    c.close()
+    return nil
+}
+
+// ---------- connection ----------
+
+@test
+func test_echo() {
+    if let c = _connect() {
+        ut.assert_eq(c.echo("hello")!, "hello")
+        c.close()
+    }
+}
+
+@test
+func test_client_id() {
+    if let c = _connect() {
+        ut.assert_true(c.client_id() > 0)
+        c.close()
+    }
+}
+
+@test
+func test_client_setname() {
+    if let c = _connect() {
+        ut.assert_true(c.client_setname("koala-test"))
+
+        let cmd = redis.Command(redis.CMD_CLIENT, "GETNAME")
+        let p = c.pipeline()
+        p.add(cmd)
+        p.exec()
+        ut.assert_eq((cmd.result().val as redis.BulkReply)!.value, "koala-test")
+
+        c.close()
+    }
+}
+
+/// Options.name is reported on the new Conn.
+@test
+func test_options_name() {
+    if let probe = _connect() {
+        probe.close()
+
+        let opts = redis.Options()
+        opts.name = "koala-opts"
+        let c = redis.connect(opts)
+
+        let cmd = redis.Command(redis.CMD_CLIENT, "GETNAME")
+        let p = c.pipeline()
+        p.add(cmd)
+        p.exec()
+        ut.assert_eq((cmd.result().val as redis.BulkReply)!.value, "koala-opts")
+
+        c.close()
+    }
+}
+
+// ---------- pool ----------
+
+/// The Conn is lent exclusively until it is given back.
+@test
+func test_second_acquire_returns_nil() {
+    if let probe = _connect() {
+        probe.close()
+
+        let pool = redis.SingleTcpPool(redis.Options())
+        let conn = pool.acquire()!
+        ut.assert_true(pool.acquire() == nil)
+
+        pool.release(conn)
+        ut.assert_true(pool.acquire() != nil)
+
+        pool.close()
+    }
+}
+
+// ---------- string ----------
+
+@test
+func test_get_missing() {
+    if let c = _connect() {
+        let key = "koala:test:missing"
+        c.del([key])
+        ut.assert_true(c.get(key) == nil)
+        c.close()
+    }
+}
+
+@test
+func test_utf8_value() {
+    if let c = _connect() {
+        let key = "koala:test:utf8"
+        ut.assert_true(c.set(key, "你好"))
+        ut.assert_eq(c.get(key)!, "你好")
+        ut.assert_eq(c.strlen(key), 6)
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_append_strlen() {
+    if let c = _connect() {
+        let key = "koala:test:append"
+        c.del([key])
+        ut.assert_eq(c.append(key, "ab"), 2)
+        ut.assert_eq(c.append(key, "c"), 3)
+        ut.assert_eq(c.strlen(key), 3)
+        ut.assert_eq(c.get(key)!, "abc")
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_counters() {
+    if let c = _connect() {
+        let key = "koala:test:counter"
+        c.del([key])
+        ut.assert_eq(c.incrby(key, 10), 10)
+        ut.assert_eq(c.decrby(key, 3), 7)
+        ut.assert_eq(c.decr(key), 6)
+        c.del([key])
+        c.close()
+    }
+}
+
+/// A command the server rejects returns the failure value, and the Conn stays usable.
+@test
+func test_server_error_keeps_conn() {
+    if let c = _connect() {
+        let key = "koala:test:notint"
+        ut.assert_true(c.set(key, "abc"))
+        ut.assert_eq(c.incr(key), -1)
+        ut.assert_eq(c.get(key)!, "abc")
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_setex() {
+    if let c = _connect() {
+        let key = "koala:test:setex"
+        ut.assert_true(c.setex(key, 100, "v"))
+        ut.assert_eq(c.get(key)!, "v")
+        ut.assert_true(c.ttl(key) > 0)
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_setnx() {
+    if let c = _connect() {
+        let key = "koala:test:setnx"
+        c.del([key])
+        ut.assert_true(c.setnx(key, "first"))
+        ut.assert_true(!c.setnx(key, "second"))
+        ut.assert_eq(c.get(key)!, "first")
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_mset_mget() {
+    if let c = _connect() {
+        let a = "koala:test:mset:a"
+        let b = "koala:test:mset:b"
+        let missing = "koala:test:mset:missing"
+        c.del([a, b, missing])
+
+        let pairs = dict[str, str]()
+        pairs[a] = "1"
+        pairs[b] = "2"
+        ut.assert_true(c.mset(pairs))
+
+        let values = c.mget([a, missing, b])!
+        ut.assert_eq(values.len(), 3)
+        ut.assert_eq(values[0]!, "1")
+        ut.assert_true(values[1] == nil)
+        ut.assert_eq(values[2]!, "2")
+
+        ut.assert_eq(c.del([a, b]), 2)
+        c.close()
+    }
+}
+
+// ---------- generic ----------
+
+@test
+func test_expire_ttl_persist() {
+    if let c = _connect() {
+        let key = "koala:test:ttl"
+        c.del([key])
+        ut.assert_eq(c.ttl(key), -2)
+        ut.assert_true(!c.expire(key, 100))
+
+        c.set(key, "v")
+        ut.assert_eq(c.ttl(key), -1)
+        ut.assert_true(!c.persist(key))
+
+        ut.assert_true(c.expire(key, 100))
+        ut.assert_true(c.ttl(key) > 0)
+        ut.assert_true(c.persist(key))
+        ut.assert_eq(c.ttl(key), -1)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_rename() {
+    if let c = _connect() {
+        let old_key = "koala:test:rename:from"
+        let new_key = "koala:test:rename:to"
+        c.del([old_key, new_key])
+
+        ut.assert_true(!c.rename(old_key, new_key))
+
+        c.set(old_key, "v")
+        ut.assert_true(c.rename(old_key, new_key))
+        ut.assert_true(!c.exists(old_key))
+        ut.assert_eq(c.get(new_key)!, "v")
+
+        c.del([new_key])
+        c.close()
+    }
+}
+
+@test
+func test_keys() {
+    if let c = _connect() {
+        let key = "koala:test:keys:one"
+        c.set(key, "v")
+
+        let found = c.keys("koala:test:keys:*")!
+        ut.assert_eq(found.len(), 1)
+        ut.assert_eq(found[0], key)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_type_of() {
+    if let c = _connect() {
+        let key = "koala:test:type"
+        c.del([key])
+        ut.assert_eq(c.type_of(key)!, "none")
+
+        c.set(key, "v")
+        ut.assert_eq(c.type_of(key)!, "string")
+
+        c.del([key])
+        c.close()
+    }
+}
+
+// ---------- list ----------
+
+@test
+func test_list_pop() {
+    if let c = _connect() {
+        let key = "koala:test:pop"
+        c.del([key])
+        ut.assert_true(c.lpop(key) == nil)
+
+        c.rpush(key, "a")
+        c.rpush(key, "b")
+        c.rpush(key, "c")
+        ut.assert_eq(c.lpop(key)!, "a")
+        ut.assert_eq(c.rpop(key)!, "c")
+        ut.assert_eq(c.llen(key), 1)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_list_lindex() {
+    if let c = _connect() {
+        let key = "koala:test:lindex"
+        c.del([key])
+        c.rpush(key, "a")
+        c.rpush(key, "b")
+
+        ut.assert_eq(c.lindex(key, 0)!, "a")
+        ut.assert_eq(c.lindex(key, -1)!, "b")
+        ut.assert_true(c.lindex(key, 5) == nil)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_list_lrem_ltrim() {
+    if let c = _connect() {
+        let key = "koala:test:lrem"
+        c.del([key])
+        c.rpush(key, "a")
+        c.rpush(key, "x")
+        c.rpush(key, "x")
+        c.rpush(key, "b")
+        c.rpush(key, "c")
+
+        ut.assert_eq(c.lrem(key, 0, "x"), 2)
+        ut.assert_true(c.ltrim(key, 0, 1))
+
+        let items = c.lrange(key, 0, -1)!
+        ut.assert_eq(items.len(), 2)
+        ut.assert_eq(items[0], "a")
+        ut.assert_eq(items[1], "b")
+
+        c.del([key])
+        c.close()
+    }
+}
+
+/// An empty list is an empty result, not a failure.
+@test
+func test_lrange_empty() {
+    if let c = _connect() {
+        let key = "koala:test:empty"
+        c.del([key])
+        ut.assert_eq(c.lrange(key, 0, -1)!.len(), 0)
+        c.close()
+    }
+}
+
+// ---------- hash ----------
+
+@test
+func test_hash_fields() {
+    if let c = _connect() {
+        let key = "koala:test:hash"
+        c.del([key])
+
+        ut.assert_eq(c.hset(key, "a", "1"), 1)
+        ut.assert_eq(c.hset(key, "a", "2"), 0)
+        ut.assert_eq(c.hget(key, "a")!, "2")
+        ut.assert_true(c.hget(key, "missing") == nil)
+        ut.assert_true(c.hexists(key, "a"))
+        ut.assert_true(!c.hexists(key, "missing"))
+        ut.assert_eq(c.hlen(key), 1)
+
+        ut.assert_eq(c.hdel(key, ["a", "missing"]), 1)
+        ut.assert_eq(c.hlen(key), 0)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_hincrby() {
+    if let c = _connect() {
+        let key = "koala:test:hincrby"
+        c.del([key])
+        ut.assert_eq(c.hincrby(key, "n", 5), 5)
+        ut.assert_eq(c.hincrby(key, "n", -2), 3)
+        c.del([key])
+        c.close()
+    }
+}
+
+@test
+func test_hash_all() {
+    if let c = _connect() {
+        let key = "koala:test:hgetall"
+        c.del([key])
+        c.hset(key, "a", "1")
+        c.hset(key, "b", "2")
+
+        ut.assert_eq(c.hkeys(key)!.len(), 2)
+        ut.assert_eq(c.hvals(key)!.len(), 2)
+
+        let all = c.hgetall(key)!
+        ut.assert_eq(all.len(), 2)
+        ut.assert_eq(all["a"], "1")
+        ut.assert_eq(all["b"], "2")
+
+        c.del([key])
+        c.close()
+    }
+}
+
+/// A missing hash is an empty result, not a failure.
+@test
+func test_hgetall_missing() {
+    if let c = _connect() {
+        let key = "koala:test:hgetall:missing"
+        c.del([key])
+        ut.assert_eq(c.hgetall(key)!.len(), 0)
+        c.close()
+    }
+}
+
+// ---------- set ----------
+
+@test
+func test_set_members() {
+    if let c = _connect() {
+        let key = "koala:test:set"
+        c.del([key])
+
+        ut.assert_eq(c.sadd(key, "a"), 1)
+        ut.assert_eq(c.sadd(key, "a"), 0)
+        ut.assert_eq(c.sadd(key, "b"), 1)
+        ut.assert_eq(c.scard(key), 2)
+        ut.assert_true(c.sismember(key, "a"))
+        ut.assert_true(!c.sismember(key, "missing"))
+
+        let members = c.smembers(key)!
+        ut.assert_eq(members.len(), 2)
+        ut.assert_true(members.index("a") >= 0)
+        ut.assert_true(members.index("b") >= 0)
+
+        ut.assert_eq(c.srem(key, "a"), 1)
+        ut.assert_eq(c.srem(key, "a"), 0)
+        ut.assert_eq(c.scard(key), 1)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+// ---------- sorted set ----------
+
+@test
+func test_zset() {
+    if let c = _connect() {
+        let key = "koala:test:zset"
+        c.del([key])
+
+        ut.assert_eq(c.zadd(key, 2.5, "b"), 1)
+        ut.assert_eq(c.zadd(key, 1.5, "a"), 1)
+        ut.assert_eq(c.zadd(key, 3.5, "b"), 0)
+        ut.assert_eq(c.zcard(key), 2)
+
+        ut.assert_eq(c.zscore(key, "a")!, 1.5)
+        ut.assert_eq(c.zscore(key, "b")!, 3.5)
+        ut.assert_true(c.zscore(key, "missing") == nil)
+
+        ut.assert_eq(c.zrank(key, "a"), 0)
+        ut.assert_eq(c.zrank(key, "b"), 1)
+        ut.assert_eq(c.zrank(key, "missing"), -1)
+
+        let members = c.zrange(key, 0, -1)!
+        ut.assert_eq(members.len(), 2)
+        ut.assert_eq(members[0], "a")
+        ut.assert_eq(members[1], "b")
+
+        ut.assert_eq(c.zrem(key, "a"), 1)
+        ut.assert_eq(c.zcard(key), 1)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+/// A negative and a whole score round-trip through their text form.
+@test
+func test_zset_score_forms() {
+    if let c = _connect() {
+        let key = "koala:test:zset:forms"
+        c.del([key])
+
+        c.zadd(key, -1.0, "neg")
+        c.zadd(key, 2.0, "whole")
+        ut.assert_eq(c.zscore(key, "neg")!, -1.0)
+        ut.assert_eq(c.zscore(key, "whole")!, 2.0)
+
+        c.del([key])
+        c.close()
+    }
+}
+
+// ---------- server ----------
+
+@test
+func test_dbsize() {
+    if let c = _connect() {
+        ut.assert_true(c.dbsize() >= 0)
+        c.close()
+    }
+}

@@ -9,9 +9,18 @@
 import "std/ut"
 import "koala/redis"
 
+/// Return a client, or nil when no server is reachable: connect itself is lazy and cannot fail.
+func _connect() redis.RedisClient? {
+    let c = redis.connect()
+    if c.ping() { return c }
+
+    c.close()
+    return nil
+}
+
 @test
 func test_ping() {
-    if let c = redis.RedisClient.connect() {
+    if let c = _connect() {
         ut.assert_true(c.ping())
         c.close()
     }
@@ -19,14 +28,14 @@ func test_ping() {
 
 @test
 func test_set_get_del() {
-    if let c = redis.RedisClient.connect() {
+    if let c = _connect() {
         let key = "koala:test:str"
-        c.del(key)
+        c.del([key])
 
         ut.assert_true(c.set(key, "hello"))
         ut.assert_eq(c.get(key)!, "hello")
         ut.assert_true(c.exists(key))
-        ut.assert_eq(c.del(key), 1)
+        ut.assert_eq(c.del([key]), 1)
         ut.assert_true(c.get(key) == nil)
 
         c.close()
@@ -35,67 +44,69 @@ func test_set_get_del() {
 
 @test
 func test_incr() {
-    if let c = redis.RedisClient.connect() {
+    if let c = _connect() {
         let key = "koala:test:incr"
-        c.del(key)
+        c.del([key])
 
         ut.assert_eq(c.incr(key), 1)
         ut.assert_eq(c.incr(key), 2)
 
-        c.del(key)
+        c.del([key])
         c.close()
     }
 }
 
 @test
 func test_list() {
-    if let c = redis.RedisClient.connect() {
+    if let c = _connect() {
         let key = "koala:test:list"
-        c.del(key)
+        c.del([key])
 
         ut.assert_eq(c.rpush(key, "a"), 1)
         ut.assert_eq(c.rpush(key, "b"), 2)
         ut.assert_eq(c.lpush(key, "z"), 3)
         ut.assert_eq(c.llen(key), 3)
 
-        let xs = c.lrange(key, 0, -1)
+        let xs = c.lrange(key, 0, -1)!
         ut.assert_eq(xs.len(), 3)
         ut.assert_eq(xs[0], "z")
         ut.assert_eq(xs[1], "a")
         ut.assert_eq(xs[2], "b")
 
-        c.del(key)
+        c.del([key])
         c.close()
     }
 }
 
 @test
 func test_pipeline() {
-    if let c = redis.RedisClient.connect() {
+    if let c = _connect() {
         let key = "koala:test:pipe"
-        c.del(key)
+        c.del([key])
 
-        let req = redis.Request()
-        req.add(redis.Command("SET").arg(key).arg("v1"))
-        req.add(redis.Command("GET").arg(key))
-        req.add(redis.Command("DEL").arg(key))
+        let set = redis.Command("SET").arg(key).arg("v1")
+        let get = redis.Command("GET").arg(key)
+        let del = redis.Command("DEL").arg(key)
 
-        let resp = c.execute(req)
-        ut.assert_eq(resp.len(), 3)
+        let p = c.pipeline()
+        p.add(set)
+        p.add(get)
+        p.add(del)
+        p.exec()
 
-        let r0 = resp.reply(0)
+        let r0 = set.result().val
         ut.assert_true(r0 is redis.StatusReply)
         if r0 is redis.StatusReply {
             ut.assert_eq(r0.value, "OK")
         }
 
-        let r1 = resp.reply(1)
+        let r1 = get.result().val
         ut.assert_true(r1 is redis.BulkReply)
         if r1 is redis.BulkReply {
             ut.assert_eq(r1.value, "v1")
         }
 
-        let r2 = resp.reply(2)
+        let r2 = del.result().val
         ut.assert_true(r2 is redis.IntReply)
         if r2 is redis.IntReply {
             ut.assert_eq(r2.value, 1)
@@ -107,15 +118,18 @@ func test_pipeline() {
 
 @test
 func test_error_reply() {
-    if let c = redis.RedisClient.connect() {
+    if let c = _connect() {
         let key = "koala:test:err"
-        c.del(key)
+        c.del([key])
         c.set(key, "not-a-list")
 
-        let r = c.exec(redis.Command("LPUSH", key, "x"))
-        ut.assert_true(r is redis.ErrorReply)
+        let cmd = redis.Command("LPUSH", key, "x")
+        let p = c.pipeline()
+        p.add(cmd)
+        p.exec()
+        ut.assert_eq(cmd.result().err, redis.ERR_WRONGTYPE)
 
-        c.del(key)
+        c.del([key])
         c.close()
     }
 }

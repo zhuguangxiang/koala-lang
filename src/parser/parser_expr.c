@@ -2844,7 +2844,7 @@ static void parse_index(ParserState *ps, Expr *exp)
     // the symbol of the indexed type: a variable gives its type's symbol; a call result
     // has no symbol (e.g. 'r.addrs()[0]'), it gives the symbol of its result type
     Symbol *lhs_sym = lhs->sym;
-    if (!lhs_sym || lhs_sym->kind == SYM_VAR) {
+    if (!lhs_sym || lhs_sym->kind == SYM_VAR || lhs_sym->kind == SYM_SHADOW_VAR) {
         TypeSpec *ts = lhs_sym ? lhs_sym->ts : lhs->ts;
         lhs_sym = get_type_symbol(ts, ps);
         if (!lhs_sym) {

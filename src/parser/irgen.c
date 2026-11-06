@@ -1391,23 +1391,8 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
         // store field
         ASSERT(exp->ctx == EXPR_CTX_STORE);
         Symbol *lhs_ts_sym = get_symbol_by_id(obj_ts->sym_id);
-        if (lhs_ts_sym->kind == SYM_CLASS) {
-            KlassSymbol *kls_sym = (KlassSymbol *)lhs_ts_sym;
-            Symbol *fld_sym = stbl_get(kls_sym->stbl, dot->id.name);
-            ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
-
-            ASSERT(fld_sym->ir_val);
-            exp->ir_val = fld_sym->ir_val;
-        } else if (lhs_ts_sym->kind == SYM_INSTANCE) {
-            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_ts_sym;
-            Symbol *origin = inst_sym->origin;
-            ASSERT(origin->kind == SYM_CLASS);
-
-            Symbol *fld_sym = stbl_get(origin->stbl, dot->id.name);
-            ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
-
-            ASSERT(fld_sym->ir_val);
-            exp->ir_val = fld_sym->ir_val;
+        if (lhs_ts_sym->kind == SYM_CLASS || lhs_ts_sym->kind == SYM_INSTANCE) {
+            exp->ir_val = get_field_ir_value(obj_ts, dot->id.name);
         } else if (lhs_ts_sym->kind == SYM_PACKAGE) {
             // store global from external module
             exp->ir_val = get_ext_global_value(dot->id.name, lhs_ts_sym, ps);

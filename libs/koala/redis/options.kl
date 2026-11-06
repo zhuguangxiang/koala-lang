@@ -1,0 +1,28 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Options configures every Conn a pool creates, including reconnects.
+pub class Options {
+    /// Server host.
+    pub var host = "127.0.0.1"
+
+    /// Server port.
+    pub var port = 6379
+
+    /// Name reported via CLIENT SETNAME on each new Conn; empty skips it.
+    pub var name = ""
+
+    /// Connect timeout in milliseconds. 0 means no timeout. TCP only: tls.dial takes no options.
+    pub var connect_timeout_ms = 5000
+
+    /// Read timeout in milliseconds. 0 means no timeout.
+    pub var read_timeout_ms = 3000
+
+    /// Write timeout in milliseconds. 0 means no timeout.
+    pub var write_timeout_ms = 3000
+
+    /// Create Options with every field at its default.
+    pub func __init__() {}
+}

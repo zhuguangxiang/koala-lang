@@ -12,6 +12,7 @@ pub let ERR_NOAUTH    int = 3
 pub let ERR_IO        int = 4
 pub let ERR_TIMEOUT   int = 5
 pub let ERR_PROTOCOL  int = 6
+pub let ERR_NOEXEC    int = 7
 
 // ---------- code -> messages ----------
 
@@ -23,29 +24,30 @@ let error_msg = [
     "io error",                // 4 IO
     "timeout",                 // 5 TIMEOUT
     "protocol error",          // 6 PROTOCOL
+    "command not executed",    // 7 NOEXEC
 ]
 
-/// NilValue marks a Redis nil reply in Result.val.
-pub class NilValue {}
-
-/// Result holds the outcome of one Redis command.
+/// Result holds the outcome of one Redis command: an integer error code
+/// for the program to branch on, a human-readable message, and the reply
+/// value. `err` is checked first; only then is `val` meaningful.
 pub class Result {
-    /// Decoded payload; NilValue for nil replies.
-    var val any = NilValue()
-
+    /// Decoded reply value; NilReply() when the server replied nil or when
+    /// an error occurred.
+    pub var val Reply = NilReply()
     /// Error code, one of ERR_*. ERR_NOERR means success.
-    var err int = ERR_NOERR
-
+    pub var err int = ERR_NOEXEC
     /// Human-readable error message; empty on success.
-    var errmsg str = ""
+    pub var errmsg str = error_msg[ERR_NOEXEC]
 
-    /// Zero result: no value, no error.
+    /// Zero result of a command that has not run: a nil reply and ERR_NOEXEC.
     pub func __init__() {}
 
-    /// Successful result carrying a value.
-    pub static func ok(v any?) Result {
+    /// Successful result carrying a reply value.
+    pub static func ok(v Reply) Result {
         let r = Result()
         r.val = v
+        r.err = ERR_NOERR
+        r.errmsg = ""
         return r
     }
 

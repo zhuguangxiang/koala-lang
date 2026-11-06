@@ -6,6 +6,11 @@
 import "std/ut"
 import "koala/redis"
 
+/// Encode `cmd` as one RESP frame.
+func _frame(cmd redis.Command) str {
+    return redis.encode(cmd.op(), cmd.args()).to_str()
+}
+
 @test
 func test_build() {
     let cmd = redis.Command("SET").arg("foo").arg("bar")
@@ -27,41 +32,77 @@ func test_ctor_args() {
 }
 
 @test
-func test_arg_int() {
-    let cmd = redis.Command("INCRBY").arg("k").arg_int(42)
-    let words = cmd.words()
-    ut.assert_eq(words.len(), 3)
-    ut.assert_eq(words[2], "42")
+func test_int_arg() {
+    let cmd = redis.Command("INCRBY").arg("k").arg(str(42))
+    ut.assert_eq(cmd.args().len(), 2)
+    ut.assert_eq(cmd.args()[1], "42")
 }
 
 @test
 func test_to_bytes() {
     let cmd = redis.Command("SET").arg("foo").arg("bar")
-    ut.assert_eq(cmd.to_bytes().to_str(),
-                 "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+    ut.assert_eq(_frame(cmd), "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
 }
 
 @test
 func test_ping_frame() {
     let cmd = redis.Command("PING")
-    ut.assert_eq(cmd.to_bytes().to_str(), "*1\r\n$4\r\nPING\r\n")
+    ut.assert_eq(_frame(cmd), "*1\r\n$4\r\nPING\r\n")
 }
 
 @test
-func test_from_words() {
-    let words = list[str]()
-    words.append("GET")
-    words.append("k")
-
-    let cmd = redis.Command.from_words(words)
-    ut.assert_eq(cmd.op(), "GET")
-    ut.assert_eq(cmd.args()[0], "k")
+func test_no_args() {
+    let cmd = redis.Command("PING")
+    ut.assert_eq(cmd.args().len(), 0)
 }
 
 @test
-func test_args_is_copy() {
-    let cmd = redis.Command("SET").arg("a")
-    let args = cmd.args()
-    args.append("b")
+func test_ctor_then_arg_keep_wire_order() {
+    let cmd = redis.Command("SET", "foo").arg("bar")
+    ut.assert_eq(_frame(cmd), "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+}
+
+@test
+func test_extend() {
+    let cmd = redis.Command("DEL", "a").extend(["b", "c"])
+    ut.assert_eq(cmd.args().len(), 3)
+    ut.assert_eq(cmd.args()[0], "a")
+    ut.assert_eq(cmd.args()[1], "b")
+    ut.assert_eq(cmd.args()[2], "c")
+}
+
+/// extend copies the words: changing the caller's list later does not change the command.
+@test
+func test_extend_copies() {
+    let keys = ["a"]
+    let cmd = redis.Command("DEL").extend(keys)
+    keys.append("b")
     ut.assert_eq(cmd.args().len(), 1)
+}
+
+@test
+func test_result_before_run_is_noexec() {
+    let cmd = redis.Command("PING")
+    ut.assert_eq(cmd.result().err, redis.ERR_NOEXEC)
+    ut.assert_true(cmd.result().val is redis.NilReply)
+}
+
+@test
+func test_set_result() {
+    let cmd = redis.Command("PING")
+    cmd.set_result(redis.Result.ok(redis.StatusReply("PONG")))
+
+    ut.assert_eq(cmd.result().err, redis.ERR_NOERR)
+    ut.assert_eq((cmd.result().val as redis.StatusReply)!.value, "PONG")
+}
+
+/// Running a command again overwrites its Result.
+@test
+func test_set_result_overwrites() {
+    let cmd = redis.Command("PING")
+    cmd.set_result(redis.Result.ok(redis.StatusReply("PONG")))
+    cmd.set_result(redis.Result.error(redis.ERR_IO, ""))
+
+    ut.assert_eq(cmd.result().err, redis.ERR_IO)
+    ut.assert_true(cmd.result().val is redis.NilReply)
 }

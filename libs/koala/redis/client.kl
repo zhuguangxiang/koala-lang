@@ -5,210 +5,472 @@
 
 /// A synchronous Redis client.
 ///
-/// `RedisClient` is the command-level facade. Every call turns into a
-/// `Command`, wraps it in a `Request`, and hands the request to
-/// `execute`, which is the single request/response path. `Connection`
-/// moves bytes underneath and `protocol.kl` frames and parses them.
-///
-/// It is not safe to share one instance between coroutines; create one
-/// client per connection. Use `connect` to open it and `close` to
-/// release the socket.
+/// typed methods build a Command, run it through a one-command Pipeline, and return the decoded
+/// value directly; server errors and wire failures surface as a failure value: false, nil or -1, by
+/// return type. Use `pipeline()` when you need to batch commands or inspect per-command Result.
 ///
 /// Example:
-///     if let c = RedisClient.connect() {
-///         c.set("greeting", "hello")
-///         print(c.get("greeting")!)
-///         c.close()
-///     }
+///     let c = redis.connect()
+///     c.set("greeting", "hello")
+///     print(c.get("greeting")!)
+///     c.close()
 pub class RedisClient {
-    /// The transport this client sends requests over.
-    let _connection Connection
+    /// Where Conn instances come from.
+    let _pool ConnPool
 
-    /// Wrap an already opened connection. Prefer `connect`, which also
-    /// handles the address and transport.
-    pub func __init__(conn Connection) {
-        _connection = conn
+    /// Create a RedisClient backed by `pool`.
+    pub func __init__(pool ConnPool) {
+        _pool = pool
     }
 
-    /// Connect to a Redis server on `host:port`.
-    ///
-    /// Returns nil when the address cannot be resolved or the connection
-    /// is refused. The connection is blocking and has no timeout; call
-    /// `set_timeout` to bound hangs.
-    pub static func connect(host = "127.0.0.1", port = 6379) RedisClient? {
-        let conn = Connection.open(host, port)
-        if conn == nil { return nil }
-        return RedisClient(conn)
-    }
-
-    /// Set the read and write timeout in milliseconds. 0 clears it.
-    pub func set_timeout(ms int) {
-        _connection.set_timeout(ms)
+    /// Create a fresh Pipeline bound to this client.
+    pub func pipeline() Pipeline {
+        return Pipeline(_pool)
     }
 
     /// Close the connection. No further commands may be sent.
     pub func close() {
-        _connection.close()
+        _pool.close()
     }
 
-    /// Send a request and return every reply, in order.
-    ///
-    /// Even a single command travels as a one-command request. A
-    /// multi-command request is a pipeline: the frames are written back
-    /// to back and the server answers with exactly `req.len()` replies.
-    /// `ErrorReply` is returned as data, not raised here.
-    pub func execute(req Request) Response {
-        if req.empty() { return Response() }
+    // ---------- connection commands ----------
 
-        _connection.send(req.to_bytes())
-
-        let resp = Response()
-        var i = 0
-        while i < req.len() {
-            resp.add(_connection.receive())
-            i += 1
-        }
-        return resp
-    }
-
-    /// Send one command and return its single reply.
-    ///
-    /// `ErrorReply` is returned as data, not raised here.
-    pub func exec(cmd Command) Reply {
-        let resp = execute(Request().add(cmd))
-        return resp.reply(0)
-    }
-
-    /// PING the server; true when it answers `PONG`.
+    /// PING the server; true when it answers, false on any failure.
     pub func ping() bool {
-        let r = exec(Command("PING"))
-        _raise_error(r)
-        if r is StatusReply {
-            return r.value == "PONG"
-        }
-        panic("redis: unexpected reply to PING")
+        let res = _exec(Command(CMD_PING))
+        return res.err == ERR_NOERR
     }
 
-    /// ECHO `msg` and return the echoed string.
-    pub func echo(msg str) str {
-        let r = exec(Command("ECHO", msg))
-        _raise_error(r)
-        if r is BulkReply {
-            return r.value
-        }
-        panic("redis: unexpected reply to ECHO")
+    /// ECHO `msg`; returns the echoed string, or nil on any failure.
+    pub func echo(msg str) str? {
+        let res = _exec(Command(CMD_ECHO, msg))
+        return _bulk(res)
     }
 
-    /// Return the value of `key`, or nil when the key does not exist.
+    /// CLIENT SETNAME `name`; true on success, false on any failure.
+    pub func client_setname(name str) bool {
+        let res = _exec(Command(CMD_CLIENT, "SETNAME", name))
+        return res.err == ERR_NOERR
+    }
+
+    /// CLIENT ID; returns the server-assigned connection id, or -1 on any failure.
+    pub func client_id() int {
+        let res = _exec(Command(CMD_CLIENT, "ID"))
+        return _integer(res)
+    }
+
+    // ---------- string commands ----------
+
+    /// Return the value of `key`, or nil when the key does not exist or on any failure.
     pub func get(key str) str? {
-        let r = exec(Command("GET", key))
-        _raise_error(r)
-        if r is BulkReply {
+        let res = _exec(Command(CMD_GET, key))
+        return _bulk(res)
+    }
+
+    /// Set `key` to `value`; true on success, false on any failure.
+    pub func set(key str, value str) bool {
+        let res = _exec(Command(CMD_SET, key, value))
+        return res.err == ERR_NOERR
+    }
+
+    /// Return the values of `keys`; missing keys yield nil slots. Returns nil on any failure.
+    pub func mget(keys list[str]) list[str?]? {
+        let res = _exec(Command(CMD_MGET).extend(keys))
+        let r = res.val
+        if r is ArrayReply {
+            let out = list[str?]()
+            for elem in r.items {
+                if elem is NilReply {
+                    out.append(nil)
+                } else if elem is BulkReply {
+                    out.append(elem.value)
+                } else {
+                    return nil
+                }
+            }
+            return out
+        }
+        return nil
+    }
+
+    /// Increment the integer at `key`; returns the new value, or -1 on any failure.
+    pub func incr(key str) int {
+        let res = _exec(Command(CMD_INCR, key))
+        return _integer(res)
+    }
+
+    /// Append `value` to the string at `key`; returns the new length, or -1 on any failure.
+    pub func append(key str, value str) int {
+        let res = _exec(Command(CMD_APPEND, key, value))
+        return _integer(res)
+    }
+
+    /// Return the length of the string at `key`, or -1 on any failure.
+    pub func strlen(key str) int {
+        let res = _exec(Command(CMD_STRLEN, key))
+        return _integer(res)
+    }
+
+    /// Decrement the integer at `key`; returns the new value, or -1 on any failure.
+    pub func decr(key str) int {
+        let res = _exec(Command(CMD_DECR, key))
+        return _integer(res)
+    }
+
+    /// Add `n` to the integer at `key`; returns the new value, or -1 on any failure.
+    pub func incrby(key str, n int) int {
+        let res = _exec(Command(CMD_INCRBY, key, str(n)))
+        return _integer(res)
+    }
+
+    /// Subtract `n` from the integer at `key`; returns the new value, or -1 on any failure.
+    pub func decrby(key str, n int) int {
+        let res = _exec(Command(CMD_DECRBY, key, str(n)))
+        return _integer(res)
+    }
+
+    /// Set `key` to `value` with a TTL in seconds; true on success, false on any failure.
+    pub func setex(key str, seconds int, value str) bool {
+        let res = _exec(Command(CMD_SETEX, key, str(seconds), value))
+        return res.err == ERR_NOERR
+    }
+
+    /// Set `key` to `value` if it does not exist; true when it was set, false otherwise
+    /// or on any failure.
+    pub func setnx(key str, value str) bool {
+        let res = _exec(Command(CMD_SETNX, key, value))
+        return _integer(res) == 1
+    }
+
+    /// Set every key in `pairs` to its value; true on success, false on any failure.
+    pub func mset(pairs dict[str, str]) bool {
+        let cmd = Command(CMD_MSET)
+        for pair in pairs {
+            let (key, value) = pair
+            cmd.arg(key)
+            cmd.arg(value)
+        }
+
+        let res = _exec(cmd)
+        return res.err == ERR_NOERR
+    }
+
+    // ---------- generic commands ----------
+
+    /// Delete `keys`; returns the number of keys removed, or -1 on any failure.
+    pub func del(keys list[str]) int {
+        let res = _exec(Command(CMD_DEL).extend(keys))
+        return _integer(res)
+    }
+
+    /// Return true when `key` exists, false when it does not or on any failure.
+    pub func exists(key str) bool {
+        let res = _exec(Command(CMD_EXISTS, key))
+        return _integer(res) == 1
+    }
+
+    /// Set a TTL on `key`; true when the key exists and the TTL was set, false otherwise
+    /// or on any failure.
+    pub func expire(key str, seconds int) bool {
+        let res = _exec(Command(CMD_EXPIRE, key, str(seconds)))
+        return _integer(res) == 1
+    }
+
+    /// Return the remaining TTL of `key` in seconds (-2 missing, -1 no TTL or any failure).
+    pub func ttl(key str) int {
+        let res = _exec(Command(CMD_TTL, key))
+        return _integer(res)
+    }
+
+    /// Return the keys matching `pattern`, or nil on any failure. Blocks the server on a large
+    /// database.
+    pub func keys(pattern str) list[str]? {
+        let res = _exec(Command(CMD_KEYS, pattern))
+        return _array(res)
+    }
+
+    /// Rename `key` to `newkey`; true on success, false on any failure.
+    pub func rename(key str, newkey str) bool {
+        let res = _exec(Command(CMD_RENAME, key, newkey))
+        return res.err == ERR_NOERR
+    }
+
+    /// Remove the TTL of `key`; true when a TTL was removed, false otherwise or on any failure.
+    pub func persist(key str) bool {
+        let res = _exec(Command(CMD_PERSIST, key))
+        return _integer(res) == 1
+    }
+
+    /// TYPE of `key`, e.g. "string" or "none" when it does not exist; nil on any failure.
+    pub func type_of(key str) str? {
+        let res = _exec(Command(CMD_TYPE, key))
+        let r = res.val
+        if r is StatusReply {
             return r.value
         }
-        if r is NilReply {
+        return nil
+    }
+
+    // ---------- list commands ----------
+
+    /// Prepend `value` to the list at `key`; returns the new length, or -1 on any failure.
+    pub func lpush(key str, value str) int {
+        let res = _exec(Command(CMD_LPUSH, key, value))
+        return _integer(res)
+    }
+
+    /// Append `value` to the list at `key`; returns the new length, or -1 on any failure.
+    pub func rpush(key str, value str) int {
+        let res = _exec(Command(CMD_RPUSH, key, value))
+        return _integer(res)
+    }
+
+    /// Return the length of the list at `key`, or -1 on any failure.
+    pub func llen(key str) int {
+        let res = _exec(Command(CMD_LLEN, key))
+        return _integer(res)
+    }
+
+    /// Return the list elements between `start` and `stop` (inclusive), or nil on any failure.
+    pub func lrange(key str, start int, stop int) list[str]? {
+        let res = _exec(Command(CMD_LRANGE, key, str(start), str(stop)))
+        return _array(res)
+    }
+
+    /// Remove and return the first element of the list at `key`; nil when empty or on any failure.
+    pub func lpop(key str) str? {
+        let res = _exec(Command(CMD_LPOP, key))
+        return _bulk(res)
+    }
+
+    /// Remove and return the last element of the list at `key`; nil when empty or on any failure.
+    pub func rpop(key str) str? {
+        let res = _exec(Command(CMD_RPOP, key))
+        return _bulk(res)
+    }
+
+    /// Return the element at `index` of the list at `key`; nil when out of range or on any failure.
+    pub func lindex(key str, index int) str? {
+        let res = _exec(Command(CMD_LINDEX, key, str(index)))
+        return _bulk(res)
+    }
+
+    /// Remove `count` occurrences of `value` from the list at `key`; returns the number removed,
+    /// or -1 on any failure.
+    pub func lrem(key str, count int, value str) int {
+        let res = _exec(Command(CMD_LREM, key, str(count), value))
+        return _integer(res)
+    }
+
+    /// Keep only the list elements between `start` and `stop`; true on success, false on any failure.
+    pub func ltrim(key str, start int, stop int) bool {
+        let res = _exec(Command(CMD_LTRIM, key, str(start), str(stop)))
+        return res.err == ERR_NOERR
+    }
+
+    // ---------- hash commands ----------
+
+    /// Set `field` of the hash at `key`; returns the number of new fields, or -1 on any failure.
+    pub func hset(key str, field str, value str) int {
+        let res = _exec(Command(CMD_HSET, key, field, value))
+        return _integer(res)
+    }
+
+    /// Return `field` of the hash at `key`; nil when it does not exist or on any failure.
+    pub func hget(key str, field str) str? {
+        let res = _exec(Command(CMD_HGET, key, field))
+        return _bulk(res)
+    }
+
+    /// Delete `fields` of the hash at `key`; returns the number removed, or -1 on any failure.
+    pub func hdel(key str, fields list[str]) int {
+        let res = _exec(Command(CMD_HDEL, key).extend(fields))
+        return _integer(res)
+    }
+
+    /// Return true when `field` exists in the hash at `key`, false when not or on any failure.
+    pub func hexists(key str, field str) bool {
+        let res = _exec(Command(CMD_HEXISTS, key, field))
+        return _integer(res) == 1
+    }
+
+    /// Return the number of fields in the hash at `key`, or -1 on any failure.
+    pub func hlen(key str) int {
+        let res = _exec(Command(CMD_HLEN, key))
+        return _integer(res)
+    }
+
+    /// Add `n` to the integer `field` of the hash at `key`; returns the new value, or -1 on any
+    /// failure.
+    pub func hincrby(key str, field str, n int) int {
+        let res = _exec(Command(CMD_HINCRBY, key, field, str(n)))
+        return _integer(res)
+    }
+
+    /// Return the field names of the hash at `key`, or nil on any failure.
+    pub func hkeys(key str) list[str]? {
+        let res = _exec(Command(CMD_HKEYS, key))
+        return _array(res)
+    }
+
+    /// Return the field values of the hash at `key`, or nil on any failure.
+    pub func hvals(key str) list[str]? {
+        let res = _exec(Command(CMD_HVALS, key))
+        return _array(res)
+    }
+
+    /// Return the fields and values of the hash at `key`, or nil on any failure.
+    pub func hgetall(key str) dict[str, str]? {
+        let res = _exec(Command(CMD_HGETALL, key))
+        let items = _array(res) else { return nil }
+
+        // RESP2 replies with a flat array: field, value, field, value, ...
+        let out = dict[str, str]()
+        var i = 0
+        while i + 1 < items.len() {
+            out[items[i]] = items[i + 1]
+            i = i + 2
+        }
+        return out
+    }
+
+    // ---------- set commands ----------
+
+    /// Add `member` to the set at `key`; returns the number added, or -1 on any failure.
+    pub func sadd(key str, member str) int {
+        let res = _exec(Command(CMD_SADD, key, member))
+        return _integer(res)
+    }
+
+    /// Remove `member` from the set at `key`; returns the number removed, or -1 on any failure.
+    pub func srem(key str, member str) int {
+        let res = _exec(Command(CMD_SREM, key, member))
+        return _integer(res)
+    }
+
+    /// Return true when `member` is in the set at `key`, false when not or on any failure.
+    pub func sismember(key str, member str) bool {
+        let res = _exec(Command(CMD_SISMEMBER, key, member))
+        return _integer(res) == 1
+    }
+
+    /// Return the number of members in the set at `key`, or -1 on any failure.
+    pub func scard(key str) int {
+        let res = _exec(Command(CMD_SCARD, key))
+        return _integer(res)
+    }
+
+    /// Return the members of the set at `key`, or nil on any failure.
+    pub func smembers(key str) list[str]? {
+        let res = _exec(Command(CMD_SMEMBERS, key))
+        return _array(res)
+    }
+
+    // ---------- sorted set commands ----------
+
+    /// Add `member` with `score` to the sorted set at `key`; returns the number added, or -1 on any
+    /// failure.
+    pub func zadd(key str, score float, member str) int {
+        let res = _exec(Command(CMD_ZADD, key, str(score), member))
+        return _integer(res)
+    }
+
+    /// Remove `member` from the sorted set at `key`; returns the number removed, or -1 on any
+    /// failure.
+    pub func zrem(key str, member str) int {
+        let res = _exec(Command(CMD_ZREM, key, member))
+        return _integer(res)
+    }
+
+    /// Return the score of `member` in the sorted set at `key`; nil when it does not exist or on
+    /// any failure.
+    pub func zscore(key str, member str) float? {
+        let res = _exec(Command(CMD_ZSCORE, key, member))
+        let score = _bulk(res) else { return nil }
+
+        // Any fixed default could be a real score: only invalid text yields both defaults.
+        let v = score.to_float_or(0.0)
+        if v != score.to_float_or(1.0) {
             return nil
         }
-        panic("redis: unexpected reply to GET")
+        return v
     }
 
-    /// Set `key` to `value`; true when the server replies `OK`.
-    pub func set(key str, value str) bool {
-        let r = exec(Command("SET", key, value))
-        _raise_error(r)
-        if r is StatusReply {
-            return r.value == "OK"
-        }
-        panic("redis: unexpected reply to SET")
+    /// Return the rank of `member` in the sorted set at `key`, or -1 when it does not exist or on
+    /// any failure.
+    pub func zrank(key str, member str) int {
+        let res = _exec(Command(CMD_ZRANK, key, member))
+        return _integer(res)
     }
 
-    /// Delete `key`; returns the number of keys removed (0 or 1).
-    pub func del(key str) int {
-        let r = exec(Command("DEL", key))
-        _raise_error(r)
+    /// Return the number of members in the sorted set at `key`, or -1 on any failure.
+    pub func zcard(key str) int {
+        let res = _exec(Command(CMD_ZCARD, key))
+        return _integer(res)
+    }
+
+    /// Return the members ranked between `start` and `stop` (inclusive), or nil on any failure.
+    pub func zrange(key str, start int, stop int) list[str]? {
+        let res = _exec(Command(CMD_ZRANGE, key, str(start), str(stop)))
+        return _array(res)
+    }
+
+    // ---------- server commands ----------
+
+    /// Return the number of keys in the current database, or -1 on any failure.
+    pub func dbsize() int {
+        let res = _exec(Command(CMD_DBSIZE))
+        return _integer(res)
+    }
+
+    /// Delete every key in the current database; true on success, false on any failure.
+    pub func flushdb() bool {
+        let res = _exec(Command(CMD_FLUSHDB))
+        return res.err == ERR_NOERR
+    }
+
+    // ---------- internals ----------
+
+    /// Run `cmd` through a one-command pipeline and return its Result.
+    func _exec(cmd Command) Result {
+        let p = Pipeline(_pool)
+        p.add(cmd)
+        p.exec()
+        return cmd.result()
+    }
+
+    /// Return the integer reply in `res`, or -1 when the command failed.
+    func _integer(res Result) int {
+        let r = res.val
         if r is IntReply {
             return r.value
         }
-        panic("redis: unexpected reply to DEL")
+        return -1
     }
 
-    /// Return true when `key` exists.
-    pub func exists(key str) bool {
-        let r = exec(Command("EXISTS", key))
-        _raise_error(r)
-        if r is IntReply {
-            return r.value == 1
-        }
-        panic("redis: unexpected reply to EXISTS")
-    }
-
-    /// Increment the integer stored at `key` and return the new value.
-    pub func incr(key str) int {
-        let r = exec(Command("INCR", key))
-        _raise_error(r)
-        if r is IntReply {
+    /// Return the bulk string reply in `res`, or nil on a nil reply or when the command failed.
+    func _bulk(res Result) str? {
+        let r = res.val
+        if r is BulkReply {
             return r.value
         }
-        panic("redis: unexpected reply to INCR")
+        return nil
     }
 
-    /// Prepend `value` to the list at `key`; returns the new length.
-    pub func lpush(key str, value str) int {
-        let r = exec(Command("LPUSH", key, value))
-        _raise_error(r)
-        if r is IntReply {
-            return r.value
-        }
-        panic("redis: unexpected reply to LPUSH")
-    }
-
-    /// Append `value` to the list at `key`; returns the new length.
-    pub func rpush(key str, value str) int {
-        let r = exec(Command("RPUSH", key, value))
-        _raise_error(r)
-        if r is IntReply {
-            return r.value
-        }
-        panic("redis: unexpected reply to RPUSH")
-    }
-
-    /// Return the length of the list at `key`.
-    pub func llen(key str) int {
-        let r = exec(Command("LLEN", key))
-        _raise_error(r)
-        if r is IntReply {
-            return r.value
-        }
-        panic("redis: unexpected reply to LLEN")
-    }
-
-    /// Return the list elements between `start` and `stop` (inclusive,
-    /// negative indexes count from the tail).
-    pub func lrange(key str, start int, stop int) list[str] {
-        let r = exec(Command("LRANGE", key, str(start), str(stop)))
-        _raise_error(r)
+    /// Return the array reply of bulk strings in `res`, or nil when the command failed.
+    func _array(res Result) list[str]? {
+        let r = res.val
         if r is ArrayReply {
             let out = list[str]()
             for elem in r.items {
                 if elem is BulkReply {
                     out.append(elem.value)
                 } else {
-                    panic("redis: unexpected element in LRANGE reply")
+                    return nil
                 }
             }
             return out
         }
-        panic("redis: unexpected reply to LRANGE")
-    }
-}
-
-/// Raise a Redis error reply as a panic.
-///
-/// The raw request paths return `ErrorReply` untouched; typed helpers
-/// call this first so a server error surfaces with its message instead
-/// of turning into a confusing type mismatch.
-func _raise_error(r Reply) {
-    if r is ErrorReply {
-        panic("redis error: " + r.value)
+        return nil
     }
 }

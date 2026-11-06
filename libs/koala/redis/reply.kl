@@ -3,13 +3,12 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// The root trait of all RESP2 replies.
+/// The root trait of all RESP2 reply values.
 ///
-/// Replies are heterogeneous: an array may contain strings, integers
-/// and nested arrays. Concrete reply classes make that tree type-safe
-/// without an `any` escape hatch. New RESP3 types (map, set, double,
-/// boolean, push) can be added as further classes without changing
-/// `Request`, `Response` or `RedisClient`.
+/// A reply is one of: status, bulk string, integer, nil, or array. The
+/// concrete classes make the value tree type-safe without an `any` escape
+/// hatch: an array's elements are themselves `Reply` instances. Errors are
+/// not replies — they travel in `Result.err` as an integer code.
 pub trait Reply {}
 
 /// A simple-string reply, e.g. `+OK\r\n`.
@@ -18,17 +17,6 @@ pub class StatusReply : Reply {
     pub let value str
 
     /// Create a status reply holding `_value`.
-    pub func __init__(_value str) {
-        value = _value
-    }
-}
-
-/// An error reply, e.g. `-ERR unknown command\r\n`.
-pub class ErrorReply : Reply {
-    /// The error text without the leading `-` or the trailing CRLF.
-    pub let value str
-
-    /// Create an error reply holding `_value`.
     pub func __init__(_value str) {
         value = _value
     }
