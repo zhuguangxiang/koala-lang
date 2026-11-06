@@ -414,6 +414,64 @@ DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(and, &)
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(or, |)
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(xor, ^)
 
+/*
+ * A count that became constant after propagation is checked here, whatever the left side is; the
+ * parser already reported a literal or `const` count. A shift with both sides constant then goes
+ * away, so the backend only sees a valid constant count.
+ */
+static void __fold_binary_shift_insn(KlrInsn *insn, KlrModule *m)
+{
+    if (insn->error) return;
+
+    KlrValue *lhs = insn_oper_value(insn, 0);
+    KlrValue *rhs = insn_oper_value(insn, 1);
+
+    if (insn_oper_ts(insn, 0)->kind != TYPE_INT || !klr_is_const(rhs)) return;
+
+    KlrConst *rval = (KlrConst *)rhs;
+    if (rval->which != CONST_INT && rval->which != CONST_UINT) return;
+
+    uint64_t count = (uint64_t)rval->ival;
+    if (rval->which == CONST_INT && (int64_t)count < 0) {
+        klr_error(&insn->loc, "negative shift count: %" PRId64, (int64_t)count);
+        insn->error = 1;
+        return;
+    }
+
+    if (count >= 64) {
+        klr_error(&insn->loc, "shift count out of range: %" PRIu64, count);
+        insn->error = 1;
+        return;
+    }
+
+    if (!klr_is_const(lhs)) return;
+
+    KlrConst *lval = (KlrConst *)lhs;
+
+    // the result takes the promoted 64-bit type of the insn, not the type of the left constant
+    TypeSpec *ts = ((KlrValue *)insn)->ts;
+
+    KlrValue *const_res = NULL;
+    if (insn->code == OP_BINARY_SHL) {
+        uint64_t bits = (uint64_t)lval->ival << count;
+        if (lval->which == CONST_INT) const_res = klr_const_int((int64_t)bits, ts, m);
+        if (lval->which == CONST_UINT) const_res = klr_const_uint(bits, ts, m);
+    } else {
+        if (lval->which == CONST_INT) {
+            const_res = klr_const_int((int64_t)lval->ival >> count, ts, m);
+        }
+        if (lval->which == CONST_UINT) {
+            const_res = klr_const_uint((uint64_t)lval->ival >> count, ts, m);
+        }
+    }
+
+    if (const_res) {
+        log_info("fold binary shift insn to const:");
+        log_insn(insn);
+        replace_all_uses_with(const_res, (KlrValue *)insn);
+    }
+}
+
 static int do_fold(KlrInsn *insn, KlrFunc *fn)
 {
     KlrModule *m = fn->module;
@@ -507,6 +565,12 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
         }
         case OP_BINARY_XOR: {
             __fold_binary_xor_insn(insn, m);
+            break;
+        }
+
+        case OP_BINARY_SHL:
+        case OP_BINARY_SHR: {
+            __fold_binary_shift_insn(insn, m);
             break;
         }
 

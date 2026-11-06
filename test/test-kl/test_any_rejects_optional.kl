@@ -1,0 +1,26 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// `any` is the parent of every type, but `T?` may hold nil, which `any` cannot.
+// `T? -> T` takes a cast, and `any` is no exception.
+
+func get_int() int? { return nil }
+
+func get_any() any? { return nil }
+
+func main() {
+    let a any = get_int()
+    // CHECK: {{.*}}error:
+    let b any = get_any()
+    // CHECK: error:
+    let c any = nil
+    // CHECK: error:
+
+    let d any = 1
+    let e any? = d
+    let f any? = 1
+    let g any? = nil
+    let h int? = 1
+    let i any? = h
+}
+
+// CHECK-NOT: error:

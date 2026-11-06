@@ -204,6 +204,7 @@ void kl_error_detail(ParserState *, Loc *);
 /* clang-format on */
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
+void check_shift_count(ParserState *ps, TypeSpec *lhs_ts, Expr *count);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
 
 ParserState *new_parser_state(ParserModule *pm, char *path);

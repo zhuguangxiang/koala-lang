@@ -1,0 +1,77 @@
+// RUN: koala %s | filecheck %s
+
+// Shifts with a valid count. Constants are folded at compile time, values passed as arguments reach
+// the VM instructions, and both give the same result: `b = b << 2` on a constant local used to abort
+// the backend with `isel.c: Why goes here?`, because constant folding skipped the shifts.
+
+func shl(a int, n int) int {
+    return a << n
+}
+
+func shr(a int, n int) int {
+    return a >> n
+}
+
+func ushl(a uint64, n uint64) uint64 {
+    return a << n
+}
+
+func ushr(a uint64, n uint64) uint64 {
+    return a >> n
+}
+
+func minus_one(x uint64) uint64 {
+    return x - uint64(1)
+}
+
+func folded() {
+    print("folded", 6 << 2, 24 >> 3, -6 >> 1, 1 << 63)
+    // CHECK: folded 24 3 -3 -9223372036854775808
+}
+
+func local_constant() {
+    var b = 6
+    b = b << 2
+    print("local", b)
+    // CHECK-NEXT: local 24
+}
+
+func compound() {
+    var b = 3
+    b <<= 2
+    print("compound", b)
+    // CHECK-NEXT: compound 12
+    b >>= 1
+    print("compound", b)
+    // CHECK-NEXT: compound 6
+}
+
+func signed() {
+    print("shl", shl(6, 2), shl(-6, 2), shl(1, 63), shl(1, 0))
+    // CHECK-NEXT: shl 24 -24 -9223372036854775808 1
+    print("shr", shr(24, 3), shr(-6, 3), shr(-1, 63), shr(5, 0))
+    // CHECK-NEXT: shr 3 -1 -1 5
+    print("bits drop", shl(shl(1, 62), 2))
+    // CHECK-NEXT: bits drop 0
+}
+
+func unsigned() {
+    let max = minus_one(uint64(0))
+    print("ushr", ushr(max, uint64(60)), ushr(max, uint64(63)), ushr(uint64(8), uint64(0)))
+    // CHECK-NEXT: ushr 15 1 8
+    print("ushl", ushl(uint64(3), uint64(2)), ushl(max, uint64(63)) == uint64(0))
+    // CHECK-NEXT: ushl 12 false
+}
+
+// Narrow integers are promoted before the shift, so nothing is lost at their own width.
+func narrow(a int8, b uint8, c int8) {
+    print("narrow", a << 40, b << 8, c >> 1, b >> uint8(4))
+    // CHECK-NEXT: narrow 1099511627776 65280 -4 15
+}
+
+folded()
+local_constant()
+compound()
+signed()
+unsigned()
+narrow(int8(1), uint8(255), int8(-8))

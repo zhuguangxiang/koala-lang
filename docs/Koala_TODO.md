@@ -19,7 +19,7 @@
 > fs/os APIs (§38, open), signal handlers in std/os (§39, waits for the concurrency API),
 > open items of the `@specialized` IR specialization (§40, to fix later), `koala/re` vs Python's
 > `re`: what is not aligned (§41, to do / to discuss), indexing an instance of a user class aborts the
-> compiler (§42, to fix), `<<=` / `>>=` abort the compiler (§43, to fix), an empty list of tuples
+> compiler (§42, to fix), `<<=` / `>>=` abort the compiler (§43, fixed), an empty list of tuples
 > cannot be created (§44, to fix), string literals have no `\u` / `\U` escapes and keep unknown
 > escapes silently (§45, to discuss), language issues met while writing `koala/re` (§46),
 > operators on non-number types treated as pure number ops by `normalize` / `lvn` / `dce` (§47,
@@ -37,11 +37,13 @@
 > `obj["key"]` on a plain class fails inside the compiler (§58, to decide), nullable generic elements
 > do not compile (§59, to fix), a tuple type argument asserts in the compiler (§60, to fix), a field
 > named `f` conflicts with the generated `fmt` (§61, to fix), `koala/redis`: tests that wait for a
-> mock annotation, and TLS (§62, to do).
+> mock annotation, TLS and other leftovers (§62, to do), operators on a trait value: unary operators
+> and edge cases (§63, to fix), shift semantics: decided and implemented, leftovers (§64), small
+> compiler and runtime issues found on the way (§65, to fix).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-06 (added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> 更新日期：2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
 > 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
 > decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
@@ -69,12 +71,8 @@
 `Vector`（`slotid.h` 独立头文件），slotdefs 迁移至 `klc.c`；算术族 TARGET 通过
 `kl_slot_call_one_arg` 走 slots 分发。
 
-**未完成**：位运算族 5 件——AND / OR / XOR / SHL / SHR，opcode 与 slot id
-（`SLOT_BIT_AND` / `SLOT_BIT_OR` / `SLOT_BIT_XOR` / `SLOT_SHL` / `SLOT_SHR`）
-均已定义，缺 VM TARGET handler。（2026-10-02 复核：vm_ops.h 仍只有 OP_NUM_EQ..MOD 共 11 个 TARGET，位运算族维持未实现。）
-
-**施工方向**：按算术族模式补 5 个 TARGET——`kl_slot_call_one_arg(self, arg,
-SLOT_BIT_AND)` 等。
+**Update (2026-11-06), closed**: all 16 have a `TARGET`. AND / OR / XOR already had one, and SHL / SHR
+were added with the shift work (see §64), so the bitwise family works on a trait value.
 
 ---
 
@@ -348,7 +346,7 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
 - 比较族 6 件 TARGET 全齐（含 int64/uint64/float64 快路径）；
 - 算术族 5 件 TARGET 全齐（ADD/SUB/MUL/DIV/MOD），通过 `kl_slot_call_one_arg` 走 slots 分发；
 - printer.c 覆盖度待核实；
-- 位运算族 5 件（AND/OR/XOR/SHL/SHR）仍未实现；
+- 位运算族 5 件（AND/OR/XOR/SHL/SHR）：done, see the update in §1 (2026-11-06);
 - test_generic_9 / test_generic_14 均绿；
 - 新增 `@specialized` 泛型函数单态化（commit `3d9ea1a6`，test_specializd.kl 验证通过）。
 
@@ -383,10 +381,10 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
       走 SLOT_ADD..SLOT_MOD）
 - [x] test_generic_14 用户自定义数值类全链路验证通过
 
-**第二批续：位运算族** ❌ 未实现
+**第二批续：位运算族** ✅ TARGET 已完成
 
-- [ ] OP_NUM_AND/OR/XOR/SHL/SHR 五个 TARGET
-      （`kl_slot_call_one_arg(self, arg, SLOT_BIT_AND)` 等）
+- [x] OP_NUM_AND/OR/XOR/SHL/SHR 五个 TARGET（2026-11-06，走 `kl_call_bit_*`，
+      `test-run/test_shift_trait.kl` 验证）
 - [ ] printer.c 位运算 case 核实与补齐
 
 **第三批：num.* 比较跳转融合（jmp fusion）**
@@ -1012,6 +1010,10 @@ reverse / reversed / len / 切片 / `+` / `+=`——方向与主流一致，前�
    代价是 parser 需加 main 签名约束。保底方案：明确规定 `main()` 无返回，退出码只有 `sys.exit` 一条通道。
 
 **测试**：退出码无法用现有 `--test` 断言，需 lit 层 `sh` 跑独立进程比对 `$?`。
+
+**Update (2026-11-06)**: `koala x.kl` still exits with 0 after a panic, while `koala x.kl ++ --test`
+exits with 1 when a `@test` fails. `test-run/test_shift_traceback.kl` panics at the top level, so its
+RUN line has no `!`: when item 1 is done, it needs one.
 
 ---
 
@@ -2391,7 +2393,12 @@ callable and its return type to `emit_ir_simple_assignment()`, plus a direct `__
   `emit_ir_simple_assignment()` build the `__setitem__` call from the IndexExpr's children. Still
   duplicates the call argument handling.
 
-## 43. `<<=` / `>>=` abort the compiler (2026-11-01, to fix)
+## 43. `<<=` / `>>=` abort the compiler (2026-11-01, fixed 2026-11-06)
+
+**Fixed**: the compound assignment was not the cause. `var b = 6; b = b << 2` aborted too: constant
+propagation made both sides constant, and `const_copy_prop.c` did not fold shifts, so isel saw a
+shift of two constants. Constant folding now handles shifts (see §64), and
+`test-run/test_shift.kl` covers both. The original record follows.
 
 The shift compound assignments abort the backend with `isel.c:317: Why goes here?`. The other
 compound assignments on the same local (`|=`, `&=`, `^=`, and `+=` / `-=` / `*=` / `/=` / `%=`)
@@ -3391,7 +3398,7 @@ The reported location is `0:0`. The user did not write the parameter: it comes f
 
 ---
 
-## 62. `koala/redis`: tests that wait for a mock annotation, and TLS (2026-11-06, to do)
+## 62. `koala/redis`: tests that wait for a mock annotation, TLS and other leftovers (2026-11-06, to do)
 
 **Tests that wait for a mock annotation.** These paths need a socket that fails on demand.
 
@@ -3413,3 +3420,87 @@ Tests against a real server check that it is up first, and return without panick
   `SingleTcpPool`.
 - `tls.dial` takes no options, so `Options.connect_timeout_ms` has no effect over TLS.
 - `connect_tls` and `SingleTlsPool` have never been run against a server.
+
+**Other leftovers.**
+
+- A failed write is not seen: `BufWriter` ignores a short write, so `Conn` only finds out from a later
+  read or read timeout. The old client checked `io.write_all`.
+- A non-UTF-8 bulk value panics in `decode` (`bytes.to_str`), so a binary value kills the program, and
+  the API has no `bytes` form.
+- An array reply with a server error keeps only the first error, because `Reply` has no error type.
+  It matters for `EXEC`; decide with the transaction work.
+- Not supported: `AUTH` / `SELECT` in `Options` (lost on a reconnect otherwise), transactions, Pub/Sub,
+  RESP3, Unix sockets, connection URIs, `SCAN`.
+- `redis` is not in `libs/koala/__ws__.toml`, so `wombat build koala` / `wombat test koala` skip it.
+- `libs/koala/redis_old` can be deleted: nothing refers to it, and git has the old files.
+
+---
+
+## 63. Operators on a trait value: unary operators and edge cases (2026-11-06, to fix)
+
+`intobj.c` and `floatobj.c` register the operators, so `+ - * / %`, the comparisons and
+`& | ^ << >>` work on a trait value such as `Arithmetic[int]`.
+
+**1. A unary operator does not compile.** `-a` and `~b` on a trait value report
+`unary '-' operator requires int or float type.` (see §2, which needs a unary protocol
+instruction). `_int_neg` / `_int_bitnot` / `_float_neg` have not run yet.
+
+**2. `uint64` has no `__neg__`, by design, but `Arithmetic` requires one.** `uint64` implements
+`Arithmetic`, and nothing reports the missing method (see §57). `intobj.c` registers `__neg__` only
+because `int64` and `uint64` share a method table; `uint64` code never reaches it.
+
+**3. To decide: division differs on the two paths.** The natives raise `division by zero` and wrap
+`INT64_MIN / -1` to `INT64_MIN`. `OP_INT_DIV` / `OP_INT_MOD` check nothing, so the same operations in
+statically typed code are a `SIGFPE`. Shifts no longer differ, see §64.
+
+**4. Regression tests.** Only shifts on a trait value have one (`test-run/test_shift_trait.kl`); the
+arithmetic, comparison and `& | ^` operators do not.
+
+---
+
+## 64. Shift semantics (2026-11-06, implemented; leftovers to do)
+
+Decided: the Rust way. Integers are promoted to int64 / uint64 before a shift, so the width is 64.
+
+| Count | Checked by | Result |
+|---|---|---|
+| literal or `const`, negative or 64 and up | parser (`check_shift_count`) | error |
+| literal or `const` 0 | parser | warning |
+| constant after propagation, negative or 64 and up | `const_copy_prop.c` | error |
+| known at run time, negative or 64 and up | VM (`kl_check_shift_count`) | panic |
+
+Only built-in integers are checked: a class may give `__shl__` its own meaning. Tests:
+`test-kl/test_shift_count_const.kl`, `test-kl/test_shift_count_fold.kl`, `test-run/test_shift.kl`,
+`test-run/test_shift_trait.kl`, `test-run/test_shift_traceback.kl`, `test-ut/test_shift_panic.kl`.
+
+Left to do:
+
+- The Language Manual does not describe these semantics yet.
+- No test shows that a class's `__shl__` is left unchecked (`stream << 100`).
+- `let n = 0; x << n` reports no warning: the optimizer checks only for errors, because a literal 0
+  would then be reported twice.
+- Without `--opt`, a bad count constant only after propagation is not an error. isel relies on the
+  optimizer, so such a count would be encoded into an `_IMM` instruction, which has no check. `koala`
+  always runs the optimizer; `koalac` alone does not reach isel without it.
+- Constant `int8(1) << 40` (both sides constant, narrow left side) has no dedicated test.
+
+---
+
+## 65. Small compiler and runtime issues (2026-11-06, to fix or decide)
+
+- An empty list literal does not take its type from the parameter: `encode("PING", [])` with
+  `args list[str]` reports `expected 'std/builtin.list<u>', but got 'std/builtin.list<o>'`.
+- The type of `nil` prints as `_?` in errors: `lhs: any =/= rhs: _?`.
+- `koala -c <dir> -o <file>` ignores `-o` when the options follow the directory, and writes the klc
+  next to the directory; `koala -c -o <file> <dir>` works.
+- `io.Reader` says "Never return a negative value", but `TcpConn.read` returns -1 / -2 and
+  `TlsConn.read` returns a negative value. `BufReader` and `io.copy` handle it; the contract text does
+  not say so.
+- `TcpConn.write` reports failure with a short count, and UDP / raw sockets still panic on an I/O
+  failure.
+- Outside a wombat project, a native library is found only through `LD_LIBRARY_PATH`, so a script that
+  imports `koala/tls` prints `Failed to load libkoala_tls.so` (`source env.sh` first). Under wombat
+  this is handled. Loading it from the klc's directory was tried and reverted: the path belongs to
+  wombat.
+- A narrowed variable in an `is` check has no test for indexing: `test-run/test_narrow_index.kl` covers
+  only optional narrowing.

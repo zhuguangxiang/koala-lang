@@ -1,0 +1,42 @@
+// RUN: koalac %s --opt 2>&1 | filecheck %s
+
+// A shift count that is constant only after propagation is checked by the optimizer, whatever the
+// left side is. The backend never sees a bad constant count or a shift of two constants.
+
+func left_not_constant(x int) {
+    let n = 70
+    print(x << n)
+    // CHECK: shift count out of range: 70
+
+    let m = -2
+    print(x >> m)
+    // CHECK: negative shift count: -2
+}
+
+func both_constant() {
+    let a = 6
+    let n = 70
+    print(a << n)
+    // CHECK: shift count out of range: 70
+
+    let m = -2
+    print(a >> m)
+    // CHECK: negative shift count: -2
+}
+
+func compound(x int) {
+    var b = x
+    let n = 64
+    b <<= n
+    // CHECK: shift count out of range: 64
+    print(b)
+}
+
+func valid(x int) {
+    let a = 6
+    let n = 2
+    print(a << n)
+    print(x << n)
+}
+
+// CHECK-NOT: shift count

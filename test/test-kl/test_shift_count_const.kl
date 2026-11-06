@@ -1,0 +1,92 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// A constant shift count is a language rule checked by the parser, with or without the optimizer,
+// whatever the left side is. A constant is a literal, a negated literal or a `const`: negative is an
+// error, 64 or more is an error, and 0 is a warning. Narrow integers are promoted to int64 / uint64
+// before the shift, so the width is always 64.
+
+const TOO_LARGE = 70
+const NONE = 0
+
+// ---------- negative count ----------
+
+func negative(x int) {
+    print(x << -1)
+    // CHECK: negative shift count: -1
+    print(x >> -1)
+    // CHECK: negative shift count: -1
+    print(6 << -1)
+    // CHECK: negative shift count: -1
+}
+
+// ---------- count out of range ----------
+
+func too_large(x int, u uint64) {
+    print(x << 64)
+    // CHECK: shift count out of range: 64
+    print(x >> 64)
+    // CHECK: shift count out of range: 64
+    print(x << 70)
+    // CHECK: shift count out of range: 70
+    print(6 << 70)
+    // CHECK: shift count out of range: 70
+    print(u << 64)
+    // CHECK: shift count out of range: 64
+    print(u >> 64)
+    // CHECK: shift count out of range: 64
+}
+
+func constant(x int) {
+    print(x << TOO_LARGE)
+    // CHECK: shift count out of range: 70
+}
+
+func compound(x int) {
+    var b = x
+    b <<= 70
+    // CHECK: shift count out of range: 70
+    b >>= -1
+    // CHECK: negative shift count: -1
+    print(b)
+}
+
+// A narrow left side is promoted to 64 bits, so 8 is in range for it and 64 is not.
+func narrow(a int8, b uint8) {
+    print(a << 64)
+    // CHECK: shift count out of range: 64
+    print(b >> 64)
+    // CHECK: shift count out of range: 64
+}
+
+// ---------- zero count ----------
+
+func zero(x int) {
+    print(x << 0)
+    // CHECK: shift count is 0
+    print(x >> 0)
+    // CHECK: shift count is 0
+    print(6 << 0)
+    // CHECK: shift count is 0
+    print(x << NONE)
+    // CHECK: shift count is 0
+}
+
+// ---------- not constant, or in range ----------
+
+// A count of 1 to 63 reports nothing. The parser does not treat a local as a constant: see
+// test_shift_count_fold.kl for the optimizer's check of it.
+func in_range(x int, n int, a int8) {
+    print(x << 1)
+    print(x >> 63)
+    print(6 << 63)
+    print(a << 8)
+    print(x << n)
+
+    let local = 70
+    print(x << local)
+
+    var mutable = 0
+    print(x << mutable)
+}
+
+// CHECK-NOT: shift count

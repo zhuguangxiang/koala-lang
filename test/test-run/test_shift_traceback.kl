@@ -1,0 +1,20 @@
+// RUN: koala %s 2>&1 | filecheck %s
+
+// The traceback of a bad shift must name the line of the shift, not an earlier line of the function:
+// the shift saves its pc, and its pc has its own line info.
+func bad_shift(a int, n int) int {
+    print("before panic")
+    let x = a + 1
+    let y = x << n
+    return y
+}
+
+print(bad_shift(1, 70))
+
+// CHECK: before panic
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 8, in bad_shift
+// CHECK-NEXT:     let y = x << n
+// CHECK-NEXT:   File "{{.*}}", line 12, in __init__
+// CHECK-NEXT:     print(bad_shift(1, 70))
+// CHECK: {{.*}}Error{{.*}}: shift count out of range

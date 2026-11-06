@@ -893,7 +893,12 @@ TARGET(OP_INT_SHL) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd].ival = regs[rs].ival << regs[rt].ival;
+    if (!kl_check_shift_count(regs + rt)) {
+        SAVE_PC();
+        goto error;
+    }
+
+    regs[rd].ival = (uint64_t)regs[rs].ival << regs[rt].ival;
     regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
@@ -935,6 +940,11 @@ TARGET(OP_INT_SHR) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+
+    if (!kl_check_shift_count(regs + rt)) {
+        SAVE_PC();
+        goto error;
+    }
 
     regs[rd].ival = regs[rs].ival >> regs[rt].ival;
     regs[rd].tag = regs[rs].tag | 0b11;
@@ -1519,6 +1529,40 @@ TARGET(OP_NUM_XOR) {
     DISPATCH();
 }
 
+TARGET(OP_NUM_SHL) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    SAVE_PC();
+    TValue ret = kl_call_bit_lshift(regs + rs, regs + rt);
+    if (is_error(&ret)) goto error;
+
+    regs[rd] = ret;
+    DISPATCH();
+}
+
+TARGET(OP_NUM_SHR) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    SAVE_PC();
+    TValue ret = kl_call_bit_rshift(regs + rs, regs + rt);
+    if (is_error(&ret)) goto error;
+
+    regs[rd] = ret;
+    DISPATCH();
+}
+
 /* Sequence&Map Operations */
 
 TARGET(OP_SEQ_GET) {
@@ -1961,6 +2005,11 @@ TARGET(OP_UINT_SHR) {
     CHECK_REG_ID(rt);
     ASSERT(is_uint(regs + rs) || is_int(regs + rs));
     ASSERT(is_uint(regs + rt) || is_int(regs + rt));
+
+    if (!kl_check_shift_count(regs + rt)) {
+        SAVE_PC();
+        goto error;
+    }
 
     regs[rd].ival = (uint64_t)regs[rs].ival >> (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_UINT64;

@@ -1,0 +1,110 @@
+// RUN: koala %s | filecheck %s
+
+// A user class may overload the binary operators: the parser resolves them
+// through the class symbol table, not the built-in int path. A class may also
+// give __shl__/__shr__ its own meaning, so their count is not range-checked
+// like the built-in int shift (70 is a valid count here). Inplace assignment
+// prefers __iadd__ and falls back to the binary form (v -= w becomes v = v - w).
+
+class Vec {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    // ---- arithmetic ----
+    func __add__(rhs Vec) Vec { return Vec(x + rhs.x, y + rhs.y) }
+    func __sub__(rhs Vec) Vec { return Vec(x - rhs.x, y - rhs.y) }
+    func __mul__(rhs Vec) Vec { return Vec(x * rhs.x, y * rhs.y) }
+    func __div__(rhs Vec) Vec { return Vec(x / rhs.x, y / rhs.y) }
+    func __mod__(rhs Vec) Vec { return Vec(x % rhs.x, y % rhs.y) }
+
+    // ---- shift with a class-defined meaning: scale by (count + 1) ----
+    func __shl__(rhs int) Vec { return Vec(x * (rhs + 1), y * (rhs + 1)) }
+    func __shr__(rhs int) Vec { return Vec(x / (rhs + 1), y / (rhs + 1)) }
+
+    // ---- bitwise, per component ----
+    func __bitand__(rhs Vec) Vec { return Vec(x & rhs.x, y & rhs.y) }
+    func __bitor__(rhs Vec) Vec { return Vec(x | rhs.x, y | rhs.y) }
+    func __bitxor__(rhs Vec) Vec { return Vec(x ^ rhs.x, y ^ rhs.y) }
+
+    // ---- comparison ----
+    func __lt__(rhs Vec) bool { return x < rhs.x }
+    func __le__(rhs Vec) bool { return x <= rhs.x }
+    func __gt__(rhs Vec) bool { return x > rhs.x }
+    func __ge__(rhs Vec) bool { return x >= rhs.x }
+    func __eq__(rhs Vec) bool { return x == rhs.x && y == rhs.y }
+    func __ne__(rhs Vec) bool { return !(x == rhs.x && y == rhs.y) }
+
+    // ---- inplace: mutates in place and returns self ----
+    func __iadd__(rhs Vec) Vec {
+        x = x + rhs.x
+        y = y + rhs.y
+        return self
+    }
+}
+
+func main() {
+    let a = Vec(6, 8)
+    let b = Vec(3, 2)
+
+    // arithmetic
+    print((a + b).x, (a + b).y)
+    print((a - b).x, (a - b).y)
+    print((a * b).x, (a * b).y)
+    print((a / b).x, (a / b).y)
+    print((a % b).x, (a % b).y)
+
+    // shift: class-defined meaning, count 70 is not rejected
+    print((a << 70).x, (a << 70).y)
+    print((a >> 1).x, (a >> 1).y)
+
+    // bitwise
+    print((a & b).x, (a & b).y)
+    print((a | b).x, (a | b).y)
+    print((a ^ b).x, (a ^ b).y)
+
+    // comparison
+    print(a < b)
+    print(a <= b)
+    print(a > b)
+    print(a >= b)
+    print(a == Vec(6, 8))
+    print(a != Vec(6, 8))
+
+    // inplace: __iadd__ mutates in place
+    var v = Vec(1, 2)
+    v += Vec(3, 4)
+    print(v.x, v.y)
+
+    // no __isub__: falls back to v = v - rhs
+    v -= Vec(1, 1)
+    print(v.x, v.y)
+
+    // no __ishl__: falls back to v = v << rhs, class-defined __shl__
+    v <<= 2
+    print(v.x, v.y)
+}
+
+// CHECK: 9 10
+// CHECK: 3 6
+// CHECK: 18 16
+// CHECK: 2 4
+// CHECK: 0 0
+// CHECK: 426 568
+// CHECK: 3 4
+// CHECK: 2 0
+// CHECK: 7 10
+// CHECK: 5 10
+// CHECK: false
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: 4 6
+// CHECK: 3 5
+// CHECK: 9 15

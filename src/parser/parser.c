@@ -856,7 +856,8 @@ static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
  * Checks if the 'src' type is compatible with the 'dst' type.
  *
  * Rules for High-Performance Type System:
- * 1. Top Type: TYPE_ANY is the root and accepts any type.
+ * 1. Top Type: TYPE_ANY is the root and accepts any non-optional type. 'T?' and nil may hold nil,
+ *    which TYPE_ANY cannot, so they need an explicit '!'.
  * 2. Strict Kind Matching: kinds must match except via bounds, base widening,
  *    or dst-side generic refs / unions / klass promotions.
  * 3. Numerical Widening: INT/FLOAT source width <= destination width allowed.
@@ -873,7 +874,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     if (dst == src) return 1;
 
     // Rule 1: TYPE_ANY is the Top Type (Root of the type hierarchy)
-    if (dst->kind == TYPE_ANY) return 1;
+    if (dst->kind == TYPE_ANY) return src->kind != TYPE_OPTIONAL;
 
     /* Optional handling before kind dispatch */
     if (dst->kind == TYPE_OPTIONAL) return _optional_compatible_check(dst, src);
@@ -3563,6 +3564,8 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         FINI_BUF(rbuf);
         return -1;
     }
+
+    if (op == OP_SHL_ASSIGN || op == OP_SHR_ASSIGN) check_shift_count(ps, lhs->ts, rhs);
 
     if (fn_name == bi_op_name) {
         assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);

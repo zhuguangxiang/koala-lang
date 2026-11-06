@@ -40,6 +40,21 @@ void _raise_exc_str(KoalaState *ks, char *str);
 
 #define raise_exc(str) raise_exc_str(str)
 
+/* A shift count must be in [0, 64): integers are promoted to 64 bits before they are shifted.
+ * Returns 0 with an exception raised otherwise. */
+static inline int kl_check_shift_count(TValue *count)
+{
+    uint64_t bits = (uint64_t)count->ival;
+    if (bits < 64) return 1;
+
+    if (!is_uint(count) && (int64_t)bits < 0) {
+        raise_exc_str("negative shift count");
+    } else {
+        raise_exc_str("shift count out of range");
+    }
+    return 0;
+}
+
 char *kl_exc_get_msg(Object *exc);
 void kl_free_exc(Object *exc);
 

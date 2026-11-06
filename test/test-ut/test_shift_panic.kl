@@ -1,0 +1,101 @@
+// RUN: koala --test %s
+
+// A shift count that is only known at run time panics when it is negative or 64 or more. The count
+// comes in as an argument so that it is not constant, and the result is returned so that the shift
+// is not optimized away.
+
+import "std/ut"
+
+func shl(a int, n int) int {
+    return a << n
+}
+
+func shr(a int, n int) int {
+    return a >> n
+}
+
+func ushl(a uint64, n uint64) uint64 {
+    return a << n
+}
+
+func ushr(a uint64, n uint64) uint64 {
+    return a >> n
+}
+
+func trait_shl(a Bitwise[int], n int) int {
+    return a << n
+}
+
+func trait_shr(a Bitwise[int], n int) int {
+    return a >> n
+}
+
+// ---------- the last valid count does not panic ----------
+
+@test
+func test_count_63() {
+    ut.assert_eq(shl(1, 63) < 0, true)
+    ut.assert_eq(shr(-1, 63), -1)
+    ut.assert_eq(trait_shr(-1, 63), -1)
+}
+
+// ---------- signed ----------
+
+@should_panic("negative shift count")
+func test_shl_negative() {
+    print(shl(6, -1))
+}
+
+@should_panic("negative shift count")
+func test_shr_negative() {
+    print(shr(6, -1))
+}
+
+@should_panic("shift count out of range")
+func test_shl_64() {
+    print(shl(6, 64))
+}
+
+@should_panic("shift count out of range")
+func test_shr_64() {
+    print(shr(6, 64))
+}
+
+@should_panic("shift count out of range")
+func test_shl_70() {
+    print(shl(6, 70))
+}
+
+// ---------- unsigned ----------
+
+@should_panic("shift count out of range")
+func test_ushl_64() {
+    print(ushl(uint64(6), uint64(64)))
+}
+
+@should_panic("shift count out of range")
+func test_ushr_64() {
+    print(ushr(uint64(6), uint64(64)))
+}
+
+// ---------- trait value ----------
+
+@should_panic("negative shift count")
+func test_trait_shl_negative() {
+    print(trait_shl(6, -1))
+}
+
+@should_panic("negative shift count")
+func test_trait_shr_negative() {
+    print(trait_shr(6, -1))
+}
+
+@should_panic("shift count out of range")
+func test_trait_shl_64() {
+    print(trait_shl(6, 64))
+}
+
+@should_panic("shift count out of range")
+func test_trait_shr_64() {
+    print(trait_shr(6, 64))
+}

@@ -3251,6 +3251,65 @@ static int promote_integer_type(Expr *lhs, Expr *rhs)
     return 0;
 }
 
+/* The value of a literal, a negated literal or a literal `const`; returns 0 for anything else. */
+static int shift_count_value(Expr *e, int *negative, uint64_t *value)
+{
+    if (e->kind == EXPR_UNARY_KIND) {
+        UnaryExpr *unary = (UnaryExpr *)e;
+        if (unary->op != UNARY_NEG || !unary->exp) return 0;
+
+        int inner_negative = 0;
+        if (!shift_count_value(unary->exp, &inner_negative, value)) return 0;
+
+        *negative = !inner_negative && *value != 0;
+        return 1;
+    }
+
+    uint64_t ival = 0;
+    int sign = 0;
+
+    if (e->kind == EXPR_LITERAL_KIND) {
+        LitExpr *lit = (LitExpr *)e;
+        if (lit->which != LIT_EXPR_INT) return 0;
+        ival = lit->ival;
+        sign = lit->sign;
+    } else {
+        Symbol *sym = e->sym;
+        if (!sym || sym->kind != SYM_VAR || !(sym->flags & SYM_FLAGS_CONST)) return 0;
+
+        Literal *lit = ((VarSymbol *)sym)->lit;
+        if (!lit || lit->which != LIT_INT) return 0;
+        ival = lit->ival;
+        sign = lit->sign;
+    }
+
+    *negative = sign && (int64_t)ival < 0;
+    *value = *negative ? 0 - ival : ival;
+    return 1;
+}
+
+/*
+ * Check a constant shift count of a built-in integer, whatever the left side is: integers are
+ * promoted to 64 bits, so the count must be in [0, 64). A class may give `__shl__` its own meaning,
+ * and a count that is not constant, or a trait value, is checked at run time.
+ */
+void check_shift_count(ParserState *ps, TypeSpec *lhs_ts, Expr *count)
+{
+    if (lhs_ts->kind != TYPE_INT) return;
+
+    int negative = 0;
+    uint64_t value = 0;
+    if (!shift_count_value(count, &negative, &value)) return;
+
+    if (negative) {
+        kl_error(count->loc, "negative shift count: -%" PRIu64, value);
+    } else if (value >= 64) {
+        kl_error(count->loc, "shift count out of range: %" PRIu64, value);
+    } else if (value == 0) {
+        kl_warn(count->loc, "shift count is 0");
+    }
+}
+
 static void parse_binary(ParserState *ps, Expr *exp)
 {
     BinaryExpr *bin = (BinaryExpr *)exp;
@@ -3283,6 +3342,8 @@ static void parse_binary(ParserState *ps, Expr *exp)
     }
 
     if (!lhs->ts || !rhs->ts) return;
+
+    if (op == BINARY_SHL || op == BINARY_SHR) check_shift_count(ps, lhs->ts, rhs);
 
     // Promote integer and float types for binary operations.
     TypeSpec *orig_ts = lhs->ts;

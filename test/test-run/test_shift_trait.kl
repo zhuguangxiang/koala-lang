@@ -1,0 +1,35 @@
+// RUN: koala %s | filecheck %s
+
+// A shift on a trait value has no instruction of its own: it goes through OP_NUM_SHL / OP_NUM_SHR to
+// the native `__shl__` / `__shr__` of the value, which used to abort with `eval.c: Why goes here?`.
+
+func minus_one(x uint64) uint64 {
+    return x - uint64(1)
+}
+
+func signed() {
+    let a Bitwise[int] = 6
+    print("shl", a << 2, a >> 1)
+    // CHECK: shl 24 3
+
+    let b Bitwise[int] = -8
+    print("sar", b >> 1, b >> 63)
+    // CHECK-NEXT: sar -4 -1
+}
+
+func unsigned() {
+    let a Bitwise[uint64] = minus_one(uint64(0))
+    print("shr", a >> uint64(60), a >> uint64(63))
+    // CHECK-NEXT: shr 15 1
+
+    let b Bitwise[uint64] = uint64(3)
+    print("shl", b << uint64(2))
+    // CHECK-NEXT: shl 12
+}
+
+func generic[T : Bitwise](a T, n T) T = a << n
+
+signed()
+unsigned()
+print("generic", generic(3, 2))
+// CHECK-NEXT: generic 12

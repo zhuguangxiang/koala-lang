@@ -173,6 +173,93 @@ static TValue _float_ne(TValue *self, TValue *args, int nargs)
 }
 
 //
+// Operators
+//
+// Statically typed code runs them as intrinsic instructions (OP_FLOAT_*). These natives are what a
+// trait value such as `Arithmetic[float]` calls through its interface table, so they follow the
+// same semantics: IEEE 754, `%` is fmod, and `self` may be an interface value.
+//
+
+static TValue _float_add(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return float64_value(a + b);
+}
+
+static TValue _float_sub(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return float64_value(a - b);
+}
+
+static TValue _float_mul(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return float64_value(a * b);
+}
+
+static TValue _float_div(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return float64_value(a / b);
+}
+
+static TValue _float_mod(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return float64_value(fmod(a, b));
+}
+
+static TValue _float_neg(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    double a = to_raw_float(self);
+    return float64_value(-a);
+}
+
+static TValue _float_lt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return bool_value(a < b);
+}
+
+static TValue _float_le(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return bool_value(a <= b);
+}
+
+static TValue _float_gt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return bool_value(a > b);
+}
+
+static TValue _float_ge(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return bool_value(a >= b);
+}
+
+//
 // Float utility methods
 //
 
@@ -242,6 +329,16 @@ static MethodDef float_methods[] = {
     { "hash", _float_hash },
     { "__eq__", _float_eq },
     { "__ne__", _float_ne },
+    { "__add__", _float_add },
+    { "__sub__", _float_sub },
+    { "__mul__", _float_mul },
+    { "__div__", _float_div },
+    { "__mod__", _float_mod },
+    { "__neg__", _float_neg },
+    { "__lt__", _float_lt },
+    { "__le__", _float_le },
+    { "__gt__", _float_gt },
+    { "__ge__", _float_ge },
     { "to_str_exact", _float_to_str_exact },
     { "is_integer", _float_is_integer },
     { "as_integer_ratio", _float_as_integer_ratio },

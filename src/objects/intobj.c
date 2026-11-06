@@ -204,7 +204,232 @@ static TValue _int_from_bytes(TValue *self, TValue *args, int nargs)
     return int64_value((int64_t)val);
 }
 
+//
+// Operators
+//
+// Statically typed code runs them as intrinsic instructions (OP_INT_*, OP_UINT_*). These natives
+// are what a trait value such as `Arithmetic[int]` calls through its interface table, so they
+// follow the same semantics: 64-bit wrapping arithmetic, and `self` may be an interface value.
+//
+
+static int _is_unsigned(TValue *self)
+{
+    uint64_t tag = self->tag;
+
+    if (is_intf(self)) {
+        IntfTable *itab = (IntfTable *)(self)->itab;
+        ASSERT(itab);
+        TypeObject *tp = itab->tp;
+        tag = tp->tag;
+    }
+
+    return is_uint_tag(tag);
+}
+
+/* the result has the signedness of `self` */
+static TValue _int_result(TValue *self, uint64_t bits)
+{
+    if (_is_unsigned(self)) return uint64_value(bits);
+    return int64_value((int64_t)bits);
+}
+
+static TValue _int_add(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs + rhs);
+}
+
+static TValue _int_sub(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs - rhs);
+}
+
+static TValue _int_mul(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs * rhs);
+}
+
+static TValue _int_div(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (rhs == 0) {
+        raise_exc_str("division by zero");
+        return error_value;
+    }
+
+    if (_is_unsigned(self)) return uint64_value(lhs / rhs);
+
+    // INT64_MIN / -1 overflows and traps in C: it wraps to INT64_MIN, like '-' does
+    if ((int64_t)rhs == -1) return int64_value((int64_t)(0 - lhs));
+
+    return int64_value((int64_t)lhs / (int64_t)rhs);
+}
+
+static TValue _int_mod(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (rhs == 0) {
+        raise_exc_str("division by zero");
+        return error_value;
+    }
+
+    if (_is_unsigned(self)) return uint64_value(lhs % rhs);
+
+    // INT64_MIN % -1 traps in C too
+    if ((int64_t)rhs == -1) return int64_value(0);
+
+    return int64_value((int64_t)lhs % (int64_t)rhs);
+}
+
+static TValue _int_neg(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    uint64_t val = _get_raw_bits(self);
+    return _int_result(self, 0 - val);
+}
+
+static TValue _int_shl(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    if (!kl_check_shift_count(&args[0])) return error_value;
+
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs << rhs);
+}
+
+static TValue _int_shr(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    if (!kl_check_shift_count(&args[0])) return error_value;
+
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (_is_unsigned(self)) return uint64_value(lhs >> rhs);
+    return int64_value((int64_t)lhs >> rhs);
+}
+
+static TValue _int_bitand(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs & rhs);
+}
+
+static TValue _int_bitor(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs | rhs);
+}
+
+static TValue _int_bitxor(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return _int_result(self, lhs ^ rhs);
+}
+
+static TValue _int_bitnot(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    uint64_t val = _get_raw_bits(self);
+    return _int_result(self, ~val);
+}
+
+static TValue _int_lt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (_is_unsigned(self)) return bool_value(lhs < rhs);
+    return bool_value((int64_t)lhs < (int64_t)rhs);
+}
+
+static TValue _int_le(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (_is_unsigned(self)) return bool_value(lhs <= rhs);
+    return bool_value((int64_t)lhs <= (int64_t)rhs);
+}
+
+static TValue _int_gt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (_is_unsigned(self)) return bool_value(lhs > rhs);
+    return bool_value((int64_t)lhs > (int64_t)rhs);
+}
+
+static TValue _int_ge(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+
+    if (_is_unsigned(self)) return bool_value(lhs >= rhs);
+    return bool_value((int64_t)lhs >= (int64_t)rhs);
+}
+
+static TValue _int_eq(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return bool_value(lhs == rhs);
+}
+
+static TValue _int_ne(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    uint64_t lhs = _get_raw_bits(self);
+    uint64_t rhs = _get_raw_bits(&args[0]);
+    return bool_value(lhs != rhs);
+}
+
 static MethodDef int_methods[] = {
+    { "__add__", _int_add },
+    { "__sub__", _int_sub },
+    { "__mul__", _int_mul },
+    { "__div__", _int_div },
+    { "__mod__", _int_mod },
+    { "__neg__", _int_neg },
+    { "__shl__", _int_shl },
+    { "__shr__", _int_shr },
+    { "__bitand__", _int_bitand },
+    { "__bitor__", _int_bitor },
+    { "__bitxor__", _int_bitxor },
+    { "__bitnot__", _int_bitnot },
+    { "__lt__", _int_lt },
+    { "__le__", _int_le },
+    { "__gt__", _int_gt },
+    { "__ge__", _int_ge },
+    { "__eq__", _int_eq },
+    { "__ne__", _int_ne },
     { "fmt", _int_fmt },
     { "to_str", _int_to_str },
     { "bit_length", _int_bit_length },
