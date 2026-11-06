@@ -1,0 +1,93 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Internal implementation behind the `BigEndian` and `LittleEndian`
+/// package-level values. The constructor is package-private, so callers
+/// cannot build a `ByteOrder` directly; use the provided values instead,
+/// e.g. `binary.BigEndian.read_u32(data, 0)`.
+///
+/// The class itself must be `pub`: the Koala frontend resolves `value.method`
+/// across modules via the value's type symbol, which is only exported for
+/// public types. Making the constructor private keeps the effective API
+/// surface limited to the two globals.
+///
+/// Unlike `BinReader`/`BinWriter`, these methods are stateless: each `read_*`
+/// takes the source `bytes` and a byte `offset`, and each `write_*` appends to
+/// a caller-supplied `Buffer`. Reads panic if `[offset, offset+width)` is out
+/// of bounds.
+pub class ByteOrder {
+    /// The byte order this instance applies: `binary.EndianBig` (0) or
+    /// `binary.EndianLittle` (1).
+    pub let endian int
+
+    /// Create a byte order applying `endian`. Package-private; only used to
+    /// build the `BigEndian` and `LittleEndian` globals.
+    @native
+    func __init__(endian int) {}
+
+    /// Read a 16-bit unsigned integer from `data` at byte `offset`.
+    @native
+    pub func read_u16(data bytes, offset int) uint16 {}
+
+    /// Read a 32-bit unsigned integer from `data` at byte `offset`.
+    @native
+    pub func read_u32(data bytes, offset int) uint32 {}
+
+    /// Read a 64-bit unsigned integer from `data` at byte `offset`.
+    @native
+    pub func read_u64(data bytes, offset int) uint64 {}
+
+    /// Read a 16-bit signed integer from `data` at byte `offset`.
+    @native
+    pub func read_i16(data bytes, offset int) int16 {}
+
+    /// Read a 32-bit signed integer from `data` at byte `offset`.
+    @native
+    pub func read_i32(data bytes, offset int) int32 {}
+
+    /// Read a 64-bit signed integer from `data` at byte `offset`.
+    @native
+    pub func read_i64(data bytes, offset int) int64 {}
+
+    /// Read a 32-bit IEEE-754 float from `data` at byte `offset`.
+    @native
+    pub func read_f32(data bytes, offset int) float {}
+
+    /// Read a 64-bit IEEE-754 float from `data` at byte `offset`.
+    @native
+    pub func read_f64(data bytes, offset int) float {}
+
+    /// Append `v` to `buf` as a 16-bit unsigned integer in this byte order.
+    @native
+    pub func write_u16(buf Buffer, v uint16) {}
+
+    /// Append `v` to `buf` as a 32-bit unsigned integer in this byte order.
+    @native
+    pub func write_u32(buf Buffer, v uint32) {}
+
+    /// Append `v` to `buf` as a 64-bit unsigned integer in this byte order.
+    @native
+    pub func write_u64(buf Buffer, v uint64) {}
+
+    /// Append `v` to `buf` as a 16-bit signed integer in this byte order.
+    @native
+    pub func write_i16(buf Buffer, v int16) {}
+
+    /// Append `v` to `buf` as a 32-bit signed integer in this byte order.
+    @native
+    pub func write_i32(buf Buffer, v int32) {}
+
+    /// Append `v` to `buf` as a 64-bit signed integer in this byte order.
+    @native
+    pub func write_i64(buf Buffer, v int64) {}
+
+    /// Append `v` to `buf` as a 32-bit IEEE-754 float in this byte order.
+    @native
+    pub func write_f32(buf Buffer, v float) {}
+
+    /// Append `v` to `buf` as a 64-bit IEEE-754 float in this byte order.
+    @native
+    pub func write_f64(buf Buffer, v float) {}
+}

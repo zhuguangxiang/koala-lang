@@ -1,0 +1,103 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A stateful binary reader that decodes values sequentially from a `bytes`
+/// buffer using a fixed byte order chosen at construction.
+///
+/// Each `read_*` call consumes bytes at the current position and advances it.
+/// Reading past the end of the buffer panics with "binary: read out of bounds"
+/// rather than returning an error, so the caller is expected to know the layout.
+///
+/// Examples
+///
+/// ```kl
+/// let r = binary.BinReader(data, binary.EndianBig)
+/// let id = r.read_u32()
+/// let name_len = r.read_uvarint()
+/// let name = r.read_bytes(int(name_len))
+/// ```
+pub class BinReader {
+    /// The underlying bytes being read.
+    pub let data bytes
+
+    /// The byte order used for multi-byte reads: one of `binary.EndianBig`
+    /// or `binary.EndianLittle`.
+    pub let endian int
+
+    /// The current read offset, in bytes, from the start of `data`.
+    pub var pos int
+
+    /// Create a reader over `data` using the byte order `endian`.
+    /// The position starts at 0.
+    @native
+    pub func __init__(data bytes, endian int) {}
+
+    /// Return the number of bytes not yet consumed.
+    @native
+    pub func remaining() int {}
+
+    /// Return true when every byte has been consumed (`remaining() == 0`).
+    @native
+    pub func is_empty() bool {}
+
+    /// Advance the position by `n` bytes without reading them.
+    @native
+    pub func skip(n int) {}
+
+    /// Read an unsigned 8-bit integer (a single byte; byte order does not apply).
+    @native
+    pub func read_u8() uint8 {}
+
+    /// Read a 16-bit unsigned integer in the reader's byte order.
+    @native
+    pub func read_u16() uint16 {}
+
+    /// Read a 32-bit unsigned integer in the reader's byte order.
+    @native
+    pub func read_u32() uint32 {}
+
+    /// Read a 64-bit unsigned integer in the reader's byte order.
+    @native
+    pub func read_u64() uint64 {}
+
+    /// Read an 8-bit signed integer (a single byte).
+    @native
+    pub func read_i8() int8 {}
+
+    /// Read a 16-bit signed integer in the reader's byte order.
+    @native
+    pub func read_i16() int16 {}
+
+    /// Read a 32-bit signed integer in the reader's byte order.
+    @native
+    pub func read_i32() int32 {}
+
+    /// Read a 64-bit signed integer in the reader's byte order.
+    @native
+    pub func read_i64() int64 {}
+
+    /// Read a 32-bit IEEE-754 float in the reader's byte order.
+    @native
+    pub func read_f32() float {}
+
+    /// Read a 64-bit IEEE-754 float in the reader's byte order.
+    @native
+    pub func read_f64() float {}
+
+    /// Read the next `n` bytes as a new `bytes` value.
+    /// Panic if fewer than `n` bytes remain.
+    @native
+    pub func read_bytes(n int) bytes {}
+
+    /// Read an unsigned LEB128 variable-length integer (byte-order independent).
+    /// Panic if the buffer ends before the varint is complete.
+    @native
+    pub func read_uvarint() uint64 {}
+
+    /// Read a signed LEB128 varint, zigzag-decoded back to `int64`.
+    /// Panic if the buffer ends before the varint is complete.
+    @native
+    pub func read_varint() int64 {}
+}

@@ -1,0 +1,32 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Binary encoding/decoding: fixed-width integers and IEEE-754 floats in
+/// big- or little-endian order, plus LEB128 varints.
+///
+/// Two styles are offered:
+///   - Stateless helpers via the `BigEndian` / `LittleEndian` values, e.g.
+///     `binary.BigEndian.read_u32(data, offset)`.
+///   - Stateful `BinReader` / `BinWriter`, which bind the byte order once and
+///     track the position automatically.
+
+/// Native symbols for this package live in `libkoala_binary.so`.
+link "koala_binary"
+
+/// Byte-order selector for big-endian (most significant byte first, a.k.a.
+/// network order). Pass to `BinReader`/`BinWriter` constructors.
+pub const EndianBig = 0
+
+/// Byte-order selector for little-endian (least significant byte first).
+/// Pass to `BinReader`/`BinWriter` constructors.
+pub const EndianLittle = 1
+
+/// Big-endian (network) byte order: most significant byte first.
+/// Use its `read_*`/`write_*` methods for stateless conversion.
+pub let BigEndian = ByteOrder(EndianBig)
+
+/// Little-endian byte order: least significant byte first.
+/// Use its `read_*`/`write_*` methods for stateless conversion.
+pub let LittleEndian = ByteOrder(EndianLittle)

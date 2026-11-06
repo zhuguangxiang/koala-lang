@@ -1,0 +1,91 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A stateful binary writer that builds a `bytes` buffer by appending values
+/// in a fixed byte order chosen at construction.
+///
+/// Each `write_*` call appends to the end of an internal growable buffer.
+/// Call `to_bytes()` to obtain the accumulated result; the writer stays usable
+/// afterwards.
+///
+/// Examples
+///
+/// ```kl
+/// let w = binary.BinWriter(binary.EndianLittle)
+/// w.write_u32(uint32(1))
+/// w.write_uvarint(uint64(300))
+/// let data = w.to_bytes()
+/// ```
+pub class BinWriter {
+    /// The byte order used for multi-byte writes: one of `binary.EndianBig`
+    /// or `binary.EndianLittle`.
+    pub let endian int
+
+    /// Create an empty writer using the byte order `endian`.
+    @native
+    pub func __init__(endian int) {}
+
+    /// Return the number of bytes written so far.
+    @native
+    pub func len() int {}
+
+    /// Append an unsigned 8-bit integer (a single byte; byte order does not apply).
+    @native
+    pub func write_u8(v uint8) {}
+
+    /// Append a 16-bit unsigned integer in the writer's byte order.
+    @native
+    pub func write_u16(v uint16) {}
+
+    /// Append a 32-bit unsigned integer in the writer's byte order.
+    @native
+    pub func write_u32(v uint32) {}
+
+    /// Append a 64-bit unsigned integer in the writer's byte order.
+    @native
+    pub func write_u64(v uint64) {}
+
+    /// Append an 8-bit signed integer (a single byte; byte order does not apply).
+    @native
+    pub func write_i8(v int8) {}
+
+    /// Append a 16-bit signed integer in the writer's byte order.
+    @native
+    pub func write_i16(v int16) {}
+
+    /// Append a 32-bit signed integer in the writer's byte order.
+    @native
+    pub func write_i32(v int32) {}
+
+    /// Append a 64-bit signed integer in the writer's byte order.
+    @native
+    pub func write_i64(v int64) {}
+
+    /// Append a 32-bit IEEE-754 float in the writer's byte order.
+    @native
+    pub func write_f32(v float) {}
+
+    /// Append a 64-bit IEEE-754 float in the writer's byte order.
+    @native
+    pub func write_f64(v float) {}
+
+    /// Append the raw bytes of `data` unchanged (no length prefix).
+    @native
+    pub func write_bytes(data bytes) {}
+
+    /// Append `v` as an unsigned LEB128 variable-length integer
+    /// (byte-order independent).
+    @native
+    pub func write_uvarint(v uint64) {}
+
+    /// Append `v` as a signed LEB128 varint, zigzag-encoded first
+    /// (byte-order independent).
+    @native
+    pub func write_varint(v int64) {}
+
+    /// Return a copy of everything written so far as a new `bytes` value.
+    @native
+    pub func to_bytes() bytes {}
+}

@@ -149,7 +149,7 @@
     ],
     "editor.fontFamily": "'Ubuntu Mono', 'JetBrains Mono', 'Fira Code','Victor Mono'",
     "editor.fontLigatures": true,
-    "editor.fontSize": 16,
+    "editor.fontSize": 14,
     "editor.lineHeight": 22,
     // "editor.letterSpacing": 0.1,
     "editor.renderWhitespace": "none",
@@ -180,7 +180,7 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 16,
+    "terminal.integrated.fontSize": 14,
     // "terminal.integrated.fontWeight": "100",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",
@@ -202,7 +202,7 @@
         "--compile-commands-dir=${workspaceFolder}/build/debug",
         "--header-insertion=never",
         "--background-index",
-        "-log=verbose",
+        "--background-index-priority=low",
         "-j=2",
         "--limit-results=40"
     ],

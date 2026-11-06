@@ -1,0 +1,441 @@
+// RUN: koala %s --test
+
+import "koala/binary"
+import "std/ut"
+
+// Helper: build bytes from a list of uint8 values via Buffer.
+func make_bytes(vals list[int]) bytes {
+    let buf = Buffer()
+    for v in vals {
+        buf.write_byte(uint8(v))
+    }
+    return buf.to_bytes()
+}
+
+// ============================================================
+// BigEndian / LittleEndian static methods
+// ============================================================
+
+@test
+func test_be_read_u16() {
+    let data = make_bytes([0xDE, 0xAD])
+    ut.assert_eq(binary.BigEndian.read_u16(data, 0), uint16(0xDEAD))
+}
+
+@test
+func test_be_read_u32() {
+    let data = make_bytes([0xDE, 0xAD, 0xBE, 0xEF])
+    ut.assert_eq(binary.BigEndian.read_u32(data, 0), uint32(0xDEADBEEF))
+}
+
+@test
+func test_be_read_u64() {
+    let data = make_bytes([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF])
+    ut.assert_eq(binary.BigEndian.read_u64(data, 0), uint64(0x0123456789ABCDEF))
+}
+
+@test
+func test_le_read_u16() {
+    let data = make_bytes([0xAD, 0xDE])
+    ut.assert_eq(binary.LittleEndian.read_u16(data, 0), uint16(0xDEAD))
+}
+
+@test
+func test_le_read_u32() {
+    let data = make_bytes([0xEF, 0xBE, 0xAD, 0xDE])
+    ut.assert_eq(binary.LittleEndian.read_u32(data, 0), uint32(0xDEADBEEF))
+}
+
+@test
+func test_le_read_u64() {
+    let data = make_bytes([0xEF, 0xCD, 0xAB, 0x89, 0x67, 0x45, 0x23, 0x01])
+    ut.assert_eq(binary.LittleEndian.read_u64(data, 0), uint64(0x0123456789ABCDEF))
+}
+
+@test
+func test_be_read_with_offset() {
+    let data = make_bytes([0x00, 0x00, 0xCA, 0xFE])
+    ut.assert_eq(binary.BigEndian.read_u16(data, 2), uint16(0xCAFE))
+}
+
+@test
+func test_be_read_i32_negative() {
+    let data = make_bytes([0xFF, 0xFF, 0xFF, 0xFE])
+    ut.assert_eq(binary.BigEndian.read_i32(data, 0), int32(-2))
+}
+
+@test
+func test_le_read_i32_negative() {
+    let data = make_bytes([0xFE, 0xFF, 0xFF, 0xFF])
+    ut.assert_eq(binary.LittleEndian.read_i32(data, 0), int32(-2))
+}
+
+// ============================================================
+// BigEndian / LittleEndian write
+// ============================================================
+
+@test
+func test_be_write_u16() {
+    let buf = Buffer()
+    binary.BigEndian.write_u16(buf, uint16(0x0042))
+    let data = buf.to_bytes()
+    ut.assert_eq(data[0], uint8(0x00))
+    ut.assert_eq(data[1], uint8(0x42))
+}
+
+@test
+func test_be_write_roundtrip() {
+    let buf = Buffer()
+    binary.BigEndian.write_u16(buf, uint16(0xCAFE))
+    binary.BigEndian.write_u32(buf, uint32(0xDEADBEEF))
+    binary.BigEndian.write_u64(buf, uint64(0x0123456789ABCDEF))
+    let data = buf.to_bytes()
+    ut.assert_eq(data.len(), 14)
+    ut.assert_eq(binary.BigEndian.read_u16(data, 0), uint16(0xCAFE))
+    ut.assert_eq(binary.BigEndian.read_u32(data, 2), uint32(0xDEADBEEF))
+    ut.assert_eq(binary.BigEndian.read_u64(data, 6), uint64(0x0123456789ABCDEF))
+}
+
+@test
+func test_le_write_roundtrip() {
+    let buf = Buffer()
+    binary.LittleEndian.write_u16(buf, uint16(0xCAFE))
+    binary.LittleEndian.write_u32(buf, uint32(0xDEADBEEF))
+    binary.LittleEndian.write_u64(buf, uint64(0x0123456789ABCDEF))
+    let data = buf.to_bytes()
+    ut.assert_eq(data.len(), 14)
+    ut.assert_eq(binary.LittleEndian.read_u16(data, 0), uint16(0xCAFE))
+    ut.assert_eq(binary.LittleEndian.read_u32(data, 2), uint32(0xDEADBEEF))
+    ut.assert_eq(binary.LittleEndian.read_u64(data, 6), uint64(0x0123456789ABCDEF))
+}
+
+// ============================================================
+// BinReader
+// ============================================================
+
+@test
+func test_reader_be_sequential() {
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_u8(uint8(0x42))
+    w.write_u16(uint16(1000))
+    w.write_u32(uint32(123456))
+    w.write_u64(uint64(9876543210))
+    let data = w.to_bytes()
+
+    let r = binary.BinReader(data, binary.EndianBig)
+    ut.assert_eq(r.read_u8(), uint8(0x42))
+    ut.assert_eq(r.read_u16(), uint16(1000))
+    ut.assert_eq(r.read_u32(), uint32(123456))
+    ut.assert_eq(r.read_u64(), uint64(9876543210))
+    ut.assert_eq(r.remaining(), 0)
+    ut.assert_true(r.is_empty())
+}
+
+@test
+func test_reader_le_sequential() {
+    let w = binary.BinWriter(binary.EndianLittle)
+    w.write_u16(uint16(0xBEEF))
+    w.write_u32(uint32(0xCAFEBABE))
+    let data = w.to_bytes()
+
+    let r = binary.BinReader(data, binary.EndianLittle)
+    ut.assert_eq(r.read_u16(), uint16(0xBEEF))
+    ut.assert_eq(r.read_u32(), uint32(0xCAFEBABE))
+}
+
+@test
+func test_reader_skip() {
+    let data = make_bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.skip(2)
+    ut.assert_eq(r.read_u8(), uint8(0x03))
+    ut.assert_eq(r.remaining(), 3)
+}
+
+@test
+func test_reader_signed() {
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_i16(int16(-1000))
+    w.write_i32(int32(-123456))
+    let data = w.to_bytes()
+
+    let r = binary.BinReader(data, binary.EndianBig)
+    ut.assert_eq(r.read_i16(), int16(-1000))
+    ut.assert_eq(r.read_i32(), int32(-123456))
+}
+
+@test
+func test_reader_float() {
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_f32(3.14)
+    w.write_f64(2.718281828)
+    let data = w.to_bytes()
+
+    let r = binary.BinReader(data, binary.EndianBig)
+    let f32val = r.read_f32()
+    let f64val = r.read_f64()
+    ut.assert_true(f32val > 3.13 && f32val < 3.15)
+    ut.assert_true(f64val > 2.718 && f64val < 2.719)
+}
+
+@test
+func test_reader_bytes() {
+    let data = make_bytes([0xAA, 0xBB, 0xCC, 0xDD, 0xEE])
+    let r = binary.BinReader(data, binary.EndianBig)
+    let chunk = r.read_bytes(3)
+    ut.assert_eq(chunk.len(), 3)
+    ut.assert_eq(chunk[0], uint8(0xAA))
+    ut.assert_eq(chunk[1], uint8(0xBB))
+    ut.assert_eq(chunk[2], uint8(0xCC))
+    ut.assert_eq(r.remaining(), 2)
+}
+
+// ============================================================
+// BinWriter
+// ============================================================
+
+@test
+func test_writer_be() {
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_u8(uint8(0xFF))
+    w.write_u16(uint16(0x1234))
+    w.write_u32(uint32(0xDEADBEEF))
+    let data = w.to_bytes()
+    ut.assert_eq(data.len(), 7)
+    ut.assert_eq(data[0], uint8(0xFF))
+    ut.assert_eq(data[1], uint8(0x12))
+    ut.assert_eq(data[2], uint8(0x34))
+    ut.assert_eq(data[3], uint8(0xDE))
+    ut.assert_eq(data[4], uint8(0xAD))
+    ut.assert_eq(data[5], uint8(0xBE))
+    ut.assert_eq(data[6], uint8(0xEF))
+}
+
+@test
+func test_writer_le() {
+    let w = binary.BinWriter(binary.EndianLittle)
+    w.write_u16(uint16(0x1234))
+    w.write_u32(uint32(0xDEADBEEF))
+    let data = w.to_bytes()
+    ut.assert_eq(data.len(), 6)
+    ut.assert_eq(data[0], uint8(0x34))
+    ut.assert_eq(data[1], uint8(0x12))
+    ut.assert_eq(data[2], uint8(0xEF))
+    ut.assert_eq(data[3], uint8(0xBE))
+    ut.assert_eq(data[4], uint8(0xAD))
+    ut.assert_eq(data[5], uint8(0xDE))
+}
+
+@test
+func test_writer_len() {
+    let w = binary.BinWriter(binary.EndianBig)
+    ut.assert_eq(w.len(), 0)
+    w.write_u32(uint32(1))
+    ut.assert_eq(w.len(), 4)
+    w.write_u64(uint64(2))
+    ut.assert_eq(w.len(), 12)
+}
+
+@test
+func test_writer_write_bytes() {
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_u16(uint16(0xCAFE))
+    w.write_bytes(make_bytes([0x01, 0x02, 0x03]))
+    let data = w.to_bytes()
+    ut.assert_eq(data.len(), 5)
+    ut.assert_eq(data[2], uint8(0x01))
+    ut.assert_eq(data[4], uint8(0x03))
+}
+
+// ============================================================
+// Varint
+// ============================================================
+
+@test
+func test_varint_roundtrip() {
+    let values = [uint64(0), uint64(1), uint64(127), uint64(128),
+                  uint64(300), uint64(16384), ~uint64(0)]
+    for v in values {
+        let w = binary.BinWriter(binary.EndianBig)
+        w.write_uvarint(v)
+        let data = w.to_bytes()
+        let r = binary.BinReader(data, binary.EndianBig)
+        ut.assert_eq(r.read_uvarint(), v)
+    }
+}
+
+@test
+func test_signed_varint_roundtrip() {
+    let values = [int64(0), int64(1), int64(-1), int64(63), int64(-64),
+                  int64(127), int64(-128)]
+    for v in values {
+        let w = binary.BinWriter(binary.EndianBig)
+        w.write_varint(v)
+        let data = w.to_bytes()
+        let r = binary.BinReader(data, binary.EndianBig)
+        ut.assert_eq(r.read_varint(), v)
+    }
+}
+
+@test
+func test_uvarint_encoding_size() {
+    // 1 byte for 0..127
+    let w1 = binary.BinWriter(binary.EndianBig)
+    w1.write_uvarint(uint64(127))
+    ut.assert_eq(w1.len(), 1)
+
+    // 2 bytes for 128..16383
+    let w2 = binary.BinWriter(binary.EndianBig)
+    w2.write_uvarint(uint64(128))
+    ut.assert_eq(w2.len(), 2)
+
+    // 5 bytes for 32-bit max
+    let w3 = binary.BinWriter(binary.EndianBig)
+    w3.write_uvarint(uint64(0xFFFFFFFF))
+    ut.assert_eq(w3.len(), 5)
+}
+
+// ============================================================
+// Writer -> Reader round-trip
+// ============================================================
+
+@test
+func test_full_roundtrip_be() {
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_u8(uint8(1))
+    w.write_u16(uint16(2))
+    w.write_u32(uint32(3))
+    w.write_u64(uint64(4))
+    w.write_i16(int16(-5))
+    w.write_i32(int32(-6))
+    w.write_i64(int64(-7))
+    w.write_bytes(make_bytes([0xAA, 0xBB]))
+    w.write_uvarint(uint64(100000))
+    let data = w.to_bytes()
+
+    let r = binary.BinReader(data, binary.EndianBig)
+    ut.assert_eq(r.read_u8(), uint8(1))
+    ut.assert_eq(r.read_u16(), uint16(2))
+    ut.assert_eq(r.read_u32(), uint32(3))
+    ut.assert_eq(r.read_u64(), uint64(4))
+    ut.assert_eq(r.read_i16(), int16(-5))
+    ut.assert_eq(r.read_i32(), int32(-6))
+    ut.assert_eq(r.read_i64(), int64(-7))
+    let bs = r.read_bytes(2)
+    ut.assert_eq(bs[0], uint8(0xAA))
+    ut.assert_eq(bs[1], uint8(0xBB))
+    ut.assert_eq(r.read_uvarint(), uint64(100000))
+    ut.assert_true(r.is_empty())
+}
+
+@test
+func test_full_roundtrip_le() {
+    let w = binary.BinWriter(binary.EndianLittle)
+    w.write_u16(uint16(0xBEEF))
+    w.write_u32(uint32(0xCAFEBABE))
+    w.write_u64(uint64(0x0123456789ABCDEF))
+    w.write_i32(int32(-42))
+    let data = w.to_bytes()
+
+    let r = binary.BinReader(data, binary.EndianLittle)
+    ut.assert_eq(r.read_u16(), uint16(0xBEEF))
+    ut.assert_eq(r.read_u32(), uint32(0xCAFEBABE))
+    ut.assert_eq(r.read_u64(), uint64(0x0123456789ABCDEF))
+    ut.assert_eq(r.read_i32(), int32(-42))
+}
+
+// ============================================================
+// Panic on OOB
+// ============================================================
+
+@should_panic("binary: read out of bounds")
+func test_reader_oob_panic() {
+    let data = make_bytes([0x01, 0x02])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.read_u32()
+}
+
+@should_panic("binary: read out of bounds")
+func test_read_bytes_negative_panic() {
+    let data = make_bytes([0x01, 0x02, 0x03])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.read_bytes(-1)
+}
+
+@should_panic("binary: read out of bounds")
+func test_stateless_huge_offset_panic() {
+    let data = make_bytes([0x01, 0x02])
+    // INT64_MAX - 1: a naive `offset + n > size` check overflows and slips through
+    binary.BigEndian.read_u16(data, 9223372036854775806)
+}
+
+@should_panic("binary: varint overflow")
+func test_uvarint_too_long_panic() {
+    // 11 continuation bytes: a 64-bit LEB128 value spans at most 10
+    let data = make_bytes([0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                           0x80, 0x80, 0x80, 0x80, 0x80])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.read_uvarint()
+}
+
+@should_panic("binary: varint overflow")
+func test_uvarint_too_wide_panic() {
+    // the 10th byte may only carry the top bit (0 or 1); 0xFF does not fit
+    let data = make_bytes([0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+                           0x80, 0x80, 0x80, 0xFF])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.read_uvarint()
+}
+
+@should_panic("binary: incomplete uvarint")
+func test_uvarint_incomplete_panic() {
+    let data = make_bytes([0x80, 0x80])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.read_uvarint()
+}
+
+@should_panic("binary: negative skip")
+func test_skip_negative_panic() {
+    let data = make_bytes([0x01, 0x02, 0x03])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.skip(-1)
+}
+
+@should_panic("binary: skip out of bounds")
+func test_skip_oob_panic() {
+    let data = make_bytes([0x01, 0x02, 0x03])
+    let r = binary.BinReader(data, binary.EndianBig)
+    r.skip(4)
+}
+
+@should_panic("binary: invalid endian")
+func test_reader_invalid_endian_panic() {
+    let data = make_bytes([0x01])
+    binary.BinReader(data, 5)
+}
+
+@should_panic("binary: invalid endian")
+func test_writer_invalid_endian_panic() {
+    binary.BinWriter(5)
+}
+
+@test
+func test_varint_int64_min_roundtrip() {
+    // INT64_MIN exercises the zigzag edge where a signed `sv << 1` would be UB
+    let min = -9223372036854775807 - 1
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_varint(min)
+    let data = w.to_bytes()
+    let r = binary.BinReader(data, binary.EndianBig)
+    ut.assert_eq(r.read_varint(), min)
+}
+
+@test
+func test_uvarint_max_uses_ten_bytes() {
+    // ~uint64(0) encodes as 9 * 0xFF + 0x01: the 10th byte carries exactly 1
+    let w = binary.BinWriter(binary.EndianBig)
+    w.write_uvarint(~uint64(0))
+    ut.assert_eq(w.len(), 10)
+    let r = binary.BinReader(w.to_bytes(), binary.EndianBig)
+    ut.assert_eq(r.read_uvarint(), ~uint64(0))
+}

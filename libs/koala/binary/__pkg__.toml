@@ -1,0 +1,19 @@
+[package]
+name = "koala/binary"
+version = "0.1.0"
+description = "Binary encoding/decoding (big-endian, little-endian, varint)"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_binary"
+sources = [
+    "native/binary_shim.c",
+    "native/byteorder.c",
+    "native/reader.c",
+    "native/writer.c",
+]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

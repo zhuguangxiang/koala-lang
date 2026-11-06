@@ -12,6 +12,7 @@ packages = [
     "csv",
     "crypto",
     "base64",
+    "binary",
     "log",
     "re",
     "tls",
