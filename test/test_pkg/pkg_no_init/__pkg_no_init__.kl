@@ -1,0 +1,9 @@
+// Classes without a public `__init__`, and one with it to compare.
+
+pub class Plain {}
+
+pub class Generic[T] {}
+
+pub class WithInit[T] {
+    pub func __init__() {}
+}

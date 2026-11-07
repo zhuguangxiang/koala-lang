@@ -2118,7 +2118,15 @@ static void parse_call(ParserState *ps, Expr *exp)
             kl_error(lhs->loc, "trait '%s' cannot be instantiated.", origin->name);
             return;
         }
-        if (origin->flags & SYM_FLAGS_EXT) inst_sym->flags |= SYM_FLAGS_EXT;
+
+        if (origin->flags & SYM_FLAGS_EXT) {
+            if (!stbl_get(origin->stbl, "__init__")) {
+                kl_error(lhs->loc, "class '%s' is external, but has no public '__init__()'.",
+                         origin->name);
+                return;
+            }
+            inst_sym->flags |= SYM_FLAGS_EXT;
+        }
 
         Symbol *init_fn_sym = get___init___instance(inst_sym, ps);
         ASSERT(init_fn_sym);
@@ -2729,8 +2737,7 @@ static TypeSpec *type_arg_of_expr(Expr *arg, ParserState *ps)
 
         TypeSpec *infer_ts = find_lub(item_types);
         Symbol *origin = stbl_get(ps->pm->builtin, "tuple");
-        InstanceSymbol *inst_sym =
-            find_or_add_instance(ps->pm->stbl, origin, item_types, ps->pm);
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, item_types, ps->pm);
         inst_sym->arg = infer_ts;
         vector_destroy(item_types);
         return inst_sym->instance_ts;

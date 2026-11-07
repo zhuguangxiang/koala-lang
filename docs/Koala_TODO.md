@@ -3380,7 +3380,7 @@ Fixed by creating the instance when it is first needed, as generic instantiation
 
 ---
 
-## 68. A tuple as a type argument in a constructor call is read as a value (2026-11-07, to fix)
+## 68. A tuple as a type argument in a constructor call is read as a value (2026-11-07, fixed)
 
 Correct code fails to compile:
 
@@ -3396,13 +3396,19 @@ error: Incompatible type: expected 'std/builtin.tuple<Lstd/builtin.type;Lstd/bui
 but got 'std/builtin.tuple<uj>'.
 ```
 
-The element type becomes a tuple of two `type` values: `(str, int)` is treated as a tuple expression
-whose items are type names, not as a tuple type. The same type in a declaration works:
+The element type became a tuple of two `type` values: `(str, int)` was treated as a tuple expression
+whose items are type names, not as a tuple type. The same type in a declaration worked:
 `let l list[(str, int)] = [("a", 1)]`.
+
+Fixed by `type_arg_of_expr` in `src/parser/parser_expr.c`, which turns a tuple in this position into a
+tuple type, and reports a literal: `list[1]()` and `list[(1, 2)]()` compiled before, with the literal
+read as the class of its value. The type arguments of a generic function go through
+`parse_index_func_tp` and do not take a tuple. Tests: `test/test-run/test_tuple_type_arg.kl` and
+`test/test-kl/test_tuple_type_arg_errors.kl`.
 
 ---
 
-## 69. An external class without a public `__init__` (2026-11-07, to fix)
+## 69. An external class without a public `__init__` (2026-11-07, fixed)
 
 Constructing a class of another package that declares no public `__init__`:
 
@@ -3423,9 +3429,12 @@ pkg.Generic[int]()  // compiler crash
 koalac: src/parser/parser_expr.c:1243: get___init___instance: Assertion '_sym' failed
 ```
 
-`get___init___instance` asserts that the origin class has `__init__` in its symbol table, which an
-external class without a public `__init__` does not. It should report the same error as the
-non-generic class.
+`get___init___instance` asserted that the origin class has `__init__` in its symbol table, which an
+external class without a public `__init__` does not.
+
+Fixed: the constructor call of an instance checks this first, and reports the same error as the
+non-generic class. Test: `test/test-kl/test_external_class_no_init.kl`, with the package
+`test/test_pkg/pkg_no_init`.
 
 ---
 
