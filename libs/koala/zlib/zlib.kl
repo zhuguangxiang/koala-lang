@@ -1,0 +1,152 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Compress `data` in one call.
+///
+/// `level` is `-1` (the default, "zlib's choice") or `0`..`9`; `wbits` selects
+/// the wrapper the way it does in Python: `8`..`15` for the zlib format
+/// (RFC 1950, the default `15`), `-8`..`-15` for a raw DEFLATE stream
+/// (RFC 1951), and `16 + window` for gzip (RFC 1952), e.g. `31`.
+///
+/// Panics like Python's `zlib.error` for a level or window size zlib rejects
+/// ("zlib: Bad compression level").
+///
+/// For repeated chunks use `compressobj()` instead: the two calls produce the
+/// same bytes, but only `compressobj()` keeps the window between chunks.
+@native
+pub func compress(data bytes, level = Z_DEFAULT_COMPRESSION, wbits = MAX_WBITS) bytes {}
+
+/// Decompress `data` in one call, undoing `compress()`.
+///
+/// `wbits` uses the same numbering as `compress()`; `47` accepts any wrapper.
+/// `bufsize` is the initial output buffer size - Python keeps it for history,
+/// the result is the same whatever it is.
+///
+/// Panics like Python's `zlib.error` when the stream is corrupt or truncated
+/// ("zlib: Error -3 while decompressing data: incorrect header check").
+@native
+pub func decompress(data bytes, wbits = MAX_WBITS, bufsize = DEF_BUF_SIZE) bytes {}
+
+/// The CRC-32 (IEEE 802.3) checksum of `data`, continuing from `value`.
+///
+/// Pass the previous result as `value` to checksum a stream chunk by chunk.
+/// Returns an unsigned 32-bit value, like Python.
+@native
+pub func crc32(data bytes, value = 0) int {}
+
+/// The Adler-32 checksum of `data`, continuing from `value`.
+///
+/// This is the checksum the zlib format (RFC 1950) appends to the stream;
+/// the default seed is 1, as in Python.
+@native
+pub func adler32(data bytes, value = 1) int {}
+
+/// A compressor for compressing data in chunks: CPython's
+/// `zlib.compressobj()`.
+///
+/// The arguments are Python's, including the keyword-only `zdict`: a
+/// dictionary of bytes the compressor may reference, which must be handed to
+/// `decompressobj()` before the data.
+///
+/// Python's type is `zlib.Compress`; it carries the same name here.
+pub class Compress {
+    /// Create a compressor. Use `compressobj()` rather than calling this
+    /// directly - Python does not document `Compress` as a constructor.
+    @native
+    pub func __init__(level = Z_DEFAULT_COMPRESSION, method = DEFLATED,
+                      wbits = MAX_WBITS, memLevel = DEF_MEM_LEVEL,
+                      strategy = Z_DEFAULT_STRATEGY, zdict bytes? = nil) {}
+
+    /// Compress `data`, returning whatever output the engine produces.
+    ///
+    /// The result can be empty - the engine buffers until it has a block -
+    /// so concatenate the results of every call, including `flush()`.
+    @native
+    pub func compress(data bytes) bytes {}
+
+    /// Finish (or partially flush) the stream and return the remaining output.
+    ///
+    /// `mode` is one of the `Z_*_FLUSH` constants, `Z_FINISH` (the default)
+    /// last: after `Z_FINISH` the compressor is done and further `compress()`
+    /// calls panic, exactly as in Python.
+    @native
+    pub func flush(mode = Z_FINISH) bytes {}
+
+    /// Return an independent copy of this compressor, sharing the compressed
+    /// output produced so far but diverging from here on.
+    @native
+    pub func copy() Compress {}
+
+    /// Release the engine state. Internal: used by `koala/gzip` and
+    /// `koala/zipfile`, which cannot wait for a finalizer.
+    @native
+    pub func _close() {}
+}
+
+/// A decompressor for decompressing data in chunks: CPython's
+/// `zlib.decompressobj()`.
+///
+/// The three attributes are Python's, and they are attributes here too:
+///
+///     eof              the end of the stream has been reached
+///     unused_data      bytes found after the end of the stream
+///     unconsumed_tail  input the last `decompress()` call did not consume
+///
+/// They are `var` rather than `let` only because the runtime has no computed
+/// properties; the engine writes them, user code reads them.
+pub class Decompress {
+    /// Whether the end of the compressed stream has been reached.
+    pub var eof bool
+
+    /// Data that followed the end of the compressed stream. Python appends
+    /// anything offered after `eof` here; it starts out empty.
+    pub var unused_data bytes
+
+    /// Input left over by the last `decompress()` call, because `max_length`
+    /// was reached. It is prepended to the next call automatically.
+    pub var unconsumed_tail bytes
+
+    /// Create a decompressor. Use `decompressobj()`, as in Python.
+    /// `wbits` uses the same numbering as `compress()`; `zdict` must be the
+    /// dictionary the data was compressed with.
+    @native
+    pub func __init__(wbits = MAX_WBITS, zdict bytes? = nil) {}
+
+    /// Decompress `data`, returning at most `max_length` bytes.
+    ///
+    /// `max_length = 0` (the default) means "no limit". When the limit stops
+    /// the engine early, the rest of the input is kept in `unconsumed_tail`
+    /// and used by the next call.
+    @native
+    pub func decompress(data bytes, max_length = 0) bytes {}
+
+    /// Return the rest of the output for a stream whose input has ended.
+    ///
+    /// `length` is the initial output buffer size. Like Python, this does not
+    /// panic on truncated input: it returns what could be decompressed.
+    @native
+    pub func flush(length = DEF_BUF_SIZE) bytes {}
+
+    /// Return an independent copy of this decompressor.
+    @native
+    pub func copy() Decompress {}
+
+    /// Release the engine state. Internal: used by `koala/gzip` and
+    /// `koala/zipfile`, which cannot wait for a finalizer.
+    @native
+    pub func _close() {}
+}
+
+/// Create a `Compress` object, CPython's `zlib.compressobj()`.
+pub func compressobj(level = Z_DEFAULT_COMPRESSION, method = DEFLATED,
+                     wbits = MAX_WBITS, memLevel = DEF_MEM_LEVEL,
+                     strategy = Z_DEFAULT_STRATEGY, zdict bytes? = nil) Compress {
+    return Compress(level, method, wbits, memLevel, strategy, zdict)
+}
+
+/// Create a `Decompress` object, CPython's `zlib.decompressobj()`.
+pub func decompressobj(wbits = MAX_WBITS, zdict bytes? = nil) Decompress {
+    return Decompress(wbits, zdict)
+}

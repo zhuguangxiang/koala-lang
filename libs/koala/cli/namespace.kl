@@ -1,0 +1,60 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The values of a parsed command line, by `dest`, as Python's
+/// `argparse.Namespace` holds them.
+///
+/// A value's type comes from its `add_argument`: a `str` by default, an
+/// `int` / `float` with `type_="int"` / `"float"`, a `bool` for
+/// `store_true` / `store_false`, an `int` for `count`, and a list of
+/// those for `nargs="*"` / `"+"` / `REMAINDER` and `append`. A value
+/// may be nil, Python's None.
+///
+///     let out = (args.get("output")! as str)!
+///     if let name = args.get("name") { ... }
+pub class Namespace {
+    let _names list[str]
+    let _values list[any?]
+
+    pub func __init__() {
+        _names = list[str]()
+        _values = list[any?]()
+    }
+
+    /// The value of `name`, nil for None. Panics when there is no such
+    /// value, as Python raises AttributeError: a misspelled name fails
+    /// at once instead of reading as None.
+    pub func get(name str) any? {
+        let i = _index(name)
+        if i < 0 { panic("cli: Namespace has no attribute '" + name + "'") }
+        return _values[i]
+    }
+
+    /// Whether there is a value named `name`, None included.
+    pub func contains(name str) bool { return _index(name) >= 0 }
+
+    /// Set `name` to `value`, as Python's `setattr(args, name, value)`.
+    pub func set(name str, value any?) {
+        let i = _index(name)
+        if i >= 0 {
+            _values[i] = value
+            return
+        }
+        _names.append(name)
+        _values.append(value)
+    }
+
+    /// The names, in the order they were set.
+    pub func names() list[str] { return _names }
+
+    func _index(name str) int {
+        var i = 0
+        while i < _names.len() {
+            if _names[i] == name { return i }
+            i += 1
+        }
+        return -1
+    }
+}

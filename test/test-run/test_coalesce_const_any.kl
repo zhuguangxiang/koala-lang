@@ -1,0 +1,33 @@
+// RUN: koala %s | filecheck %s
+// `x ?? c` with `x` an `any?` and `c` a constant of another type: the right side is cast to
+// `any`, a `cast` whose operand is the constant. isel kept a cast to `any` for cgen, which
+// wants its operand in a register: `cgen.c: linearize: Assertion 'insn->vreg >= 0 &&
+// src->vreg >= 0' failed`.
+
+func none() any? { return nil }
+
+func some() any? { return 3 }
+
+class Holder {
+    var value any? = nil
+
+    func __init__() {}
+
+    func flag() any? { return value ?? false }
+}
+
+func main() {
+    let n any? = nil
+    print(n ?? false, n ?? "s", n ?? 2.5, n ?? 1)
+    print(none() ?? true, some() ?? "unused")
+
+    let h = Holder()
+    print(h.flag())
+    h.value = "set"
+    print(h.flag())
+}
+
+// CHECK: false s 2.5 1
+// CHECK-NEXT: true 3
+// CHECK-NEXT: false
+// CHECK-NEXT: set

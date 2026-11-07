@@ -1,0 +1,125 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// DEFLATE compression: the `zlib` format (RFC 1950), the raw DEFLATE stream
+/// (RFC 1951) and the gzip container (RFC 1952).
+///
+/// This package is a 1:1 port of CPython's `zlib` module: every name, the
+/// parameter order, the defaults and the return types are Python's, so a
+/// Python file ports to Koala by changing the import line and nothing else.
+///
+///     zlib.compress(data, level, wbits)              ->  bytes
+///     zlib.decompress(data, wbits, bufsize)          ->  bytes
+///     zlib.compressobj(level, method, wbits,         ->  Compress
+///                      memLevel, strategy, zdict)
+///     zlib.decompressobj(wbits, zdict)               ->  Decompress
+///     zlib.crc32(data, value)                        ->  int
+///     zlib.adler32(data, value)                      ->  int
+///
+/// The members of the two stream objects are Python's too: `compress()`,
+/// `flush()`, `copy()` and, on `Decompress`, the attributes `eof`,
+/// `unused_data` and `unconsumed_tail` - attributes, not methods, because
+/// Koala has plain public fields.
+///
+///     let co = zlib.compressobj(9)
+///     let part1 = co.compress(b"hello ")
+///     let part2 = co.compress(b"world") + co.flush()
+///     print(zlib.decompress(part1 + part2))          // b"hello world"
+///
+/// `None` is spelled `nil` in Koala, and the `wbits` window sizes carry over
+/// unchanged: 8..15 for the zlib wrapper, -8..-15 for raw DEFLATE, and
+/// 16 + the window size for the gzip wrapper (31 being the usual one). Use
+/// `47` to accept any of the three on decompression, as in Python.
+///
+/// The DEFLATE engine is zlib 1.3.1, vendored unmodified in `native/zlib/`
+/// (see `native/zlib/LICENSE` and `native/zlib/VERSION`). It is built into
+/// `libkoala_zlib.so`, so no system libz is required and the compressed bytes
+/// are identical to CPython's for the same input, level and window size.
+///
+/// The two sibling packages build on this one:
+///   - `koala/gzip`: the `gzip` module's `compress`/`decompress`/`open`.
+///   - `koala/zipfile`: the `zipfile` module's `ZipFile`/`ZipInfo`.
+
+/// Native symbols for this package live in `libkoala_zlib.so`.
+link "koala_zlib"
+
+/// The compression method DEFLATE, the only one zlib implements. CPython calls
+/// it `zlib.DEFLATED` (there is no `Z_DEFLATED` in the module).
+pub const DEFLATED = 8
+
+/// The chunk size `decompress()` and `flush()` work with.
+pub const DEF_BUF_SIZE = 16384
+
+/// The default `memLevel` for a compressor.
+pub const DEF_MEM_LEVEL = 8
+
+/// The largest window size: 15 bits, a 32 KiB window.
+pub const MAX_WBITS = 15
+
+/// The fastest compression level that still compresses.
+pub const Z_BEST_SPEED = 1
+
+/// The slowest, best compression level.
+pub const Z_BEST_COMPRESSION = 9
+
+/// Compression level meaning "the library default" (currently 6).
+pub const Z_DEFAULT_COMPRESSION = -1
+
+/// Compression level 0: store the data, do not compress it.
+pub const Z_NO_COMPRESSION = 0
+
+/// The default compression strategy: normal Huffman coding.
+pub const Z_DEFAULT_STRATEGY = 0
+
+/// A strategy for data produced by a filter or a predictor.
+pub const Z_FILTERED = 1
+
+/// A strategy that forces Huffman coding only, no string matching.
+pub const Z_HUFFMAN_ONLY = 2
+
+/// A strategy tuned for PNG-style data with runs of identical bytes.
+pub const Z_RLE = 3
+
+/// A strategy that forbids dynamic Huffman codes.
+pub const Z_FIXED = 4
+
+/// No flush: let the engine buffer output (the default inside `compress()`).
+pub const Z_NO_FLUSH = 0
+
+/// Flush as much output as possible, but do not align the stream.
+pub const Z_PARTIAL_FLUSH = 1
+
+/// Flush all pending output and align the stream to a byte boundary; the
+/// decompressor can then read everything written so far.
+pub const Z_SYNC_FLUSH = 2
+
+/// Like `Z_SYNC_FLUSH`, and additionally reset the compression state, so a
+/// reader can restart from here.
+pub const Z_FULL_FLUSH = 3
+
+/// Finish the stream: no more input may be compressed afterwards.
+pub const Z_FINISH = 4
+
+/// Stop at the next block boundary; meant for debugging tools.
+pub const Z_BLOCK = 5
+
+/// Also stop at the next deflate tree header; meant for debugging tools.
+pub const Z_TREES = 6
+
+/// The zlib version the engine was compiled from.
+pub let ZLIB_VERSION = _compile_version()
+
+/// The zlib version the engine reports at run time; a mismatch with
+/// `ZLIB_VERSION` would mean the loaded library is not the vendored one.
+pub let ZLIB_RUNTIME_VERSION = _runtime_version()
+
+// Native helpers behind the two version strings above. Not part of the API:
+// CPython reads them from macros and from `zlibVersion()`.
+
+@native
+func _compile_version() str {}
+
+@native
+func _runtime_version() str {}

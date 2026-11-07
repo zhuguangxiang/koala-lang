@@ -1,0 +1,446 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "koala/zlib"
+
+/// The "flags" field bit saying the member is probably ASCII text.
+pub const FTEXT = 1
+
+/// The "flags" field bit saying a 16-bit header CRC follows the header.
+pub const FHCRC = 2
+
+/// The "flags" field bit saying an "extra field" block follows the header.
+pub const FEXTRA = 4
+
+/// The "flags" field bit saying the original file name follows the header.
+pub const FNAME = 8
+
+/// The "flags" field bit saying a comment follows the header.
+pub const FCOMMENT = 16
+
+/// `GzipFile.mode` value for reading, as in CPython's `gzip` module.
+pub const READ = 1
+
+/// `GzipFile.mode` value for writing, as in CPython's `gzip` module.
+pub const WRITE = 2
+
+/// Bytes in a gzip header without any optional field.
+const HEADER_LEN = 10
+
+/// Bytes in a gzip trailer: the CRC-32 and the uncompressed length.
+const TRAILER_LEN = 8
+
+/// Bytes in the "extra field length" that follows a `FEXTRA` header.
+const EXTRA_LEN_SIZE = 2
+
+/// A fresh, independent copy of `b`.
+///
+/// `bytes` is a mutable array in Koala and `view()` shares its storage, so
+/// every value handed to a caller is copied to keep the reader's position
+/// from being observable through it.
+func copy_bytes(b bytes) bytes {
+    let buf = Buffer(b.len())
+    buf.write(b)
+    return buf.to_bytes()
+}
+
+/// The four little-endian bytes of `v`, the layout gzip uses for the
+/// timestamp, the CRC-32 and the length.
+func le32(v int) bytes {
+    let b = bytes(4)
+    let u = v & 0xffffffff
+    b[0] = uint8(u & 0xff)
+    b[1] = uint8((u >> 8) & 0xff)
+    b[2] = uint8((u >> 16) & 0xff)
+    b[3] = uint8((u >> 24) & 0xff)
+    return b
+}
+
+/// Read a little-endian 32-bit value at `off`, as a non-negative `int`.
+func read_le32(b bytes, off int) int {
+    return int(b[off]) | (int(b[off + 1]) << 8) | (int(b[off + 2]) << 16) |
+           (int(b[off + 3]) << 24)
+}
+
+/// The XFL header byte for a compression level.
+///
+/// CPython writes 2 for "best compression" and 4 for "fastest", 0 otherwise
+/// (`gzip._write_gzip_header`), which is what makes `gzip.compress()` output
+/// byte-identical.
+func xfl_for(compresslevel int) int {
+    if compresslevel == 9 { return 2 }
+    if compresslevel == 1 { return 4 }
+    return 0
+}
+
+/// Build the ten-byte gzip header for `mtime` and `compresslevel`.
+///
+/// No optional field is written: flags stay 0, and the OS byte is 255
+/// ("unknown"), exactly as CPython does.
+func make_header(mtime int, compresslevel int) bytes {
+    let h = bytes(HEADER_LEN)
+    h[0] = uint8(0x1f)
+    h[1] = uint8(0x8b)
+    h[2] = uint8(8)
+    h[3] = uint8(0)
+    let t = le32(mtime)
+    var i = 0
+    while i < 4 {
+        h[4 + i] = t[i]
+        i += 1
+    }
+    h[8] = uint8(xfl_for(compresslevel))
+    h[9] = uint8(255)
+    return h
+}
+
+/// Advance past a NUL-terminated header field (`FNAME` or `FCOMMENT`).
+func skip_zstring(data bytes, p int) int {
+    var q = p
+    while q < data.len() {
+        if int(data[q]) == 0 { return q + 1 }
+        q += 1
+    }
+    return q
+}
+
+/// Decode every gzip member in `data`.
+///
+/// Returns the concatenated payload and the timestamp of the first member -
+/// Python behaves the same way: `gzip.decompress()` walks all members, and
+/// `GzipFile.mtime` holds the timestamp the header carried.
+///
+/// Panics with CPython's `BadGzipFile` wording when the magic number, the
+/// compression method, the CRC-32 or the length does not check out, and with
+/// its `EOFError` wording when the input stops in the middle of a member.
+func gunzip(data bytes) (bytes, int) {
+    let out = Buffer()
+    var first_mtime = 0
+
+    // CPython returns b"" for b"": there is simply no member to read.
+    if data.len() == 0 { return (out.to_bytes(), first_mtime) }
+
+    var off = 0
+    var first = true
+    while off < data.len() {
+        // CPython reads the magic first and complains about it before it
+        // complains about a short header, so the order is the same here.
+        if data.len() - off < 2 || int(data[off]) != 0x1f || int(data[off + 1]) != 0x8b {
+            var end = off + 2
+            if end > data.len() { end = data.len() }
+            panic(format("gzip: Not a gzipped file (0x{})", data.view(off, end).to_hex()))
+        }
+        if data.len() - off < HEADER_LEN {
+            panic("gzip: Compressed file ended before the end-of-stream marker was reached")
+        }
+        if int(data[off + 2]) != 8 {
+            panic("gzip: Unknown compression method")
+        }
+
+        let flg = int(data[off + 3])
+        if first {
+            first_mtime = read_le32(data, off + 4)
+            first = false
+        }
+
+        var p = off + HEADER_LEN
+        if (flg & FEXTRA) != 0 {
+            if data.len() - p < EXTRA_LEN_SIZE {
+                panic("gzip: Compressed file ended before the end-of-stream marker was reached")
+            }
+            let xlen = int(data[p]) | (int(data[p + 1]) << 8)
+            p += EXTRA_LEN_SIZE + xlen
+        }
+        if (flg & FNAME) != 0 { p = skip_zstring(data, p) }
+        if (flg & FCOMMENT) != 0 { p = skip_zstring(data, p) }
+        if (flg & FHCRC) != 0 { p += 2 }
+        if p > data.len() {
+            panic("gzip: Compressed file ended before the end-of-stream marker was reached")
+        }
+
+        // The member body is a raw DEFLATE stream; whatever follows the end of
+        // that stream is the trailer and then, possibly, the next member.
+        let d = zlib.decompressobj(-15)
+        let payload = d.decompress(data.view(p, data.len()))
+        if !d.eof {
+            panic("gzip: Compressed file ended before the end-of-stream marker was reached")
+        }
+
+        let rest = d.unused_data
+        if rest.len() < TRAILER_LEN {
+            panic("gzip: Compressed file ended before the end-of-stream marker was reached")
+        }
+        let want_crc = read_le32(rest, 0)
+        let want_size = read_le32(rest, 4)
+        let got_crc = zlib.crc32(payload)
+        if want_crc != got_crc {
+            panic(format("gzip: CRC check failed {} != {}", want_crc, got_crc))
+        }
+        if want_size != (payload.len() & 0xffffffff) {
+            panic("gzip: Incorrect length of data produced")
+        }
+
+        out.write(payload)
+        off = data.len() - rest.len() + TRAILER_LEN
+    }
+
+    return (out.to_bytes(), first_mtime)
+}
+
+/// A gzip-compressed file: the object `gzip.open()` returns.
+///
+/// A member is handled whole in memory - opening for reading decompresses
+/// every member, opening for writing buffers what is written until `close()`
+/// emits the file.
+///
+/// The attribute names are Python's, with one adjustment the language forces:
+/// `name` and `closed` are fields, while `mode()` and `mtime()` are methods,
+/// because Koala rejects a constructor parameter that shadows a field and both
+/// of those are also keyword arguments of Python's `GzipFile`.
+pub class GzipFile {
+    /// The file this object reads from or writes to; Python's `name`.
+    pub let name str
+
+    /// True once `close()` ran. `close()` is idempotent.
+    pub var closed bool
+
+    /// The mode string, `"rb"` or `"wb"`; Python's `mode`.
+    var _mode str
+
+    /// The timestamp in the gzip header, in seconds since the epoch;
+    /// Python's `mtime`.
+    var _mtime int
+
+    var _compresslevel int
+
+    /// Read mode: the decompressed payload, kept whole like the member is.
+    var _blob bytes
+
+    /// Read position in decompressed bytes, and the count written in write
+    /// mode - what `tell()` reports in both directions.
+    var _pos int
+
+    /// Write mode: what has been written but not yet handed to the file.
+    var _pending Buffer
+
+    /// Open `filename` for reading (`"rb"`, the default) or writing (`"wb"`).
+    ///
+    /// Reading decompresses immediately, so a corrupt file panics here rather
+    /// than on the first `read()`. Writing stores nothing on disk until
+    /// `close()`.
+    ///
+    /// Panics for any other mode: Python's text modes (`"rt"`, `"wt"`, and the
+    /// `encoding` / `errors` / `newline` arguments that go with them) wrap the
+    /// byte stream in `io.TextIOWrapper`, which Koala does not have.
+    pub func __init__(filename str, mode = "rb", compresslevel = 9, mtime = 0) {
+        if mode != "rb" && mode != "wb" {
+            panic(format("gzip: unsupported mode '{}': use \"rb\" or \"wb\"", mode))
+        }
+        name = filename
+        _mode = mode
+        _compresslevel = compresslevel
+        _mtime = mtime
+        closed = false
+        _pos = 0
+        _pending = Buffer()
+        _blob = bytes(0)
+        if mode == "rb" {
+            let (payload, header_mtime) = gunzip(fs.read_all(filename, -1))
+            _blob = payload
+            _mtime = header_mtime
+        }
+    }
+
+    /// The mode string, `"rb"` or `"wb"`; Python's `GzipFile.mode`.
+    pub func mode() str {
+        return _mode
+    }
+
+    /// The timestamp the gzip header carries; Python's `GzipFile.mtime`.
+    pub func mtime() int {
+        return _mtime
+    }
+
+    /// Raise unless this object can be read from right now.
+    func check_readable() {
+        if closed { panic("gzip: I/O operation on closed GzipFile") }
+        if _mode != "rb" { panic("gzip: not readable: mode is not \"rb\"") }
+    }
+
+    /// Raise unless this object can be written to right now.
+    func check_writable() {
+        if closed { panic("gzip: I/O operation on closed GzipFile") }
+        if _mode != "wb" { panic("gzip: not writable: mode is not \"wb\"") }
+    }
+
+    /// Read at most `size` decompressed bytes, or everything left when `size`
+    /// is negative; Python's `GzipFile.read(size=-1)`.
+    pub func read(size = -1) bytes {
+        check_readable()
+        var end = _blob.len()
+        if size >= 0 {
+            let want = _pos + size
+            if want < end { end = want }
+        }
+        if _pos >= end { return bytes(0) }
+        let out = copy_bytes(_blob.view(_pos, end))
+        _pos = end
+        return out
+    }
+
+    /// Read from a single buffer; Python's `read1`, which here is `read()`:
+    /// the whole member is already in memory.
+    pub func read1(size = -1) bytes {
+        return read(size)
+    }
+
+    /// Read one line, including the trailing newline when there is one.
+    pub func readline(size = -1) bytes {
+        check_readable()
+        var end = _blob.len()
+        if size >= 0 {
+            let want = _pos + size
+            if want < end { end = want }
+        }
+        var i = _pos
+        while i < end {
+            if int(_blob[i]) == 10 {
+                i += 1
+                break
+            }
+            i += 1
+        }
+        if i <= _pos { return bytes(0) }
+        let line = copy_bytes(_blob.view(_pos, i))
+        _pos = i
+        return line
+    }
+
+    /// Read every remaining line.
+    pub func readlines() list[bytes] {
+        let out = list[bytes]()
+        var line = readline()
+        while line.len() > 0 {
+            out.append(line)
+            line = readline()
+        }
+        return out
+    }
+
+    /// Return up to `n` bytes without moving the read position.
+    pub func peek(n = 1) bytes {
+        check_readable()
+        var end = _pos + n
+        if end > _blob.len() { end = _blob.len() }
+        if _pos >= end { return bytes(0) }
+        return copy_bytes(_blob.view(_pos, end))
+    }
+
+    /// Move the read position; Python's `seek(offset, whence=0)`.
+    ///
+    /// `whence` is 0 (start), 1 (current) or 2 (end). Seeking past the end is
+    /// allowed and makes later reads return nothing, as in Python.
+    pub func seek(offset int, whence = 0) int {
+        check_readable()
+        var base = 0
+        if whence == 1 {
+            base = _pos
+        } else if whence == 2 {
+            base = _blob.len()
+        } else if whence != 0 {
+            panic(format("gzip: invalid whence ({})", whence))
+        }
+        let target = base + offset
+        if target < 0 { panic(format("gzip: negative seek position {}", target)) }
+        _pos = target
+        return _pos
+    }
+
+    /// The current read position, in decompressed bytes.
+    pub func tell() int {
+        return _pos
+    }
+
+    /// Seek back to the beginning; Python's `rewind()`.
+    pub func rewind() {
+        seek(0)
+    }
+
+    /// Buffer `data` for compression; Python's `GzipFile.write()`, which
+    /// returns the number of bytes accepted.
+    pub func write(data bytes) int {
+        check_writable()
+        _pending.write(data)
+        _pos += data.len()
+        return data.len()
+    }
+
+    /// Buffer every item of `lines`.
+    pub func writelines(lines list[bytes]) {
+        for line in lines {
+            write(line)
+        }
+    }
+
+    /// Nothing to do: output is only produced by `close()`.
+    pub func flush() {
+        check_writable()
+    }
+
+    /// Finish the file.
+    ///
+    /// In write mode this is where the header, the DEFLATE stream and the
+    /// trailer are built and written. Calling it twice does nothing, which is
+    /// what replaces Python's `with` statement (Koala has none).
+    pub func close() {
+        if closed { return }
+        if _mode == "wb" {
+            let raw = _pending.to_bytes()
+            let out = Buffer()
+            out.write(make_header(_mtime, _compresslevel))
+            out.write(zlib.compress(raw, _compresslevel, -15))
+            out.write(le32(zlib.crc32(raw)))
+            out.write(le32(raw.len()))
+            if !fs.write_bytes(name, out.to_bytes()) {
+                panic(format("gzip: failed to write '{}'", name))
+            }
+        }
+        closed = true
+    }
+}
+
+/// Compress `data` into a gzip member; CPython's `gzip.compress()`.
+///
+/// `compresslevel` goes to the DEFLATE engine (1 fastest, 9 best), and
+/// `mtime` is stored in the header - keep it at 0 for reproducible output,
+/// which is what Python's default does.
+///
+/// The bytes are identical to Python's for the same three arguments.
+pub func compress(data bytes, compresslevel = 9, mtime = 0) bytes {
+    let out = Buffer()
+    out.write(make_header(mtime, compresslevel))
+    out.write(zlib.compress(data, compresslevel, -15))
+    out.write(le32(zlib.crc32(data)))
+    out.write(le32(data.len()))
+    return out.to_bytes()
+}
+
+/// Decompress `data`, walking every member in it; CPython's
+/// `gzip.decompress()`.
+///
+/// Panics with Python's `BadGzipFile` wording on a bad header, a bad CRC-32 or
+/// a wrong length, and with its `EOFError` wording when a member is
+/// incomplete.
+pub func decompress(data bytes) bytes {
+    let (payload, header_mtime) = gunzip(data)
+    return payload
+}
+
+/// Open `filename` as a gzip file; CPython's `gzip.open()`, without the text
+/// modes.
+pub func open(filename str, mode = "rb", compresslevel = 9) GzipFile {
+    return GzipFile(filename, mode, compresslevel)
+}

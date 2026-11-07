@@ -1,0 +1,314 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// ArgumentParser through try_parse_args, which returns nil where
+// parse_args would exit. The expected help and errors are Python's.
+
+import "std/ut"
+import "koala/cli"
+
+// The error text after `prog: error: `, or "" when `argv` parses.
+func _error_of(p cli.ArgumentParser, argv list[str]) str {
+    if p.try_parse_args(argv) != nil { return "" }
+    let m = p.exit_message()
+    let i = m.index(": error: ")
+    if i < 0 { return "" }
+    return m.substr(i + 9, m.len() - 1)
+}
+
+// ---------- values ----------
+
+@test
+func test_defaults() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-o", "--output")
+    p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("-q", action="store_false")
+    p.add_argument("-c", action="count")
+    p.add_argument("-I", action="append")
+    p.add_argument("-d", default="./dist")
+    let args = p.try_parse_args([])!
+    ut.assert_true(args.get("output") == nil)
+    ut.assert_eq((args.get("verbose")! as bool)!, false)
+    ut.assert_eq((args.get("q")! as bool)!, true)
+    ut.assert_true(args.get("c") == nil)
+    ut.assert_true(args.get("I") == nil)
+    ut.assert_eq((args.get("d")! as str)!, "./dist")
+}
+
+@test
+func test_store_forms() {
+    let forms = [["-o", "x"], ["-ox"], ["--output", "x"], ["--output=x"], ["--out", "x"]]
+    for argv in forms {
+        let p = cli.ArgumentParser(prog="t")
+        p.add_argument("-o", "--output")
+        let args = p.try_parse_args(argv)!
+        ut.assert_eq((args.get("output")! as str)!, "x")
+    }
+}
+
+@test
+func test_last_value_wins() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-o")
+    let args = p.try_parse_args(["-o", "a", "-o", "b"])!
+    ut.assert_eq((args.get("o")! as str)!, "b")
+}
+
+@test
+func test_flags_and_count() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-v", "--verbose", action="count")
+    p.add_argument("-y", action="store_true")
+    let args = p.try_parse_args(["-vvy", "--verbose"])!
+    ut.assert_eq((args.get("verbose")! as int)!, 3)
+    ut.assert_eq((args.get("y")! as bool)!, true)
+}
+
+@test
+func test_append() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-I", "--include", action="append")
+    let args = p.try_parse_args(["-I", "a", "--include=b", "-Ic"])!
+    let inc = (args.get("include")! as list[str])!
+    ut.assert_eq(inc.len(), 3)
+    ut.assert_eq(inc[2], "c")
+}
+
+@test
+func test_types() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-j", "--jobs", type_="int", default=4)
+    p.add_argument("-r", "--ratio", type_="float")
+    p.add_argument("-n", type_="int", default="7")
+    let args = p.try_parse_args(["--ratio", "2.5"])!
+    ut.assert_eq((args.get("jobs")! as int)!, 4)
+    ut.assert_float_eq((args.get("ratio")! as float)!, 2.5)
+    // A str default is converted by type_, as in Python.
+    ut.assert_eq((args.get("n")! as int)!, 7)
+
+    let more = p.try_parse_args(["-j", "-3"])!
+    ut.assert_eq((more.get("jobs")! as int)!, -3)
+}
+
+@test
+func test_dest_and_names() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-o", "--output-dir")
+    p.add_argument("-x", dest="extra")
+    p.add_argument("src")
+    let args = p.try_parse_args(["a", "-o", "d"])!
+    ut.assert_eq((args.get("output_dir")! as str)!, "d")
+    ut.assert_true(args.contains("extra"))
+    ut.assert_false(args.contains("x"))
+    ut.assert_eq((args.get("src")! as str)!, "a")
+}
+
+// ---------- positionals ----------
+
+@test
+func test_positional_nargs() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("src")
+    p.add_argument("dst", nargs="?")
+    p.add_argument("rest", nargs="*")
+    let one = p.try_parse_args(["a"])!
+    ut.assert_true(one.get("dst") == nil)
+    ut.assert_eq((one.get("rest")! as list[str])!.len(), 0)
+
+    let many = p.try_parse_args(["a", "b", "c", "d"])!
+    ut.assert_eq((many.get("dst")! as str)!, "b")
+    ut.assert_eq((many.get("rest")! as list[str])!.len(), 2)
+}
+
+@test
+func test_positional_plus_and_type() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("nums", nargs="+", type_="int")
+    let args = p.try_parse_args(["1", "-2", "3"])!
+    let nums = (args.get("nums")! as list[int])!
+    ut.assert_eq(nums.len(), 3)
+    ut.assert_eq(nums[1], -2)
+    ut.assert_eq(_error_of(p, []), "the following arguments are required: nums")
+}
+
+@test
+func test_remainder() {
+    let p = cli.ArgumentParser(prog="run")
+    p.add_argument("-v", action="store_true")
+    p.add_argument("target")
+    p.add_argument("args", nargs=cli.REMAINDER)
+    let args = p.try_parse_args(["-v", "app.kl", "-v", "--x=1", "--", "y"])!
+    ut.assert_eq((args.get("v")! as bool)!, true)
+    let rest = (args.get("args")! as list[str])!
+    ut.assert_eq(rest.len(), 4)
+    ut.assert_eq(rest[0], "-v")
+    ut.assert_eq(rest[2], "--")
+}
+
+@test
+func test_double_dash_and_lone_dash() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-v", action="store_true")
+    p.add_argument("a")
+    p.add_argument("b")
+    let args = p.try_parse_args(["-", "--", "-v"])!
+    ut.assert_eq((args.get("a")! as str)!, "-")
+    ut.assert_eq((args.get("b")! as str)!, "-v")
+    ut.assert_eq((args.get("v")! as bool)!, false)
+}
+
+// ---------- errors ----------
+
+@test
+func test_errors() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-o", "--output")
+    p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("-j", type_="int")
+    p.add_argument("-r", type_="float")
+    p.add_argument("-m", "--mode", choices=["fast", "slow"])
+    p.add_argument("--one")
+
+    ut.assert_eq(_error_of(p, ["-o"]), "argument -o/--output: expected one argument")
+    ut.assert_eq(_error_of(p, ["-o", "-v"]), "argument -o/--output: expected one argument")
+    ut.assert_eq(_error_of(p, ["--verbose=1"]),
+                 "argument -v/--verbose: ignored explicit argument '1'")
+    ut.assert_eq(_error_of(p, ["-vx"]), "argument -v/--verbose: ignored explicit argument 'x'")
+    ut.assert_eq(_error_of(p, ["-j", "x"]), "argument -j: invalid int value: 'x'")
+    ut.assert_eq(_error_of(p, ["-r", "1e"]), "argument -r: invalid float value: '1e'")
+    ut.assert_eq(_error_of(p, ["-m", "warp"]),
+                 "argument -m/--mode: invalid choice: 'warp' (choose from 'fast', 'slow')")
+    ut.assert_eq(_error_of(p, ["--o", "x"]),
+                 "ambiguous option: --o could match --output, --one")
+    ut.assert_eq(_error_of(p, ["a", "--nope", "-x"]), "unrecognized arguments: a --nope -x")
+    ut.assert_eq(p.exit_status(), 2)
+}
+
+@test
+func test_required() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("src")
+    p.add_argument("-o", "--output", required=true)
+    ut.assert_eq(_error_of(p, []), "the following arguments are required: src, -o/--output")
+    // A missing argument is reported before an unknown one, as in Python.
+    ut.assert_eq(_error_of(p, ["--nope"]), "the following arguments are required: src, -o/--output")
+}
+
+@test
+func test_error_message_has_usage() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("src")
+    ut.assert_true(p.try_parse_args([]) == nil)
+    ut.assert_eq(p.exit_message(),
+                 "usage: t [-h] src\nt: error: the following arguments are required: src\n")
+}
+
+// ---------- help and version ----------
+
+@test
+func test_help_exits_zero() {
+    let forms = [["-h"], ["--help"], ["--he"]]
+    for argv in forms {
+        let p = cli.ArgumentParser(prog="t")
+        // Required arguments are not checked once help is asked for.
+        p.add_argument("src")
+        ut.assert_true(p.try_parse_args(argv) == nil)
+        ut.assert_eq(p.exit_status(), 0)
+        ut.assert_eq(p.exit_message(), p.format_help())
+    }
+}
+
+@test
+func test_version() {
+    let p = cli.ArgumentParser(prog="tool")
+    p.add_argument("-V", "--version", action="version", version="%(prog)s 1.0")
+    ut.assert_true(p.try_parse_args(["-V"]) == nil)
+    ut.assert_eq(p.exit_status(), 0)
+    ut.assert_eq(p.exit_message(), "tool 1.0\n")
+}
+
+@test
+func test_usage() {
+    let p = cli.ArgumentParser(prog="tool")
+    p.add_argument("-v", action="store_true")
+    p.add_argument("--output", "-o")
+    p.add_argument("-j", "--jobs", required=true, metavar="N")
+    p.add_argument("src")
+    p.add_argument("dst", nargs="?")
+    p.add_argument("rest", nargs="*")
+    ut.assert_eq(p.format_usage(),
+                 "usage: tool [-h] [-v] [--output OUTPUT] -j N src [dst] [rest ...]\n")
+
+    let q = cli.ArgumentParser(prog="cat")
+    q.add_argument("files", nargs="+")
+    ut.assert_eq(q.format_usage(), "usage: cat [-h] files [files ...]\n")
+
+    let r = cli.ArgumentParser(prog="run")
+    r.add_argument("target")
+    r.add_argument("args", nargs=cli.REMAINDER)
+    ut.assert_eq(r.format_usage(), "usage: run [-h] target ...\n")
+}
+
+@test
+func test_help_text() {
+    let p = cli.ArgumentParser(prog="tool", description="Copy things.", epilog="See the docs.")
+    p.add_argument("-v", "--verbose", action="store_true", help="Print each step")
+    p.add_argument("-o", "--output-dir", default="./dist",
+                   help="Where to write (default: %(default)s)")
+    p.add_argument("src", help="What to copy")
+
+    let want = "usage: tool [-h] [-v] [-o OUTPUT_DIR] src\n" +
+               "\n" +
+               "Copy things.\n" +
+               "\n" +
+               "positional arguments:\n" +
+               "  src                   What to copy\n" +
+               "\n" +
+               "options:\n" +
+               "  -h, --help            show this help message and exit\n" +
+               "  -v, --verbose         Print each step\n" +
+               "  -o OUTPUT_DIR, --output-dir OUTPUT_DIR\n" +
+               "                        Where to write (default: ./dist)\n" +
+               "\n" +
+               "See the docs.\n"
+    ut.assert_eq(p.format_help(), want)
+}
+
+@test
+func test_help_column_follows_widest_entry() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-v", "--verbose", action="store_true")
+    p.add_argument("--version", action="version", version="1")
+    let want = "usage: t [-h] [-v] [--version]\n" +
+               "\n" +
+               "options:\n" +
+               "  -h, --help     show this help message and exit\n" +
+               "  -v, --verbose\n" +
+               "  --version      show program's version number and exit\n"
+    ut.assert_eq(p.format_help(), want)
+}
+
+@test
+func test_help_choices_metavar() {
+    let p = cli.ArgumentParser(prog="t")
+    p.add_argument("-m", "--mode", choices=["fast", "slow"])
+    p.add_argument("level", choices=["1", "2"])
+    ut.assert_eq(p.format_usage(), "usage: t [-h] [-m {fast,slow}] {1,2}\n")
+}
+
+@test
+func test_help_wraps_long_text() {
+    let p = cli.ArgumentParser(prog="t")
+    let words = "one two three four five six seven eight nine ten eleven twelve thirteen"
+    p.add_argument("-x", help=words)
+    let want = "usage: t [-h] [-x X]\n" +
+               "\n" +
+               "options:\n" +
+               "  -h, --help  show this help message and exit\n" +
+               "  -x X        one two three four five six seven eight nine ten eleven twelve\n" +
+               "              thirteen\n"
+    ut.assert_eq(p.format_help(), want)
+}

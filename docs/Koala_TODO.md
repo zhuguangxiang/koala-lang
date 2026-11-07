@@ -47,11 +47,12 @@
 > constructed (§74, to fix), unary operators still promote automatically (§75, to fix), `T` is not
 > inferred through a `Box[T?]` parameter (§77, to fix), `enum` as sugar for a final class (§78,
 > planned), native handles of `koala/http` and `koala/tls` have no finalizer (§79, waits for a
-> free path), `koala/http` leftovers (§80, to do), `koala/tls` leftovers (§81, to do).
+> free path), `koala/http` leftovers (§80, to do), `koala/tls` leftovers (§81, to do), `as!`: a forced cast for a
+> value known to have the type (§82, to discuss).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-08 (§62: the TLS items fixed; §25.4: the network and command-line rows
+> 更新日期：2026-11-08 (added §82: `as!`, a forced cast; §62: the TLS items fixed; §25.4: the network and command-line rows
 > updated; added §79: native handles without a finalizer; added §80: `koala/http` leftovers; added
 > §81: `koala/tls` leftovers)；2026-11-07 (added §78: the plan for `enum`; added §77: `T` is not inferred through `Box[T?]`; §72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
@@ -1334,7 +1335,7 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 |---|---|---|---|
 | 网络 | socket, http, urllib, ssl | `std/socket`（TCP / UDP / raw）、`koala/tls`（基于 OpenSSL 的 TLS 客户端）、`koala/http`（HTTP/1.1 客户端，报文解析用 vendor 的 llhttp，URL 解析只有它的 `Url`） | 2026-11-08 更新：无服务端 TLS / HTTP，遗留见 §80、§81 |
 | 加密/编码/压缩 | hashlib, hmac, base64, zlib, gzip, codecs | **无**（`.hash()` 是 FNV-1a 内部哈希，非加密） | base64/zlib 实用但非语言核心 |
-| 命令行解析 | argparse, getopt, shlex | `koala/cli`（argparse 风格：`Flag` / `StrOption` / `IntOption` / `Positional`，自动 `-h`，出错 exit 2）；无 shlex | 2026-11-08 更新：子命令、`--version` 留待 v2 |
+| 命令行解析 | argparse, getopt, shlex | `koala/cli`：argparse 的 API（`ArgumentParser` / `add_argument` / `add_subparsers` / `add_parser` / `parse_args`，Python 的帮助与报错格式），取值 `(args.get("x")! as str)!`；`type_="int"`（`type` 是关键字），无 `store_const`、无 shlex | 2026-11-08 更新，取值的易用性见 §82 |
 | 结构化配置 | enum, dataclasses | 无 | 范式差异 |
 
 ### 25.5 综合判断
@@ -3757,3 +3758,102 @@ connection. `dial(url, options?, net_options?)` and `TlsOptions` (handshake time
 **Behavior to know.** With a handshake timeout, `wrap` clears the read and write timeouts of the
 TCP connection afterwards. This also clears the `SO_SNDTIMEO` that `so.dial` leaves set for its
 connect timeout.
+
+---
+
+## 82. `as!`: a forced cast for a value known to have the type (2026-11-08, to discuss)
+
+Taking a value out of an `any` / trait / union when the code knows its type is common: the values
+of a `koala/cli` Namespace, a json `Value`, a container of `any`. Today it is written:
+
+```kl
+let out = (args.get("output")! as str)!     // get() returns any?
+```
+
+The first `!` says "not nil", the `as` gives `str?`, the second `!` says "it is a str". It is
+correct and follows §29 (an optional is unwrapped before `as`), but has two costs:
+
+- The parentheses, at every such read.
+- A failed cast panics as an unwrap of nil: the message says neither the expected nor the actual
+  type.
+
+**Proposal.** `x as! T`, the forced form of `as`: the same as `(x as T)!`, with the result type `T`
+instead of `T?`. A failed cast panics with both types, e.g. `cast failed: expected 'str', got
+'int64'`.
+
+```kl
+let out = args.get("output")! as! str
+```
+
+- The source still cannot be optional: `as!` does not unwrap nil, the `!` before it does. Checking
+  for nil and checking the type stay separate, as §29 decides.
+- `!` already means "I am sure, panic otherwise"; `as!` applies it to a cast. Swift has the same
+  `as!` / `as?` pair.
+- No hidden mechanism: it is `(x as T)!` written directly. The cost is one more operator, against
+  design principle 3.
+- Rejected: an `as!` that takes an optional source and checks for nil and the type at once. It
+  would undo §29.
+
+To decide. If accepted: the checker gives `as!` the type `T`, irgen emits `as` plus a nil check, or
+a panic that carries the two types; tests for success, a wrong type, and an optional source (an
+error).
+
+## 83. A `const` cannot hold `bytes`, and reads it back wrong at run time (2026-11-08, to fix)
+
+Found while writing the tests for `koala/zipfile`.
+
+A `const` whose value is a `bytes` literal compiles, then aborts the process the first time it is
+read:
+
+```kl
+const DIGITS = b"0123456789"
+
+func main() {
+    print(DIGITS.len())
+}
+```
+
+```
+koala: include/runtime/vm_ops.h:2435: _eval_frame:
+       Assertion `obj && ((((obj))->_type) == &global_type)' failed.
+Aborted (core dumped)
+```
+
+A `str` constant of the same shape is fine (`pub const RFC_4122 = "specified in RFC 4122"` in
+`koala/uuid` has worked since that package landed), and a module-level `let` holding the same
+`bytes` works as well, so the fault is in how a `bytes` constant is materialised into the module
+globals and then loaded from them: the loader expects a `global_type` object where it finds
+something else.
+
+Two smaller findings from the same session, both worth a decision rather than a fix:
+
+- `const` values must be literals, so a long literal cannot be split across lines with `+`:
+  `const PY_ZIP = "504b..." + "0304..."` is rejected with `const value must be a literal`. The
+  workaround used in `koala/zipfile`'s test is one long line, which is what the file carries.
+- An untyped parameter whose default is `nil` crashes the compiler instead of being rejected: the
+  manual says a parameter type may be omitted when a default pins it down, but `nil` pins nothing
+  and the checker dereferences a null `src`:
+
+  ```kl
+  func t(x = nil) { if x == nil { print("none") } }
+
+  func main() { t(); t(b"abc") }
+  ```
+
+  ```
+  koalac: src/parser/parser.c:558: _optional_compatible_check:
+          Assertion `dst->opt.src != ((void *)0)' failed.
+  ```
+
+  So a `bytes? = nil` parameter has to spell its type out (`zdict bytes? = nil` in `koala/zlib`),
+  which is why those annotations survive the type-omission cleanup.
+- `as` on a union is not uniform: `x as bytes` after `if x is bytes` narrows to a non-optional
+  `bytes`, so `(x as bytes)!` is rejected in one place ("types of two sides are not matched") while
+  `(y as str)!` is required in another (`str?` from `str | bytes`), and `source as str` inside
+  `if source is str` is rejected with "src of `as` operator is not a valid type". Each call site in
+  `koala/zipfile` now carries the form the checker accepts, with no rule behind the choice. This is
+  the case §82's `as!` would tidy up.
+
+Until the `const` crash is fixed, the rule for library code is: **hold module-level bytes in a
+`let`, or return them from a function**; never in a `const`.
+

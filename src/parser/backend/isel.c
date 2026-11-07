@@ -1033,6 +1033,13 @@ static void isel_lower_cast(KlrInsn *insn)
         // TODO: Should be revmoed in cgen stage?
         // any -> class, because it is in if-narrow block, so the type is narrowed to class.
         // DO NOTHING: keep OP_IR_CAST so cgen SHOULD remove it.
+
+        // cgen reads the operand from a register: a constant, e.g. `false` in `x ?? false`
+        // with `x` an `any?`, is loaded into one first
+        if (klr_is_const(src)) {
+            KlrValue *_src = lower_const(insn, (KlrConst *)src);
+            set_operand_at(insn, 0, _src);
+        }
     } else {
         UNREACHABLE();
     }
@@ -1375,6 +1382,17 @@ static void isel_lower_make_intf(KlrInsn *insn)
     }
 }
 
+// `is` / `as` read their operand from a register: const-copy-prop leaves a constant there when
+// the operand is an `any` local initialized with one, e.g. `let a any = "s"; a as str`
+static void isel_lower_is_as(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+}
+
 static void isel_lower_str(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -1526,6 +1544,12 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_MAKE_INTF: {
                     isel_lower_make_intf(insn);
+                    break;
+                }
+
+                case OP_IS:
+                case OP_AS: {
+                    isel_lower_is_as(insn);
                     break;
                 }
 

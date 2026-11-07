@@ -1,0 +1,45 @@
+// RUN: koala %s | filecheck %s
+// Variadic parameters collect their arguments into a tuple (Manual: "Tuples and Variadic Types").
+// Calling a method on it, e.g. `names.len()`, failed with "type symbol is not found", typed
+// (`names ...str`) or not (`names ...`).
+
+func count_typed(names ...str) int {
+    return names.len()
+}
+
+func count_untyped(items ...) int {
+    return items.len()
+}
+
+func first(names ...str) str {
+    return names[0]
+}
+
+func joined(names ...str, sep = ",") str {
+    var out = ""
+    for n in names {
+        if out.len() > 0 { out += sep }
+        out += n
+    }
+    return out
+}
+
+class Box {
+    func __init__() {}
+
+    func count(names ...str) int { return names.len() }
+}
+
+func main() {
+    print(count_typed("-o", "--output"), count_typed())
+    print(count_untyped(1, "a", 2.5))
+    print(first("-v", "--verbose"))
+    print(joined("a", "b", "c"), joined("a", "b", sep = "-"))
+    print(Box().count("x", "y", "z"))
+}
+
+// CHECK: 2 0
+// CHECK-NEXT: 3
+// CHECK-NEXT: -v
+// CHECK-NEXT: a,b,c a-b
+// CHECK-NEXT: 3

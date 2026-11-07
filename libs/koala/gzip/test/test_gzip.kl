@@ -1,0 +1,174 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "std/ut"
+import "koala/gzip"
+
+// The expected bytes were produced by CPython 3.14.4, whose gzip module and
+// zlib 1.3.1 write the same header, DEFLATE stream and trailer this package
+// writes - so the whole member, not just the payload, has to match.
+
+/// A path in the system temp directory, removed by every test that makes one.
+const TMP = "/tmp/koala_gzip_test.gz"
+
+// ============================================================
+// In-memory compression
+// ============================================================
+
+@test
+func test_compress_golden() {
+    ut.assert(gzip.compress(b"hello world").to_hex() ==
+              "1f8b08000000000002ffcb48cdc9c95728cf2fca49010085114a0d0b000000")
+}
+
+@test
+func test_compress_mtime() {
+    // Bytes 4..8 of the header hold the timestamp, little-endian: 1234.
+    ut.assert(gzip.compress(b"hello world", 9, 1234).to_hex() ==
+              "1f8b0800d204000002ffcb48cdc9c95728cf2fca49010085114a0d0b000000")
+}
+
+@test
+func test_compress_level_changes_xfl() {
+    // XFL is 2 for level 9, 4 for level 1, 0 otherwise - CPython's rule.
+    ut.assert(gzip.compress(b"hello world", 1, 0).to_hex() ==
+              "1f8b08000000000004ffcb48cdc9c95728cf2fca49010085114a0d0b000000")
+}
+
+@test
+func test_decompress_roundtrip() {
+    ut.assert(gzip.decompress(gzip.compress(b"hello world")) == b"hello world")
+    ut.assert(gzip.decompress(gzip.compress(b"")) == b"")
+    // CPython returns b"" for empty input: there is no member to read.
+    ut.assert(gzip.decompress(b"") == b"")
+}
+
+@test
+func test_multiple_members() {
+    let buf = Buffer()
+    buf.write(gzip.compress(b"hello "))
+    buf.write(gzip.compress(b"world"))
+    ut.assert(gzip.decompress(buf.to_bytes()) == b"hello world")
+}
+
+// ============================================================
+// Files
+// ============================================================
+
+@test
+func test_write_then_read() {
+    let w = gzip.open(TMP, "wb")
+    ut.assert(w.write(b"hello ") == 6)
+    ut.assert(w.write(b"world") == 5)
+    ut.assert(w.tell() == 11)
+    w.close()
+    // close() is idempotent, replacing Python's `with`.
+    w.close()
+    ut.assert(w.closed)
+
+    // What landed on disk is byte for byte gzip.compress().
+    ut.assert(fs.read_all(TMP, -1).to_hex() == gzip.compress(b"hello world").to_hex())
+
+    let r = gzip.open(TMP, "rb")
+    ut.assert(r.mode() == "rb")
+    ut.assert(r.mtime() == 0)
+    ut.assert(r.name == TMP)
+    ut.assert(r.read(5) == b"hello")
+    ut.assert(r.peek(1) == b" ")
+    ut.assert(r.tell() == 5)
+    ut.assert(r.read() == b" world")
+    ut.assert(r.read() == b"")
+    r.rewind()
+    ut.assert(r.tell() == 0)
+    ut.assert(r.read(5) == b"hello")
+    ut.assert(r.seek(0, 2) == 11)
+    ut.assert(r.read() == b"")
+    r.close()
+    ut.assert(r.closed)
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_readline_and_readlines() {
+    let w = gzip.open(TMP, "wb")
+    w.write(b"one\ntwo\nthree")
+    w.close()
+
+    let r = gzip.open(TMP, "rb")
+    ut.assert(r.readline() == b"one\n")
+    ut.assert(r.readline() == b"two\n")
+    ut.assert(r.readline() == b"three")
+    ut.assert(r.readline() == b"")
+    r.close()
+
+    let r2 = gzip.open(TMP, "rb")
+    let lines = r2.readlines()
+    ut.assert(lines.len() == 3)
+    ut.assert(lines[0] == b"one\n")
+    ut.assert(lines[2] == b"three")
+    r2.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_writelines_and_level() {
+    let w = gzip.open(TMP, "wb", 1)
+    let lines = list[bytes]()
+    lines.append(b"alpha\n")
+    lines.append(b"beta\n")
+    w.writelines(lines)
+    w.close()
+
+    ut.assert(fs.read_all(TMP, -1).to_hex() == gzip.compress(b"alpha\nbeta\n", 1).to_hex())
+    let r = gzip.open(TMP, "rb")
+    ut.assert(r.read() == b"alpha\nbeta\n")
+    r.close()
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Module surface
+// ============================================================
+
+@test
+func test_constants_match_cpython() {
+    ut.assert(gzip.FTEXT == 1)
+    ut.assert(gzip.FHCRC == 2)
+    ut.assert(gzip.FEXTRA == 4)
+    ut.assert(gzip.FNAME == 8)
+    ut.assert(gzip.FCOMMENT == 16)
+    ut.assert(gzip.READ == 1)
+    ut.assert(gzip.WRITE == 2)
+}
+
+// ============================================================
+// Failures, with Python's wording
+// ============================================================
+
+@should_panic("gzip: Not a gzipped file (0x6162)")
+func test_panic_not_gzip() {
+    gzip.decompress(b"ab")
+}
+
+@should_panic("gzip: Compressed file ended before the end-of-stream marker was reached")
+func test_panic_truncated() {
+    gzip.decompress(gzip.compress(b"hello world").view(0, 20))
+}
+
+@should_panic("gzip: unsupported mode 'rt': use \"rb\" or \"wb\"")
+func test_panic_text_mode() {
+    gzip.open(TMP, "rt")
+}
+
+@should_panic("gzip: I/O operation on closed GzipFile")
+func test_panic_read_after_close() {
+    let w = gzip.open(TMP, "wb")
+    w.write(b"x")
+    w.close()
+    let r = gzip.open(TMP, "rb")
+    r.close()
+    r.read()
+}

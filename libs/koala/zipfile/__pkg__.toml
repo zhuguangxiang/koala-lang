@@ -1,0 +1,6 @@
+[package]
+name = "koala/zipfile"
+version = "0.1.0"
+description = "Read and write ZIP archives with Python's zipfile module API"
+dependencies = ["koala/zlib"]
+natives = []

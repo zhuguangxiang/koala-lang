@@ -1,0 +1,39 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The gzip file format (RFC 1952), the way Python's `gzip` module presents
+/// it.
+///
+///     gzip.compress(data, compresslevel, mtime)  ->  bytes
+///     gzip.decompress(data)                      ->  bytes
+///     gzip.open(filename, mode, compresslevel)   ->  GzipFile
+///
+/// The header and the trailer are written byte for byte like CPython's: the
+/// XFL byte is 2 at level 9 and 4 at level 1 (0 otherwise), the OS byte is
+/// 255 ("unknown"), and no file name is stored. Compressed output is
+/// therefore identical to Python's for the same input, level and mtime.
+///
+///     let packed = gzip.compress(b"hello world")
+///     print(gzip.decompress(packed))         // b"hello world"
+///     let f = gzip.open("hello.txt.gz", "wb")
+///     f.write(b"hello world")
+///     f.close()
+///
+/// The DEFLATE stream inside the container comes from `koala/zlib`; the
+/// container itself - header, optional fields, CRC-32 and length trailer,
+/// and the concatenation of multiple members that Python supports - is pure
+/// Koala.
+///
+/// Two Python details cannot be carried over, and the difference is
+/// deliberate:
+///   - Koala has no `with`, so `close()` is explicit (it is idempotent).
+///     For writing, `close()` is what emits the trailer and the file.
+///   - `GzipFile` takes a file name, not a `fileobj`: Koala's file types are
+///     distinct classes rather than a shared protocol, so `gzip.open()` is
+///     the entry point and a gzip member is handled whole in memory.
+///
+/// Text modes (`"rt"`, `"wt"`), `encoding`, `errors` and `newline` are not
+/// offered: Python's versions wrap the byte stream in `io.TextIOWrapper`,
+/// and Koala has no equivalent. Passing one panics.

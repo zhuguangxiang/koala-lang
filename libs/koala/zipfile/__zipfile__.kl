@@ -1,0 +1,39 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// ZIP archives (the format `PKZIP` defined in APPNOTE.TXT), presented the way
+/// Python's `zipfile` module presents them.
+///
+///     zipfile.ZipFile(file, mode, compression, allowZip64, compresslevel)
+///     zipfile.ZipInfo(name, date_time)
+///     zipfile.is_zipfile(source)
+///     zipfile.ZIP_STORED / ZIP_DEFLATED / ZIP_BZIP2 / ZIP_LZMA
+///
+/// Reading walks the central directory and decompresses a member on demand;
+/// writing records the members and lays down the local headers, the central
+/// directory and the end-of-central-directory record when `close()` runs.
+/// `ZIP_DEFLATED` members go through `koala/zlib`, so a stored and a deflated
+/// member produce the same bytes Python produces.
+///
+///     let zf = zipfile.ZipFile("out.zip", "w", zipfile.ZIP_DEFLATED)
+///     zf.writestr("hello.txt", "hello world")
+///     zf.close()
+///     let zr = zipfile.ZipFile("out.zip")
+///     print(zr.namelist())              // [hello.txt]
+///     print(zr.read("hello.txt"))       // b"hello world"
+///     zr.close()
+///
+/// Three Python details cannot be carried over, and the difference is
+/// deliberate:
+///   - `ZIP_BZIP2` and `ZIP_LZMA` are declared but not implemented: Koala has
+///     no bzip2 or LZMA codec, so both panic with a message that says so.
+///   - `with` does not exist, so `close()` is explicit (it is idempotent);
+///     for a file opened for writing, `close()` is what creates the archive.
+///   - The constructor parameter names differ where Koala rejects a parameter
+///     that shadows a field (`ZipInfo(name, date_time)` is `ZipInfo(arcname,
+///     dt)` here); call sites pass these positionally and are unaffected.
+///
+/// Encryption (`pwd`), `zipfile.Path` and Python's `ZipExtFile`-returning
+/// `open()` are not offered.

@@ -1,0 +1,6 @@
+[package]
+name = "koala/gzip"
+version = "0.1.0"
+description = "The gzip container (RFC 1952) with Python's gzip module API"
+dependencies = ["koala/zlib"]
+natives = []

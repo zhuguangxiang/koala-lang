@@ -1,0 +1,137 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// add_subparsers / add_parser through try_parse_args. The expected help
+// and errors are Python's.
+
+import "std/ut"
+import "koala/cli"
+
+// The error text after `prog: error: `, or "" when `argv` parses.
+func _error_of(p cli.ArgumentParser, argv list[str]) str {
+    if p.try_parse_args(argv) != nil { return "" }
+    let m = p.exit_message()
+    let i = m.index(": error: ")
+    if i < 0 { return "" }
+    return m.substr(i + 9, m.len() - 1)
+}
+
+// tool [-v] {build [-o OUTPUT] [dir], run target ...}
+func _tool() cli.ArgumentParser {
+    let p = cli.ArgumentParser(prog="tool")
+    p.add_argument("-v", "--verbose", action="store_true")
+    let sub = p.add_subparsers(dest="command", help="The command")
+
+    let build = sub.add_parser("build", help="Compile")
+    build.add_argument("-o", "--output", default="./dist")
+    build.add_argument("dir", nargs="?")
+
+    let run = sub.add_parser("run", help="Run a target")
+    run.add_argument("target")
+    run.add_argument("args", nargs=cli.REMAINDER)
+    return p
+}
+
+@test
+func test_command_values_share_the_namespace() {
+    let p = _tool()
+    let args = p.try_parse_args(["-v", "build", "src", "-o", "out"])!
+    ut.assert_eq((args.get("command")! as str)!, "build")
+    ut.assert_eq((args.get("verbose")! as bool)!, true)
+    ut.assert_eq((args.get("dir")! as str)!, "src")
+    ut.assert_eq((args.get("output")! as str)!, "out")
+    // The values of a command that was not chosen are not set, as in Python.
+    ut.assert_false(args.contains("target"))
+}
+
+@test
+func test_no_command() {
+    let p = _tool()
+    let args = p.try_parse_args([])!
+    ut.assert_true(args.get("command") == nil)
+    ut.assert_eq((args.get("verbose")! as bool)!, false)
+}
+
+@test
+func test_run_takes_the_rest() {
+    let p = _tool()
+    let args = p.try_parse_args(["run", "app.kl", "-h", "--x"])!
+    ut.assert_eq((args.get("target")! as str)!, "app.kl")
+    let rest = (args.get("args")! as list[str])!
+    ut.assert_eq(rest.len(), 2)
+    ut.assert_eq(rest[0], "-h")
+}
+
+@test
+func test_command_errors() {
+    let p = _tool()
+    ut.assert_eq(_error_of(p, ["bild"]),
+                 "argument command: invalid choice: 'bild' (choose from 'build', 'run')")
+    ut.assert_eq(_error_of(p, ["run"]), "the following arguments are required: target")
+    // After the command name the parent's options are unknown.
+    ut.assert_eq(_error_of(p, ["build", "--verbose"]), "unrecognized arguments: --verbose")
+    // The error is the command's: its usage is printed.
+    ut.assert_true(p.exit_message().starts_with("usage: tool build [-h] [-o OUTPUT] [dir]\n"))
+}
+
+@test
+func test_required_command() {
+    let p = cli.ArgumentParser(prog="tool")
+    let sub = p.add_subparsers(dest="command", required=true)
+    sub.add_parser("build")
+    ut.assert_eq(_error_of(p, []), "the following arguments are required: command")
+}
+
+@test
+func test_command_without_dest() {
+    let p = cli.ArgumentParser(prog="tool")
+    let sub = p.add_subparsers()
+    sub.add_parser("build")
+    let args = p.try_parse_args(["build"])!
+    ut.assert_false(args.contains("command"))
+    ut.assert_eq(_error_of(p, ["x"]),
+                 "argument {build}: invalid choice: 'x' (choose from 'build')")
+}
+
+@test
+func test_nested_commands() {
+    let p = cli.ArgumentParser(prog="git")
+    let sub = p.add_subparsers(dest="command")
+    let remote = sub.add_parser("remote")
+    let rsub = remote.add_subparsers(dest="action")
+    let add = rsub.add_parser("add")
+    add.add_argument("url")
+    let args = p.try_parse_args(["remote", "add", "x"])!
+    ut.assert_eq((args.get("command")! as str)!, "remote")
+    ut.assert_eq((args.get("action")! as str)!, "add")
+    ut.assert_eq((args.get("url")! as str)!, "x")
+}
+
+@test
+func test_command_help() {
+    let p = _tool()
+    ut.assert_true(p.try_parse_args(["build", "-h"]) == nil)
+    ut.assert_eq(p.exit_status(), 0)
+    ut.assert_true(p.exit_message().starts_with("usage: tool build [-h] [-o OUTPUT] [dir]\n"))
+}
+
+@test
+func test_help_lists_commands() {
+    let p = cli.ArgumentParser(prog="tool")
+    let sub = p.add_subparsers(dest="command", help="The command")
+    sub.add_parser("build", help="Compile")
+    sub.add_parser("run", help="Run a target")
+
+    let want = "usage: tool [-h] {build,run} ...\n" +
+               "\n" +
+               "positional arguments:\n" +
+               "  {build,run}  The command\n" +
+               "    build      Compile\n" +
+               "    run        Run a target\n" +
+               "\n" +
+               "options:\n" +
+               "  -h, --help   show this help message and exit\n"
+    ut.assert_eq(p.format_help(), want)
+}

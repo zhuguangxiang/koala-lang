@@ -3,275 +3,578 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+import "std/os"
 import "std/sys"
 
-/// Why a command line was rejected.
-pub class ParseError {
-    let _message str
-
-    pub func __init__(message str) {
-        _message = message
-    }
-
-    /// The error text, without the program name, e.g.
-    /// `argument -j/--jobs: invalid int value: 'x'`.
-    pub func message() str { return _message }
-}
-
-/// A command-line parser, in the spirit of Python's argparse.
+/// A command-line parser with the API of Python's `argparse`.
 ///
-/// Declare the arguments with `add`, which returns the argument so its
-/// value can be read after the parse:
+///     let parser = cli.ArgumentParser(prog="tool", description="Do things.")
+///     parser.add_argument("-v", "--verbose", action="store_true", help="Print more")
+///     parser.add_argument("-o", "--output", default="./dist")
+///     parser.add_argument("-j", "--jobs", type_="int", default=4)
+///     parser.add_argument("dir", nargs="?")
+///     let args = parser.parse_args()
+///     let out = (args.get("output")! as str)!
 ///
-///     let app = cli.Parser("tool", "Do a thing")
-///     let verbose = app.add(cli.Flag("verbose").set_short("v"))
-///     let out = app.add(cli.StrOption("output").set_short("o").set_default("."))
-///     app.parse_or_exit(sys.args())
-///     print(verbose.value(), out.value()!)
+/// Where it differs from Python, because Koala is statically typed:
 ///
-/// Accepted forms: `-v`, `-vq`, `-o x`, `-ox`, `--output x`,
-/// `--output=x`, and `--`, after which everything is positional.
-/// `-h` / `--help` is always there and cannot be redeclared.
-pub class Parser {
+/// - Values are read with `args.get("output")`, an `any?`, not
+///   `args.output`.
+/// - `type_="int"` names the type: `type` is a keyword, and a type is not
+///   a value. `str`, `int` and `float` are supported.
+/// - `parse_args` exits on an error, as Python does by default.
+///   `try_parse_args` does not exit: it returns nil, and
+///   `exit_status()` / `exit_message()` tell what parse_args would print.
+///
+/// Not supported: `store_const` (`const` is a keyword), `nargs` on an
+/// option, more than two option strings, argument groups, and wrapping
+/// of a long usage line.
+pub class ArgumentParser {
     let _prog str
     let _description str
-    let _args list[Arg]
-    var _help_requested bool = false
+    let _epilog str
+    let _actions list[_Action]
+    var _subparsers _Action? = nil
+    var _exit_status int = 0
+    var _exit_message str = ""
 
-    /// `prog` is the program name shown in usage and errors.
-    pub func __init__(prog str, description str = "") {
+    /// `prog` is the program name in usage and errors; it defaults to
+    /// `prog`, as Koala has no `sys.argv[0]` for Python's default.
+    /// `add_help` adds `-h` / `--help`.
+    pub func __init__(prog str = "prog", description str = "", epilog str = "",
+                      add_help bool = true) {
         _prog = prog
         _description = description
-        _args = list[Arg]()
+        _epilog = epilog
+        _actions = list[_Action]()
+        if add_help {
+            let names = list[str]()
+            names.append("-h")
+            names.append("--help")
+            let help = "show this help message and exit"
+            _actions.append(_Action(names, "help", "help", "", nil, "str", nil, false, help, "", ""))
+        }
     }
 
-    /// Declare `arg` and return it. Panics when its name or short name
-    /// is already taken, or is `help` / `h`.
-    pub func add[T : Arg](arg T) T {
-        _check_names(arg)
-        _args.append(arg)
-        return arg
+    /// The program name.
+    pub func prog() str { return _prog }
+
+    /// Declare an argument, as Python's `add_argument`. `name` is a
+    /// positional (`"dir"`) or an option string (`"-o"` / `"--output"`);
+    /// `flag` is a second option string. Panics on a declaration Python
+    /// rejects, and on one this module does not support.
+    pub func add_argument(name str, flag str = "", action str = "store", nargs str = "",
+                          default any? = nil, type_ str = "str", choices list[str]? = nil,
+                          required bool = false, help str = "", metavar str = "",
+                          dest str = "", version str = "") {
+        let option_strings = list[str]()
+        if name.starts_with("-") {
+            option_strings.append(name)
+            if flag.len() > 0 { option_strings.append(flag) }
+        } else if flag.len() > 0 {
+            panic("cli: invalid option string '" + flag + "' for positional '" + name + "'")
+        }
+
+        _check_declaration(name, option_strings, action, nargs, type_, required)
+
+        var the_dest = dest
+        if the_dest.len() == 0 { the_dest = _dest_of(name, option_strings) }
+
+        var the_help = help
+        if action == "version" && help.len() == 0 {
+            the_help = "show program's version number and exit"
+        }
+
+        let a = _Action(option_strings, the_dest, action, nargs, default, type_, choices,
+                        required, the_help, metavar, version)
+        _actions.append(a)
     }
 
-    /// Whether the last parse saw `-h` / `--help`. Parsing stops there,
-    /// and required arguments are not checked.
-    pub func help_requested() bool { return _help_requested }
+    /// Add the subcommands, as Python's `add_subparsers`. `dest` names
+    /// the Namespace value that gets the chosen command, nil when none
+    /// was given; without `dest` it is not stored. `required` makes a
+    /// command mandatory.
+    pub func add_subparsers(dest str = "", required bool = false, help str = "",
+                            metavar str = "") SubParsers {
+        if _subparsers != nil { panic("cli: cannot have multiple subparser arguments") }
 
-    /// Parse `argv`, the arguments without the program name, as
-    /// `sys.args()` returns them. Returns nil on success.
-    pub func parse(argv list[str]) ParseError? {
-        for a in _args { a.reset() }
-        _help_requested = false
+        let sp = SubParsers(_prog)
+        let a = _Action(list[str](), dest, "parsers", "", nil, "str", nil, required, help,
+                        metavar, "")
+        a.parsers = sp
+        _actions.append(a)
+        _subparsers = a
+        return sp
+    }
 
-        let positionals = list[Arg]()
-        for a in _args {
-            if a.is_positional() { positionals.append(a) }
+    /// Parse `args`, `sys.args()` by default. On `-h` / `--version` print
+    /// and exit 0; on an error print the usage and the error to stderr
+    /// and exit 2.
+    pub func parse_args(args list[str]? = nil) Namespace {
+        let ns = try_parse_args(args)
+        if let n = ns { return n }
+
+        if _exit_status == 0 {
+            sys.stdout.write_str(_exit_message)
+            sys.stdout.flush()
+        } else {
+            sys.stderr.write_str(_exit_message)
+            sys.stderr.flush()
+        }
+        sys.exit(_exit_status)
+        unreachable()
+        return Namespace()
+    }
+
+    /// Parse like `parse_args`, without exiting: returns nil where
+    /// parse_args would exit, and `exit_status()` / `exit_message()` say
+    /// how.
+    pub func try_parse_args(args list[str]? = nil) Namespace? {
+        _exit_status = 0
+        _exit_message = ""
+
+        let argv = args ?? sys.args()
+        let ns = Namespace()
+        let ex = _parse(argv, ns)
+        if let e = ex {
+            _exit_status = e.status
+            _exit_message = e.message
+            return nil
+        }
+        return ns
+    }
+
+    /// The exit status of the last `try_parse_args` that returned nil: 0
+    /// after `-h` / `--version`, 2 after an error.
+    pub func exit_status() int { return _exit_status }
+
+    /// What `parse_args` would print for the last `try_parse_args` that
+    /// returned nil: the help, the version, or the usage and the error.
+    pub func exit_message() str { return _exit_message }
+
+    /// The usage line, ending with a newline, as Python's `format_usage`.
+    pub func format_usage() str {
+        let parts = list[str]()
+        for a in _actions {
+            if !a.is_positional() { parts.append(a.option_usage()) }
+        }
+        for a in _actions {
+            if a.is_positional() { parts.append(a.positional_usage()) }
+        }
+
+        var line = "usage: " + _prog
+        if parts.len() > 0 { line += " " + " ".join(parts) }
+        return line + "\n"
+    }
+
+    /// The help, ending with a newline, as Python's `format_help`.
+    pub func format_help() str {
+        let width = _help_width()
+
+        // The help column: after the widest entry, at most 24, as
+        // Python's HelpFormatter.
+        var widest = 0
+        for a in _actions {
+            let w = a.invocation().len() + 2
+            if w > widest { widest = w }
+            if let p = a.parsers {
+                for name in p.names() {
+                    if name.len() + 4 > widest { widest = name.len() + 4 }
+                }
+            }
+        }
+        var column = widest + 2
+        if column > _MAX_HELP_COLUMN { column = _MAX_HELP_COLUMN }
+
+        var out = format_usage()
+        if _description.len() > 0 { out += "\n" + _fill(_expand(_description, nil), width) }
+
+        let positionals = list[str]()
+        for a in _actions {
+            if !a.is_positional() { continue }
+            positionals.append(_entry(a.invocation(), _expand(a.help, a), 2, column, width))
+            if let p = a.parsers {
+                let names = p.names()
+                let helps = p.helps()
+                var i = 0
+                while i < names.len() {
+                    positionals.append(_entry(names[i], helps[i], 4, column, width))
+                    i += 1
+                }
+            }
+        }
+        if positionals.len() > 0 {
+            out += "\npositional arguments:\n" + "".join(positionals)
+        }
+
+        let options = list[str]()
+        for a in _actions {
+            if a.is_positional() { continue }
+            options.append(_entry(a.invocation(), _expand(a.help, a), 2, column, width))
+        }
+        if options.len() > 0 { out += "\noptions:\n" + "".join(options) }
+
+        if _epilog.len() > 0 { out += "\n" + _fill(_expand(_epilog, nil), width) }
+        return out
+    }
+
+    /// Print the usage to stdout.
+    pub func print_usage() {
+        sys.stdout.write_str(format_usage())
+        sys.stdout.flush()
+    }
+
+    /// Print the help to stdout.
+    pub func print_help() {
+        sys.stdout.write_str(format_help())
+        sys.stdout.flush()
+    }
+
+    /// Print the usage and `message` to stderr and exit 2, as Python's
+    /// `error`.
+    pub func error(message str) {
+        exit(2, format_usage() + _prog + ": error: " + message + "\n")
+    }
+
+    /// Print `message` to stderr and exit with `status`.
+    pub func exit(status int = 0, message str = "") {
+        if message.len() > 0 {
+            sys.stderr.write_str(message)
+            sys.stderr.flush()
+        }
+        sys.exit(status)
+    }
+
+    // ---- parsing ----
+
+    // Parse `argv` into `ns`. Returns how to exit, or nil on success.
+    func _parse(argv list[str], ns Namespace) _Exit? {
+        for a in _actions { a.reset() }
+
+        let positionals = list[_Action]()
+        var rest _Action? = nil
+        for a in _actions {
+            if !a.is_positional() || a.action == "parsers" { continue }
+            if a.nargs == REMAINDER {
+                rest = a
+            } else {
+                positionals.append(a)
+            }
         }
 
         let cursor = _Cursor(argv)
+        let extras = list[str]()
         var next_positional = 0
         var only_positional = false
 
         while let text = cursor.next() {
+            let looks_positional = only_positional || !_looks_like_option(text)
+
+            if let r = rest {
+                // With positionals before it, the rest starts right after
+                // them; without, at the first positional.
+                let filled = next_positional >= positionals.len()
+                if filled && (positionals.len() > 0 || looks_positional) {
+                    r.seen = true
+                    r.texts.append(text)
+                    for t in cursor.rest() { r.texts.append(t) }
+                    break
+                }
+            }
+
             if !only_positional && text == "--" {
                 only_positional = true
                 continue
             }
 
-            if only_positional || !_is_option_text(text) {
-                if next_positional >= positionals.len() {
-                    return ParseError("unrecognized arguments: " + text)
+            if looks_positional {
+                if next_positional < positionals.len() {
+                    let p = positionals[next_positional]
+                    let msg = p.check_text(text)
+                    if msg.len() > 0 { return _error("argument " + p.display() + ": " + msg) }
+                    p.seen = true
+                    p.texts.append(text)
+                    // `*` / `+` take every positional after it
+                    if !p.takes_many() { next_positional += 1 }
+                    continue
                 }
-                positionals[next_positional].accept(text)
-                next_positional += 1
+                if let sp = _subparsers { return _parse_command(sp, text, cursor, ns, extras) }
+                extras.append(text)
                 continue
             }
 
-            var err ParseError? = nil
+            var ex _Exit? = nil
             if text.starts_with("--") {
-                err = _parse_long(text, cursor)
+                ex = _parse_long(text, cursor, extras)
             } else {
-                err = _parse_short(text, cursor)
+                ex = _parse_short(text, cursor, extras)
             }
-            if err != nil { return err }
-            if _help_requested { return nil }
+            if ex != nil { return ex }
         }
 
-        return _check_required()
+        let missing = _check_required()
+        if missing != nil { return missing }
+        if extras.len() > 0 { return _error("unrecognized arguments: " + " ".join(extras)) }
+
+        _store(ns)
+        if let sp = _subparsers {
+            if sp.dest.len() > 0 { ns.set(sp.dest, nil) }
+        }
+        return nil
     }
 
-    /// Parse `argv` like `parse`. On `-h` print the help and exit 0; on
-    /// an error print the usage and the error to stderr and exit 2, as
-    /// Python's argparse does.
-    pub func parse_or_exit(argv list[str]) {
-        let err = parse(argv)
-        if let e = err {
-            sys.stderr.write_str(usage() + "\n")
-            sys.stderr.write_str(_prog + ": error: " + e.message() + "\n")
-            sys.stderr.flush()
-            sys.exit(2)
+    // `text` names a command: the arguments after it are the command's.
+    // This parser's arguments all came before it, so they are checked and
+    // stored first.
+    func _parse_command(sp _Action, text str, cursor _Cursor, ns Namespace,
+                        extras list[str]) _Exit? {
+        let parsers = sp.parsers!
+        let found = parsers.find(text)
+        if found == nil {
+            let quoted = list[str]()
+            for n in parsers.names() { quoted.append("'" + n + "'") }
+            let choices = ", ".join(quoted)
+            return _error("argument " + _command_display(sp) + ": invalid choice: '" + text +
+                          "' (choose from " + choices + ")")
         }
-        if _help_requested {
-            print(help())
-            sys.exit(0)
-        }
+
+        let missing = _check_required()
+        if missing != nil { return missing }
+        if extras.len() > 0 { return _error("unrecognized arguments: " + " ".join(extras)) }
+
+        _store(ns)
+        if sp.dest.len() > 0 { ns.set(sp.dest, text) }
+        let cmd = found
+        return cmd._parse(cursor.rest(), ns)
     }
 
-    /// The one-line usage, e.g. `usage: tool [-h] [-v] [-o OUTPUT] dir`.
-    pub func usage() str {
-        var line = "usage: " + _prog + " [-h]"
-        for a in _args {
-            if !a.is_positional() { line += " " + _usage_part(a) }
-        }
-        for a in _args {
-            if a.is_positional() { line += " " + _usage_part(a) }
-        }
-        return line
-    }
-
-    /// The full help: usage, description, positionals and options.
-    pub func help() str {
-        let lines = list[str]()
-        lines.append(usage())
-
-        if _description.len() > 0 {
-            lines.append("")
-            lines.append(_description)
-        }
-
-        let positionals = list[str]()
-        for a in _args {
-            if a.is_positional() { positionals.append(_help_line(a.name(), _help_text(a))) }
-        }
-        if positionals.len() > 0 {
-            lines.append("")
-            lines.append("positional arguments:")
-            for ln in positionals { lines.append(ln) }
-        }
-
-        lines.append("")
-        lines.append("options:")
-        lines.append(_help_line("-h, --help", "show this help message and exit"))
-        for a in _args {
-            if !a.is_positional() { lines.append(_help_line(_invocation(a), _help_text(a))) }
-        }
-
-        return "\n".join(lines)
-    }
-
-    // `--name`, `--name=value` or `--name value`.
-    func _parse_long(text str, cursor _Cursor) ParseError? {
-        var name = text.substr(2)
+    // `--name`, `--name=value` or `--name value`; a unique prefix of a
+    // long option is the option, as in Python.
+    func _parse_long(text str, cursor _Cursor, extras list[str]) _Exit? {
+        var name = text
         var inline str? = nil
-        let eq = name.index("=")
+        let eq = text.index("=")
         if eq >= 0 {
-            inline = name.substr(eq + 1)
-            name = name.substr(0, eq)
+            inline = text.substr(eq + 1)
+            name = text.substr(0, eq)
         }
 
-        if name == "help" {
-            _help_requested = true
+        var found = _find_option(name)
+        if found == nil {
+            let matches = list[_Action]()
+            let matched = list[str]()
+            for a in _actions {
+                for s in a.option_strings {
+                    if s.starts_with("--") && s.starts_with(name) {
+                        matches.append(a)
+                        matched.append(s)
+                    }
+                }
+            }
+            if matches.len() > 1 {
+                let msg = "ambiguous option: " + name + " could match " + ", ".join(matched)
+                return _error(msg)
+            }
+            if matches.len() == 1 { found = matches[0] }
+        }
+        if found == nil {
+            extras.append(text)
             return nil
         }
-
-        let found = _find_long(name)
-        if found == nil { return ParseError("unrecognized arguments: " + text) }
-        let arg = found
-
-        if !arg.takes_value() {
-            if let v = inline {
-                let msg = "ignored explicit argument '" + v + "'"
-                return ParseError("argument " + _display(arg) + ": " + msg)
-            }
-            return _accept(arg, "")
-        }
-
-        // Only take the next argument when there is no inline value.
-        var value = inline
-        if value == nil { value = cursor.next() }
-        if value == nil {
-            return ParseError("argument " + _display(arg) + ": expected one argument")
-        }
-        return _accept(arg, value)
+        return _take(found, inline, cursor)
     }
 
     // A cluster of short options: `-v`, `-vq`, `-o x` or `-ox`. A
     // value-taking option ends the cluster: the rest of `text`, or else
     // the next argument, is its value.
-    func _parse_short(text str, cursor _Cursor) ParseError? {
+    func _parse_short(text str, cursor _Cursor, extras list[str]) _Exit? {
         var i = 1
+        var previous _Action? = nil
         while i < text.len() {
             let letter = text.substr(i, i + 1)
-            if letter == "h" {
-                _help_requested = true
+            let found = _find_option("-" + letter)
+            if found == nil {
+                if let p = previous {
+                    let msg = "ignored explicit argument '" + text.substr(i) + "'"
+                    return _error("argument " + p.display() + ": " + msg)
+                }
+                extras.append(text)
                 return nil
             }
 
-            let found = _find_short(letter)
-            if found == nil { return ParseError("unrecognized arguments: " + text) }
-            let arg = found
-
-            if !arg.takes_value() {
-                let err = _accept(arg, "")
-                if err != nil { return err }
+            let a = found
+            if a.takes_no_value() {
+                let ex = _take(a, nil, cursor)
+                if ex != nil { return ex }
+                previous = a
                 i += 1
                 continue
             }
 
-            let rest = text.substr(i + 1)
-            var value str? = rest
-            if rest.len() == 0 { value = cursor.next() }
-            if value == nil {
-                return ParseError("argument " + _display(arg) + ": expected one argument")
-            }
-            return _accept(arg, value)
+            var value str? = nil
+            if i + 1 < text.len() { value = text.substr(i + 1) }
+            return _take(a, value, cursor)
         }
         return nil
     }
 
-    // Hand `text` to `arg`, turning its complaint into a ParseError.
-    func _accept(arg Arg, text str) ParseError? {
-        let msg = arg.accept(text)
-        if msg == nil { return nil }
-        return ParseError("argument " + _display(arg) + ": " + msg)
+    // Apply option `a`, with `explicit` the value written as `--x=v` /
+    // `-xv`. A value-taking option without one takes the next argument,
+    // unless it looks like an option.
+    func _take(a _Action, explicit str?, cursor _Cursor) _Exit? {
+        if a.takes_no_value() {
+            if let v = explicit {
+                return _error("argument " + a.display() + ": ignored explicit argument '" + v + "'")
+            }
+            if a.action == "help" { return _Exit(0, format_help()) }
+            if a.action == "version" { return _Exit(0, _expand(a.version, nil) + "\n") }
+            a.seen = true
+            a.count += 1
+            return nil
+        }
+
+        var value = explicit
+        if value == nil {
+            if let next = cursor.peek() {
+                if !_looks_like_option(next) {
+                    value = next
+                    cursor.next()
+                }
+            }
+        }
+        if value == nil { return _error("argument " + a.display() + ": expected one argument") }
+
+        let text = value
+        let msg = a.check_text(text)
+        if msg.len() > 0 { return _error("argument " + a.display() + ": " + msg) }
+        a.seen = true
+        a.texts.append(text)
+        return nil
     }
 
-    func _check_required() ParseError? {
+    func _check_required() _Exit? {
         let missing = list[str]()
-        for a in _args {
-            if a.is_required() && !a.is_seen() { missing.append(_display(a)) }
+        for a in _actions {
+            if a.action == "parsers" {
+                if a.required { missing.append(_command_display(a)) }
+                continue
+            }
+            if a.must_be_seen() && !a.seen { missing.append(a.display()) }
         }
         if missing.len() == 0 { return nil }
-        return ParseError("the following arguments are required: " + ", ".join(missing))
+        return _error("the following arguments are required: " + ", ".join(missing))
     }
 
-    func _check_names(arg Arg) {
-        let name = arg.name()
-        let letter = arg.short()
-        if name.len() == 0 { panic("cli: argument with an empty name") }
-        if name == "help" || letter == "h" { panic("cli: -h/--help is reserved") }
-        if letter.len() > 1 { panic("cli: short name '" + letter + "' is not one letter") }
+    // Put the value of every argument into `ns`.
+    func _store(ns Namespace) {
+        for a in _actions {
+            if a.action == "help" || a.action == "version" || a.action == "parsers" { continue }
+            ns.set(a.dest, a.value())
+        }
+    }
 
-        for a in _args {
-            if a.name() == name { panic("cli: argument '" + name + "' declared twice") }
-            if letter.len() > 0 && a.short() == letter {
-                panic("cli: short name '-" + letter + "' declared twice")
+    func _error(message str) _Exit {
+        return _Exit(2, format_usage() + _prog + ": error: " + message + "\n")
+    }
+
+    func _find_option(s str) _Action? {
+        for a in _actions {
+            for o in a.option_strings {
+                if o == s { return a }
             }
         }
+        return nil
     }
 
-    func _find_long(name str) Arg? {
-        for a in _args {
-            if !a.is_positional() && a.name() == name { return a }
+    // ---- declaring ----
+
+    func _check_declaration(name str, option_strings list[str], action str, nargs str,
+                            type_ str, required bool) {
+        let actions = ["store", "store_true", "store_false", "count", "append", "version"]
+        if !_in(action, actions) { panic("cli: unknown action '" + action + "'") }
+        if !_in(type_, ["str", "int", "float"]) { panic("cli: unknown type_ '" + type_ + "'") }
+        if !_in(nargs, ["", "?", "*", "+", REMAINDER]) { panic("cli: invalid nargs '" + nargs + "'") }
+
+        if option_strings.len() == 0 {
+            if action != "store" { panic("cli: action '" + action + "' needs an option string") }
+            if required { panic("cli: 'required' is an invalid argument for positionals") }
+            if _subparsers != nil { panic("cli: positional '" + name + "' after the subparsers") }
+            for a in _actions {
+                if a.is_positional() && a.takes_many() {
+                    panic("cli: positional '" + name + "' after one that takes many")
+                }
+            }
+            return
+        }
+
+        if nargs.len() > 0 { panic("cli: nargs on an option is not supported") }
+        for s in option_strings {
+            if !s.starts_with("-") || s.len() < 2 { panic("cli: invalid option string '" + s + "'") }
+            if _find_option(s) != nil { panic("cli: conflicting option string: " + s) }
+        }
+    }
+
+    // `text` with `%(prog)s`, and `%(default)s` of `a`, replaced.
+    func _expand(text str, a _Action?) str {
+        var out = text.replace("%(prog)s", _prog)
+        if let act = a { out = out.replace("%(default)s", _default_text(act.default)) }
+        return out
+    }
+}
+
+/// The subcommands of a parser, as Python's `add_subparsers` returns.
+pub class SubParsers {
+    let _prog str
+    let _names list[str]
+    let _helps list[str]
+    let _parsers list[ArgumentParser]
+
+    pub func __init__(prog str) {
+        _prog = prog
+        _names = list[str]()
+        _helps = list[str]()
+        _parsers = list[ArgumentParser]()
+    }
+
+    /// Add the command `name` and return its parser, whose program name
+    /// is the parent's followed by `name`. `help` is its line in the
+    /// parent's help.
+    pub func add_parser(name str, help str = "", description str = "", epilog str = "",
+                        add_help bool = true) ArgumentParser {
+        if find(name) != nil { panic("cli: conflicting subparser: " + name) }
+        let p = ArgumentParser(prog=_prog + " " + name, description=description, epilog=epilog,
+                               add_help=add_help)
+        _names.append(name)
+        _helps.append(help)
+        _parsers.append(p)
+        return p
+    }
+
+    /// The parser of the command `name`, or nil.
+    pub func find(name str) ArgumentParser? {
+        var i = 0
+        while i < _names.len() {
+            if _names[i] == name { return _parsers[i] }
+            i += 1
         }
         return nil
     }
 
-    func _find_short(letter str) Arg? {
-        for a in _args {
-            if !a.is_positional() && a.short() == letter { return a }
-        }
-        return nil
+    /// The command names, in the order they were added.
+    pub func names() list[str] { return _names }
+
+    /// The help of each command, in the same order.
+    pub func helps() list[str] { return _helps }
+}
+
+// How a parse ends early: what to print and the exit status.
+class _Exit {
+    pub let status int
+    pub let message str
+
+    func __init__(code int, text str) {
+        status = code
+        message = text
     }
 }
 
@@ -291,66 +594,126 @@ class _Cursor {
         _pos += 1
         return text
     }
-}
 
-// The column where help text starts, as in Python's argparse.
-const _HELP_COLUMN = 24
-
-// True when `text` looks like an option. A lone "-" is a positional,
-// conventionally meaning stdin.
-func _is_option_text(text str) bool {
-    return text.starts_with("-") && text.len() > 1
-}
-
-// The option's value placeholder in help, e.g. `OUTPUT` for --output.
-func _metavar(arg Arg) str {
-    return arg.name().upper().replace("-", "_")
-}
-
-// How errors name an argument: `-o/--output`, `--output` or `dir`.
-func _display(arg Arg) str {
-    if arg.is_positional() { return arg.name() }
-    if arg.short().len() > 0 { return "-" + arg.short() + "/--" + arg.name() }
-    return "--" + arg.name()
-}
-
-// How help lists an option: `-o, --output OUTPUT` or `-v, --verbose`.
-func _invocation(arg Arg) str {
-    var text = "--" + arg.name()
-    if arg.short().len() > 0 { text = "-" + arg.short() + ", " + text }
-    if arg.takes_value() { text += " " + _metavar(arg) }
-    return text
-}
-
-// How usage shows an argument: `[-v]`, `[-o OUTPUT]`, `-o OUTPUT`,
-// `dir` or `[dir]`.
-func _usage_part(arg Arg) str {
-    var text = arg.name()
-    if !arg.is_positional() {
-        var flag = "--" + arg.name()
-        if arg.short().len() > 0 { flag = "-" + arg.short() }
-        text = flag
-        if arg.takes_value() { text += " " + _metavar(arg) }
+    // The next argument without reading it, or nil at the end.
+    func peek() str? {
+        if _pos >= _argv.len() { return nil }
+        return _argv[_pos]
     }
-    if arg.is_required() { return text }
-    return "[" + text + "]"
+
+    // All the arguments not read yet; reads them.
+    func rest() list[str] {
+        let left = list[str]()
+        while _pos < _argv.len() {
+            left.append(_argv[_pos])
+            _pos += 1
+        }
+        return left
+    }
 }
 
-// The help text plus the default, when there is one.
-func _help_text(arg Arg) str {
-    let d = arg.default_text()
-    if d == nil { return arg.help() }
+// The widest column help text starts at, as Python's HelpFormatter.
+const _MAX_HELP_COLUMN = 24
 
-    let note = "(default: " + d + ")"
-    if arg.help().len() == 0 { return note }
-    return arg.help() + " " + note
+// True when `text` is an option rather than a value: it starts with '-',
+// is not a lone "-" (stdin by convention), and is not a negative number.
+func _looks_like_option(text str) bool {
+    if !text.starts_with("-") || text.len() < 2 { return false }
+    return !_is_negative_number(text)
 }
 
-// One help entry: the invocation, then the text from _HELP_COLUMN, or
-// on the next line when the invocation is too wide.
-func _help_line(invocation str, text str) str {
-    let head = "  " + invocation
-    if text.len() == 0 { return head }
-    if head.len() < _HELP_COLUMN - 1 { return head.ljust(_HELP_COLUMN) + text }
-    return head + "\n" + "".ljust(_HELP_COLUMN) + text
+// The dest of an argument: a positional's name, or the first long
+// option without "--" (else the first short one without "-"), with '-'
+// turned into '_'.
+func _dest_of(name str, option_strings list[str]) str {
+    if option_strings.len() == 0 { return name }
+    for s in option_strings {
+        if s.starts_with("--") { return s.substr(2).replace("-", "_") }
+    }
+    return option_strings[0].substr(1).replace("-", "_")
+}
+
+// How errors name the subparsers argument: its metavar, its dest, or
+// `{a,b}`.
+func _command_display(sp _Action) str {
+    if sp.metavar.len() > 0 { return sp.metavar }
+    if sp.dest.len() > 0 { return sp.dest }
+    return sp.usage_metavar()
+}
+
+func _in(s str, choices list[str]) bool {
+    for c in choices {
+        if c == s { return true }
+    }
+    return false
+}
+
+// A default as `%(default)s` shows it; nil is None, as in Python.
+func _default_text(v any?) str {
+    if let x = v { return format("{}", x) }
+    return "None"
+}
+
+// The width help is wrapped to: the COLUMNS environment variable, else
+// 80, minus 2, as Python's HelpFormatter.
+func _help_width() int {
+    var columns = 80
+    if let c = os.getenv("COLUMNS") {
+        if _is_int_text(c) { columns = c.to_int() }
+    }
+    return columns - 2
+}
+
+// One help entry: `invocation` at `indent`, then `text` from `column`, or
+// on the next line when the invocation is too wide. The text is wrapped
+// to `width`.
+func _entry(invocation str, text str, indent int, column int, width int) str {
+    let head = "".ljust(indent) + invocation
+    if text.len() == 0 { return head + "\n" }
+
+    var text_width = width - column
+    if text_width < 11 { text_width = 11 }
+    let lines = _wrap(text, text_width)
+
+    var out = ""
+    var i = 0
+    if head.len() <= column - 2 {
+        out = head.ljust(column) + lines[0] + "\n"
+        i = 1
+    } else {
+        out = head + "\n"
+    }
+    while i < lines.len() {
+        out += "".ljust(column) + lines[i] + "\n"
+        i += 1
+    }
+    return out
+}
+
+// `text` as a paragraph: whitespace collapsed, wrapped to `width`,
+// ending with a newline.
+func _fill(text str, width int) str {
+    var out = ""
+    for ln in _wrap(text, width) { out += ln + "\n" }
+    return out
+}
+
+// The words of `text` in lines of at most `width` characters; a word
+// longer than that has a line of its own.
+func _wrap(text str, width int) list[str] {
+    let lines = list[str]()
+    var line = ""
+    for word in text.replace("\n", " ").replace("\t", " ").split(" ") {
+        if word.len() == 0 { continue }
+        if line.len() == 0 {
+            line = word
+        } else if line.len() + 1 + word.len() <= width {
+            line += " " + word
+        } else {
+            lines.append(line)
+            line = word
+        }
+    }
+    if line.len() > 0 || lines.len() == 0 { lines.append(line) }
+    return lines
 }

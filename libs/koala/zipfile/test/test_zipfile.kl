@@ -1,0 +1,210 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "std/ut"
+import "koala/zipfile"
+
+const TMP = "/tmp/koala_zipfile_test.zip"
+const TMP_DIR = "/tmp/koala_zipfile_out"
+const TMP_SRC = "/tmp/koala_zipfile_src.txt"
+const TMP_BAD = "/tmp/koala_zipfile_bad.zip"
+
+/// A two-member archive written by CPython 3.14's `zipfile`: "hello.txt"
+/// stored, "dir/data.bin" deflated, and the archive comment "archive comment".
+/// Reading it proves the parser handles Python's layout, not just its own.
+const PY_ZIP = "504b0304140000000000c428645285114a0d0b0000000b0000000900000068656c6c6f2e74787468656c6c6f20776f726c64504b030414000000080000002100bc4bfcb10f000000640000000c0000006469722f646174612e62696e3330343236313533b7b034a0190b00504b01021403140000000000c428645285114a0d0b0000000b00000009000000000000000000000080010000000068656c6c6f2e747874504b0102140314000000080000002100bc4bfcb10f000000640000000c00000000000000000000008001320000006469722f646174612e62696e504b05060000000002000200710000006b0000000f006172636869766520636f6d6d656e74"
+
+/// The hundred-digit payload used by the deflated-member test.
+func digits() bytes {
+    return b"0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+}
+
+// ============================================================
+// Reading an archive written by CPython
+// ============================================================
+
+@test
+func test_read_python_archive() {
+    let raw = bytes.from_hex(PY_ZIP)
+    ut.assert(fs.write_bytes(TMP, raw))
+    ut.assert(zipfile.is_zipfile(TMP))
+    // The same bytes, handed over directly, are recognised too.
+    ut.assert(zipfile.is_zipfile(raw))
+    // A path that does not exist is not an archive either. TMP_BAD is avoided
+    // here because the failure tests below leave a real archive in it.
+    ut.assert(!zipfile.is_zipfile("/tmp/koala_zipfile_absent.zip"))
+
+    let zf = zipfile.ZipFile(TMP)
+    ut.assert(zf.mode() == "r")
+    let names = zf.namelist()
+    ut.assert(names.len() == 2)
+    ut.assert(names[0] == "hello.txt")
+    ut.assert(names[1] == "dir/data.bin")
+
+    ut.assert(zf.read("hello.txt") == b"hello world")
+    ut.assert(zf.read("dir/data.bin") == digits())
+
+    let info = zf.getinfo("hello.txt")
+    ut.assert(info.filename == "hello.txt")
+    ut.assert(info.compress_type == zipfile.ZIP_STORED)
+    ut.assert(info.file_size == 11)
+    ut.assert(info.compress_size == 11)
+    ut.assert(info.CRC == 222957957)
+    ut.assert(!info.is_dir())
+    let (year, month, day, hour, minute, second) = info.date_time
+    ut.assert(year == 2021)
+    ut.assert(month == 3)
+    ut.assert(day == 4)
+    ut.assert(hour == 5)
+    ut.assert(minute == 6)
+    ut.assert(second == 8)
+
+    ut.assert(zf.getinfo("dir/data.bin").compress_type == zipfile.ZIP_DEFLATED)
+    ut.assert(zf.infolist().len() == 2)
+    ut.assert(zf.comment.to_str() == "archive comment")
+    // nil means every member's CRC-32 checked out.
+    ut.assert(zf.testzip() == nil)
+    zf.close()
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Writing
+// ============================================================
+
+@test
+func test_write_then_read() {
+    let zf = zipfile.ZipFile(TMP, "w")
+    ut.assert(zf.mode() == "w")
+    zf.writestr("a.txt", "alpha")
+    zf.writestr("b.bin", bytes.from_hex("00010203"))
+    zf.close()
+    // close() is idempotent, replacing Python's `with`.
+    zf.close()
+
+    ut.assert(zipfile.is_zipfile(TMP))
+    let zr = zipfile.ZipFile(TMP)
+    ut.assert(zr.namelist().len() == 2)
+    ut.assert(zr.namelist()[0] == "a.txt")
+    ut.assert(zr.read("a.txt") == b"alpha")
+    ut.assert(zr.read("b.bin") == bytes.from_hex("00010203"))
+    ut.assert(zr.getinfo("a.txt").file_size == 5)
+    ut.assert(zr.testzip() == nil)
+    zr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_write_deflated() {
+    let zf = zipfile.ZipFile(TMP, "w", zipfile.ZIP_DEFLATED)
+    zf.writestr("data.bin", digits())
+    zf.close()
+
+    let zr = zipfile.ZipFile(TMP)
+    let info = zr.getinfo("data.bin")
+    ut.assert(info.compress_type == zipfile.ZIP_DEFLATED)
+    ut.assert(info.file_size == 100)
+    ut.assert(info.compress_size < 100)
+    ut.assert(zr.read("data.bin") == digits())
+    zr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_write_file_member() {
+    ut.assert(fs.write_str(TMP_SRC, "from a file"))
+    let zf = zipfile.ZipFile(TMP, "w")
+    zf.write(TMP_SRC)
+    zf.close()
+
+    let zr = zipfile.ZipFile(TMP)
+    ut.assert(zr.namelist()[0] == "koala_zipfile_src.txt")
+    ut.assert(zr.read("koala_zipfile_src.txt") == b"from a file")
+    zr.close()
+    ut.assert(fs.remove(TMP_SRC))
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Extracting
+// ============================================================
+
+@test
+func test_extract() {
+    ut.assert(fs.write_bytes(TMP, bytes.from_hex(PY_ZIP)))
+    let zf = zipfile.ZipFile(TMP)
+    if fs.exists(TMP_DIR) { fs.remove_all(TMP_DIR) }
+
+    let one = zf.extract("hello.txt", TMP_DIR)
+    ut.assert(one == format("{}/hello.txt", TMP_DIR))
+    ut.assert(fs.read_all(one, -1) == b"hello world")
+
+    // extractall() creates the intermediate directory of "dir/data.bin".
+    zf.extractall(TMP_DIR)
+    ut.assert(fs.read_all(format("{}/dir/data.bin", TMP_DIR), -1) == digits())
+    zf.close()
+
+    ut.assert(fs.remove_all(TMP_DIR))
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Module surface
+// ============================================================
+
+@test
+func test_constants_match_cpython() {
+    ut.assert(zipfile.ZIP_STORED == 0)
+    ut.assert(zipfile.ZIP_DEFLATED == 8)
+    ut.assert(zipfile.ZIP_BZIP2 == 12)
+    ut.assert(zipfile.ZIP_LZMA == 14)
+}
+
+@test
+func test_zipinfo_defaults() {
+    let info = zipfile.ZipInfo("x")
+    ut.assert(info.filename == "x")
+    ut.assert(info.orig_filename == "x")
+    ut.assert(info.compress_type == zipfile.ZIP_STORED)
+    ut.assert(info.file_size == 0)
+    ut.assert(info.comment.len() == 0)
+    ut.assert(info.extra.len() == 0)
+    ut.assert(!info.is_dir())
+
+    let (year, month, day, hour, minute, second) = info.date_time
+    ut.assert(year == 1980)
+    ut.assert(month == 1)
+    ut.assert(day == 1)
+    ut.assert(hour == 0)
+    ut.assert(zipfile.ZipInfo("d/").is_dir())
+}
+
+// ============================================================
+// Failures, with Python's wording
+// ============================================================
+
+@should_panic("zipfile: File is not a zip file")
+func test_panic_not_a_zip() {
+    ut.assert(fs.write_str(TMP_BAD, "definitely not a zip archive"))
+    zipfile.ZipFile(TMP_BAD)
+}
+
+@should_panic("zipfile: \"There is no item named 'nope.txt' in the archive\"")
+func test_panic_missing_member() {
+    ut.assert(fs.write_bytes(TMP_BAD, bytes.from_hex(PY_ZIP)))
+    let zf = zipfile.ZipFile(TMP_BAD)
+    zf.read("nope.txt")
+}
+
+@should_panic("zipfile: that compression method (12) is not supported")
+func test_panic_bzip2() {
+    zipfile.ZipFile(TMP_BAD, "w", zipfile.ZIP_BZIP2).writestr("x", b"x")
+}
+
+@should_panic("zipfile: mode must be 'r', 'w', 'x' or 'a', not 'q'")
+func test_panic_bad_mode() {
+    zipfile.ZipFile(TMP_BAD, "q")
+}

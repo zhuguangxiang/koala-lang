@@ -1,0 +1,305 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/zlib"
+
+// Every expected value below was produced by CPython 3.14.4 / zlib 1.3.1, the
+// same engine version this package vendors, so the bytes have to match
+// exactly - not merely round-trip.
+
+/// Join two `bytes` without `+`.
+///
+/// `bytes + bytes` is miscompiled by LVN today (docs/Koala_TODO.md section 47:
+/// the operator is treated as commutative, so `a + b` can be swapped or merged
+/// with `b + a`), so the tests concatenate through a `Buffer`.
+func join(a bytes, b bytes) bytes {
+    let buf = Buffer()
+    buf.write(a)
+    buf.write(b)
+    return buf.to_bytes()
+}
+
+// ============================================================
+// One-shot compression
+// ============================================================
+
+@test
+func test_compress_golden() {
+    ut.assert(zlib.compress(b"hello world").to_hex() ==
+              "789ccb48cdc9c95728cf2fca4901001a0b045d")
+}
+
+@test
+func test_compress_empty() {
+    ut.assert(zlib.compress(b"").to_hex() == "789c030000000001")
+}
+
+@test
+func test_compress_levels() {
+    // Level is part of the output: 1 and 9 differ in the header FLG byte only
+    // for this payload, which is enough to prove it reaches zlib.
+    ut.assert(zlib.compress(b"abc", 9).to_hex() == "78da4b4c4a0600024d0127")
+    ut.assert(zlib.compress(b"abc", 1).to_hex() == "78014b4c4a0600024d0127")
+}
+
+@test
+func test_compress_raw_deflate() {
+    // Negative wbits: no zlib wrapper, no checksum.
+    ut.assert(zlib.compress(b"abc", 6, -15).to_hex() == "4b4c4a0600")
+}
+
+@test
+func test_compress_gzip_wrapper() {
+    ut.assert(zlib.compress(b"hello world", 6, 31).to_hex() ==
+              "1f8b0800000000000003cb48cdc9c95728cf2fca49010085114a0d0b000000")
+}
+
+// ============================================================
+// One-shot decompression
+// ============================================================
+
+@test
+func test_decompress_roundtrip() {
+    ut.assert(zlib.decompress(zlib.compress(b"hello world")) == b"hello world")
+    ut.assert(zlib.decompress(zlib.compress(b"")) == b"")
+}
+
+@test
+func test_decompress_wrappers() {
+    let gz = zlib.compress(b"hello world", 6, 31)
+    let raw = zlib.compress(b"abc", 6, -15)
+    ut.assert(zlib.decompress(gz, 31) == b"hello world")
+    ut.assert(zlib.decompress(raw, -15) == b"abc")
+    // 47 = 32 + 15: accept zlib, gzip or raw, like Python's automatic mode.
+    ut.assert(zlib.decompress(gz, 47) == b"hello world")
+    ut.assert(zlib.decompress(zlib.compress(b"abc"), 47) == b"abc")
+}
+
+@test
+func test_decompress_bufsize_is_only_a_buffer_hint() {
+    let data = zlib.compress(b"0123456789012345678901234567890123456789")
+    ut.assert(zlib.decompress(data, 15, 1) == b"0123456789012345678901234567890123456789")
+}
+
+// ============================================================
+// Checksums
+// ============================================================
+
+@test
+func test_crc32() {
+    ut.assert(zlib.crc32(b"hello world") == 222957957)
+    ut.assert(zlib.crc32(b"") == 0)
+    // The seed continues a stream of chunks: crc32(b"xab") == crc32(b"ab", crc32(b"x")).
+    ut.assert(zlib.crc32(b"ab", zlib.crc32(b"x")) == 2063186536)
+}
+
+@test
+func test_adler32() {
+    ut.assert(zlib.adler32(b"") == 1)
+    ut.assert(zlib.adler32(b"hello world") == 436929629)
+    ut.assert(zlib.adler32(b"ab") == 19267780)
+}
+
+// ============================================================
+// Compression in chunks
+// ============================================================
+
+@test
+func test_compressobj_matches_one_shot() {
+    let co = zlib.compressobj(6)
+    let p1 = co.compress(b"hello ")
+    let p2 = co.compress(b"world")
+    let p3 = co.flush()
+    let all = join(join(p1, p2), p3)
+    ut.assert(all.to_hex() == zlib.compress(b"hello world").to_hex())
+}
+
+@test
+func test_flush_modes() {
+    let co = zlib.compressobj(6)
+    co.compress(b"hello")
+    ut.assert(co.flush(zlib.Z_SYNC_FLUSH).to_hex() == "ca48cdc9c907000000ffff")
+    ut.assert(co.flush(zlib.Z_FULL_FLUSH).to_hex() == "000000ffff")
+    ut.assert(co.flush(zlib.Z_FINISH).to_hex() == "0300062c0215")
+}
+
+@test
+func test_compressobj_copy() {
+    let co = zlib.compressobj(6)
+    let head = co.compress(b"hello ")
+    let twin = co.copy()
+    // Both continue from the same state and produce the same bytes.
+    let a = join(head, join(co.compress(b"world"), co.flush()))
+    let b = join(head, join(twin.compress(b"world"), twin.flush()))
+    ut.assert(a == b)
+    ut.assert(a.to_hex() == zlib.compress(b"hello world").to_hex())
+}
+
+@test
+func test_compressobj_with_dictionary() {
+    // zdict is the keyword-only sixth argument in Python too.
+    let co = zlib.compressobj(9, zlib.DEFLATED, 15, 8, 0, b"hello")
+    let blob = join(co.compress(b"hello hello"), co.flush())
+    ut.assert(blob.to_hex() == "78f9062c0215cb00110a60120019910449")
+    ut.assert(zlib.decompressobj(15, b"hello").decompress(blob) == b"hello hello")
+}
+
+// ============================================================
+// Decompression in chunks
+// ============================================================
+
+@test
+func test_decompressobj_initial_state() {
+    let d = zlib.decompressobj()
+    ut.assert_false(d.eof)
+    ut.assert(d.unused_data == b"")
+    ut.assert(d.unconsumed_tail == b"")
+}
+
+@test
+func test_decompressobj_splits_input() {
+    let co = zlib.compressobj(6)
+    let part = join(co.compress(b"hello world"), co.flush())
+    let d = zlib.decompressobj()
+
+    // Feed the stream one byte at a time: each call returns the bytes that
+    // became available, and the pieces simply add up.
+    var got = Buffer()
+    var i = 0
+    while i < part.len() {
+        got.write(d.decompress(part.view(i, i + 1)))
+        i += 1
+    }
+    ut.assert(d.eof)
+    ut.assert(got.to_bytes() == b"hello world")
+}
+
+@test
+func test_decompressobj_max_length() {
+    let payload = b"0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+    ut.assert(payload.len() == 100)
+    let d = zlib.decompressobj()
+
+    let first = d.decompress(zlib.compress(payload), 8)
+    ut.assert(first == b"01234567")
+    ut.assert(d.unconsumed_tail.len() == 9)
+    ut.assert_false(d.eof)
+
+    // The rest arrives when the tail is fed back, which is what Python's
+    // documentation tells a caller to do.
+    let rest = d.decompress(d.unconsumed_tail)
+    ut.assert(rest.len() == 92)
+    ut.assert(d.eof)
+    ut.assert(d.unconsumed_tail == b"")
+    ut.assert(d.unused_data == b"")
+}
+
+@test
+func test_decompressobj_unused_data() {
+    let d = zlib.decompressobj()
+    let out = d.decompress(join(zlib.compress(b"hi"), b"TRAIL"))
+    ut.assert(out == b"hi")
+    ut.assert(d.eof)
+    ut.assert(d.unused_data == b"TRAIL")
+    // Anything offered after the end is appended to unused_data, not rejected.
+    ut.assert(d.decompress(b"more") == b"")
+    ut.assert(d.unused_data == b"TRAILmore")
+}
+
+@test
+func test_decompressobj_flush_tolerates_truncation() {
+    let d = zlib.decompressobj()
+    // The first 8 bytes of zlib.compress(b"hello world"): the header of a
+    // stream that never finishes.
+    let head = bytes.from_hex("789ccb48cdc9c957")
+    d.decompress(head)
+    ut.assert(d.flush() == b"")
+    ut.assert_false(d.eof)
+}
+
+@test
+func test_decompressobj_copy() {
+    let co = zlib.compressobj(6)
+    let blob = join(co.compress(b"hello "), co.flush())
+    let d = zlib.decompressobj()
+    ut.assert(d.decompress(blob) == b"hello ")
+    let twin = d.copy()
+    ut.assert(twin.eof)
+    ut.assert(twin.decompress(b"junk") == b"")
+    ut.assert(twin.unused_data == b"junk")
+}
+
+// ============================================================
+// Module surface
+// ============================================================
+
+@test
+func test_constants_match_cpython() {
+    ut.assert(zlib.DEFLATED == 8)
+    ut.assert(zlib.MAX_WBITS == 15)
+    ut.assert(zlib.DEF_MEM_LEVEL == 8)
+    ut.assert(zlib.DEF_BUF_SIZE == 16384)
+    ut.assert(zlib.Z_DEFAULT_COMPRESSION == -1)
+    ut.assert(zlib.Z_NO_COMPRESSION == 0)
+    ut.assert(zlib.Z_BEST_SPEED == 1)
+    ut.assert(zlib.Z_BEST_COMPRESSION == 9)
+    ut.assert(zlib.Z_DEFAULT_STRATEGY == 0)
+    ut.assert(zlib.Z_FILTERED == 1)
+    ut.assert(zlib.Z_HUFFMAN_ONLY == 2)
+    ut.assert(zlib.Z_RLE == 3)
+    ut.assert(zlib.Z_FIXED == 4)
+    ut.assert(zlib.Z_NO_FLUSH == 0)
+    ut.assert(zlib.Z_PARTIAL_FLUSH == 1)
+    ut.assert(zlib.Z_SYNC_FLUSH == 2)
+    ut.assert(zlib.Z_FULL_FLUSH == 3)
+    ut.assert(zlib.Z_FINISH == 4)
+    ut.assert(zlib.Z_BLOCK == 5)
+    ut.assert(zlib.Z_TREES == 6)
+}
+
+@test
+func test_versions() {
+    ut.assert(zlib.ZLIB_VERSION == "1.3.1")
+    ut.assert(zlib.ZLIB_RUNTIME_VERSION == "1.3.1")
+}
+
+// ============================================================
+// Failures, matching Python's messages
+// ============================================================
+
+@should_panic("zlib: Bad compression level")
+func test_panic_on_bad_level() {
+    zlib.compress(b"x", 10)
+}
+
+@should_panic("zlib: Error -3 while decompressing data: incorrect header check")
+func test_panic_on_garbage() {
+    zlib.decompress(b"garbage")
+}
+
+@should_panic("zlib: Error -5 while decompressing data: incomplete or truncated stream")
+func test_panic_on_truncated() {
+    // zlib.compress(b"hello") minus its trailing Adler-32.
+    zlib.decompress(bytes.from_hex("789ccb48cdc9c90700"))
+}
+
+@should_panic("zlib: Invalid initialization option")
+func test_panic_on_bad_wbits() {
+    zlib.decompressobj(99)
+}
+
+@should_panic("zlib: Error -2 while compressing data: inconsistent stream state")
+func test_panic_on_compress_after_finish() {
+    let co = zlib.compressobj(6)
+    co.compress(b"x")
+    co.flush()
+    co.compress(b"y")
+}
+
+@should_panic("zlib: Error -2 while flushing: inconsistent stream state")
+func test_panic_on_bad_flush_mode() {
+    zlib.compressobj(6).flush(99)
+}

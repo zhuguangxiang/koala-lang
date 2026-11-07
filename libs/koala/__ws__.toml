@@ -19,5 +19,8 @@ packages = [
     "http",
     "redis",
     "uuid",
+    "zlib",
+    "gzip",
+    "zipfile",
     "cli",
 ]

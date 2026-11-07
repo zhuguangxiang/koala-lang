@@ -1,0 +1,48 @@
+// RUN: koala %s | filecheck %s
+// `is` / `as` on an `any` local initialized with a constant. const-copy-prop replaced the local
+// with the constant, and the backend emitted `is` / `as` with a constant operand, which the VM
+// read as a register: `vm_ops.h: Assertion '(rs) < max_regs' failed`. test_is_as_builtin.kl only
+// casts parameters, which are never constants.
+
+class Foo {
+    func __init__() {}
+}
+
+func main() {
+    // `as` gives `T?`: the value when it has the type, nil otherwise.
+    let s any = "koala"
+    let s1 = s as str
+    let s2 = s as int
+    print(s1!, s2 == nil)
+
+    let i any = 42
+    print((i as int)!, (i as str) == nil)
+
+    let f any = 2.5
+    print((f as float)!, (f as int) == nil)
+
+    let b any = true
+    print((b as bool)!, (b as str) == nil)
+
+    // `is` tests the type.
+    print(s is str, s is int, i is int, i is str, f is float, b is bool)
+
+    // A var, which is still constant until it is assigned.
+    var v any = "first"
+    print((v as str)!, v is str)
+    v = 7
+    print((v as int)!, v is str)
+
+    // An object, not a constant: kept as a reference case.
+    let o any = Foo()
+    print(o is Foo, (o as str) == nil)
+}
+
+// CHECK: koala true
+// CHECK-NEXT: 42 true
+// CHECK-NEXT: 2.5 true
+// CHECK-NEXT: true true
+// CHECK-NEXT: true false true false true true
+// CHECK-NEXT: first true
+// CHECK-NEXT: 7 false
+// CHECK-NEXT: true true

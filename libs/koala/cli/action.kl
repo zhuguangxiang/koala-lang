@@ -1,0 +1,276 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// `nargs=REMAINDER`: the rest of the command line, as it is.
+pub const REMAINDER = "..."
+
+// One argument declared by add_argument, or the -h / subparsers entry, as
+// argparse's Action. It also holds what the current parse saw of it.
+class _Action {
+    // "-o", "--output"; empty for a positional
+    let option_strings list[str]
+    let dest str
+    // store, store_true, store_false, count, append, version, help, parsers
+    let action str
+    // "", "?", "*", "+", REMAINDER
+    let nargs str
+    let default any?
+    // str, int, float
+    let type_name str
+    let choices list[str]?
+    let required bool
+    let help str
+    let metavar str
+    let version str
+    var parsers SubParsers? = nil
+
+    // what the current parse saw
+    var seen bool = false
+    var count int = 0
+    var texts list[str] = list[str]()
+
+    func __init__(strings list[str], to str, kind str, count_spec str, value any?, type_ str,
+                  allowed list[str]?, needed bool, text str, placeholder str, version_text str) {
+        option_strings = strings
+        dest = to
+        action = kind
+        nargs = count_spec
+        default = value
+        type_name = type_
+        choices = allowed
+        required = needed
+        help = text
+        metavar = placeholder
+        version = version_text
+    }
+
+    func is_positional() bool { return option_strings.len() == 0 }
+
+    // An option that takes no value: a flag, -h or --version.
+    func takes_no_value() bool {
+        if action == "store_true" || action == "store_false" { return true }
+        if action == "count" || action == "help" || action == "version" { return true }
+        return false
+    }
+
+    // A positional that takes more than one argument.
+    func takes_many() bool {
+        return nargs == "*" || nargs == "+" || nargs == REMAINDER
+    }
+
+    func reset() {
+        seen = false
+        count = 0
+        texts = list[str]()
+    }
+
+    // Whether the parse must see this argument.
+    func must_be_seen() bool {
+        if is_positional() { return nargs == "" || nargs == "+" }
+        return required
+    }
+
+    // How errors name it: `-o/--output`, or the positional's metavar.
+    func display() str {
+        if is_positional() { return usage_metavar() }
+        return "/".join(option_strings)
+    }
+
+    // The placeholder of its value: the metavar, the choices `{a,b}`,
+    // or the dest (upper case for an option).
+    func usage_metavar() str {
+        if metavar.len() > 0 { return metavar }
+        if let c = choices { return "{" + ",".join(c) + "}" }
+        if action == "parsers" {
+            if let p = parsers { return "{" + ",".join(p.names()) + "}" }
+        }
+        if is_positional() { return dest }
+        return dest.upper()
+    }
+
+    // The positional as usage shows it, by nargs.
+    func positional_usage() str {
+        let m = usage_metavar()
+        if action == "parsers" { return m + " ..." }
+        if nargs == "?" { return "[" + m + "]" }
+        if nargs == "*" { return "[" + m + " ...]" }
+        if nargs == "+" { return m + " [" + m + " ...]" }
+        if nargs == REMAINDER { return "..." }
+        return m
+    }
+
+    // The option as usage shows it: `[-v]`, `[-o OUTPUT]`, `-o OUTPUT`.
+    func option_usage() str {
+        var text = option_strings[0]
+        if !takes_no_value() { text += " " + usage_metavar() }
+        if required { return text }
+        return "[" + text + "]"
+    }
+
+    // The entry in the help: `-v, --verbose`, `-o OUTPUT, --output
+    // OUTPUT`, or the positional's metavar.
+    func invocation() str {
+        if is_positional() { return usage_metavar() }
+        if takes_no_value() { return ", ".join(option_strings) }
+
+        let parts = list[str]()
+        let m = usage_metavar()
+        for s in option_strings { parts.append(s + " " + m) }
+        return ", ".join(parts)
+    }
+
+    // Check one argument text against type_ and choices. Returns the
+    // error message, or "" when it is valid.
+    func check_text(text str) str {
+        if let c = choices {
+            var found = false
+            for v in c {
+                if v == text { found = true }
+            }
+            if !found {
+                let quoted = list[str]()
+                for v in c { quoted.append("'" + v + "'") }
+                return "invalid choice: '" + text + "' (choose from " + ", ".join(quoted) + ")"
+            }
+        }
+        if type_name == "int" && !_is_int_text(text) {
+            return "invalid int value: '" + text + "'"
+        }
+        if type_name == "float" && !_is_float_text(text) {
+            return "invalid float value: '" + text + "'"
+        }
+        return ""
+    }
+
+    // The value the Namespace gets after the parse.
+    func value() any? {
+        if action == "store_true" {
+            if seen { return true }
+            return default ?? false
+        }
+        if action == "store_false" {
+            if seen { return false }
+            return default ?? true
+        }
+        if action == "count" {
+            if !seen { return default }
+            var base = 0
+            if let d = default {
+                if let n = d as int { base = n }
+            }
+            return base + count
+        }
+        if action == "append" || takes_many() {
+            if seen { return _typed_list(texts, type_name) }
+            if let d = default { return _converted_default(d, type_name) }
+            if action == "append" || nargs == "+" { return nil }
+            return _typed_list(texts, type_name)
+        }
+        if seen { return _converted(texts[texts.len() - 1], type_name) }
+        if let d = default { return _converted_default(d, type_name) }
+        return nil
+    }
+}
+
+// `text` as a value of `type_name`. check_text has passed.
+func _converted(text str, type_name str) any {
+    if type_name == "int" { return text.to_int() }
+    if type_name == "float" { return text.to_float() }
+    return text
+}
+
+// A str default is converted by type_, as Python does: `default="4"`
+// with `type_="int"` is 4. Other defaults are kept as given.
+func _converted_default(d any, type_name str) any {
+    if let text = d as str {
+        if type_name == "int" && _is_int_text(text) { return text.to_int() }
+        if type_name == "float" && _is_float_text(text) { return text.to_float() }
+    }
+    return d
+}
+
+// The texts as a list of the element type, e.g. list[int].
+func _typed_list(texts list[str], type_name str) any {
+    if type_name == "int" {
+        let ints = list[int]()
+        for t in texts { ints.append(t.to_int()) }
+        return ints
+    }
+    if type_name == "float" {
+        let floats = list[float]()
+        for t in texts { floats.append(t.to_float()) }
+        return floats
+    }
+    let strs = list[str]()
+    for t in texts { strs.append(t) }
+    return strs
+}
+
+// The most digits accepted, so that `to_int` cannot overflow int64.
+const _MAX_DIGITS = 18
+
+// True for `c` in "0".."9".
+func _is_digit(c str) bool { return "0123456789".index(c) >= 0 && c.len() == 1 }
+
+// True when `text` is an optional '-' / '+' and 1 to _MAX_DIGITS decimal
+// digits.
+func _is_int_text(text str) bool {
+    var start = 0
+    if text.starts_with("-") || text.starts_with("+") { start = 1 }
+
+    let digits = text.len() - start
+    if digits < 1 || digits > _MAX_DIGITS { return false }
+
+    var i = start
+    while i < text.len() {
+        if !_is_digit(text.substr(i, i + 1)) { return false }
+        i += 1
+    }
+    return true
+}
+
+// True when `text` is a decimal float: an optional sign, digits with at
+// most one '.', at least one digit, and an optional exponent such as
+// `e-3`.
+func _is_float_text(text str) bool {
+    var i = 0
+    let n = text.len()
+    if i < n && (text.substr(0, 1) == "-" || text.substr(0, 1) == "+") { i = 1 }
+
+    var digits = 0
+    var dots = 0
+    while i < n {
+        let c = text.substr(i, i + 1)
+        if _is_digit(c) {
+            digits += 1
+        } else if c == "." {
+            dots += 1
+        } else {
+            break
+        }
+        i += 1
+    }
+    if digits == 0 || dots > 1 { return false }
+    if i == n { return true }
+
+    let e = text.substr(i, i + 1)
+    if e != "e" && e != "E" { return false }
+    i += 1
+    if i < n && (text.substr(i, i + 1) == "-" || text.substr(i, i + 1) == "+") { i += 1 }
+
+    var exp_digits = 0
+    while i < n {
+        if !_is_digit(text.substr(i, i + 1)) { return false }
+        exp_digits += 1
+        i += 1
+    }
+    return exp_digits > 0
+}
+
+// True when `text` is a negative number, which is a value rather than an
+// option, as in argparse when no option looks like a negative number.
+func _is_negative_number(text str) bool {
+    return text.starts_with("-") && _is_float_text(text)
+}

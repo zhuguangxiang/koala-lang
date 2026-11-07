@@ -1,0 +1,30 @@
+[package]
+name = "koala/zlib"
+version = "0.1.0"
+description = "DEFLATE compression (RFC 1950, RFC 1951, RFC 1952) over a vendored zlib"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_zlib"
+sources = [
+    "native/zlib_shim.c",
+    "native/compressobj.c",
+    "native/decompressobj.c",
+    "native/zlib/adler32.c",
+    "native/zlib/compress.c",
+    "native/zlib/crc32.c",
+    "native/zlib/deflate.c",
+    "native/zlib/infback.c",
+    "native/zlib/inffast.c",
+    "native/zlib/inflate.c",
+    "native/zlib/inftrees.c",
+    "native/zlib/trees.c",
+    "native/zlib/uncompr.c",
+    "native/zlib/zutil.c",
+]
+includes = [
+    "native/zlib",
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

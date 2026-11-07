@@ -2407,6 +2407,12 @@ static void parse_dot(ParserState *ps, Expr *exp)
     }
 
     Symbol *lhs_ts_sym = get_symbol_by_id(sym_id);
+
+    if (type_is_valist(lhs->ts)) {
+        // the symbol of a var-arg type is created when first asked for, as for `names[0]`
+        lhs_ts_sym = get_type_symbol(lhs->ts, ps);
+    }
+
     if (!lhs_ts_sym) {
         // TODO: print detailed typespec
         kl_error(lhs->loc, "type symbol is not found.");
@@ -2971,17 +2977,14 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     vector_foreach(arg, index->vec) {
         if (!arg) continue;
 
-        arg->ctx = EXPR_CTX_LOAD;
-        parser_visit_expr(ps, arg);
-        if (!arg->ts) {
+        // the same type arguments as a generic class takes: a class, a generic instance
+        // (`list[str]`), a tuple type (`(int, str)`), `T?`, a type parameter
+        TypeSpec *arg_ts = type_arg_of_expr(arg, ps);
+        if (!arg_ts) {
             vector_destroy(tp_args);
             return;
         }
-
-        Symbol *arg_sym = arg->sym;
-        ASSERT(arg_sym && arg_sym->kind == SYM_CLASS);
-        KlassSymbol *arg_kls_sym = (KlassSymbol *)arg_sym;
-        vector_push_back(tp_args, &arg_kls_sym->instance_ts);
+        vector_push_back(tp_args, &arg_ts);
     }
 
     TypeParamSymbol *tp_sym;
@@ -3005,9 +3008,19 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     int is_method = fn_parent && (fn_parent->kind == SYM_CLASS || fn_parent->kind == SYM_INSTANCE ||
                                   fn_parent->kind == SYM_TRAIT);
 
-    char *mangled_name = mangle_func_name(lhs_sym->name, tp_args);
+    // Type args with a type variable or an optional are no concrete instantiation that has a
+    // mangled name, as in find_or_add_func_instance().
+    int routable = !is_method && !tps_are_generic(tp_args);
+    TypeSpec *tp_arg;
+    vector_foreach(tp_arg, tp_args) {
+        if (type_is_optional(tp_arg)) routable = 0;
+    }
+
     Symbol *specialized_fn_sym = NULL;
-    if (!is_method) specialized_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
+    if (routable) {
+        char *mangled_name = mangle_func_name(lhs_sym->name, tp_args);
+        specialized_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
+    }
     if (specialized_fn_sym) {
         ASSERT(specialized_fn_sym->kind == SYM_FUNC ||
                specialized_fn_sym->kind == SYM_INSTANCE_FUNC);

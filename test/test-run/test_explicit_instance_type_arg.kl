@@ -1,0 +1,34 @@
+// RUN: koala %s | filecheck %s
+// An explicit type argument that is a generic instance, e.g. `id[list[str]](l)`, a tuple type or a
+// type parameter. The checker asserted in parse_index_func_tp: it took every type argument for a
+// plain class. Optional type arguments still abort in mangle_func_name (Koala_TODO.md §40).
+
+func id[T](x T) T { return x }
+
+// A type parameter as the type argument, in a generic body.
+func twice[T](x T) list[T] {
+    let l = list[T]()
+    l.append(id[T](x))
+    l.append(x)
+    return l
+}
+
+class Box {
+    func __init__() {}
+
+    func pass[T](x T) T { return x }
+}
+
+func main() {
+    let l = list[str]()
+    l.append("a")
+    print(id[list[str]](l).len())
+    print(Box().pass[list[str]](l).len())
+    print(id[(int, str)]((1, "x"))[1])
+    print(twice[int](3).len(), twice("s")[1])
+}
+
+// CHECK: 1
+// CHECK-NEXT: 1
+// CHECK-NEXT: x
+// CHECK-NEXT: 2 s
