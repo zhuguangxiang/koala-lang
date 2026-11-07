@@ -2705,6 +2705,64 @@ static void parse_slice_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
     }
 }
 
+/*
+ * The type a type argument names. A tuple in this position is a tuple type, whose items are types,
+ * and not a tuple value:
+ *
+ *     list[(str, int)]()            // a list of tuple[str, int]
+ *     list[(str, (int, bool))]()    // the items can be tuples too
+ */
+static TypeSpec *type_arg_of_expr(Expr *arg, ParserState *ps)
+{
+    if (arg->kind == EXPR_TUPLE_KIND) {
+        Vector *item_types = vector_create_ptr();
+
+        Expr *item;
+        vector_foreach(item, ((TupleExpr *)arg)->vec) {
+            TypeSpec *item_ts = type_arg_of_expr(item, ps);
+            if (!item_ts) {
+                vector_destroy(item_types);
+                return NULL;
+            }
+            vector_push_back(item_types, &item_ts);
+        }
+
+        TypeSpec *infer_ts = find_lub(item_types);
+        Symbol *origin = stbl_get(ps->pm->builtin, "tuple");
+        InstanceSymbol *inst_sym =
+            find_or_add_instance(ps->pm->stbl, origin, item_types, ps->pm);
+        inst_sym->arg = infer_ts;
+        vector_destroy(item_types);
+        return inst_sym->instance_ts;
+    }
+
+    /* the symbol of a literal is the class of its value, so `1` must not be read as `int64` */
+    if (arg->kind == EXPR_LITERAL_KIND) {
+        kl_error(arg->loc, "type argument must be a class/trait type.");
+        return NULL;
+    }
+
+    arg->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, arg);
+    if (!arg->ts) return NULL;
+
+    if (type_is_optional(arg->ts)) return arg->ts;
+
+    Symbol *arg_sym = arg->sym;
+    if (arg_sym && (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT)) {
+        return ((KlassSymbol *)arg_sym)->instance_ts;
+    }
+
+    if (arg_sym && arg_sym->kind == SYM_INSTANCE) {
+        return ((InstanceSymbol *)arg_sym)->instance_ts;
+    }
+
+    if (arg_sym && arg_sym->kind == SYM_TYPE_PARAM) return arg_sym->ts;
+
+    kl_error(arg->loc, "type argument must be a class/trait type.");
+    return NULL;
+}
+
 static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
@@ -2736,31 +2794,9 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     Expr *arg;
     vector_foreach(arg, index->vec) {
         if (!arg) continue;
-        arg->ctx = EXPR_CTX_LOAD;
-        parser_visit_expr(ps, arg);
-        if (!arg->ts) {
-            vector_destroy(tp_args);
-            return;
-        }
 
-        // ASSERT(arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR);
-        if (type_is_optional(arg->ts)) {
-            // Place at the correct index position
-            vector_set(tp_args, i__, &arg->ts);
-            continue;
-        }
-
-        TypeSpec *arg_ts;
-        Symbol *arg_sym = arg->sym;
-
-        if (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT) {
-            arg_ts = ((KlassSymbol *)arg->sym)->instance_ts;
-        } else if (arg_sym->kind == SYM_INSTANCE) {
-            arg_ts = ((InstanceSymbol *)arg->sym)->instance_ts;
-        } else if (arg_sym->kind == SYM_TYPE_PARAM) {
-            arg_ts = arg_sym->ts;
-        } else {
-            kl_error(arg->loc, "type argument must be a class/trait type.");
+        TypeSpec *arg_ts = type_arg_of_expr(arg, ps);
+        if (!arg_ts) {
             vector_destroy(tp_args);
             return;
         }

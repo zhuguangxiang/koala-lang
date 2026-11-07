@@ -1,0 +1,14 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// The items of a tuple type argument are types, not values.
+
+func main() {
+    let a = list[(1, 2)]()
+    // CHECK: test_tuple_type_arg_errors.kl:6:{{.*}}type argument must be a class/trait type.
+
+    let b = list[(str, 2)]()
+    // CHECK-NEXT: test_tuple_type_arg_errors.kl:9:{{.*}}type argument must be a class/trait type.
+
+    let c = list[1]()
+    // CHECK-NEXT: test_tuple_type_arg_errors.kl:12:{{.*}}type argument must be a class/trait type.
+}

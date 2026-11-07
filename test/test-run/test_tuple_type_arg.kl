@@ -1,0 +1,47 @@
+// RUN: koala %s | filecheck %s
+
+// A tuple as a type argument in a constructor call is a tuple type, not a tuple of `type` values.
+
+class Box[T] {
+    let v T
+
+    pub func __init__(_v T) { v = _v }
+
+    pub func get() T { return v }
+}
+
+func main() {
+    let l = list[(str, int)]()
+    l.append(("a", 1))
+    l.append(("b", 2))
+    print(l.len(), l[0][0], l[1][1])
+    // CHECK: 2 a 2
+
+    let d = dict[str, (int, bool)]()
+    d["x"] = (1, true)
+    print(d["x"][0], d["x"][1])
+    // CHECK-NEXT: 1 true
+
+    // A tuple inside a tuple.
+    let nested = list[(str, (int, bool))]()
+    nested.append(("n", (3, false)))
+    print(nested[0][0], nested[0][1][0], nested[0][1][1])
+    // CHECK-NEXT: n 3 false
+
+    // A generic type inside a tuple.
+    let lists = list[(str, list[int])]()
+    lists.append(("c", [4, 5]))
+    print(lists[0][1].len())
+    // CHECK-NEXT: 2
+
+    // A user class with a tuple as its type argument.
+    let b = Box[(int, str)]((6, "e"))
+    print(b.get()[0], b.get()[1])
+    // CHECK-NEXT: 6 e
+
+    // The same type written in a declaration.
+    let same list[(str, int)] = list[(str, int)]()
+    same.append(("f", 7))
+    print(same[0][1])
+    // CHECK-NEXT: 7
+}
