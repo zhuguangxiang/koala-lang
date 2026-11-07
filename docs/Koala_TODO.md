@@ -32,18 +32,23 @@
 > `BufReader.read_line` keeps the '\r' of a CRLF line (§52, to decide), reading an uninitialized
 > local gives a garbage value: no definite-assignment check (§53, to fix), a type name used as a
 > value crashes the backend (§54, to fix with an error), `sealed trait`: a closed set of implementers
-> (§55, to design), a value converted to `any` has no `make_intf`, and returning it mostly fails
-> (§56, to fix), no check that a class method matches its trait (§57, postponed),
-> `obj["key"]` on a plain class fails inside the compiler (§58, to decide), nullable generic elements
-> do not compile (§59, to fix), a tuple type argument asserts in the compiler (§60, to fix), a field
-> named `f` conflicts with the generated `fmt` (§61, to fix), `koala/redis`: tests that wait for a
+> (§55, to design), returning a value as `any` (§56, fixed), no check that a class method matches its
+> trait (§57, postponed), `obj["key"]` on a plain class fails inside the compiler (§58, fixed),
+> nullable generic elements do not compile (§59, fixed), a tuple type argument asserts in the compiler
+> (§60, fixed), a field named `f` conflicts with the generated `fmt` (§61, fixed), `koala/redis`: tests that wait for a
 > mock annotation, TLS and other leftovers (§62, to do), operators on a trait value: unary operators
 > and edge cases (§63, to fix), shift semantics: decided and implemented, leftovers (§64), small
-> compiler and runtime issues found on the way (§65, to fix).
+> compiler and runtime issues found on the way (§65, to fix), a narrow number type does not satisfy
+> `T: Comparable` when `T` is inferred (§66, fixed), a generic bound specializes to a type with
+> no symbol (§67, fixed), a tuple as a type argument in a constructor call (§68, to fix), an
+> external class without a public `__init__` (§69, to fix), a repeated call with explicit type
+> arguments has no `make_intf` (§71, to fix), `int.hash()` differs through a trait (§72, fixed),
+> comparing constants of a narrow float type fails in the backend (§73, to fix), `bfloat16` cannot be
+> constructed (§74, to fix), unary operators still promote automatically (§75, to fix).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> 更新日期：2026-11-07 (§72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
 > 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
 > decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
@@ -1925,7 +1930,12 @@ isel failure for `v = nil` under `if v != nil`).
 
 ---
 
-## 34. 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（2026-10-30 发现，待修）
+## 34. 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（2026-10-30 发现，fixed 2026-11-07）
+
+> Fixed (2026-11-07): `try_to_build_tp_args_cast()` now also runs for a generic free function and for
+> `emit_type_call()`, and it skips an argument that already is an interface value. Tests:
+> `test/test-run/test_bound_arg_free_func.kl`, `test_bound_arg_init.kl`. Left to do: enable
+> `test/test-run/test_intf_generic_bounds.kl.disabled`, which has not been tried.
 
 > 背景：为接口 IR 的三个槽位 bug（外模块 trait 继承取到祖先 trait 的槽、`A?` / 泛型接口 ts
 > 未归一到 origin trait、`get_intf_index()` 返回 -1 时直接 abort）补回归测试时发现的两处**同源**
@@ -3171,63 +3181,14 @@ It can follow the `koala/toml` pattern today, with no new syntax.
 
 ---
 
-## 56. A value converted to `any` has no `make_intf`, and returning it mostly fails (2026-11-04, to fix)
+## 56. Returning a value as `any` (2026-11-04, fixed)
 
-The intended IR, as decided by the author:
+Assigning anything to `any` or `any?` is a plain move, with no `make_intf` and no `cast`, and `any`
+keeps the value's own representation. `T` -> `T?` needs no op either.
 
-| Conversion | IR |
-|---|---|
-| `T` -> `T?` | no op |
-| `int` or a class -> `any` | `make_intf` |
-| `any` -> `any?` | no op |
-
-What the compiler does today: `_build_obj_intf_upcast` (`irgen.c`) returns early when the target is
-`any`, so no conversion to `any` makes an interface value. `any?` is not caught by that check and
-goes on to `make_intf`.
-
-| Form | no-opt IR | Result |
-|---|---|---|
-| `let a any = 1`, `let a any = n`, `let a any = foo` | `move` | works |
-| `take(1)`, `take(n)`, `take(foo)` with `a any` | the value is passed as it is | works |
-| `func f() any? { return 1 }` | `make_intf ... to any`, `ret %1 any` | works |
-| `func f(x int) any { return x }` | `cast %x int64 to any` | fails, `isel.c:875` |
-| `func f() any { return Foo() }` | `cast %0 Foo to any` | fails, `isel.c:875` |
-| `func f() any { return "x" }` | not captured | fails, `isel.c:875` |
-| `func f() any { return -1 }`, `return 100000` | LIR: `ret_const ... any` | fails, `klc.c:775` |
-| `func f() any { return 1 }` | `cast 1 int64 to any`, LIR: `ret_uint_imm 1 any` | runs, but `typeof` says `uint8` |
-
-The failures come from `build_return` (`irgen.c`): when `_build_obj_intf_upcast` returns `NULL` and
-the types differ, it adds a `cast` that `isel_lower_cast` has no case for. A constant is folded
-instead, and the literal loses its type.
-
-```kl
-func one() any { return 1 }
-
-func main() {
-    print(typeof(one()))    // <class 'uint8'>, expected int64
-}
-```
-
-A value of type `any` therefore has two representations: a tagged value after `int -> any`, and an
-interface value after `int -> any?` followed by `!`. `_int_to_buf` was fixed on 2026-11-04 to accept
-both, so `print` works (`test/test-run/test_print_int_as_optional_any.kl`). Other code that reads the
-tag directly may have the same problem, for example `any -> T`, which `isel_lower_cast` lowers to a
-plain move.
-
-This one is confirmed. The cast from `any` to `int` crashes on the interface value:
-
-```kl
-func get() any? { return 1 }
-
-func main() {
-    let v any = get()!
-    let n = (v as int)!
-    print(n + 1)    // vm_ops.h:72: assertion on the tag of the operand, exit code 134
-}
-```
-
-To check before fixing: generating `make_intf` for `int -> any` also changes assignments and
-arguments, so `any -> T` and the native code that reads a tag have to be reviewed.
+`build_return` (`irgen.c`) added a `cast` for a return to `any`, which failed to compile or lost the
+type of a literal. It no longer does. Tests: `test/test-run/test_return_any.kl`,
+`test/test-ir/test_ir_return_any.kl`.
 
 ---
 
@@ -3262,13 +3223,12 @@ Rules agreed for the check, with `T` bound to the actual type:
 - A method the trait declares and the class implements is checked. A method the class does not
   implement passes.
 - The number of parameters must be the same. Parameter names and default values are not compared.
-- Parameters are contravariant in only three forms, which keep the value's representation:
-  `uint8` -> `uint8 | bytes`, `str` -> `any`, `T` -> `T?`. A parameter never widens from a class to a
-  trait, such as `hashset[T]` -> `Set[T]`: the caller only sees the trait's declaration and cannot
-  know which interface value the implementation needs.
-- The return type is covariant, such as `Set[T]` -> `hashset[T]` or `T?` -> `T`. A union is not
-  allowed as a return type.
-- Generic type arguments are invariant: `Set[Animal]` -> `hashset[Dog]` is not allowed.
+- Parameters are invariant. Whether a parameter may widen to a union, as
+  `bytes.__contains__(value uint8 | bytes)` does, is undecided.
+- The return type is invariant: `Set[T]` -> `hashset[T]`, `T?` -> `T` and `any` -> `int` are not
+  allowed (decided on 2026-11-07, replacing covariant returns). A union is not allowed as a return
+  type.
+- Generic type arguments are invariant.
 - A method with an `infer` type parameter, such as `tuple.__getitem__[infer U]`, is not checked.
 - `any` is the parent of every type, but `T?` -> `any` needs a cast, as does any `T?` -> `T`.
 
@@ -3277,124 +3237,49 @@ Implementation notes:
 - Walk the symbol table as `build_intf_table` does. `lro` lists every trait of a class, and
   `find_matched_tp_args` gives the bound type arguments.
 - Compare the function types (`fn->ts`) with `type_spec_compatible`, which needs a `TYPE_PROTO` case.
-  `inst_type_spec` needs one too, to bind `T`.
+  `type_spec_specialize` needs one too, to bind `T`.
 
 Problems found in `type_spec_compatible` while trying this:
 
 - `compatible_generic_ref` compares only the arguments when their number is the same, not the types:
   `Set[T]` and `hashset[T]` are compatible in both directions.
 - `compatible_union` is `ASSERT(0)`.
-- `dst` of `any` accepts `T?`, so `let v any = get()` with `get() int?` compiles and `v` can be nil.
 - `type_spec_equal_strict` compares generic arguments by kind and `sym_id` only, not their own
   arguments.
 
 Existing code that would need attention:
 
-- `hashset`, `FrozenSet` and `SortedSet` return their own type from `union`, `intersect` and `diff`,
-  where the trait returns `Set[T]`. Using the result through `Set[T]` crashes today, because the
-  value has no interface table (`vm_ops.h:430`):
-
-  ```kl
-  func main() {
-      let h = hashset[int]()
-      let s Set[int] = h
-      let r = s.union(list[int](2))
-      print(r.len())
-  }
-  ```
-
-  A covariant return through a trait call needs a conversion on the caller side, whose mechanism is
-  not decided.
-- `str : Sequence` and `int64 : Comparable` have no type arguments, so `T` is unbound for them.
+- `str : Sequence` and `int64 : Comparable` have no type arguments: `T` binds to the class
+  automatically, which is a language feature, so the check has to compare with `T` as the class.
 - `class C : G[int] & G[str]` has one entry for `G` in `lro`.
-- `test/test-kl/test_trait_impl_mismatch.kl` and `test/test-kl/test_any_rejects_optional.kl` expect
-  these errors and fail until the check and the `any` rule exist.
 
 ---
 
-## 58. `obj["key"]` on a plain class fails inside the compiler (2026-11-04, to decide)
+## 58. `obj["key"]` on a plain class fails inside the compiler (2026-11-04, fixed)
 
-```kl
-class T {
-    pub func __getitem__(name str) int { return 1 }
-}
-
-func main() {
-    let t = T()
-    print(t["amy"])    // irgen.c:1490: Why goes here?, then "koala: compilation failed"
-}
-```
-
-The checker accepts the index, but irgen only handles sequences and maps, and everything else reaches
-`UNREACHABLE()`. The error has no source location.
-
-To decide: if `[]` is meant only for sequences and `Map`, this is a misuse that needs a proper error
-from the checker. Otherwise irgen needs to call `__getitem__`.
+`t["amy"]` with `__getitem__(name str)` on a plain class compiles and runs. Checked on 2026-11-06.
 
 ---
 
-## 59. Nullable generic elements do not compile (2026-11-04, to fix)
+## 59. Nullable generic elements do not compile (2026-11-04, fixed)
 
-```kl
-func main() {
-    let d = list[str?]()
-    d.append("a")    // the same with d.append(nil)
-    print(d.len())
-}
-```
+`list[str?]`, `list[int?]` and a user class `Box[str?]` compile and run. Checked on 2026-11-06.
 
-The code is correct: `T` is `str?`, and passing a `str` to a `str?` parameter is an ordinary implicit
-conversion, which works for a plain function. `koalac` crashes with a segmentation fault in
-`check_call_args` (`parser_expr.c:830`), because the parameter type is `NULL`, and `koala` only prints
-`koala: compilation failed`. The same happens for `list[int?]` and a user class `Box[str?]`. Creating
-the list alone compiles: `list[str?]()` followed by `d.len()` prints `0`.
-
-The type argument is lost when the instance is created: the type of `list[str?]()` prints as
-`std/builtin.list<>`. `parse_index_new_type` takes each type argument from `arg->sym`, as a class,
-trait, instance or type parameter, which does not describe an optional type. Why the argument ends up
-empty has not been traced further. §60 asserts in the same function.
-
-Once these types compile, the native paths that loop on `kl_call_next` and stop at nil, such as the
-iterator branch of `_list_extend`, would cut the elements at the first nil. `for` loops use
-`has_next` / `next_strict` and do not have this problem.
+Left to check: the native paths that loop on `kl_call_next` and stop at nil, such as the iterator
+branch of `_list_extend`, cut the elements at the first nil. `for` loops use `has_next` /
+`next_strict` and do not have this problem.
 
 ---
 
-## 60. A tuple type argument asserts in the compiler (2026-11-04, to fix)
+## 60. A tuple type argument asserts in the compiler (2026-11-04, fixed)
 
-```kl
-func main() {
-    let l = list[(str, int)]()
-    print(l.len())
-}
-```
-
-```text
-koalac: src/parser/parser_expr.c:2659: parse_index_new_type: Assertion
-`arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR' failed.
-koala: compilation failed
-```
+`list[(str, int)]()` compiles and runs. Checked on 2026-11-06.
 
 ---
 
-## 61. A field named `f` conflicts with the generated `fmt` (2026-11-04, to fix)
+## 61. A field named `f` conflicts with the generated `fmt` (2026-11-04, fixed)
 
-```kl
-class Box {
-    var f any = 1
-}
-
-func main() {
-    print(Box().f)
-}
-```
-
-```text
-error: parameter 'f' conflicts with field name in class 'Box'
-```
-
-The reported location is `0:0`. The user did not write the parameter: it comes from the generated
-`fmt(f Formatter)`. A generated method should not take a name away from user fields.
+`class Box { var f any = 1 }` compiles and runs. Checked on 2026-11-06.
 
 ---
 
@@ -3504,3 +3389,200 @@ Left to do:
   wombat.
 - A narrowed variable in an `is` check has no test for indexing: `test-run/test_narrow_index.kl` covers
   only optional narrowing.
+
+---
+
+## 66. A narrow number type does not satisfy `T: Comparable` when `T` is inferred (2026-11-07, fixed)
+
+```kl
+print(max(float32(1.5), float32(2.5)))
+// error: type argument 'float32' does not satisfy constraint on type parameter 'T'
+```
+
+`std/builtin.max` is `max[T : Comparable](x T, y T) T`, and the narrow number types only declared
+`ToString`. It compiled while inferred type arguments had no bound check.
+
+Fixed in two parts. In `libs/std/builtin/number.kl`, the narrow integers declare `Comparable[int64]` and
+the narrow floats `Comparable[float64]`, with their comparison and arithmetic methods. In
+`check_generic_bound`, a number type satisfies a generic bound through a declared base with a compatible
+type argument (`number_base_satisfies_bound`). So `T` stays `float32`, and `max` returns a `float32`. Other
+types stay invariant.
+
+---
+
+## 67. A generic bound specializes to a type with no symbol (2026-11-07, fixed)
+
+Passing a type that does not declare a generic bound, such as `float32` to `T: Comparable`, logged
+`compatible_klass: unresolved TypeSpec` with `sym_id=-1` for every base of the type, before the
+expected error.
+
+The old `type_spec_specialize(ts, tp_args)` only built a klass type, and the symbol comes from
+`find_or_add_instance`. So `Comparable<f>` had no symbol unless a class had already declared it, which
+is why `class Score : Comparable` was compared properly.
+
+Fixed by creating the instance when it is first needed, as generic instantiation does everywhere else:
+`check_generic_bound` now uses the function that was named `inst_type_spec`. It was renamed to
+`type_spec_specialize` and the old function was removed.
+
+---
+
+## 68. A tuple as a type argument in a constructor call is read as a value (2026-11-07, to fix)
+
+Correct code fails to compile:
+
+```kl
+func main() {
+    let l = list[(str, int)]()
+    l.append(("a", 1))
+}
+```
+
+```text
+error: Incompatible type: expected 'std/builtin.tuple<Lstd/builtin.type;Lstd/builtin.type;>',
+but got 'std/builtin.tuple<uj>'.
+```
+
+The element type becomes a tuple of two `type` values: `(str, int)` is treated as a tuple expression
+whose items are type names, not as a tuple type. The same type in a declaration works:
+`let l list[(str, int)] = [("a", 1)]`.
+
+---
+
+## 69. An external class without a public `__init__` (2026-11-07, to fix)
+
+Constructing a class of another package that declares no public `__init__`:
+
+```kl
+// test_pkg/pkg
+pub class Plain {}
+pub class Generic[T] {}
+
+// the importing file
+pkg.Plain()         // error
+pkg.Generic[int]()  // compiler crash
+```
+
+- The non-generic class gets the error "class 'Plain' is external, but has no public '__init__()'."
+- The generic class crashes the compiler instead of reaching that error:
+
+```text
+koalac: src/parser/parser_expr.c:1243: get___init___instance: Assertion '_sym' failed
+```
+
+`get___init___instance` asserts that the origin class has `__init__` in its symbol table, which an
+external class without a public `__init__` does not. It should report the same error as the
+non-generic class.
+
+---
+
+## 71. A repeated call with explicit type arguments has no `make_intf` (2026-11-07, to fix)
+
+Correct code crashes at runtime on the second call:
+
+```kl
+trait Maker { func make() Sized }
+
+class Thing : Sized { pub func len() int { return 7 } }
+
+class Narrower : Maker { pub func make() Sized { return Thing() } }
+
+func via_bound[T: Maker](m T) int { return m.make().len() }
+
+func main() {
+    print(via_bound[Narrower](Narrower()))
+    print(via_bound[Narrower](Narrower()))
+}
+```
+
+```text
+vm_ops.h:430: _eval_frame: Assertion '((callable)->tag > (64 + 1))' failed.
+```
+
+The IR of the second call is `call @via_bound, %4 Narrower`, with no `make_intf` before it. An explicit call fails when any call of the function comes before it,
+inferred or explicit. Only the first explicit call and inferred calls get `make_intf`. The cause has not
+been traced.
+
+---
+
+## 72. `int.hash()` differs through a trait (2026-11-07, fixed)
+
+```kl
+func main() {
+    print(5.hash())       // the same on both paths now
+    let h Hashable = 5
+    print(h.hash())
+}
+```
+
+Integers had no `hash` method, so they used `_default_hash`, which hashes the whole `TValue` with its
+tag. An interface value has its interface table there, so the two calls differed. A narrow value in a
+wide container keeps its own tag, so `int8(1)` and `1` differed too: `hashset[int64]` kept them as two
+elements and `int8(1) in d` was false, although `==` says they are equal.
+
+Fixed by `_int_hash` in `src/objects/intobj.c`, which hashes only the value, through `_get_raw_bits`.
+Test: `test/test-run/test_number.kl`.
+
+---
+
+## 73. Comparing constants of a narrow float type fails in the backend (2026-11-07, to fix)
+
+Correct code fails to compile:
+
+```kl
+func main() {
+    let a = float32(1.5)
+    let b = float32(2.5)
+    print(a < b)
+}
+```
+
+```text
+isel.c:317: Why goes here?
+koala: compilation failed
+```
+
+`float32(1.5) > 1.0`, `a > 1.0` and the same code with `float16` fail the same way. `a == b` and
+`a + b` compile, and `int8` has no such failure. It does not depend on the narrow types declaring
+`Comparable` (§66): it fails the same way without that.
+
+The line is the `c1 && c2` branch of `isel_lower_binary`, reached when both operands are constants. That
+this is the cause comes from reading the code and has not been traced.
+
+---
+
+## 74. `bfloat16` cannot be constructed (2026-11-07, to fix)
+
+```kl
+func main() {
+    print(bfloat16(1.5))
+}
+```
+
+```text
+irgen.c:912: Not Yet Implemented
+koala: compilation failed
+```
+
+The line is the last branch of `emit_type_call`. `bfloat16(float64(1.5))` fails the same way. So
+`bfloat16`, which declares `Comparable` since §66, has no test for its comparison methods or for `max`.
+
+---
+
+## 75. Unary operators still promote automatically (2026-11-07, to fix)
+
+The binary promotion was removed: a narrow number type's methods in `libs/std/builtin/number.kl` declare
+what it promotes to. `-a` and `~a` do not follow that yet. `parse_unary` hard-codes the result type as
+`int64`, `uint64` or `float64`, and the narrow types declare neither `__neg__` nor `__bitnot__`.
+
+```kl
+func f(a uint8) uint64 { return ~a }
+
+func main() {
+    let r = f(uint8(5))
+    print(r, typeof(r))    // 18446744073709551610 <class 'uint8'>
+}
+```
+
+To do: declare `__neg__` and `__bitnot__` on the narrow types, and make the unary operators follow the
+declaration as the binary operators do. `emit_ir_unary` does not cast its operand, so the tag above
+stays `uint8`; that has to follow the declaration too.

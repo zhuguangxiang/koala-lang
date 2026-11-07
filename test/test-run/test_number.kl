@@ -1,0 +1,122 @@
+// RUN: koala %s | filecheck %s
+
+// The result type comes from the instruction, not from the tag of an operand.
+func sub_u8(n uint8, m uint8) int64 { return n - m }
+func mul_u8(n uint8, m uint8) int64 { return n * m }
+func div_u8(n uint8, m uint8) int64 { return n / m }
+func mod_u8(n uint8, m uint8) int64 { return n % m }
+func and_u8(n uint8, m uint8) int64 { return n & m }
+func or_u8(n uint8, m uint8) int64 { return n | m }
+func xor_u8(n uint8, m uint8) int64 { return n ^ m }
+func shl_u8(n uint8, m uint8) int64 { return n << m }
+func shr_u8(n uint8, m uint8) int64 { return n >> m }
+func sub_u64(n uint64, m uint64) uint64 { return n - m }
+func add_u64_u8(n uint64, m uint8) uint64 { return n + m }
+
+func less_u8_i8(n uint8, m int8) bool { return n < m }
+
+func sub_i8(n int8, m int8) int64 { return n - m }
+func add_i8_literal(n int8) int64 { return n + 1 }
+func add_f32(n float32, m float32) float64 { return n + m }
+func less_f32(n float32, m float32) bool { return n < m }
+
+func sub_elems(l list[int64]) int64 { return l[0] - l[1] }
+func sub_unsigned_elems(l list[uint64]) uint64 { return l[0] - l[1] }
+
+func main() {
+    let a = int8(100)
+    let b = int8(100)
+    print(a + b, typeof(a + b))
+    // CHECK: 200 <class 'int64'>
+
+    // A hash only depends on the value: a narrow value in a wide container keeps its own tag.
+    let k = int8(1)
+    let g = uint8(1)
+    print(hash(k) == hash(1), hash(g) == hash(1), int8(-1).hash() == (-1).hash())
+    // CHECK-NEXT: true true true
+
+    let plain Hashable = 5
+    print(plain.hash() == 5.hash())
+    // CHECK-NEXT: true
+
+    let h = hashset[int64]()
+    h.add(k)
+    h.add(g)
+    h.add(1)
+    print(h.len(), 1 in h, k in h, g in h)
+    // CHECK-NEXT: 1 true true true
+
+    let d = dict[int64, int]()
+    d[1] = 1
+    print(k in d, g in d)
+    // CHECK-NEXT: true true
+
+    // Type arguments written out, a narrow value is passed as the wide type.
+    print(max[int64](int8(1), int8(2)), min[int64](int8(1), int8(2)))
+    // CHECK-NEXT: 2 1
+    print(max[int64](uint8(200), int8(-1)))
+    // CHECK-NEXT: 200
+    print(max[int64](1, 2), max[uint64](uint64(1), uint8(2)))
+    // CHECK-NEXT: 2 2
+    print(max[float64](float32(1.5), float32(2.5)))
+    // CHECK-NEXT: 2.5
+
+    let r = sub_u8(uint8(1), uint8(2))
+    print(r, typeof(r))
+    // CHECK-NEXT: -1 <class 'int64'>
+
+    print(typeof(mul_u8(uint8(200), uint8(200))), mul_u8(uint8(200), uint8(200)))
+    // CHECK-NEXT: <class 'int64'> 40000
+    print(typeof(div_u8(uint8(200), uint8(3))), div_u8(uint8(200), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 66
+    print(typeof(mod_u8(uint8(200), uint8(3))), mod_u8(uint8(200), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 2
+    print(typeof(and_u8(uint8(6), uint8(3))), and_u8(uint8(6), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 2
+    print(typeof(or_u8(uint8(6), uint8(3))), or_u8(uint8(6), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 7
+    print(typeof(xor_u8(uint8(6), uint8(3))), xor_u8(uint8(6), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 5
+    print(typeof(shl_u8(uint8(1), uint8(3))), shl_u8(uint8(1), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 8
+    print(typeof(shr_u8(uint8(8), uint8(3))), shr_u8(uint8(8), uint8(3)))
+    // CHECK-NEXT: <class 'int64'> 1
+
+    let w = sub_u64(uint64(1), uint64(2))
+    print(w, typeof(w))
+    // CHECK-NEXT: 18446744073709551615 <class 'uint64'>
+    print(typeof(add_u64_u8(uint64(5), uint8(1))), add_u64_u8(uint64(5), uint8(1)))
+    // CHECK-NEXT: <class 'uint64'> 6
+
+    print(less_u8_i8(uint8(1), int8(-1)))
+    // CHECK-NEXT: false
+
+    print(typeof(sub_i8(int8(1), int8(2))), sub_i8(int8(1), int8(2)))
+    // CHECK-NEXT: <class 'int64'> -1
+    print(typeof(add_i8_literal(int8(5))), add_i8_literal(int8(5)))
+    // CHECK-NEXT: <class 'int64'> 6
+    print(typeof(add_f32(float32(1.5), float32(2.5))), add_f32(float32(1.5), float32(2.5)))
+    // CHECK-NEXT: <class 'float64'> 4
+    print(less_f32(float32(1.5), float32(2.5)))
+    // CHECK-NEXT: true
+
+    let narrow = uint8(200)
+    print(narrow + 100, narrow == 200, typeof(narrow + 100))
+    // CHECK-NEXT: 300 true <class 'int64'>
+
+    let elems = list[int64]()
+    elems.append(uint8(1))
+    elems.append(uint8(2))
+    print(sub_elems(elems))
+    // CHECK-NEXT: -1
+    let elem_minus_literal = elems[0] - 2
+    print(elem_minus_literal, typeof(elem_minus_literal))
+    // CHECK-NEXT: -1 <class 'int64'>
+
+    let unsigned_elems = list[uint64]()
+    unsigned_elems.append(uint8(1))
+    unsigned_elems.append(uint8(2))
+    let v = sub_unsigned_elems(unsigned_elems)
+    print(v, typeof(v))
+    // CHECK-NEXT: 18446744073709551615 <class 'uint64'>
+}

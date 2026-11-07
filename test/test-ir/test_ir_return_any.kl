@@ -1,0 +1,87 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,lir | filecheck %s
+
+// Returning a value as `any` or `any?` generates no `cast` and no `make_intf`: the
+// value is returned as it is.
+
+class Foo {
+}
+
+func any_int() any { return 1 }
+
+func any_str() any { return "x" }
+
+func any_bool() any { return true }
+
+func any_var(x int) any { return x }
+
+func any_foo(x Foo) any { return x }
+
+func opt_str() any? { return "x" }
+
+func opt_var(x int) any? { return x }
+
+func opt_nil() any? { return nil }
+
+// CHECK-LABEL: func @any_int() any {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret 1 int64
+
+// CHECK-LABEL: func @any_str() any {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret 'x' str
+
+// CHECK-LABEL: func @any_bool() any {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret true bool
+
+// CHECK-LABEL: func @any_var(%x int64) any {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret %x int64
+
+// CHECK-LABEL: func @any_foo(%x test_ir_return_any.Foo) any {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret %x test_ir_return_any.Foo
+
+// CHECK-LABEL: func @opt_str() any? {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret 'x' str
+
+// CHECK-LABEL: func @opt_var(%x int64) any? {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret %x int64
+
+// CHECK-LABEL: func @opt_nil() any? {
+// CHECK-NOT: cast
+// CHECK-NOT: make_intf
+// CHECK: ret nil
+
+// CHECK-LABEL: --- IR Dump After isel [@any_int] ---
+// CHECK: ret_int_imm 1 int64
+
+// CHECK-LABEL: --- IR Dump After isel [@any_str] ---
+// CHECK: ret_const 'x' str
+
+// CHECK-LABEL: --- IR Dump After isel [@any_bool] ---
+// CHECK: ret_{{.*}} true bool
+
+// CHECK-LABEL: --- IR Dump After isel [@any_var] ---
+// CHECK: ret %x int64
+
+// CHECK-LABEL: --- IR Dump After isel [@any_foo] ---
+// CHECK: ret %x test_ir_return_any.Foo
+
+// CHECK-LABEL: --- IR Dump After isel [@opt_str] ---
+// CHECK: ret_const 'x' str
+
+// CHECK-LABEL: --- IR Dump After isel [@opt_var] ---
+// CHECK: ret %x int64
+
+// CHECK-LABEL: --- IR Dump After isel [@opt_nil] ---
+// CHECK: ret_tag nil

@@ -411,6 +411,14 @@ static TValue _int_ne(TValue *self, TValue *args, int nargs)
     return bool_value(lhs != rhs);
 }
 
+static TValue _int_hash(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    uint64_t v = _get_raw_bits(self);
+    unsigned int hash = mem_hash(&v, sizeof(v));
+    return int64_value(hash);
+}
+
 static MethodDef int_methods[] = {
     { "__add__", _int_add },
     { "__sub__", _int_sub },
@@ -428,6 +436,7 @@ static MethodDef int_methods[] = {
     { "__le__", _int_le },
     { "__gt__", _int_gt },
     { "__ge__", _int_ge },
+    { "hash", _int_hash },
     { "__eq__", _int_eq },
     { "__ne__", _int_ne },
     { "fmt", _int_fmt },

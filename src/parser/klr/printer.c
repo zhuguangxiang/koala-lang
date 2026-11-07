@@ -1057,11 +1057,23 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_jmp_cond_fused(name, insn, fp);
             break;
 
+        case OP_UINT_ADD:
+            print_binary(insn, name, fp);
+            break;
+
         case OP_UINT_ADD_IMM:
             print_binary(insn, name, fp);
             break;
 
+        case OP_UINT_SUB:
+            print_binary(insn, name, fp);
+            break;
+
         case OP_UINT_SUB_IMM:
+            print_binary(insn, name, fp);
+            break;
+
+        case OP_UINT_MUL:
             print_binary(insn, name, fp);
             break;
 
@@ -1089,6 +1101,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, name, fp);
             break;
 
+        case OP_UINT_SHL:
+            print_binary(insn, name, fp);
+            break;
+
         case OP_UINT_SHL_IMM:
             print_binary(insn, name, fp);
             break;
@@ -1097,11 +1113,23 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, name, fp);
             break;
 
+        case OP_UINT_AND:
+            print_binary(insn, name, fp);
+            break;
+
         case OP_UINT_AND_IMM:
             print_binary(insn, name, fp);
             break;
 
+        case OP_UINT_OR:
+            print_binary(insn, name, fp);
+            break;
+
         case OP_UINT_OR_IMM:
+            print_binary(insn, name, fp);
+            break;
+
+        case OP_UINT_XOR:
             print_binary(insn, name, fp);
             break;
 

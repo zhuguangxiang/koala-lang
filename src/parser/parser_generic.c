@@ -542,7 +542,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
     return inst_sym;
 }
 
-TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm)
+TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm)
 {
     TypeSpec *arg_ts;
     if (ts->kind == TYPE_GENERIC_VAR) {
@@ -554,7 +554,7 @@ TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserMod
         vector_foreach(_arg_ts, ts->generic_ref.args) {
             if (!_arg_ts) continue;
             // recursively instantiate the generic_ref args
-            TypeSpec *inst_arg = inst_type_spec(_arg_ts, tp_args, stbl, pm);
+            TypeSpec *inst_arg = type_spec_specialize(_arg_ts, tp_args, stbl, pm);
             ASSERT(inst_arg);
             vector_push_back(_tp_args, &inst_arg);
         }
@@ -562,7 +562,7 @@ TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserMod
         InstanceSymbol *inst_sym = find_or_add_instance(stbl, sym, _tp_args, pm);
         arg_ts = inst_sym->instance_ts;
     } else if (ts->kind == TYPE_OPTIONAL) {
-        TypeSpec *inst_inner = inst_type_spec(ts->opt.src, tp_args, stbl, pm);
+        TypeSpec *inst_inner = type_spec_specialize(ts->opt.src, tp_args, stbl, pm);
         arg_ts = optional_type_spec_intern(inst_inner);
     } else {
         arg_ts = ts;
@@ -604,12 +604,12 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
     ArgInfo *arg;
     vector_foreach(arg, origin->params) {
         if (!arg) continue;
-        TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, ps->pm);
+        TypeSpec *arg_ts = type_spec_specialize(arg->ts, tp_args, stbl, ps->pm);
         log_info("func instance %dth-arg type: '%s'", i__, arg_ts->signature);
         vector_push_back(real_arg_types, &arg_ts);
     }
 
-    TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, ps->pm);
+    TypeSpec *ret_type = type_spec_specialize(origin->ret, tp_args, stbl, ps->pm);
     log_info("func instance ret type: '%s'", ret_type->signature);
 
     sym = stbl_add_func_instance(stbl, origin, mangled_name, real_arg_types, ret_type);
@@ -643,7 +643,7 @@ void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserSta
         ArgInfo *arg;
         vector_foreach(arg, origin->params) {
             if (!arg) continue;
-            TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, pm);
+            TypeSpec *arg_ts = type_spec_specialize(arg->ts, tp_args, stbl, pm);
             log_info("specialized func %dth-arg type: '%s'", i__, arg_ts->signature);
             vector_push_back(arg_types, &arg_ts);
 
@@ -654,7 +654,7 @@ void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserSta
             vector_push_back(arg_infos, &_param);
         }
 
-        TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, pm);
+        TypeSpec *ret_type = type_spec_specialize(origin->ret, tp_args, stbl, pm);
         log_info("specialized func ret type: '%s'", ret_type->signature);
         FuncSymbol *fn_sym = (FuncSymbol *)sym;
         fn_sym->ret = ret_type;

@@ -3,7 +3,7 @@
 // Custom class implementing the six comparison dunders with real bytecode
 // bodies: generic comparisons on Score must fall through the OP_NUM_*
 // cmp-slot path (slot_tp_richcmp -> the dunder), not a builtin fast path.
-class Score {
+class Score : Comparable {
     var value int
 
     func __init__(_value int) {

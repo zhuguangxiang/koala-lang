@@ -2075,7 +2075,7 @@ static int peephole(KlMachFunc *mfn)
 
             if (!((b->op >= OP_INT_ADD && b->op <= OP_INT_SHR_IMM) ||
                   (b->op >= OP_FLOAT_ADD && b->op <= OP_FLOAT_MOD) ||
-                  (b->op >= OP_UINT_ADD_IMM && b->op <= OP_UINT_SHR_IMM))) {
+                  (b->op >= OP_UINT_ADD && b->op <= OP_UINT_SHR_IMM))) {
                 continue;
             }
 

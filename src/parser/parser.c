@@ -3570,6 +3570,7 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     if (fn_name == bi_op_name) {
         assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
         expr_set_loc(assign->bin_exp, assign->loc);
+        assign->bin_exp->ts = fn_sym->ret;
         return 0;
     }
 

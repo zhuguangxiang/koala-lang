@@ -109,8 +109,8 @@ typedef struct _TValue {
 #define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
 
 /* Category checks */
-#define is_int_tag(tag)   (((tag) & 0b1100) == 0b1000)
-#define is_uint_tag(tag)  (((tag) & 0b1100) == 0b1100)
+#define is_int_tag(tag)   (((tag) & ~(uintptr_t)0b11) == 0b1000)
+#define is_uint_tag(tag)  (((tag) & ~(uintptr_t)0b11) == 0b1100)
 #define is_float_tag(tag) (((tag) & 0b10000) == 0b10000)
 
 #define is_int(x)   is_int_tag((x)->tag)

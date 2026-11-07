@@ -907,8 +907,26 @@ func add_pair[T : Arithmetic](a T, b T) T {
 }
 ```
 
-A trait bound such as `T : Arithmetic` states what the unknown type must be able to do; without a
-bound, only the universally available capabilities may be used.
+A trait bound such as `T : Arithmetic` states what the unknown type must be able to do. The rule has
+no exceptions:
+
+- A type parameter can only use what its bound provides. Calling a method on a `T` or applying an
+  operator to it needs a bound that declares it.
+- A type argument satisfies a bound only by having that trait: declared in its base list, or added
+  automatically. Having the methods is not enough, and inferred type arguments are checked too.
+- The automatic traits count as having the bound. Every class has `Equatable`, `Hashable` and
+  `Printable`, so a plain `T` can already use `==`, `!=`, `hash()` and `fmt()`.
+
+```kl
+class Score {
+    func __lt__(rhs Score) bool { ... }
+}
+
+func less[T : Comparable](a T, b T) bool { return a < b }
+
+Score(1) < Score(2)         // ok: a concrete type only needs the method
+less(Score(1), Score(2))    // error: Score does not declare Comparable
+```
 
 **Type arguments are inferred.** Koala performs generic inference so that type arguments are
 written only when necessary:
@@ -1083,9 +1101,9 @@ it with concrete types.
 
 Operator overloading in Koala is a *syntax hook*: the capability is granted by the dunder method
 itself, not by any trait declaration. Implementing `__add__` makes `+` work on your type — there is
-no conformance ceremony. Writing the operator traits into a base list may be omitted entirely:
-implementing the dunders *is* the conformance (structural conformance), and at generic call sites
-the type arguments are inferred automatically.
+no conformance ceremony for a concrete type. A generic bound is different: to pass `Point` to
+`T : Arithmetic`, `Point` has to declare `Arithmetic`, and having the dunders is not enough (see
+[Generics](#generics)).
 
 ```kl
 class Point {
@@ -1164,7 +1182,7 @@ the bound once, and the caller writes nothing extra — the type argument is inf
 
 ```kl
 print(add_pair(3, 4))        // T inferred as int; prints 7
-print(add_pair(p, q))        // T inferred as Point; prints Point(4, 6)
+print(add_pair(p, q))        // error: Point does not declare Arithmetic
 ```
 
 On a trait-typed value, operators follow the substituted instance signature: with

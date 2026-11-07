@@ -245,7 +245,6 @@ void install_builtin_types(HashMap *stbl);
 void type_spec_free(TypeSpec *ts);
 char *mangle_type_name(char *base_name, Vector *tp_args);
 char *mangle_func_name(char *base_name, Vector *tp_args);
-TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args);
 
 bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b);
 

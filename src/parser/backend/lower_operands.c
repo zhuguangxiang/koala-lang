@@ -279,7 +279,7 @@ static void lower_jmp_opers(KlrInsn *insn)
 static inline int is_binary(OpCode op)
 {
     return (op >= OP_INT_ADD && op <= OP_INT_GE_IMM) ||
-           (op >= OP_UINT_ADD_IMM && op <= OP_UINT_GE_IMM) ||
+           (op >= OP_UINT_ADD && op <= OP_UINT_GE_IMM) ||
            (op >= OP_FLOAT_ADD && op <= OP_FLOAT_GE) || (op >= OP_LAND && op <= OP_LOR) ||
            (op >= OP_NUM_ADD && op <= OP_NUM_GE);
 }

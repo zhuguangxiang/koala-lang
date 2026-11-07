@@ -1,0 +1,239 @@
+// RUN: koala %s | filecheck %s
+
+// Every class has Printable, Equatable and Hashable without declaring them.
+class Item {
+    let value int
+
+    pub func __init__(_value int) {
+        value = _value
+    }
+
+    pub func fmt(f Formatter) {
+        f.write_str("Item")
+    }
+
+    pub func __eq__(rhs Item) bool {
+        return value == rhs.value
+    }
+
+    pub func __ne__(rhs Item) bool {
+        return value != rhs.value
+    }
+
+    pub func hash() int {
+        return value
+    }
+}
+
+// 1. An explicit bound on an automatic trait.
+func show_bound[T: Printable](v T) {
+    print(v)
+}
+
+func eq_bound[T: Equatable](a T, b T) bool {
+    return a == b
+}
+
+func ne_bound[T: Equatable](a T, b T) bool {
+    return a != b
+}
+
+func hash_bound[T: Hashable](v T) int {
+    return v.hash()
+}
+
+// 2. No bound: the automatic traits still work.
+func show_plain[T](v T) {
+    print(v)
+}
+
+func eq_plain[T](a T, b T) bool {
+    return a == b
+}
+
+func ne_plain[T](a T, b T) bool {
+    return a != b
+}
+
+func hash_plain[T](v T) int {
+    return v.hash()
+}
+
+// 3. A user-defined bound, on a function's `T` and on a class's `T`.
+trait Shape {
+    func area() int
+}
+
+class Rect : Shape {
+    pub func area() int { return 10 }
+}
+
+func area_of[T: Shape](v T) int {
+    return v.area()
+}
+
+class Holder[T: Shape] {
+    let v T
+
+    pub func __init__(_v T) {
+        v = _v
+    }
+
+    pub func peek() int {
+        return v.area()
+    }
+}
+
+// The bound is a generic trait.
+trait Getter[T] {
+    func get() T
+}
+
+class IntGetter : Getter[int] {
+    pub func get() int { return 20 }
+}
+
+func get_of[T: Getter[int]](v T) int {
+    return v.get()
+}
+
+class GetterHolder[T: Getter[int]] {
+    let v T
+
+    pub func __init__(_v T) {
+        v = _v
+    }
+
+    pub func peek() int {
+        return v.get()
+    }
+}
+
+// The argument already is a value of a type parameter.
+func area_again[T: Shape](v T) int {
+    return area_of(v)
+}
+
+class Rewrap[T: Shape] {
+    let v T
+
+    pub func __init__(_v T) {
+        v = _v
+    }
+
+    pub func holder() Holder[T] {
+        return Holder[T](v)
+    }
+}
+
+// The argument is a value of the bound itself, or of a trait that inherits it.
+trait Square : Shape {
+    func side() int
+}
+
+class Unit : Square {
+    pub func area() int { return 1 }
+
+    pub func side() int { return 1 }
+}
+
+func main() {
+    let s = "ab" + "c"
+    let t = "a" + "bc"
+
+    show_bound(Item(1))
+    // CHECK: Item
+    show_bound(1)
+    // CHECK-NEXT: 1
+    show_bound(s)
+    // CHECK-NEXT: abc
+    print(eq_bound(Item(1), Item(1)), ne_bound(Item(1), Item(1)))
+    // CHECK-NEXT: true false
+    print(eq_bound(1, 1), ne_bound(1, 1))
+    // CHECK-NEXT: true false
+    print(eq_bound(1, 2), ne_bound(1, 2))
+    // CHECK-NEXT: false true
+    print(eq_bound(s, t), ne_bound(s, t))
+    // CHECK-NEXT: true false
+    print(hash_bound(Item(7)))
+    // CHECK-NEXT: 7
+    print(hash_bound(1) == hash_bound(1))
+    // CHECK-NEXT: true
+    print(hash_bound(s) == hash_bound(t))
+    // CHECK-NEXT: true
+
+    show_plain(Item(1))
+    // CHECK-NEXT: Item
+    show_plain(1)
+    // CHECK-NEXT: 1
+    show_plain(s)
+    // CHECK-NEXT: abc
+    print(eq_plain(Item(1), Item(1)), ne_plain(Item(1), Item(1)))
+    // CHECK-NEXT: true false
+    print(eq_plain(1, 1), ne_plain(1, 1))
+    // CHECK-NEXT: true false
+    print(eq_plain(1, 2), ne_plain(1, 2))
+    // CHECK-NEXT: false true
+    print(eq_plain(s, t), ne_plain(s, t))
+    // CHECK-NEXT: true false
+    print(hash_plain(Item(7)))
+    // CHECK-NEXT: 7
+    print(hash_plain(1) == hash_plain(1))
+    // CHECK-NEXT: true
+    print(hash_plain(s) == hash_plain(t))
+    // CHECK-NEXT: true
+
+    print(max(int8(1), int8(2)), min(int8(1), int8(2)))
+    // CHECK-NEXT: 2 1
+    print(max(int16(1), int16(2)), min(int16(1), int16(2)))
+    // CHECK-NEXT: 2 1
+    print(max(int32(1), int32(2)), min(int32(1), int32(2)))
+    // CHECK-NEXT: 2 1
+    print(max(uint8(1), uint8(2)), min(uint8(1), uint8(2)))
+    // CHECK-NEXT: 2 1
+    print(max(uint16(1), uint16(2)), min(uint16(1), uint16(2)))
+    // CHECK-NEXT: 2 1
+    print(max(uint32(1), uint32(2)), min(uint32(1), uint32(2)))
+    // CHECK-NEXT: 2 1
+    print(max(float16(1.5), float16(2.5)), min(float16(1.5), float16(2.5)))
+    // CHECK-NEXT: 2.5 1.5
+    print(max(float32(1.5), float32(2.5)), min(float32(1.5), float32(2.5)))
+    // CHECK-NEXT: 2.5 1.5
+    print(typeof(max(float32(1.5), float32(2.5))))
+    // CHECK-NEXT: <class 'float32'>
+
+    print(area_of(Rect()))
+    // CHECK-NEXT: 10
+    print(Holder[Rect](Rect()).peek())
+    // CHECK-NEXT: 10
+    print(Holder(Rect()).peek())
+    // CHECK-NEXT: 10
+
+    print(get_of(IntGetter()))
+    // CHECK-NEXT: 20
+    print(GetterHolder(IntGetter()).peek())
+    // CHECK-NEXT: 20
+    print(GetterHolder[IntGetter](IntGetter()).peek())
+    // CHECK-NEXT: 20
+
+    print(area_again(Rect()))
+    // CHECK-NEXT: 10
+    print(Rewrap(Rect()).holder().peek())
+    // CHECK-NEXT: 10
+
+    let shape Shape = Rect()
+    print(area_of(shape))
+    // CHECK-NEXT: 10
+    print(Holder(shape).peek())
+    // CHECK-NEXT: 10
+    print(Holder[Shape](shape).peek())
+    // CHECK-NEXT: 10
+
+    let square Square = Unit()
+    print(area_of(square))
+    // CHECK-NEXT: 1
+    print(Holder(square).peek())
+    // CHECK-NEXT: 1
+    print(Holder[Square](square).peek())
+    // CHECK-NEXT: 1
+}

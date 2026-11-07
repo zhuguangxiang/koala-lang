@@ -762,6 +762,91 @@ static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSp
     }
 }
 
+/*
+ * Converts the arguments passed to a parameter of type `T: Bound` to interface values.
+ *
+ * A generic body is emitted once and calls the methods of `T` through the bound's interface table,
+ * so what it receives has to be an interface value of the bound. A caller only sees the specialized
+ * signature, where `T` is already `Rect`, and finds nothing to convert. So this looks at the
+ * original signature, where the parameter still is `T`.
+ *
+ * `origin_fn` is the function with the original signature, and `tps` owns its `T`s: the function's
+ * own for a free function, the class's for a method or `__init__` of a generic class. `ir_args`
+ * does not include `self`, and its converted arguments are replaced in place.
+ *
+ *     trait Shape { func area() int }
+ *     trait Square : Shape { func side() int }
+ *     class Rect : Shape { pub func area() int { return 10 } }
+ *     class Unit : Square { ... }
+ *
+ *     func area_of[T: Shape](v T) int { return v.area() }
+ *
+ *     func twice[T: Shape](v T) int {
+ *         return area_of(v)          // `v` is a `T`: no conversion
+ *     }
+ *
+ *     area_of(Rect())                // class to trait: make_intf
+ *     Holder[Rect](Rect())           // `__init__(_v T)` of `class Holder[T: Shape]`: make_intf
+ *
+ *     let shape Shape = Rect()
+ *     area_of(shape)                 // already the bound's interface value: no conversion
+ *
+ *     let square Square = Unit()
+ *     area_of(square)                // a trait inheriting the bound: upcast_intf
+ *
+ * A generic bound such as `T: Getter[int]` has an instance symbol, so its origin is the trait.
+ */
+static void try_to_build_tp_args_cast(FuncSymbol *origin_fn, Vector *tps, KlrValue **ir_args,
+                                      int nargs, ParserState *ps)
+{
+    Vector *params = origin_fn->params;
+
+    for (int i = 0; i < nargs; i++) {
+        ArgInfo *arg_info = vector_at(params, i);
+        TypeSpec *param_ts = arg_info->ts;
+        if (param_ts->kind != TYPE_GENERIC_VAR) continue;
+
+        TypeParamSymbol *tp_sym = vector_at(tps, param_ts->generic_var.index);
+        if (!tp_sym) continue;
+
+        TypeSpec *bound = vector_at(&tp_sym->bound, 0);
+        if (!bound) continue;
+
+        Symbol *bound_sym = get_symbol_by_id(bound->sym_id);
+        if (bound_sym && bound_sym->kind == SYM_INSTANCE) {
+            bound_sym = ((InstanceSymbol *)bound_sym)->origin;
+        }
+        if (!bound_sym || bound_sym->kind != SYM_TRAIT) continue;
+
+        KlrValue *arg = ir_args[i];
+        TypeSpec *arg_ts = arg->ts;
+        Symbol *obj_sym = get_symbol_by_id(arg_ts->sym_id);
+        if (obj_sym->kind == SYM_INSTANCE) {
+            obj_sym = ((InstanceSymbol *)obj_sym)->origin;
+        }
+
+        /* a value of a type parameter or of the bound already is that interface value */
+        if (obj_sym->kind == SYM_TYPE_PARAM || obj_sym == bound_sym) continue;
+
+        int intf_index = get_intf_index(obj_sym, bound);
+        if (intf_index < 0) {
+            _intf_index_error(ps, arg_ts, bound, arg->loc.loc);
+            continue;
+        }
+
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+
+        if (obj_sym->kind == SYM_CLASS) {
+            ir_args[i] = klr_build_make_intf(&bldr, arg, param_ts, intf_index, "");
+        } else if (obj_sym->kind == SYM_TRAIT) {
+            ir_args[i] = klr_build_upcast_intf(&bldr, arg, param_ts, intf_index, "");
+        } else {
+            UNREACHABLE();
+        }
+    }
+}
+
 static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *init_fn,
                                 KlrValue **args, int nargs, Expr *e)
 {
@@ -811,6 +896,15 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
             init_fn_ts = func_type_spec(params, func->ts);
         }
         update_call_args(ps, _args + 1, nargs, init_fn_ts);
+
+        // the `T`s of `__init__` are the class's
+        Symbol *ret_sym = get_symbol_by_id(ret_ts->sym_id);
+        if (ret_sym && ret_sym->kind == SYM_INSTANCE) {
+            KlassSymbol *origin_kls = (KlassSymbol *)((InstanceSymbol *)ret_sym)->origin;
+            FuncSymbol *origin_init = (FuncSymbol *)origin_kls->__init__;
+            try_to_build_tp_args_cast(origin_init, &origin_kls->tps, _args + 1, nargs, ps);
+        }
+
         klr_builder_end(&bldr, ps->scope->bb);
         KlrValue *_ret = klr_build_call(&bldr, init_fn, no_type_spec(), _args, nargs + 1, "");
         SET_IR_LOC(_ret, e);
@@ -819,51 +913,6 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     }
 
     return ret;
-}
-
-static void try_to_build_tp_args_cast(FuncSymbol *origin_fn, KlassSymbol *origin_kls,
-                                      KlrValue **ir_args, int nargs, ParserState *ps)
-{
-    for (int i = 0; i < nargs; i++) {
-        Vector *params = origin_fn->params;
-        ArgInfo *arg_info = vector_at(params, i);
-        TypeSpec *param_ts = arg_info->ts;
-
-        if (param_ts->kind != TYPE_GENERIC_VAR) continue;
-
-        TypeParamSymbol *tp_sym = vector_at(&origin_kls->tps, param_ts->generic_var.index);
-        if (!tp_sym) continue;
-        TypeSpec *bound = vector_at(&tp_sym->bound, 0);
-        if (!bound) continue;
-
-        Symbol *sym = get_symbol_by_id(bound->sym_id);
-        if (!sym || sym->kind != SYM_TRAIT) continue;
-
-        KlrValue *arg = ir_args[i];
-        TypeSpec *arg_ts = arg->ts;
-        Symbol *obj_sym = get_symbol_by_id(arg_ts->sym_id);
-
-        if (obj_sym->kind == SYM_INSTANCE) {
-            obj_sym = ((InstanceSymbol *)obj_sym)->origin;
-        }
-
-        int intf_index = get_intf_index(obj_sym, bound);
-        if (intf_index < 0) {
-            _intf_index_error(ps, arg_ts, bound, arg->loc.loc);
-            continue;
-        }
-
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, ps->scope->bb);
-
-        if (obj_sym->kind == SYM_CLASS) {
-            ir_args[i] = klr_build_make_intf(&bldr, arg, param_ts, intf_index, "");
-        } else if (obj_sym->kind == SYM_TRAIT) {
-            ir_args[i] = klr_build_upcast_intf(&bldr, arg, param_ts, intf_index, "");
-        } else {
-            UNREACHABLE();
-        }
-    }
 }
 
 // `self.<name>()` where self is a value of a type parameter and the method is <name>() of
@@ -1026,15 +1075,32 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
         Symbol *lhs_sym = lhs->sym;
         if (lhs_sym->kind == SYM_FUNC) {
-            // Try to build type arguments cast for the original function if it exists.
-            FuncSymbol *origin_fn = ((FuncSymbol *)lhs_sym)->origin;
+            /*
+             * Try to build type arguments cast against the signature that still has `T`. A method
+             * of a generic class instance has an original function, and its `T`s are the class's.
+             * Any other function is its own original, and its `T`s are its own.
+             *
+             *     class Holder[T: Shape] { pub func set(v T) { ... } }
+             *     func area_of[T: Shape](v T) int { ... }
+             *
+             *     holder.set(Rect())    // `holder` is a Holder[Rect]: `Holder.set`, Holder's `T`
+             *     area_of(Rect())       // `area_of`, its own `T`
+             */
+            FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
+            FuncSymbol *generic_fn = fn_sym;
+            Vector *tps = &fn_sym->tps;
+
+            FuncSymbol *origin_fn = fn_sym->origin;
             if (origin_fn) {
                 Symbol *_parent = lhs_sym->parent;
                 ASSERT(_parent && _parent->kind == SYM_INSTANCE);
                 InstanceSymbol *inst = (InstanceSymbol *)_parent;
                 KlassSymbol *origin_kls = (KlassSymbol *)inst->origin;
-                try_to_build_tp_args_cast(origin_fn, origin_kls, ir_args, size, ps);
+                generic_fn = origin_fn;
+                tps = &origin_kls->tps;
             }
+
+            try_to_build_tp_args_cast(generic_fn, tps, ir_args, size, ps);
         }
 
         KlrValue *self = lhs->arg;
@@ -1427,6 +1493,14 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
             ASSERT(origin->kind == SYM_FUNC);
             exp->ir_val = origin->ir_val;
         } else {
+            // `max[int64]` is routed to the external specialized function `max_int64`
+            if (!_sym->ir_val) {
+                ASSERT(_sym->kind == SYM_FUNC && (_sym->flags & SYM_FLAGS_EXT));
+                FuncSymbol *func_sym = (FuncSymbol *)_sym;
+                Symbol *parent = _sym->parent;
+                ASSERT(parent && parent->kind == SYM_PACKAGE);
+                _sym->ir_val = klr_add_ext_func(MOD, parent->name, func_sym->ret, _sym->name);
+            }
             exp->ir_val = _sym->ir_val;
         }
         ASSERT(exp->ir_val);
@@ -1700,6 +1774,43 @@ static void emit_ir_logical(ParserState *ps, Expr *exp, BiOpKind op)
     SET_IR_LOC(result, exp);
 }
 
+static int type_is_number(TypeSpec *ts) { return ts->kind == TYPE_INT || ts->kind == TYPE_FLOAT; }
+
+/*
+ * The type the operands of a number operator are converted to, as declared in number.kl: the result
+ * type of an arithmetic operator, the parameter type of a comparison, whose result is a bool.
+ *
+ *     pub class uint8 : Comparable[int64] & ToString {
+ *         pub func __sub__(rhs int64) int64 {}
+ *         pub func __lt__(rhs int64) bool {}
+ *     }
+ *
+ *     uint8(1) - uint8(2)    // both operands are cast to int64, the result is -1
+ *     uint8(1) < int8(-1)    // both operands are cast to int64, the result is false
+ */
+static TypeSpec *number_operand_type(Expr *exp, Expr *lhs, BiOpKind op)
+{
+    if (type_is_number(exp->ts)) return exp->ts;
+
+    if (!type_is_number(lhs->ts) || op < BINARY_GT || op > BINARY_NEQ) return NULL;
+
+    KlassSymbol *kls = (KlassSymbol *)get_symbol_by_id(lhs->ts->sym_id);
+    /* the comparison methods of a number type all take the same parameter type */
+    FuncSymbol *fn = (FuncSymbol *)stbl_get(kls->stbl, "__eq__");
+    ArgInfo *arg_info = vector_get(fn->params, 0);
+
+    return arg_info->ts;
+}
+
+static KlrValue *cast_number_operand(KlrBuilder *bldr, KlrValue *val, TypeSpec *operand_ts)
+{
+    if (!operand_ts || val->ts == operand_ts) return val;
+
+    if (val->ts->kind != operand_ts->kind) return val;
+
+    return klr_build_cast(bldr, val, operand_ts, "");
+}
+
 static void emit_ir_binary(ParserState *ps, Expr *exp)
 {
     BinaryExpr *bin = (BinaryExpr *)exp;
@@ -1739,45 +1850,9 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
 
     KlrValue *res;
 
-    KlrValue *cast_lhs = lhs->ir_val;
-    KlrValue *cast_rhs = rhs->ir_val;
-
-    TypeSpec *lhs_ts = cast_lhs->ts;
-    TypeSpec *rhs_ts = cast_rhs->ts;
-
-    if (lhs_ts->kind == TYPE_INT && rhs_ts->kind == TYPE_INT) {
-        if (type_is_uint(lhs_ts) && type_is_uint(rhs_ts)) {
-            if (lhs_ts->int_flt_info.width < 8) {
-                cast_lhs = klr_build_cast(&bldr, cast_lhs, uint64_type_spec(), "");
-            }
-
-            if (rhs_ts->int_flt_info.width < 8) {
-                cast_rhs = klr_build_cast(&bldr, cast_rhs, uint64_type_spec(), "");
-            }
-
-        } else {
-            if (lhs_ts->int_flt_info.width < 8) {
-                cast_lhs = klr_build_cast(&bldr, cast_lhs, int64_type_spec(), "");
-            }
-            if (rhs_ts->int_flt_info.width < 8) {
-                cast_rhs = klr_build_cast(&bldr, cast_rhs, int64_type_spec(), "");
-            }
-        }
-    }
-
-    if (lhs_ts->kind == TYPE_FLOAT && rhs_ts->kind == TYPE_FLOAT) {
-        if (type_is_float(lhs_ts)) {
-            if (lhs_ts->int_flt_info.width < 8) {
-                cast_lhs = klr_build_cast(&bldr, cast_lhs, float64_type_spec(), "");
-            }
-        }
-
-        if (type_is_float(rhs_ts)) {
-            if (rhs_ts->int_flt_info.width < 8) {
-                cast_rhs = klr_build_cast(&bldr, cast_rhs, float64_type_spec(), "");
-            }
-        }
-    }
+    TypeSpec *operand_ts = number_operand_type(exp, lhs, op);
+    KlrValue *cast_lhs = cast_number_operand(&bldr, lhs->ir_val, operand_ts);
+    KlrValue *cast_rhs = cast_number_operand(&bldr, rhs->ir_val, operand_ts);
 
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
         res = klr_build_cmp(&bldr, cast_lhs, cast_rhs, get_binary_op_code(op), "");
@@ -2454,7 +2529,7 @@ static void build_return(ParserState *ps, KlrValue *exp_val)
     if (!ret_ir_val) {
         KlrValue *cast = exp_val;
         ret_ir_val = cast;
-        if (cast->ts != ret_ts) {
+        if (cast->ts != ret_ts && !type_is_any_or_opt_any(ret_ts)) {
             if (!type_is_optional(ret_ts)) {
                 log_info("implicit cast from");
                 log_type_spec(cast->ts);
@@ -3830,7 +3905,7 @@ static TypeSpec *specialize_type_spec(TypeSpec *ts, Vector *tp_args, void *ctx)
 {
     if (!ts) return NULL;
     ParserState *ps = ctx;
-    return inst_type_spec(ts, tp_args, ps->pm->stbl, ps->pm);
+    return type_spec_specialize(ts, tp_args, ps->pm->stbl, ps->pm);
 }
 
 // The callee of a call to intf method 'intf' on a value of 'ts' in a specialized clone:

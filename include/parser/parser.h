@@ -246,7 +246,7 @@ int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
                                   ParserState *ps);
 int tps_are_generic(Vector *tp_args);
-TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm);
+TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm);
 
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args,
                                      ParserModule *pm);

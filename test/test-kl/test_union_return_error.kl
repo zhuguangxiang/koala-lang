@@ -1,0 +1,27 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func f(a int) int | str {
+    // CHECK: a union type is not allowed as a return type.
+    return a
+}
+
+func g() int | str {
+    // CHECK: a union type is not allowed as a return type.
+}
+
+func h[T](a T) int | str {
+    // CHECK: a union type is not allowed as a return type.
+}
+
+func i[T]() int | str {
+    // CHECK: a union type is not allowed as a return type.
+}
+
+class C {
+    pub func m(a int) int | str {
+        // CHECK: a union type is not allowed as a return type.
+    }
+}
+
+// The syntax errors come first, then this one, from the declaration without a return type.
+// CHECK: function 'f' has no return value.

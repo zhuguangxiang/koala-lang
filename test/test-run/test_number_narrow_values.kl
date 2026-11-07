@@ -1,0 +1,169 @@
+// RUN: koala %s | filecheck %s
+
+// A narrow value passed to a wider parameter keeps its own tag, and the VM is compatible with it.
+
+func take_int64(v int64) { print(typeof(v)) }
+
+class Box[T] {
+    pub func __init__() {}
+
+    pub func put(v T) { print(typeof(v)) }
+}
+
+func same[T](a T, b T) bool { return a == b }
+
+func pass_int64(v int64) int64 { return v }
+
+func less[T : Comparable](a T, b T) bool { return a < b }
+
+func check_is(v any) { print(v is int64, v is int8, v is uint8) }
+
+func check_as(v any) {
+    let a = v as int8
+    let b = v as int64
+    let c = v as uint8
+    print(a == nil, b == nil, c == nil)
+}
+
+func main() {
+    let a = int8(1)
+
+    take_int64(a)
+    // CHECK: <class 'int8'>
+    Box[int64]().put(a)
+    // CHECK-NEXT: <class 'int8'>
+
+    // A list.
+    let l = list[int64]()
+    l.append(int8(-1))
+    l.append(uint8(200))
+    l.append(int16(300))
+    l.append(uint32(70000))
+    print(l, typeof(l[0]))
+    // CHECK-NEXT: [-1, 200, 300, 70000] <class 'int8'>
+
+    print(l[0] + 1, l[1] + 1, l[0] == -1, l[1] == 200, l[1] < 1000, l[0] < 0)
+    // CHECK-NEXT: 0 201 true true true true
+    print(l[0] + l[1], l[1] - l[0], l[1] * l[2], l[3] / l[1], l[3] % l[1])
+    // CHECK-NEXT: 199 201 60000 350 0
+    print(l[1] & l[2], l[1] << 1)
+    // CHECK-NEXT: 8 400
+
+    let m = list[int64]()
+    m.append(200)
+    print(l[1] == m[0], m[0] == l[1], l[1] < m[0])
+    // CHECK-NEXT: true true false
+    print(200 in l, l.index(200), l.count(200), -1 in l, l.index(-1))
+    // CHECK-NEXT: true 1 1 true 0
+
+    print(same(l[1], m[0]))
+    // CHECK-NEXT: true
+
+    // A float list.
+    let f = list[float64]()
+    f.append(float32(1.5))
+    f.append(float16(2.5))
+    f.append(3.5)
+    print(f, typeof(f[0]))
+    // CHECK-NEXT: [1.5, 2.5, 3.5] <class 'float32'>
+    print(f[0] + f[1], f[0] < f[2], f[0] == 1.5, 1.5 in f, f.index(2.5))
+    // CHECK-NEXT: 4 true true true 1
+
+    // A list of uint64.
+    let u = list[uint64]()
+    u.append(uint8(200))
+    u.append(uint32(7))
+    print(u, u[0] + u[1], u[0] == uint64(200), uint64(200) in u)
+    // CHECK-NEXT: [200, 7] 207 true true
+
+    // A dict.
+    let d = dict[int64, str]()
+    d[int8(1)] = "a"
+    d[uint8(2)] = "b"
+    print(d[1], d[2], 1 in d, 2 in d, d.len())
+    // CHECK-NEXT: a b true true 2
+    d[1] = "c"
+    print(d.len(), d[int8(1)])
+    // CHECK-NEXT: 2 c
+
+    let e = dict[int64, int]()
+    let k = int8(1)
+    e[k] = 1
+    print(1 in e, k in e, e.len())
+    // CHECK-NEXT: true true 1
+
+    let fd = dict[float64, int]()
+    fd[float32(1.5)] = 1
+    print(fd[1.5], 1.5 in fd)
+    // CHECK-NEXT: 1 true
+
+    // A set.
+    let h = hashset[int64]()
+    h.add(int8(1))
+    h.add(1)
+    h.add(uint8(2))
+    h.add(2)
+    print(h.len(), 1 in h, 2 in h, uint16(2) in h)
+    // CHECK-NEXT: 2 true true true
+
+    // A parameter and a return value.
+    print(pass_int64(int8(5)) + 1, pass_int64(uint8(5)) == 5)
+    // CHECK-NEXT: 6 true
+
+    // A bound.
+    print(less(int8(-5), int8(3)), less(uint8(200), uint8(100)), max(int8(-5), int8(-9)))
+    // CHECK-NEXT: true false -5
+    print(max(l[0], l[1]))
+    // CHECK-NEXT: 200
+
+    // The elements used directly.
+    let x = list[int64]()
+    x.append(int8(7))
+    x.append(uint8(2))
+    print(x[0] + x[1], x[0] - x[1], x[0] * x[1], x[0] / x[1], x[0] % x[1])
+    // CHECK-NEXT: 9 5 14 3 1
+    print(x[0] & x[1], x[0] | x[1], x[0] ^ x[1], x[0] << x[1], x[0] >> x[1])
+    // CHECK-NEXT: 2 7 5 28 1
+    print(x[0] == x[1], x[0] != x[1], x[0] < x[1], x[0] <= x[1], x[0] > x[1], x[0] >= x[1])
+    // CHECK-NEXT: false true false false true true
+    print(x[0] + 1, 1 + x[0], typeof(x[0] + x[1]))
+    // CHECK-NEXT: 8 8 <class 'int64'>
+
+    let y = list[uint64]()
+    y.append(uint8(7))
+    y.append(uint16(2))
+    print(y[0] + y[1], y[0] - y[1], y[0] >> y[1], typeof(y[0] + y[1]))
+    // CHECK-NEXT: 9 5 1 <class 'uint64'>
+
+    let z = list[float64]()
+    z.append(float32(7.5))
+    z.append(float16(2.5))
+    print(z[0] + z[1], z[0] - z[1], z[0] * z[1], z[0] / z[1], z[0] < z[1], typeof(z[0] + z[1]))
+    // CHECK-NEXT: 10 5 18.75 3 false <class 'float64'>
+
+    // `is` and `as` see the value's own type.
+    check_is(int8(1))
+    // CHECK-NEXT: false true false
+    check_is(1)
+    // CHECK-NEXT: true false false
+    check_is(uint8(1))
+    // CHECK-NEXT: false false true
+
+    // On a number type, `is` follows the declared type.
+    let y0 = l[0]
+    print(y0 is int64, y0 is int8, y0 is uint8)
+    // CHECK-NEXT: true false false
+
+    check_as(int8(1))
+    // CHECK-NEXT: false true true
+    check_as(1)
+    // CHECK-NEXT: true false true
+    check_as(uint8(1))
+    // CHECK-NEXT: true true false
+
+    // Type arguments written out, called twice.
+    print(max[int64](1, 2), max[int64](3, 4))
+    // CHECK-NEXT: 2 4
+    print(max[str]("a", "b"), max[str]("c", "d"))
+    // CHECK-NEXT: b d
+}

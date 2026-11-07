@@ -143,7 +143,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 要点：
 
 - 每个类型**自行定义**运算符参数类型，无跨类型签名强制。
-- **运算符契约拆成两个 trait**（定义于 `number.kl`），同为**泛型而存在**——`func f[T : Arithmetic]` 凭它约束运算符能力；class 实现了相应 dunder 即天然支持（结构式遵循，无需显式声明）：
+- **运算符契约拆成两个 trait**（定义于 `number.kl`），同为**泛型而存在**——`func f[T : Arithmetic]` 凭它约束运算符能力；class 必须声明 `: Arithmetic` 才满足这个约束，只实现 dunder 不算（见 §3 的泛型约束规则）：
   - **Arithmetic[T]**：五件二元算术（`__add__` / `__sub__` / `__mul__` / `__div__` / `__mod__`）+ 一元 `__neg__`；
   - **Bitwise[T]**：五件二元位运算（`__shl__` / `__shr__` / `__bitand__` / `__bitor__` / `__bitxor__`）+ 一元 `__bitnot__`。
 
@@ -185,7 +185,11 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - **intf-table**：Rust 风格的每类 trait 表，**O(1) 接口分发、无需查找**——槽位含方法名 + code_index，trait 调用 = 槽位一次间接调用；class 方法调用 = 编译器查参后的**直接调用，零开销**。
 - **trait 值表示（intf 值）**：具体类型扩宽为 trait 类型的值（如 `let e Equatable[bool] = false`），TValue 首字携带该类的 intf-table 指针，载荷原样保留。**扩宽是单向的**：primitive（int/float/bool 等）cast 到 trait 后原 tag 即告丢失，不可 downcast 回具体类型（对照：`any` 通道保留 tag，支持 `isinstance` 窄化）。每个 intf-table 带一个回指实现类 TypeObject 的指针，供运行时自描述（`typeof` / `print` / GC 标记）——这是运行时内省设施，不是面向用户的 downcast 通道。
 - **部分 trait 实现**：class 遵循 trait 时允许只实现其中一部分方法。未实现的方法在 intf-table 中填入 `not_impl` 占位对象，加载期仅警告、不阻断；只有当未实现的方法被真实调用时抛异常 `Exception("function xxx in xxx is not implemented.")`——语义是"这需要你去实现它"。这一设计直接消灭了 Java 的适配器类生态：Java 强制接口全量实现，迫使生态发明 MouseAdapter / WindowAdapter 之类的空壳抽象类，只为让用户覆写十个方法中的一个；Koala 的答案是声明归声明、实现按需，intf-table 保持 O(1) 静态分发——**契约在类型层面完整，义务在实现层面宽容**。
-- **泛型约束**：如 `T : Comparable[T]`；缺少约束只在泛型参数要求时报错。
+- **泛型约束**：如 `T : Comparable[T]`。**Rule, with no exceptions (2026-11-07):**
+  - A type parameter can only use what its bound provides: calling a method on a `T` or applying an operator to it needs a bound that declares it.
+  - A type argument satisfies a bound only by having that trait: declared in its base list, or added automatically. Having the methods is not enough. This also applies to inferred type arguments.
+  - The automatic traits count as having the bound: every class has `Equatable`, `Hashable` and `Printable`, so `[T]` already can use `==`, `!=`, `hash()` and `fmt()`, and `T : Printable` is satisfied without declaring it.
+  - A concrete type is not a type parameter: `a < b` on two `Score` values only needs `__lt__`, and `Score` still does not satisfy `T : Comparable` unless it declares it.
 - **自类型推断**：裸遵循自动推断自类型参数（如 Equatable → Equatable[bool]），无 Self 关键字。
 - **LRO（线性化）**：`--dump=itable` 可见每个类的 Intf-Table——槽位含方法名 + code_index + parents。线性化顺序：`[0] any` 打头，紧接编译器自动遵循的三契约 `[1] Printable / [2] Hashable / [3] Equatable`（§2.2），之后才是用户声明的 trait（按 C3 线性化，菱形继承去重，test-run/test_lro.kl・test_lro_2.kl 守护）。类型内省可见全部遵循关系与编译器插入的内容，无隐藏。
 - **变型**：参数与返回值一律**不变**（invariant），不支持协变 / 逆变。根因：泛型场景下协变返回值无法适配——intf-table 槽里存的是实现类的具体方法，返回值原样拷贝，没有 concrete→trait 的适配层（上述三轨分发不含“返回类型改写”一轨），协变返回在泛型分发下无法静态保证类型一致，故一律收为不变。落地要求：实现侧必须按 trait 声明的原类型收发——`iter()` 声明 `Iterator[T]` 就只能返回 `Iterator[T]`（不能返回 `StrIter`），`Map.keys()` 声明 `Sequence[K]` 就只能返回 `Sequence[K]`（不能返回 `list[K]`），`Set.union()` 声明 `Set[T]` 就只能返回 `Set[T]`（不能返回 `hashset[T]`）；具体实现仍可在函数体内构造具体类，由返回下降完成 make_intf 上转。“宽进”不靠覆写期变型，而靠 trait 设计期选最小能力类型（如参数一律 `Iterable[T]`）。
@@ -592,7 +596,7 @@ VM        ↔  runtime
 |-------|------|
 | `any` | 空根（自动遵循三契约的载体） |
 | `Equatable[T]` / `Comparable[T]` / `Hashable` / `Printable` | 值契约 |
-| `Arithmetic[T]` / `Bitwise[T]` | 算术 / 位运算能力契约（泛型约束用；结构式遵循；见 §3） |
+| `Arithmetic[T]` / `Bitwise[T]` | 算术 / 位运算能力契约（泛型约束用；必须声明才满足约束；见 §3） |
 | `Iterable` / `Iterator` | 迭代协议（`Iterator[T]`: has_next / next_strict / next；`Iterable[T].iter(step = 1)`，§8.5） |
 | `Sequence` / `MutableSequence` | 序列与可变序列协议 |
 | `Map` / `Set` | 映射与集合协议 |

@@ -1,0 +1,16 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func test_u8_add_u8(n uint8, m uint8) uint64 { return n + m }
+// CHECK: return type mismatch in function 'test_u8_add_u8'
+
+func test_i8_add_assign() {
+    var a = int8(1)
+    a += 1
+    // CHECK: the result 'int64' of '__add__' cannot be assigned back to 'int8'.
+}
+
+func test_i64_eq_u64(n int64, m uint64) bool { return n == m }
+// CHECK: argument type mismatch for operator '==' of type 'int64'.
+
+func test_u8_add_u64(n uint8, m uint64) uint64 { return n + m }
+// CHECK: argument type mismatch for operator '+' of type 'uint8'.

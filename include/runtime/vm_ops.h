@@ -41,7 +41,6 @@ TARGET(OP_LOADK) {
 /* Int Arithmetic */
 
 TARGET(OP_INT_ADD) {
-    // int/uint both are the same add operation
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -54,10 +53,7 @@ TARGET(OP_INT_ADD) {
     ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     regs[rd].ival = regs[rs].ival + regs[rt].ival;
-    // promote to 64-bit(signed or unsigned)
-    regs[rd].tag = regs[rs].tag | 0b11;
-
-    ASSERT(regs[rd].tag == TAG_INT64 || regs[rd].tag == TAG_UINT64);
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -73,6 +69,24 @@ TARGET(OP_INT_ADD_IMM) {
 
     regs[rd].ival = regs[rs].ival + imm;
     regs[rd].tag = TAG_INT64;
+    DISPATCH();
+}
+
+TARGET(OP_UINT_ADD) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
+
+    regs[rd].ival = regs[rs].ival + regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
+
     DISPATCH();
 }
 
@@ -104,10 +118,7 @@ TARGET(OP_INT_SUB) {
     ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     regs[rd].ival = regs[rs].ival - regs[rt].ival;
-    // promote to 64-bit(signed or unsigned)
-    regs[rd].tag = regs[rs].tag | 0b11;
-
-    ASSERT(regs[rd].tag == TAG_INT64 || regs[rd].tag == TAG_UINT64);
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -123,6 +134,25 @@ TARGET(OP_INT_SUB_IMM) {
 
     regs[rd].ival = regs[rs].ival - imm;
     regs[rd].tag = TAG_INT64;
+    DISPATCH();
+}
+
+TARGET(OP_UINT_SUB) {
+    // signed/unsigned both are the same sub operation
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
+
+    regs[rd].ival = regs[rs].ival - regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
+
     DISPATCH();
 }
 
@@ -765,7 +795,7 @@ TARGET(OP_INT_AND) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival & regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -780,6 +810,21 @@ TARGET(OP_INT_AND_IMM) {
 
     regs[rd].ival = regs[rs].ival & imm;
     regs[rd].tag = TAG_INT64;
+
+    DISPATCH();
+}
+
+TARGET(OP_UINT_AND) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    regs[rd].ival = regs[rs].ival & regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -808,7 +853,7 @@ TARGET(OP_INT_OR) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival | regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -823,6 +868,21 @@ TARGET(OP_INT_OR_IMM) {
 
     regs[rd].ival = regs[rs].ival | imm;
     regs[rd].tag = TAG_INT64;
+
+    DISPATCH();
+}
+
+TARGET(OP_UINT_OR) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    regs[rd].ival = regs[rs].ival | regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -851,7 +911,7 @@ TARGET(OP_INT_XOR) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival ^ regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -866,6 +926,21 @@ TARGET(OP_INT_XOR_IMM) {
 
     regs[rd].ival = regs[rs].ival ^ imm;
     regs[rd].tag = TAG_INT64;
+
+    DISPATCH();
+}
+
+TARGET(OP_UINT_XOR) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    regs[rd].ival = regs[rs].ival ^ regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -899,7 +974,7 @@ TARGET(OP_INT_SHL) {
     }
 
     regs[rd].ival = (uint64_t)regs[rs].ival << regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -914,6 +989,26 @@ TARGET(OP_INT_SHL_IMM) {
 
     regs[rd].ival = regs[rs].ival << imm;
     regs[rd].tag = TAG_INT64;
+
+    DISPATCH();
+}
+
+TARGET(OP_UINT_SHL) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    if (!kl_check_shift_count(regs + rt)) {
+        SAVE_PC();
+        goto error;
+    }
+
+    regs[rd].ival = (uint64_t)regs[rs].ival << regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -947,7 +1042,7 @@ TARGET(OP_INT_SHR) {
     }
 
     regs[rd].ival = regs[rs].ival >> regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -1073,7 +1168,7 @@ TARGET(OP_INT_MUL) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival * regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -1088,6 +1183,21 @@ TARGET(OP_INT_MUL_IMM) {
 
     regs[rd].ival = regs[rs].ival * imm;
     regs[rd].tag = TAG_INT64;
+
+    DISPATCH();
+}
+
+TARGET(OP_UINT_MUL) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    regs[rd].ival = regs[rs].ival * regs[rt].ival;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -1116,7 +1226,7 @@ TARGET(OP_INT_DIV) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival / regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -1145,7 +1255,7 @@ TARGET(OP_INT_MOD) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival % regs[rt].ival;
-    regs[rd].tag = regs[rs].tag | 0b11;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }

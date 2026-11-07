@@ -1,0 +1,58 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// A class has to declare a trait to satisfy a `T: Bound`, also when `T` is inferred.
+
+trait Shape {
+    func area() int
+}
+
+class NotShape {
+    pub func area() int { return 10 }
+}
+
+func area_of[T: Shape](v T) int {
+    return v.area()
+}
+
+class Holder[T: Shape] {
+    let v T
+
+    pub func __init__(_v T) {
+        v = _v
+    }
+}
+
+class NotComparable {
+    func __lt__(rhs NotComparable) bool { return true }
+}
+
+func less[T: Comparable](a T, b T) bool {
+    return a < b
+}
+
+// Generic compatibility is for number types only, a class stays invariant.
+trait Maker[T] {
+    func make() T
+}
+
+class IntMaker : Maker[int64] {
+    pub func make() int64 { return 1 }
+}
+
+func make_of[T: Maker[int8]](v T) int {
+    return 1
+}
+
+func main() {
+    area_of(NotShape())
+    // CHECK: type argument '{{.*}}NotShape' does not satisfy constraint on type parameter 'T'
+
+    Holder(NotShape())
+    // CHECK: type argument '{{.*}}NotShape' does not satisfy constraint on type parameter 'T'
+
+    less(NotComparable(), NotComparable())
+    // CHECK: type argument '{{.*}}NotComparable' does not satisfy constraint on type parameter 'T'
+
+    make_of(IntMaker())
+    // CHECK: type argument '{{.*}}IntMaker' does not satisfy constraint on type parameter 'T'
+}

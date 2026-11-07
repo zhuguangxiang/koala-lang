@@ -372,6 +372,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<type_spec> atom_type
 %type<type_spec> union_type
 %type<type_spec> union_opt_type
+%type<type_spec> return_type
 %type<type_spec> const_type
 %type<type_spec> lambda_type
 
@@ -1894,7 +1895,7 @@ func_decl
     ;
 
 func_proto_decl
-    : FUNC ID '(' param_list ')' optional_type
+    : FUNC ID '(' param_list ')' return_type
     {
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_func_decl(id, $4, $6, NULL);
@@ -1906,7 +1907,7 @@ func_proto_decl
         $$ = stmt_from_func_decl(id, $4, NULL, NULL);
         stmt_set_loc($$, lloc(@1, @5));
     }
-    | FUNC ID '(' ')' optional_type
+    | FUNC ID '(' ')' return_type
     {
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_func_decl(id, NULL, $5, NULL);
@@ -1918,7 +1919,7 @@ func_proto_decl
         $$ = stmt_from_func_decl(id, NULL, NULL, NULL);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | FUNC ID '[' tp_decl_list ']' '(' param_list ')' optional_type
+    | FUNC ID '[' tp_decl_list ']' '(' param_list ')' return_type
     {
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_func_decl(id, $7, $9, $4);
@@ -1930,7 +1931,7 @@ func_proto_decl
         $$ = stmt_from_func_decl(id, $7, NULL, $4);
         stmt_set_loc($$, lloc(@1, @8));
     }
-    | FUNC ID '[' tp_decl_list ']' '(' ')' optional_type
+    | FUNC ID '[' tp_decl_list ']' '(' ')' return_type
     {
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_func_decl(id, NULL, $8, $4);
@@ -1946,6 +1947,19 @@ func_proto_decl
     {
         kl_error(loc(@3), "expected a function prototype.");
         yy_clear_ok;
+        $$ = NULL;
+    }
+    ;
+
+return_type
+    : optional_type
+    {
+        $$ = $1;
+    }
+    | union_opt_type
+    {
+        kl_error(loc(@1), "a union type is not allowed as a return type.");
+        type_spec_free($1);
         $$ = NULL;
     }
     ;

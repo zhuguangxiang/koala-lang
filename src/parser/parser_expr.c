@@ -1247,6 +1247,161 @@ static Symbol *get___init___instance(InstanceSymbol *inst_sym, ParserState *ps)
     return add_instance_method(inst_sym, (FuncSymbol *)_sym, ps);
 }
 
+/**
+ * A number type satisfies a generic bound through a declared base with a compatible type argument.
+ * `int8` declares `Comparable[int64]`, and an `int8` can be passed as an `int64`, so `int8`
+ * satisfies `Comparable[int8]`:
+ *
+ *     pub class int8 : Comparable[int64] & ToString { ... }
+ *
+ *     func max[T : Comparable](x T, y T) T { ... }
+ *
+ *     max(int8(1), int8(2))    // ok, T is int8
+ *
+ * Other types stay invariant: `list[int64]` does not satisfy `Sequence[int8]`.
+ */
+static int number_base_satisfies_bound(TypeSpec *bound, TypeSpec *ts)
+{
+    if (ts->kind != TYPE_INT && ts->kind != TYPE_FLOAT && ts->kind != TYPE_BFLOAT16) return 0;
+
+    Symbol *bound_sym = get_symbol_by_id(bound->sym_id);
+    if (bound_sym->kind != SYM_INSTANCE) return 0;
+    InstanceSymbol *bound_inst = (InstanceSymbol *)bound_sym;
+
+    KlassSymbol *kls = (KlassSymbol *)get_symbol_by_id(ts->sym_id);
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, &kls->bases) {
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        if (base_sym->kind != SYM_INSTANCE) continue;
+
+        InstanceSymbol *base_inst = (InstanceSymbol *)base_sym;
+        if (base_inst->origin != bound_inst->origin) continue;
+
+        TypeSpec *base_arg = vector_get(base_inst->tp_args, 0);
+        TypeSpec *bound_arg = vector_get(bound_inst->tp_args, 0);
+        if (type_spec_compatible(base_arg, bound_arg)) return 1;
+    }
+
+    return 0;
+}
+
+/**
+ * Check whether `ts` satisfies all bounds declared on `tp`.
+ *
+ * For a declaration like `T: Comparable & Hashable`, this verifies that
+ * `ts` is compatible with EVERY bound (intersection semantics).
+ */
+static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp, Vector *tp_args, ParserState *ps)
+{
+    if (!tp || !ts) return 0;
+
+    /* No bounds declared → unconstrained, always satisfied */
+    if (vector_empty(&tp->bound)) return 1;
+
+    int satisfied = 1;
+
+    /* Every bound must be satisfied (AND semantics) */
+    TypeSpec *bound;
+    vector_foreach(bound, &tp->bound) {
+        if (!bound) continue;
+
+        int compatible = 0;
+
+        /* an instance is created when it is first needed, so the bound has a symbol */
+        TypeSpec *_bound = type_spec_specialize(bound, tp_args, ps->pm->stbl, ps->pm);
+
+        /* Case 1: arg is a concrete type → existing logic */
+        if (ts->kind != TYPE_GENERIC_VAR) {
+            Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+            ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
+            compatible = type_spec_compatible(_bound, ts);
+            if (!compatible) compatible = number_base_satisfies_bound(_bound, ts);
+        } else {
+            /*
+             * Case 2: 'ts' is a generic variable (e.g., U passed to T).
+             * U satisfies bound B if U's declared bounds contain B(or a supertype of B).
+             *
+             * Direction: ts_bound (provided, stricter) must be usable as
+             *            bound (required, looser).
+             * i.e., compatible(ts_bound, bound) ⟺ arg_bound ≤ bound
+             */
+            TypeParamSymbol *sym = get_symbol_by_id(ts->sym_id);
+            ASSERT(sym);
+            Vector *ts_bound = &sym->bound;
+            if (!vector_empty(ts_bound)) {
+                // tp's bounds are all satisfied by ts's bounds.
+                TypeSpec *provided_ts;
+                vector_foreach(provided_ts, ts_bound) {
+                    if (!provided_ts) continue;
+                    TypeSpec *_provided_ts =
+                        type_spec_specialize(provided_ts, tp_args, ps->pm->stbl, ps->pm);
+                    if (type_spec_compatible(_provided_ts, _bound)) {
+                        compatible = 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!compatible) {
+            satisfied = 0;
+
+            // Report every unsatisfied bound
+            BUF(req_buf);
+            BUF(prov_buf);
+            type_spec_print(ts, &prov_buf);
+            type_spec_print(_bound, &req_buf);
+            log_info("generic bound not satisfied:  '%s' does not satisfy '%s' required by '%s'",
+                     BUF_STR(req_buf), BUF_STR(prov_buf), tp->name);
+            FINI_BUF(req_buf);
+            FINI_BUF(prov_buf);
+        }
+    }
+
+    return satisfied;
+}
+
+/**
+ * Checks that the type arguments inferred from a call satisfy their `T: Bound`. Type arguments
+ * written in the source are checked where `[...]` is parsed, but a call that infers them does not
+ * go through there. Without this check the error only shows at run time.
+ *
+ * `tps` are the type parameters of the function or class, and `tp_args` the inferred arguments in
+ * the same order. A slot with no inferred type is skipped. Reports the first argument that does
+ * not satisfy its bound and returns 0, otherwise returns 1.
+ *
+ *     trait Shape { func area() int }
+ *
+ *     class Rect : Shape { pub func area() int { return 10 } }
+ *     class NotShape { pub func area() int { return 10 } }    // has the method, not the trait
+ *
+ *     func area_of[T: Shape](v T) int { return v.area() }
+ *     class Holder[T: Shape] { ... }
+ *
+ *     area_of(Rect())       // ok, T is Rect
+ *     area_of(NotShape())   // error: type argument 'NotShape' does not satisfy constraint ...
+ *     Holder(NotShape())    // error: the same, T is inferred from `__init__`
+ */
+static int check_inferred_bounds(Vector *tps, Vector *tp_args, Loc loc, ParserState *ps)
+{
+    TypeParamSymbol *tp_sym;
+    vector_foreach(tp_sym, tps) {
+        TypeSpec *arg_ts = vector_get(tp_args, i__);
+        if (!arg_ts) continue;
+        if (!check_generic_bound(arg_ts, tp_sym, tp_args, ps)) {
+            BUF(ts_buf);
+            type_spec_print(arg_ts, &ts_buf);
+            kl_error(loc, "type argument '%s' does not satisfy constraint on type parameter '%s'",
+                     BUF_STR(ts_buf), tp_sym->name);
+            FINI_BUF(ts_buf);
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallExpr *call_exp,
                                  ParserState *ps)
 {
@@ -1838,6 +1993,11 @@ static void parse_call(ParserState *ps, Expr *exp)
                     return;
                 }
 
+                if (!check_inferred_bounds(&cls_sym->tps, tp_args, lhs->loc, ps)) {
+                    vector_destroy(tp_args);
+                    return;
+                }
+
                 InstanceSymbol *inst_sym =
                     find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args, ps->pm);
                 vector_destroy(tp_args);
@@ -1919,6 +2079,8 @@ static void parse_call(ParserState *ps, Expr *exp)
                     fn_sym->name);
                 _tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
                 if (!_tp_args) return;
+
+                if (!check_inferred_bounds(&fn_sym->tps, _tp_args, lhs->loc, ps)) return;
             }
 
             Symbol *_fn_sym = find_or_add_func_instance(fn_sym, _tp_args, ps->pm->stbl, ps);
@@ -2552,79 +2714,6 @@ static void parse_slice_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
     }
 }
 
-/**
- * Check whether `ts` satisfies all bounds declared on `tp`.
- *
- * For a declaration like `T: Comparable & Hashable`, this verifies that
- * `ts` is compatible with EVERY bound (intersection semantics).
- */
-static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp, Vector *tp_args)
-{
-    if (!tp || !ts) return 0;
-
-    /* No bounds declared → unconstrained, always satisfied */
-    if (vector_empty(&tp->bound)) return 1;
-
-    int satisfied = 1;
-
-    /* Every bound must be satisfied (AND semantics) */
-    TypeSpec *bound;
-    vector_foreach(bound, &tp->bound) {
-        if (!bound) continue;
-
-        int compatible = 0;
-
-        TypeSpec *_bound = type_spec_specialize(bound, tp_args);
-
-        /* Case 1: arg is a concrete type → existing logic */
-        if (ts->kind != TYPE_GENERIC_VAR) {
-            Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
-            ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
-            compatible = type_spec_compatible(_bound, ts);
-        } else {
-            /*
-             * Case 2: 'ts' is a generic variable (e.g., U passed to T).
-             * U satisfies bound B if U's declared bounds contain B(or a supertype of B).
-             *
-             * Direction: ts_bound (provided, stricter) must be usable as
-             *            bound (required, looser).
-             * i.e., compatible(ts_bound, bound) ⟺ arg_bound ≤ bound
-             */
-            TypeParamSymbol *sym = get_symbol_by_id(ts->sym_id);
-            ASSERT(sym);
-            Vector *ts_bound = &sym->bound;
-            if (!vector_empty(ts_bound)) {
-                // tp's bounds are all satisfied by ts's bounds.
-                TypeSpec *provided_ts;
-                vector_foreach(provided_ts, ts_bound) {
-                    if (!provided_ts) continue;
-                    TypeSpec *_provided_ts = type_spec_specialize(provided_ts, tp_args);
-                    if (type_spec_compatible(_provided_ts, _bound)) {
-                        compatible = 1;
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (!compatible) {
-            satisfied = 0;
-
-            // Report every unsatisfied bound
-            BUF(req_buf);
-            BUF(prov_buf);
-            type_spec_print(ts, &prov_buf);
-            type_spec_print(_bound, &req_buf);
-            log_error("generic bound not satisfied:  '%s' does not satisfy '%s' required by '%s'",
-                      BUF_STR(req_buf), BUF_STR(prov_buf), tp->name);
-            FINI_BUF(req_buf);
-            FINI_BUF(prov_buf);
-        }
-    }
-
-    return satisfied;
-}
-
 static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
@@ -2695,7 +2784,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
         TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i);
         if (!arg_ts || !tp_sym) continue;
 
-        if (!check_generic_bound(arg_ts, tp_sym, tp_args)) {
+        if (!check_generic_bound(arg_ts, tp_sym, tp_args, ps)) {
             BUF(ts_buf);
             type_spec_print(arg_ts, &ts_buf);
             kl_error(lhs->loc,
@@ -2770,7 +2859,7 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     TypeParamSymbol *tp_sym;
     vector_foreach(tp_sym, &fn_sym->tps) {
         TypeSpec *_ts = vector_get(tp_args, i__);
-        if (!check_generic_bound(_ts, tp_sym, tp_args)) {
+        if (!check_generic_bound(_ts, tp_sym, tp_args, ps)) {
             BUF(ts_buf);
             type_spec_print(_ts, &ts_buf);
             kl_error(lhs->loc,
@@ -3223,34 +3312,6 @@ static void parse_unary(ParserState *ps, Expr *exp)
     // TODO: check _neg__ exists or not
 }
 
-static int promote_integer_type(Expr *lhs, Expr *rhs)
-{
-    TypeSpec *lhs_ts = lhs->ts;
-    TypeSpec *rhs_ts = rhs->ts;
-
-    if (type_is_uint64(lhs_ts) && type_is_int(rhs_ts)) {
-        return -1;
-    } else if (type_is_uint64(rhs_ts) && type_is_int(lhs_ts)) {
-        return -1;
-    }
-
-    if ((lhs->ts->int_flt_info.sign == 0) && (rhs->ts->int_flt_info.sign == 0)) {
-        lhs->ts = uint64_type_spec();
-        rhs->ts = uint64_type_spec();
-        log_info("promote binary-lhs from uint%d to uint64", lhs->ts->int_flt_info.width * 8);
-        log_info("promote binary-rhs from uint%d to uint64", rhs->ts->int_flt_info.width * 8);
-    } else {
-        lhs->ts = int64_type_spec();
-        rhs->ts = int64_type_spec();
-        log_info("promote binary-lhs from %s%d to int64",
-                 lhs->ts->int_flt_info.sign ? "int" : "uint", lhs->ts->int_flt_info.width * 8);
-        log_info("promote binary-rhs from %s%d to int64",
-                 rhs->ts->int_flt_info.sign ? "int" : "uint", rhs->ts->int_flt_info.width * 8);
-    }
-
-    return 0;
-}
-
 /* The value of a literal, a negated literal or a literal `const`; returns 0 for anything else. */
 static int shift_count_value(Expr *e, int *negative, uint64_t *value)
 {
@@ -3344,21 +3405,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
     if (!lhs->ts || !rhs->ts) return;
 
     if (op == BINARY_SHL || op == BINARY_SHR) check_shift_count(ps, lhs->ts, rhs);
-
-    // Promote integer and float types for binary operations.
-    TypeSpec *orig_ts = lhs->ts;
-    if (lhs->ts->kind == TYPE_INT && rhs->ts->kind == TYPE_INT) {
-        if (promote_integer_type(lhs, rhs)) {
-            kl_error(bin->op_loc,
-                     "cannot do binary operation on int64 and uint64 with different signs.");
-            return;
-        }
-    } else if (lhs->ts->kind == TYPE_FLOAT && rhs->ts->kind == TYPE_FLOAT) {
-        lhs->ts = float64_type_spec();
-        log_info("promote float type from float%d to float64", orig_ts->int_flt_info.width * 8);
-    } else {
-        // fall through for arguments check of functions.
-    }
 
     if (type_is_optional(lhs->ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
         Symbol *opt_sym = lhs->sym;

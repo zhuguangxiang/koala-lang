@@ -1623,31 +1623,6 @@ char *mangle_func_name(char *base_name, Vector *tp_args)
     return mangled_name;
 }
 
-TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args)
-{
-    if (!ts) return NULL;
-
-    if (ts->kind == TYPE_GENERIC_VAR) {
-        TypeSpec *ret = vector_get(tp_args, ts->generic_var.index);
-        return ret;
-    }
-
-    if (ts->kind == TYPE_GENERIC_REF) {
-        Vector *args = vector_create_ptr();
-        TypeSpec *arg;
-        vector_foreach(arg, ts->generic_ref.args) {
-            TypeSpec *arg_ts = type_spec_specialize(arg, tp_args);
-            vector_push_back(args, &arg_ts);
-        }
-        char *mangled_name = mangle_type_name(ts->generic_ref.name, args);
-        TypeSpec *ret = klass_type_spec(ts->generic_ref.pkg, mangled_name);
-        return ret;
-    }
-
-    // other types, return ts self
-    return ts;
-}
-
 bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b)
 {
     if (a == b) return true;
@@ -1679,6 +1654,13 @@ bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b)
                 if (!type_spec_equal_exact(arg_a, arg_b)) return false;
             }
             return true;
+        }
+
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_BFLOAT16: {
+            return a->int_flt_info.width == b->int_flt_info.width &&
+                   a->int_flt_info.sign == b->int_flt_info.sign;
         }
 
         default: {

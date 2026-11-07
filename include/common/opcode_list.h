@@ -499,6 +499,17 @@ X(OP_INT_NOT, FORMAT_RxRx, "int.not")
  +---------------------------------------------------------------*/
 
 /**
+ * OP_UINT_ADD — unsigned integer addition
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs + rt. The result is a uint64.
+ */
+X(OP_UINT_ADD, FORMAT_RRR, "uint.add")
+
+/**
  * OP_UINT_ADD_IMM — unsigned integer addition with immediate
  *
  * FORMAT_RRImm:
@@ -510,6 +521,17 @@ X(OP_INT_NOT, FORMAT_RxRx, "int.not")
 X(OP_UINT_ADD_IMM, FORMAT_RRImm, "uint.add_imm")
 
 /**
+ * OP_UINT_SUB — unsigned integer subtraction
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs - rt. The result is a uint64.
+ */
+X(OP_UINT_SUB, FORMAT_RRR, "uint.sub")
+
+/**
  * OP_UINT_SUB_IMM — unsigned integer subtraction with immediate
  *
  * FORMAT_RRImm:
@@ -519,6 +541,17 @@ X(OP_UINT_ADD_IMM, FORMAT_RRImm, "uint.add_imm")
  *     Computes rd = rs - imm, where imm is an 8-bit unsigned immediate.
  */
 X(OP_UINT_SUB_IMM, FORMAT_RRImm, "uint.sub_imm")
+
+/**
+ * OP_UINT_MUL — unsigned integer multiplication
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs * rt. The result is a uint64.
+ */
+X(OP_UINT_MUL, FORMAT_RRR, "uint.mul")
 
 /**
  * OP_UINT_MUL_IMM — unsigned integer multiplication with immediate
@@ -576,6 +609,17 @@ X(OP_UINT_MOD, FORMAT_RRR, "uint.mod")
 X(OP_UINT_MOD_IMM, FORMAT_RRImm, "uint.mod_imm")
 
 /**
+ * OP_UINT_AND — unsigned integer bitwise AND
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs & rt. The result is a uint64.
+ */
+X(OP_UINT_AND, FORMAT_RRR, "uint.and")
+
+/**
  * OP_UINT_AND_IMM — unsigned integer bitwise AND with immediate
  *
  * FORMAT_RRImm:
@@ -585,6 +629,17 @@ X(OP_UINT_MOD_IMM, FORMAT_RRImm, "uint.mod_imm")
  *     Computes rd = rs & imm, where imm is an 8-bit unsigned immediate.
  */
 X(OP_UINT_AND_IMM, FORMAT_RRImm, "uint.and_imm")
+
+/**
+ * OP_UINT_OR — unsigned integer bitwise OR
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs | rt. The result is a uint64.
+ */
+X(OP_UINT_OR, FORMAT_RRR, "uint.or")
 
 /**
  * OP_UINT_OR_IMM — unsigned integer bitwise OR with immediate
@@ -598,6 +653,17 @@ X(OP_UINT_AND_IMM, FORMAT_RRImm, "uint.and_imm")
 X(OP_UINT_OR_IMM, FORMAT_RRImm, "uint.or_imm")
 
 /**
+ * OP_UINT_XOR — unsigned integer bitwise XOR
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs ^ rt. The result is a uint64.
+ */
+X(OP_UINT_XOR, FORMAT_RRR, "uint.xor")
+
+/**
  * OP_UINT_XOR_IMM — unsigned integer bitwise XOR with immediate
  *
  * FORMAT_RRImm:
@@ -607,6 +673,17 @@ X(OP_UINT_OR_IMM, FORMAT_RRImm, "uint.or_imm")
  *     Computes rd = rs ^ imm, where imm is an 8-bit unsigned immediate.
  */
 X(OP_UINT_XOR_IMM, FORMAT_RRImm, "uint.xor_imm")
+
+/**
+ * OP_UINT_SHL — unsigned integer left shift
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = rs << rt. The result is a uint64.
+ */
+X(OP_UINT_SHL, FORMAT_RRR, "uint.shl")
 
 /**
  * OP_UINT_SHL_IMM — unsigned integer left shift with immediate

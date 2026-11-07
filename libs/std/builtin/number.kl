@@ -49,10 +49,74 @@ pub const LITTLE_ENDIAN = 1
 ///
 /// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
 /// are performed via implicit promotion to `int64`.
-pub class int8 : ToString {
+pub class int8 : Comparable[int64] & ToString {
     /// Creates an `int8` by truncating `x` to 8 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs int64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    /// Returns `self << rhs`.
+    @intrinsic
+    pub func __shl__(rhs int64) int64 {}
+
+    /// Returns `self >> rhs`.
+    @intrinsic
+    pub func __shr__(rhs int64) int64 {}
+
+    /// Returns `self & rhs`.
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    /// Returns `self | rhs`.
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    /// Returns `self ^ rhs`.
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
 
     /// Format the `int8` value for display.
     @native
@@ -67,10 +131,74 @@ pub class int8 : ToString {
 ///
 /// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
 /// are performed via implicit promotion to `int64`.
-pub class int16 : ToString {
+pub class int16 : Comparable[int64] & ToString {
     /// Creates an `int16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs int64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    /// Returns `self << rhs`.
+    @intrinsic
+    pub func __shl__(rhs int64) int64 {}
+
+    /// Returns `self >> rhs`.
+    @intrinsic
+    pub func __shr__(rhs int64) int64 {}
+
+    /// Returns `self & rhs`.
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    /// Returns `self | rhs`.
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    /// Returns `self ^ rhs`.
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
 
     /// Format the `int16` value for display.
     @native
@@ -85,10 +213,74 @@ pub class int16 : ToString {
 ///
 /// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
 /// are performed via implicit promotion to `int64`.
-pub class int32 : ToString {
+pub class int32 : Comparable[int64] & ToString {
     /// Creates an `int32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs int64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    /// Returns `self << rhs`.
+    @intrinsic
+    pub func __shl__(rhs int64) int64 {}
+
+    /// Returns `self >> rhs`.
+    @intrinsic
+    pub func __shr__(rhs int64) int64 {}
+
+    /// Returns `self & rhs`.
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    /// Returns `self | rhs`.
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    /// Returns `self ^ rhs`.
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
 
     /// Format the `int32` value for display.
     @native
@@ -228,10 +420,74 @@ pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
 ///
 /// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
 /// are performed via implicit promotion to `uint64`.
-pub class uint8 : ToString {
+pub class uint8 : Comparable[int64] & ToString {
     /// Creates a `uint8` by truncating `x` to 8 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs int64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    /// Returns `self << rhs`.
+    @intrinsic
+    pub func __shl__(rhs int64) int64 {}
+
+    /// Returns `self >> rhs`.
+    @intrinsic
+    pub func __shr__(rhs int64) int64 {}
+
+    /// Returns `self & rhs`.
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    /// Returns `self | rhs`.
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    /// Returns `self ^ rhs`.
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
 
     /// Format the `uint8` value for display.
     @native
@@ -246,10 +502,74 @@ pub class uint8 : ToString {
 ///
 /// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
 /// are performed via implicit promotion to `uint64`.
-pub class uint16 : ToString {
+pub class uint16 : Comparable[int64] & ToString {
     /// Creates a `uint16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs int64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    /// Returns `self << rhs`.
+    @intrinsic
+    pub func __shl__(rhs int64) int64 {}
+
+    /// Returns `self >> rhs`.
+    @intrinsic
+    pub func __shr__(rhs int64) int64 {}
+
+    /// Returns `self & rhs`.
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    /// Returns `self | rhs`.
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    /// Returns `self ^ rhs`.
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
 
     /// Format the `uint16` value for display.
     @native
@@ -264,10 +584,74 @@ pub class uint16 : ToString {
 ///
 /// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
 /// are performed via implicit promotion to `uint64`.
-pub class uint32 : ToString {
+pub class uint32 : Comparable[int64] & ToString {
     /// Creates a `uint32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs int64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    /// Returns `self << rhs`.
+    @intrinsic
+    pub func __shl__(rhs int64) int64 {}
+
+    /// Returns `self >> rhs`.
+    @intrinsic
+    pub func __shr__(rhs int64) int64 {}
+
+    /// Returns `self & rhs`.
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    /// Returns `self | rhs`.
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    /// Returns `self ^ rhs`.
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
 
     /// Format the `uint32` value for display.
     @native
@@ -403,10 +787,54 @@ pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
 ///
 /// Used to truncate a `float64` value down to 16 bits. Arithmetic operations
 /// are performed via implicit promotion to `float64`.
-pub class float16 : ToString {
+pub class float16 : Comparable[float64] & ToString {
     /// Creates a `float16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs float64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs float64) float64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs float64) float64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs float64) float64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs float64) float64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs float64) float64 {}
 
     /// Format the `float16` value for display.
     @native
@@ -421,11 +849,55 @@ pub class float16 : ToString {
 ///
 /// Used to truncate a `float64` value down to 32 bits. Arithmetic operations
 /// are performed via implicit promotion to `float64`.
-pub class float32 : ToString {
+pub class float32 : Comparable[float64] & ToString {
 
     /// Creates a `float32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs float64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs float64) float64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs float64) float64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs float64) float64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs float64) float64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs float64) float64 {}
 
     /// Format the `float32` value for display.
     @native
@@ -527,7 +999,7 @@ pub class float64 : Comparable & Arithmetic & ToString {
 /// dynamic range as `float32` but with reduced precision. It is primarily
 /// designed for machine learning workloads where memory bandwidth and storage
 /// efficiency matter more than exact numerical accuracy.
-pub class bfloat16 : ToString {
+pub class bfloat16 : Comparable[float64] & ToString {
     /// Creates a `bfloat16` by truncating the lower bits of `x`.
     ///
     /// When converting from `float64`, the value is rounded to the nearest
@@ -535,6 +1007,50 @@ pub class bfloat16 : ToString {
     /// exact float representation before truncation.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
+    @intrinsic
+    pub func __gt__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
+    @intrinsic
+    pub func __ge__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
+    @intrinsic
+    pub func __lt__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
+    @intrinsic
+    pub func __le__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
+    @intrinsic
+    pub func __eq__(rhs float64) bool {}
+
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
+    @intrinsic
+    pub func __ne__(rhs float64) bool {}
+
+    /// Returns `self + rhs`.
+    @intrinsic
+    pub func __add__(rhs float64) float64 {}
+
+    /// Returns `self - rhs`.
+    @intrinsic
+    pub func __sub__(rhs float64) float64 {}
+
+    /// Returns `self * rhs`.
+    @intrinsic
+    pub func __mul__(rhs float64) float64 {}
+
+    /// Returns `self / rhs`.
+    @intrinsic
+    pub func __div__(rhs float64) float64 {}
+
+    /// Returns `self % rhs`.
+    @intrinsic
+    pub func __mod__(rhs float64) float64 {}
 
     /// Format the `bfloat16` value for display.
     @native

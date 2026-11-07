@@ -1,0 +1,106 @@
+// RUN: koala %s | filecheck %s
+
+// Returning a value as `any` or `any?` needs no cast: the value keeps its own
+// representation and its dynamic type, whether it is a constant or a variable.
+
+class Foo {
+    pub func fmt(f Formatter) {
+        f.write_str("Foo")
+    }
+}
+
+func any_int() any { return 1 }
+func any_neg() any { return -1 }
+func any_big() any { return 100000 }
+func any_float() any { return 1.5 }
+func any_bool() any { return true }
+func any_str() any { return "x" }
+func any_bytes() any { return b"ab" }
+func any_tuple() any { return (1, "x") }
+func any_list() any { return [1, 2] }
+func any_foo() any { return Foo() }
+
+func any_int_var(x int) any { return x }
+func any_uint8_var(x uint8) any { return x }
+func any_float_var(x float) any { return x }
+func any_bool_var(x bool) any { return x }
+func any_str_var(x str) any { return x }
+func any_foo_var(x Foo) any { return x }
+
+func opt_int() any? { return 1 }
+func opt_float() any? { return 1.5 }
+func opt_bool() any? { return true }
+func opt_str() any? { return "x" }
+func opt_nil() any? { return nil }
+func opt_foo() any? { return Foo() }
+
+func opt_int_var(x int) any? { return x }
+func opt_str_var(x str) any? { return x }
+func opt_foo_var(x Foo) any? { return x }
+
+func main() {
+    print(any_int(), typeof(any_int()))
+    // CHECK: 1 <class 'int64'>
+    print(any_neg(), typeof(any_neg()))
+    // CHECK-NEXT: -1 <class 'int64'>
+    print(any_big(), typeof(any_big()))
+    // CHECK-NEXT: 100000 <class 'int64'>
+    print(any_float(), typeof(any_float()))
+    // CHECK-NEXT: 1.5 <class 'float64'>
+    print(any_bool(), typeof(any_bool()))
+    // CHECK-NEXT: true <class 'bool'>
+    print(any_str(), typeof(any_str()))
+    // CHECK-NEXT: x <class 'str'>
+    print(typeof(any_bytes()))
+    // CHECK-NEXT: <class 'bytes'>
+    print(typeof(any_tuple()))
+    // CHECK-NEXT: <class 'tuple'>
+    print(any_list(), typeof(any_list()))
+    // CHECK-NEXT: [1, 2] <class 'list'>
+    print(any_foo(), typeof(any_foo()))
+    // CHECK-NEXT: Foo <class 'test_return_any.Foo'>
+
+    print(any_int_var(5), typeof(any_int_var(5)))
+    // CHECK-NEXT: 5 <class 'int64'>
+    print(typeof(any_uint8_var(200)))
+    // CHECK-NEXT: <class 'uint8'>
+    print(any_float_var(2.5), typeof(any_float_var(2.5)))
+    // CHECK-NEXT: 2.5 <class 'float64'>
+    print(any_bool_var(false), typeof(any_bool_var(false)))
+    // CHECK-NEXT: false <class 'bool'>
+    print(any_str_var("y"), typeof(any_str_var("y")))
+    // CHECK-NEXT: y <class 'str'>
+    print(any_foo_var(Foo()), typeof(any_foo_var(Foo())))
+    // CHECK-NEXT: Foo <class 'test_return_any.Foo'>
+
+    print(opt_int()!, typeof(opt_int()!))
+    // CHECK-NEXT: 1 <class 'int64'>
+    print(opt_float()!, typeof(opt_float()!))
+    // CHECK-NEXT: 1.5 <class 'float64'>
+    print(opt_bool()!, typeof(opt_bool()!))
+    // CHECK-NEXT: true <class 'bool'>
+    print(opt_str()!, typeof(opt_str()!))
+    // CHECK-NEXT: x <class 'str'>
+    print(opt_nil() == nil)
+    // CHECK-NEXT: true
+    print(opt_foo()!, typeof(opt_foo()!))
+    // CHECK-NEXT: Foo <class 'test_return_any.Foo'>
+
+    print(opt_int_var(5)!, typeof(opt_int_var(5)!))
+    // CHECK-NEXT: 5 <class 'int64'>
+    print(opt_str_var("y")!, typeof(opt_str_var("y")!))
+    // CHECK-NEXT: y <class 'str'>
+    print(opt_foo_var(Foo())!, typeof(opt_foo_var(Foo())!))
+    // CHECK-NEXT: Foo <class 'test_return_any.Foo'>
+
+    // The value can be converted back to its own type.
+    let i = (any_int() as int)!
+    print(i + 1)
+    // CHECK-NEXT: 2
+    let s = (any_str() as str)!
+    print(s + "z")
+    // CHECK-NEXT: xz
+    let c = (any_foo() as Foo)!
+    print(c)
+    // CHECK-NEXT: Foo
+}
