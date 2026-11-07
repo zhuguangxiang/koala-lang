@@ -6,6 +6,11 @@
 import "std/os"
 import "std/sys"
 
+/// `formatter_class=RawDescriptionHelpFormatter` keeps the description and
+/// the epilog as written, line breaks included, as in Python. Without it
+/// they are filled as paragraphs.
+pub const RawDescriptionHelpFormatter = "RawDescriptionHelpFormatter"
+
 /// A command-line parser with the API of Python's `argparse`.
 ///
 ///     let parser = cli.ArgumentParser(prog="tool", description="Do things.")
@@ -33,6 +38,7 @@ pub class ArgumentParser {
     let _prog str
     let _description str
     let _epilog str
+    let _raw_description bool
     let _actions list[_Action]
     var _subparsers _Action? = nil
     var _exit_status int = 0
@@ -42,10 +48,14 @@ pub class ArgumentParser {
     /// `prog`, as Koala has no `sys.argv[0]` for Python's default.
     /// `add_help` adds `-h` / `--help`.
     pub func __init__(prog str = "prog", description str = "", epilog str = "",
-                      add_help bool = true) {
+                      add_help bool = true, formatter_class str = "") {
+        if formatter_class.len() > 0 && formatter_class != RawDescriptionHelpFormatter {
+            panic("cli: unknown formatter_class '" + formatter_class + "'")
+        }
         _prog = prog
         _description = description
         _epilog = epilog
+        _raw_description = formatter_class == RawDescriptionHelpFormatter
         _actions = list[_Action]()
         if add_help {
             let names = list[str]()
@@ -187,7 +197,7 @@ pub class ArgumentParser {
         if column > _MAX_HELP_COLUMN { column = _MAX_HELP_COLUMN }
 
         var out = format_usage()
-        if _description.len() > 0 { out += "\n" + _fill(_expand(_description, nil), width) }
+        if _description.len() > 0 { out += "\n" + _paragraph(_expand(_description, nil), width) }
 
         let positionals = list[str]()
         for a in _actions {
@@ -214,7 +224,7 @@ pub class ArgumentParser {
         }
         if options.len() > 0 { out += "\noptions:\n" + "".join(options) }
 
-        if _epilog.len() > 0 { out += "\n" + _fill(_expand(_epilog, nil), width) }
+        if _epilog.len() > 0 { out += "\n" + _paragraph(_expand(_epilog, nil), width) }
         return out
     }
 
@@ -514,6 +524,13 @@ pub class ArgumentParser {
         }
     }
 
+    // The description or the epilog, as written or filled.
+    func _paragraph(text str, width int) str {
+        if !_raw_description { return _fill(text, width) }
+        if text.ends_with("\n") { return text }
+        return text + "\n"
+    }
+
     // `text` with `%(prog)s`, and `%(default)s` of `a`, replaced.
     func _expand(text str, a _Action?) str {
         var out = text.replace("%(prog)s", _prog)
@@ -540,10 +557,10 @@ pub class SubParsers {
     /// is the parent's followed by `name`. `help` is its line in the
     /// parent's help.
     pub func add_parser(name str, help str = "", description str = "", epilog str = "",
-                        add_help bool = true) ArgumentParser {
+                        add_help bool = true, formatter_class str = "") ArgumentParser {
         if find(name) != nil { panic("cli: conflicting subparser: " + name) }
         let p = ArgumentParser(prog=_prog + " " + name, description=description, epilog=epilog,
-                               add_help=add_help)
+                               add_help=add_help, formatter_class=formatter_class)
         _names.append(name)
         _helps.append(help)
         _parsers.append(p)

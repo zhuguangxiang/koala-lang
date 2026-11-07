@@ -6,6 +6,7 @@
  */
 
 import "std/sys"
+import "koala/cli"
 import "koala/wombat" as wb
 
 const VERSION = "0.5.0"
@@ -17,302 +18,126 @@ pub func main() {
     if code != 0 { sys.exit(code) }
 }
 
+/// The parser of `wombat` and of each of its commands.
+class Commands {
+    let wombat cli.ArgumentParser
+    let sub cli.SubParsers
+
+    func __init__() {
+        let description = "wombat " + VERSION + " — build system & package manager"
+        let epilog = "Run `wombat help <command>` for details."
+        wombat = cli.ArgumentParser(prog="wombat", description=description, epilog=epilog)
+        wombat.add_argument("-V", "--version", action="version", version="wombat " + VERSION)
+        sub = wombat.add_subparsers(dest="command", metavar="<command>")
+
+        let new = sub.add_parser("new", help="Create a workspace or package",
+                                 epilog="Creates a workspace when the current directory has " +
+                                        "no __ws__.toml, otherwise creates a package inside it.")
+        new.add_argument("name", help="Name of the workspace or package")
+
+        let build = sub.add_parser("build", help="Compile the current workspace or package",
+                                   epilog="When <dir> contains __ws__.toml the whole workspace " +
+                                          "is built; when it contains __pkg__.toml only that " +
+                                          "package is built.")
+        build.add_argument("dir", nargs="?", default=".",
+                           help="Workspace or package directory (default: %(default)s)")
+        build.add_argument("-o", "--output", default="./dist",
+                           help="Output directory (default: %(default)s)")
+
+        let check = sub.add_parser("check", help="Check without producing artifacts",
+                                   epilog="Parses and type-checks without producing artifacts.")
+        check.add_argument("dir", nargs="?", default=".")
+
+        let run = sub.add_parser("run", help="Run a .kl source file or a .klc artifact",
+                                 epilog="<target> may be a .kl source file, a .klc artifact, " +
+                                        "or a name without extension, which is looked up as " +
+                                        "<name>.klc, then <name>.kl. Extra arguments are " +
+                                        "forwarded to the program.")
+        run.add_argument("target", help="What to run")
+        run.add_argument("args", nargs=cli.REMAINDER, help="Arguments for the program")
+
+        let test_epilog = "targets:\n" +
+                          "  (no target)   Test every directory package and ws/test/\n" +
+                          "  @             Test only ws/test/, no package tests\n" +
+                          "  <dir>         Test a workspace or a single package\n" +
+                          "  <file.kl>     Not supported yet\n" +
+                          "\n" +
+                          "ws/test/ holds tests that do not belong to a specific package;\n" +
+                          "it is only run from a workspace root."
+        let test = sub.add_parser("test", help="Run tests for the current workspace or package",
+                                  epilog=test_epilog,
+                                  formatter_class=cli.RawDescriptionHelpFormatter)
+        test.add_argument("target", nargs="?", default=".", help="What to test")
+
+        let fmt = sub.add_parser("fmt", help="Format source code",
+                                 epilog="Formats every `.kl` file in the workspace or package.")
+        fmt.add_argument("dir", nargs="?", default=".")
+
+        let doc = sub.add_parser("doc", help="Generate documentation",
+                                 epilog="Generates documentation for the workspace or package.")
+        doc.add_argument("dir", nargs="?", default=".")
+
+        let clean_epilog = "Removes <workspace>/dist. Must be run inside a workspace (a " +
+                           "directory containing __ws__.toml). Without -y, you must type the " +
+                           "full word `yes` to confirm."
+        let clean = sub.add_parser("clean", help="Remove build artifacts", epilog=clean_epilog)
+        clean.add_argument("dir", nargs="?", default=".")
+        clean.add_argument("-y", "--yes", action="store_true", help="Skip the confirmation prompt")
+
+        let help = sub.add_parser("help", help="Show the options of one command")
+        help.add_argument("name", nargs="?", help="The command")
+
+        sub.add_parser("version", help="Print the wombat version")
+    }
+}
+
 func dispatch(argv list[str]) int {
-    let argc = len(argv)
-    if argc == 0 {
-        print_brief_help()
+    let commands = Commands()
+    let args = commands.wombat.parse_args(argv)
+
+    let picked = args.get("command")
+    if picked == nil {
+        commands.wombat.print_help()
         return 0
     }
+    let cmd = (picked as str)!
 
-    let cmd = argv[0]
-
-    if cmd == "help" || cmd == "-h" || cmd == "--help" {
-        if argc >= 2 {
-            print_command_help(argv[1])
-        } else {
-            print_full_help()
+    if cmd == "help" {
+        if let name = args.get("name") {
+            if let p = commands.sub.find((name as str)!) {
+                p.print_help()
+                return 0
+            }
         }
+        commands.wombat.print_help()
         return 0
     }
 
-    if cmd == "version" || cmd == "-V" || cmd == "--version" {
+    if cmd == "version" {
         print("wombat " + VERSION)
         return 0
     }
 
-    if cmd == "new"   { return cmd_new(argv)   }
-    if cmd == "build" { return cmd_build(argv) }
-    if cmd == "check" { return cmd_check(argv) }
-    if cmd == "run"   { return cmd_run(argv)   }
-    if cmd == "test"  { return cmd_test(argv)  }
-    if cmd == "fmt"   { return cmd_fmt(argv)   }
-    if cmd == "doc"   { return cmd_doc(argv)   }
-    if cmd == "clean" { return cmd_clean(argv) }
+    if cmd == "new" { return wb.new_auto(_value(args, "name")) }
+    if cmd == "build" { return wb.build_all(_value(args, "dir"), _value(args, "output")) }
+    if cmd == "test" { return cmd_test(_value(args, "target")) }
+    if cmd == "run" { return wb.run(_value(args, "target"), (args.get("args")! as list[str])!) }
+    if cmd == "clean" { return wb.clean_all(_value(args, "dir"), (args.get("yes")! as bool)!) }
 
-    printf("wombat: unknown command '{}'\n", cmd)
-    print("Run `wombat help` for usage.")
-    return 2
+    // check, fmt, doc
+    printf("wombat {}: not implemented yet\n", cmd)
+    return 1
 }
 
-func print_brief_help() {
-    print("wombat " + VERSION + " — build system & package manager")
-    print("")
-    print("Usage: wombat <command> [options]")
-    print("")
-    print("Common commands:")
-    print("  new        Create a workspace or package")
-    print("  build      Compile the current workspace or package")
-    print("  check      Check without producing artifacts")
-    print("  test       Run tests for the current workspace or package")
-    print("  fmt        Format source code")
-    print("  doc        Generate documentation")
-    print("  clean      Remove build artifacts")
-    print("")
-    print("Run `wombat help <command>` for details.")
-}
-
-func print_full_help() {
-    print_brief_help()
-    print("")
-    print("See also:")
-    print("  wombat help <command>  Show options for one command")
-    print("  wombat version         Print the wombat version")
-}
-
-func print_command_help(name str) {
-    if name == "build" {
-        print("Usage: wombat build [dir] [options]")
-        print("")
-        print("Options:")
-        print("  -o, --output <dir>      Output directory (default: ./dist)")
-        print("")
-        print("When <dir> contains __ws__.toml the whole workspace is")
-        print("built; when it contains __pkg__.toml only that package")
-        print("is built. <dir> defaults to the current directory.")
-        return
-    }
-
-    if name == "test" {
-        print("Usage: wombat test [target]")
-        print("")
-        print("  (no target)   Test every directory package and ws/test/")
-        print("  @             Test only ws/test/, no package tests")
-        print("  <dir>         Test a workspace or a single package")
-        print("  <file.kl>     Not supported yet")
-        print("")
-        print("ws/test/ holds tests that do not belong to a specific")
-        print("package; it is only run from a workspace root.")
-        return
-    }
-
-    if name == "new" {
-        print("Usage: wombat new <name>")
-        print("")
-        print("Creates a workspace when the current directory has no")
-        print("__ws__.toml, otherwise creates a package inside it.")
-        return
-    }
-
-    if name == "check" {
-        print("Usage: wombat check [dir]")
-        print("")
-        print("Parses and type-checks without producing artifacts.")
-        return
-    }
-
-    if name == "run" {
-        print("Usage: wombat run <target> [args...]")
-        print("")
-        print("<target> may be a .kl source file, a .klc artifact, or a")
-        print("name without extension. A name without extension is looked")
-        print("up as <name>.klc, then <name>.kl.")
-        print("")
-        print("Extra arguments are forwarded to the program.")
-        return
-    }
-
-    if name == "fmt" {
-        print("Usage: wombat fmt [dir]")
-        print("")
-        print("Formats every `.kl` file in the workspace or package.")
-        return
-    }
-
-    if name == "doc" {
-        print("Usage: wombat doc [dir]")
-        print("")
-        print("Generates documentation for the workspace or package.")
-        return
-    }
-
-    if name == "clean" {
-        print("Usage: wombat clean [dir] [-y|--yes]")
-        print("")
-        print("Removes <workspace>/dist. Must be run inside a workspace")
-        print("(a directory containing __ws__.toml).")
-        print("")
-        print("Without -y, you must type the full word `yes` to confirm.")
-        print("")
-        print("Options:")
-        print("  -y, --yes               Skip the confirmation prompt")
-        return
-    }
-
-    print_full_help()
-}
-
-/// Options shared by `build` and `test`.
-class BuildOptions {
-    var path = "."
-    var output = "./dist"
-}
-
-/// Parse `[dir]` and, when `allow_output` is true, `-o/--output`.
-///
-/// `argv[0]` is the subcommand name and is skipped. Unknown options
-/// are reported instead of being silently ignored.
-func parse_build_options(argv list[str], opts BuildOptions, allow_output bool) str {
-    var idx = 0
-    var pending = ""
-    var err = ""
-
-    for a in argv {
-        idx += 1
-        if idx == 1 { continue }
-
-        if pending != "" {
-            if pending == "-o" { opts.output = a }
-            pending = ""
-            continue
-        }
-
-        if a == "-o" || a == "--output" {
-            if !allow_output {
-                if err.empty() {
-                    err = "unknown option '" + a + "'"
-                }
-            } else {
-                pending = "-o"
-            }
-        } else if a.starts_with("-") && a.len() > 1 {
-            if err.empty() {
-                err = "unknown option '" + a + "'"
-            }
-        } else {
-            opts.path = a
-        }
-    }
-
-    if !err.empty() { return err }
-
-    if pending != "" {
-        return pending + " requires a value"
-    }
-    return ""
-}
-
-/// `wombat build [dir] [-o DIR]`
-func cmd_build(argv list[str]) int {
-    let opts = BuildOptions()
-    let err = parse_build_options(argv, opts, true)
-    if !err.empty() {
-        printf("wombat build: {}\n", err)
-        return 2
-    }
-    return wb.build_all(opts.path, opts.output)
+// The str value of `name`, which has a default or is required.
+func _value(args cli.Namespace, name str) str {
+    return (args.get(name)! as str)!
 }
 
 /// `wombat test [target]`
 ///
 /// `target` may be `@` (only `ws/test/*.kl`), a directory (workspace
 /// or single package), or a `.kl` / `.klc` file (not supported yet).
-func cmd_test(argv list[str]) int {
-    var target = "."
-    if argv.len() >= 2 {
-        target = argv[1]
-    }
-    if argv.len() > 2 {
-        if target == "@" {
-            print("wombat test: '@' does not take arguments")
-            return 2
-        }
-        printf("wombat test: unexpected argument '{}'\n", argv[2])
-        return 2
-    }
+func cmd_test(target str) int {
     return wb.test_all(target)
-}
-
-/// `wombat new <name>`
-func cmd_new(argv list[str]) int {
-    let argc = len(argv)
-
-    if argc < 2 {
-        print("wombat new: missing name")
-        print("Usage: wombat new <name>")
-        return 2
-    }
-
-    if argc > 2 {
-        printf("wombat new: unexpected argument '{}'\n", argv[2])
-        return 2
-    }
-
-    return wb.new_auto(argv[1])
-}
-
-func cmd_check(argv list[str]) int {
-    print("wombat check: not implemented yet")
-    return 1
-}
-
-/// `wombat run <target> [args...]`
-func cmd_run(argv list[str]) int {
-    if argv.len() < 2 {
-        print("wombat run: missing target")
-        print("Usage: wombat run <target> [args...]")
-        return 2
-    }
-
-    let args = list[str]()
-    var i = 2
-    while i < argv.len() {
-        args.append(argv[i])
-        i += 1
-    }
-    return wb.run(argv[1], args)
-}
-
-func cmd_fmt(argv list[str]) int {
-    print("wombat fmt: not implemented yet")
-    return 1
-}
-
-func cmd_doc(argv list[str]) int {
-    print("wombat doc: not implemented yet")
-    return 1
-}
-
-/// `wombat clean [dir] [-y|--yes]`
-///
-/// Removes `<workspace>/dist`. Must be run inside a workspace (a
-/// directory containing `__ws__.toml`). Without `-y`, the user must
-/// type `yes` (any case) to confirm.
-func cmd_clean(argv list[str]) int {
-    var dir = "."
-    var yes = false
-
-    var i = 1
-    while i < argv.len() {
-        let a = argv[i]
-        if a == "-y" || a == "--yes" {
-            yes = true
-        } else if a.starts_with("-") && a.len() > 1 {
-            printf("wombat clean: unknown option '{}'\n", a)
-            return 2
-        } else {
-            dir = a
-        }
-        i += 1
-    }
-    return wb.clean_all(dir, yes)
 }

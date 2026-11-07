@@ -312,3 +312,23 @@ func test_help_wraps_long_text() {
                "              thirteen\n"
     ut.assert_eq(p.format_help(), want)
 }
+
+@test
+func test_raw_description() {
+    let epilog = "targets:\n  @      only ws/test/\n  <dir>  a package"
+    let p = cli.ArgumentParser(prog="t", epilog=epilog,
+                               formatter_class=cli.RawDescriptionHelpFormatter)
+    let want = "usage: t [-h]\n" +
+               "\n" +
+               "options:\n" +
+               "  -h, --help  show this help message and exit\n" +
+               "\n" +
+               "targets:\n" +
+               "  @      only ws/test/\n" +
+               "  <dir>  a package\n"
+    ut.assert_eq(p.format_help(), want)
+
+    // Without it the epilog is filled as a paragraph.
+    let q = cli.ArgumentParser(prog="t", epilog=epilog)
+    ut.assert_true(q.format_help().ends_with("targets: @ only ws/test/ <dir> a package\n"))
+}
