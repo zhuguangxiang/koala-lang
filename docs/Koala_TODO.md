@@ -4,7 +4,7 @@
 > 版本计划与路线图（§6）、容器协议相关（§9、§11、§12）、Truthiness 设想（§10）、
 > 数值 cast 补全（§13，已完成转语义 / 测试基线记录）、from_str 解析 API（§14，设计定案未实现）、
 > 测试揭示的 WIP 特性（§15，2026-10-02 复核已消解）、声明-实现欠账清单（§16）、
-> 整型提升三处缺陷（§17）、list 接口全面核对与主流语言对齐（§18）、
+> `parse_binary` 具名常量通道（§17）、list 接口全面核对与主流语言对齐（§18）、
 > 退出码模型（§19，panic 退出码与 main 返回值语义）、float 的 NaN/Inf 构造途径（§20，已修复）、
 > `str(float)` 16 位有效数字缺陷（§21，已修复）、数值构造器接收 `str` 的语义（§22，待定，讨论中）、
 > datetime 固定偏移时区（§23，待设计）、运算符按操作数类型重载以支持同类相减（§24，编译器级，待讨论）、
@@ -847,36 +847,23 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ---
 
-## 17. 整型提升的三处缺陷（rhs 期望类型传播 / 诊断）
+## 17. The named constant channel of `parse_binary` (to fix)
 
-> 2026-10-03 建立。源码分析 `src/parser/parser_expr.c` 的 `promote_integer_type` / `parse_binary`
-> （提升规则与两阶段实现已入设计文档 §5、§5.3）时发现的三处问题，**均未修复**。
-> 三个修法的决策完备方案见设计文档 **§5.4**，此处只挂账问题本身。
+> Created 2026-10-03, rewritten 2026-11-07. `promote_integer_type` was removed, and with it the wrong
+> diagnostic and the wrong log recorded here earlier. The fix is in the design doc **§5.4**. Both
+> gaps below are recorded as errors in `test/test-kl/test_number_errors.kl`.
 
-### 17.1 孤岛规则的错误消息文本不准
+`parse_binary` has two channels that pass the type of `lhs` to `rhs`:
 
-- 现状：`parse_binary:2812-2816` 写死 `"cannot do binary operation on int64 and uint64 with different signs."`。
-- 问题：实际触发条件是 **uint64 与任意宽度的有符号类型**（`type_is_int` 只判 `TYPE_INT && sign == 1`，不含宽度），因此 `int8 + uint64`、`int32 * uint64` 都会报出“int64 and uint64”这样的假信息，也不告知用户可用的显式 cast 出路。
-- 影响：诊断误导。196 个测试无一覆盖此错误路径（全是正例）。
-- 修法：设计文档 §5.4 修法一（带上两侧真实 `signature` + 两条 cast 出路）。
+- Literal: `rhs` is a literal and `lhs` is `uint64`.
+- Named constant: `rhs` is a constant and `lhs` is not `uint64`; `rhs` is parsed again.
 
-### 17.2 提升日志永远打印目标类型，起不到诊断作用
+They leave two gaps:
 
-- 现状：`promote_integer_type:2766-2774` 的四条 `log_info` 都在**赋值之后**读 `lhs->ts->int_flt_info.width / sign`，此时已被覆写为 int64 / uint64，故日志恒为 `from int64 to int64` / `from uint64 to uint64`。
-- 函数开头（`:2754-2755`）已把原始类型存进 `lhs_ts` / `rhs_ts`，但四条日志都没用它们。
-- 对照组：同文件 `parse_unary:2703-2736` 用 `orig_ts` 打印，写法正确；`parse_binary:2810` 的 `orig_ts` 只在 float 分支用到。
-- 修法：设计文档 §5.4 修法二（先打印后赋值，或直接引用 `lhs_ts` / `rhs_ts`）。
-
-### 17.3 uint64 左操作数 + 具名常量：期望类型传播的不对称缺口
-
-- 现状：`parse_binary` 有两条把 lhs 类型传给 rhs 的通道，二者对 uint64 的处理互补而不重合：
-  - 字面量通道（`:2791`）：rhs 是 `EXPR_LITERAL_KIND` 且 **lhs 是 uint64** → `rhs->expected = lhs->ts`
-  - 具名常量通道（`:2800`）：rhs 是 `EXPR_ID_KIND` 带 `SYM_FLAGS_CONST` 且 **lhs 不是 uint64** → 设 expected 并重新解析
-- 主缺口：**lhs 是 uint64 且 rhs 是具名常量**时两条都不生效。`x + UINT8_MAX`（x uint64）里 UINT8_MAX 保持自身推断的有符号类型 → 撞孤岛报错；而同一表达式的字面量形式 `x + 255` 合法。**此路径现有测试未覆盖，属源码推演结论、未实测。**
-- 连带误报（同源）：具名常量通道对**窄 lhs + 更宽常量**会报错。`check_literal_as_expected` 超范围时先 `kl_error("Literal value out of range for intN")` 再返回 0（`include/parser/literal_as_expected.h`），故 `n + INT16_MAX`（n int8）报错，而字面量形式 `n + 32767` 因通道不触发而合法。二元运算里的 rhs 类型只是“选公共类型的提示”，不是用户声明的目标类型，报错过严。
-- 字面量 vs 具名常量的结果类型不一致：`u + 100`（u uint8）得 `int`，`u + UINT8_MAX` 得 `uint64`——同量级的值、两种写法，结果类型不同。属同一不对称的另一面。
-- 对照组：函数实参通道（`:597-616`）对字面量与具名常量一视同仁、且不排除 uint64，这正是 `test_u64_add_u8(UINT64_MAX, UINT8_MAX)` 能通过的原因——说明该机制在 uint64 下本就可用。
-- 修法：设计文档 §5.4 修法三（新增不报错的 `int_value_fits` 适配判定 + 两条通道统一条件）。其中“字面量通道放宽到任意窄 lhs”会使 `u + 100` 的结果从 `int` 变 `uint64`，是本修法唯一的语义变化，**需作者确认后再实施**（保守变体见 §5.4 末段）。
+- `x + UINT8_MAX` with `x uint64`: neither channel applies, so the constant stays `int64` and the
+  argument of `uint64.__add__` does not match, while `x + 255` is legal.
+- `n + INT16_MAX` with `n int8`: the constant is read as `int8` and reported as out of range, while
+  `n + 32767` is legal. The type of a right operand is only a hint, so this is too strict.
 
 ---
 
@@ -3192,66 +3179,33 @@ type of a literal. It no longer does. Tests: `test/test-run/test_return_any.kl`,
 
 ---
 
-## 57. No check that a class method matches its trait (2026-11-04, postponed)
+## 57. Check that a class method matches its trait (2026-11-07, done)
 
-The compiler does not compare a class method with the trait method it implements. For now the author
-of the code is responsible for keeping them consistent. A mismatch compiles and misbehaves at run
-time:
+`check_intf_methods` (`src/parser/parser_generic.c`) runs after `build_intf_table` and before IR
+generation. It walks the interface table of each class, so the automatic `Printable`, `Hashable` and
+`Equatable` are checked too. Tests: `test/test-kl/test_trait_impl_mismatch.kl` and
+`test/test-ut/test_trait_impl_match.kl`.
 
-```kl
-trait P { func f(x int) int }
-trait Q { func f(x str) int }
-
-class C : P & Q {
-    pub func f(x int) int { return x + 1 }
-}
-
-func main() {
-    let q Q = C()
-    print(q.f("amy"))    // prints a garbage value such as 107969185864193
-}
-```
-
-```kl
-class ScoreTable : Sequence[uint8] {
-    pub func __getitem__(name str) uint8 { return 'q' }    // the trait takes `index int`
-}
-```
-
-Rules agreed for the check, with `T` bound to the actual type:
+The rules, with `T` bound to the actual type:
 
 - A method the trait declares and the class implements is checked. A method the class does not
   implement passes.
 - The number of parameters must be the same. Parameter names and default values are not compared.
-- Parameters are invariant. Whether a parameter may widen to a union, as
-  `bytes.__contains__(value uint8 | bytes)` does, is undecided.
-- The return type is invariant: `Set[T]` -> `hashset[T]`, `T?` -> `T` and `any` -> `int` are not
-  allowed (decided on 2026-11-07, replacing covariant returns). A union is not allowed as a return
-  type.
-- Generic type arguments are invariant.
-- A method with an `infer` type parameter, such as `tuple.__getitem__[infer U]`, is not checked.
-- `any` is the parent of every type, but `T?` -> `any` needs a cast, as does any `T?` -> `T`.
+- Parameters, the return type and generic type arguments are invariant: `Set[T]` -> `hashset[T]`,
+  `T?` -> `T`, `any` -> `int` and `int` -> `int8` are not allowed.
+- A class parameter that is a union is checked on its own: it is valid when it takes everything the
+  trait's parameter declares. `bytes.__contains__(value uint8 | bytes)` matches `item uint8`, and
+  `x int | str | bool` matches `x int | str`.
+- A method with a type parameter of its own, such as `tuple.__getitem__[infer U]`, is not checked.
+- A member of that name that is not a method, or a static method, is an error.
+- A class implements a generic trait with one list of type arguments, directly or through another
+  trait: `class C : G[int] & G[str]` is an error, and `L[int] & R[int]` with `L[T] : G[T]` and
+  `R[T] : G[T]` is not. The interface table has one entry for `G`.
 
-Implementation notes:
-
-- Walk the symbol table as `build_intf_table` does. `lro` lists every trait of a class, and
-  `find_matched_tp_args` gives the bound type arguments.
-- Compare the function types (`fn->ts`) with `type_spec_compatible`, which needs a `TYPE_PROTO` case.
-  `type_spec_specialize` needs one too, to bind `T`.
-
-Problems found in `type_spec_compatible` while trying this:
-
-- `compatible_generic_ref` compares only the arguments when their number is the same, not the types:
-  `Set[T]` and `hashset[T]` are compatible in both directions.
-- `compatible_union` is `ASSERT(0)`.
-- `type_spec_equal_strict` compares generic arguments by kind and `sym_id` only, not their own
-  arguments.
-
-Existing code that would need attention:
-
-- `str : Sequence` and `int64 : Comparable` have no type arguments: `T` binds to the class
-  automatically, which is a language feature, so the check has to compare with `T` as the class.
-- `class C : G[int] & G[str]` has one entry for `G` in `lro`.
+The set methods of `hashset`, `FrozenSet` and `SortedSet` return `Set[T]` as the trait declares. A
+native method returns a plain object, not a trait value, so `union` is a Koala method: it is
+`self | other` in `hashset` and `SortedSet`, and calls a private native `_union` in `FrozenSet`, which
+has no operators. The same holds for `intersect` and `diff`.
 
 ---
 
@@ -3586,3 +3540,28 @@ func main() {
 To do: declare `__neg__` and `__bitnot__` on the narrow types, and make the unary operators follow the
 declaration as the binary operators do. `emit_ir_unary` does not cast its operand, so the tag above
 stays `uint8`; that has to follow the declaration too.
+
+---
+
+## 76. A union member can contain a type parameter (2026-11-07, to fix)
+
+A union is concrete, so `T | bool` is reported as `Union subtype must be a class`. The same parameter
+inside a member is not reported, because `check_union_subtypes` in `src/parser/parser.c` only looks
+at the member itself: `list[T]` is an instance of a class.
+
+```kl
+trait Shapes[T] { func uni(x list[T] | bool) int }    // no error here
+
+class S : Shapes[str] {
+    pub func uni(x list[str] | bool) int { return 2 }
+}
+
+func main() {
+    let s Shapes[str] = S()
+    s.uni(["x"])    // error: expected 'bool | list[Shapes:T]', but got 'list<u>'
+}
+```
+
+To do: report the declaration, by looking for a type parameter inside each member. Then remove `uni`
+from `Shapes` in `test/test-ut/test_trait_impl_match.kl`, and add the error to a test in
+`test/test-kl`.

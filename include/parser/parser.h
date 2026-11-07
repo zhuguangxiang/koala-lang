@@ -247,6 +247,8 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
                                   ParserState *ps);
 int tps_are_generic(Vector *tp_args);
 TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args, HashMap *stbl, ParserModule *pm);
+Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps);
+int check_intf_methods(ParserModule *pm);
 
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args,
                                      ParserModule *pm);

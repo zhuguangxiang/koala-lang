@@ -58,16 +58,13 @@ pub class hashset[T] : MutableSet[T] {
     pub func is_superset(other Iterable[T]) bool {}
 
     /// Return a new set with elements from the set and `other`.
-    @native
-    pub func union(other Iterable[T]) hashset[T] {}
+    pub func union(other Iterable[T]) Set[T] = self | other
 
     /// Return a new set with elements common to the set and `other`.
-    @native
-    pub func intersect(other Iterable[T]) hashset[T] {}
+    pub func intersect(other Iterable[T]) Set[T] = self & other
 
     /// Return a new set with elements in the set that are not in `other`.
-    @native
-    pub func diff(other Iterable[T]) hashset[T] {}
+    pub func diff(other Iterable[T]) Set[T] = self - other
 
     /// Return a new set with elements in the set or `other`, but not both.
     @native

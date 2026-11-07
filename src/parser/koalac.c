@@ -533,6 +533,11 @@ static int compile(ParserModule *pm)
 
     build_intf_table(pm->stbl);
 
+    if (check_intf_methods(pm) > 0) {
+        errno = -1;
+        return -1;
+    }
+
     if (genir_enabled()) {
         kl_gen_ir(pm);
     }

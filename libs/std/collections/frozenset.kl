@@ -39,16 +39,22 @@ pub class FrozenSet[T] : Set[T] {
     pub func is_superset(other Iterable[T]) bool {}
 
     /// Return a new FrozenSet with elements from the set and `other`.
+    pub func union(other Iterable[T]) Set[T] = _union(other)
+
     @native
-    pub func union(other Iterable[T]) FrozenSet[T] {}
+    func _union(other Iterable[T]) FrozenSet[T] {}
 
     /// Return a new FrozenSet with elements common to the set and `other`.
+    pub func intersect(other Iterable[T]) Set[T] = _intersect(other)
+
     @native
-    pub func intersect(other Iterable[T]) FrozenSet[T] {}
+    func _intersect(other Iterable[T]) FrozenSet[T] {}
 
     /// Return a new FrozenSet with elements in the set that are not in `other`.
+    pub func diff(other Iterable[T]) Set[T] = _diff(other)
+
     @native
-    pub func diff(other Iterable[T]) FrozenSet[T] {}
+    func _diff(other Iterable[T]) FrozenSet[T] {}
 
     /// Format the set for display.
     @native

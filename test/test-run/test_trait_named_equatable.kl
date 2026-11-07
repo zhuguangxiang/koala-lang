@@ -1,0 +1,22 @@
+// RUN: koala %s | filecheck %s
+
+// A user trait named Equatable hides the one of std/builtin: `__eq__` and `__ne__` are still added
+// with the class as their parameter.
+
+trait Equatable { func f() int }
+
+class C : Equatable {
+    pub func f() int { return 1 }
+}
+
+class Plain {}
+
+func main() {
+    let c = C()
+    print(c == c, c != c, c == C(), c.f())
+    // CHECK: true false false 1
+
+    let p = Plain()
+    print(p == p, p == Plain())
+    // CHECK-NEXT: true false
+}

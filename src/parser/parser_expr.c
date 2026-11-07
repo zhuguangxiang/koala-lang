@@ -1258,9 +1258,10 @@ static Symbol *get___init___instance(InstanceSymbol *inst_sym, ParserState *ps)
  *
  *     max(int8(1), int8(2))    // ok, T is int8
  *
- * Other types stay invariant: `list[int64]` does not satisfy `Sequence[int8]`.
+ * The base may be inherited: `Comparable[int64]` brings `Equatable[int64]`, so `int8` satisfies
+ * `Equatable[int8]`. Other types stay invariant: `list[int64]` does not satisfy `Sequence[int8]`.
  */
-static int number_base_satisfies_bound(TypeSpec *bound, TypeSpec *ts)
+static int number_base_satisfies_bound(TypeSpec *bound, TypeSpec *ts, ParserState *ps)
 {
     if (ts->kind != TYPE_INT && ts->kind != TYPE_FLOAT && ts->kind != TYPE_BFLOAT16) return 0;
 
@@ -1268,22 +1269,12 @@ static int number_base_satisfies_bound(TypeSpec *bound, TypeSpec *ts)
     if (bound_sym->kind != SYM_INSTANCE) return 0;
     InstanceSymbol *bound_inst = (InstanceSymbol *)bound_sym;
 
-    KlassSymbol *kls = (KlassSymbol *)get_symbol_by_id(ts->sym_id);
+    Vector *base_args = find_matched_tp_args((Symbol *)bound_inst->origin, ts, ps);
+    if (!base_args) return 0;
 
-    TypeSpec *base_ts;
-    vector_foreach(base_ts, &kls->bases) {
-        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
-        if (base_sym->kind != SYM_INSTANCE) continue;
-
-        InstanceSymbol *base_inst = (InstanceSymbol *)base_sym;
-        if (base_inst->origin != bound_inst->origin) continue;
-
-        TypeSpec *base_arg = vector_get(base_inst->tp_args, 0);
-        TypeSpec *bound_arg = vector_get(bound_inst->tp_args, 0);
-        if (type_spec_compatible(base_arg, bound_arg)) return 1;
-    }
-
-    return 0;
+    TypeSpec *base_arg = vector_get(base_args, 0);
+    TypeSpec *bound_arg = vector_get(bound_inst->tp_args, 0);
+    return type_spec_compatible(base_arg, bound_arg);
 }
 
 /**
@@ -1316,7 +1307,7 @@ static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp, Vector *tp_arg
             Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
             ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
             compatible = type_spec_compatible(_bound, ts);
-            if (!compatible) compatible = number_base_satisfies_bound(_bound, ts);
+            if (!compatible) compatible = number_base_satisfies_bound(_bound, ts, ps);
         } else {
             /*
              * Case 2: 'ts' is a generic variable (e.g., U passed to T).
@@ -3638,6 +3629,8 @@ static int check_type_cast(TypeSpec *src, TypeSpec *target, ParserState *ps)
     ASSERT(src_sym->kind == SYM_CLASS || src_sym->kind == SYM_INSTANCE ||
            src_sym->kind == SYM_TRAIT);
     Vector *bases = &((KlassSymbol *)src_sym)->bases;
+    if (src_sym->kind == SYM_INSTANCE) bases = ((InstanceSymbol *)src_sym)->bases;
+    if (!bases) return 0;
 
     TypeSpec *ts;
     vector_foreach(ts, bases) {

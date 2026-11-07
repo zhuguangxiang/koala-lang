@@ -7,7 +7,7 @@ class Foo : Iterator[int] {
         return count < 5
     }
 
-    func next() int {
+    func next() int? {
         if count < 5 {
             // TODO:
             // count += 1

@@ -47,8 +47,8 @@ pub const LITTLE_ENDIAN = 1
 
 /// An 8-bit signed integer.
 ///
-/// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
-/// are performed via implicit promotion to `int64`.
+/// Used to truncate a wider integer value down to 8 bits. Its operators work on `int64`:
+/// arithmetic takes and returns `int64`, and comparison takes `int64`.
 pub class int8 : Comparable[int64] & ToString {
     /// Creates an `int8` by truncating `x` to 8 bits.
     @intrinsic
@@ -129,8 +129,8 @@ pub class int8 : Comparable[int64] & ToString {
 
 /// A 16-bit signed integer.
 ///
-/// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
-/// are performed via implicit promotion to `int64`.
+/// Used to truncate a wider integer value down to 16 bits. Its operators work on `int64`:
+/// arithmetic takes and returns `int64`, and comparison takes `int64`.
 pub class int16 : Comparable[int64] & ToString {
     /// Creates an `int16` by truncating `x` to 16 bits.
     @intrinsic
@@ -211,8 +211,8 @@ pub class int16 : Comparable[int64] & ToString {
 
 /// A 32-bit signed integer.
 ///
-/// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
-/// are performed via implicit promotion to `int64`.
+/// Used to truncate a wider integer value down to 32 bits. Its operators work on `int64`:
+/// arithmetic takes and returns `int64`, and comparison takes `int64`.
 pub class int32 : Comparable[int64] & ToString {
     /// Creates an `int32` by truncating `x` to 32 bits.
     @intrinsic
@@ -418,8 +418,8 @@ pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
 
 /// An 8-bit unsigned integer.
 ///
-/// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
-/// are performed via implicit promotion to `uint64`.
+/// Used to truncate a wider integer value down to 8 bits. Its operators work on `int64`:
+/// arithmetic takes and returns `int64`, and comparison takes `int64`.
 pub class uint8 : Comparable[int64] & ToString {
     /// Creates a `uint8` by truncating `x` to 8 bits.
     @intrinsic
@@ -500,8 +500,8 @@ pub class uint8 : Comparable[int64] & ToString {
 
 /// A 16-bit unsigned integer.
 ///
-/// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
-/// are performed via implicit promotion to `uint64`.
+/// Used to truncate a wider integer value down to 16 bits. Its operators work on `int64`:
+/// arithmetic takes and returns `int64`, and comparison takes `int64`.
 pub class uint16 : Comparable[int64] & ToString {
     /// Creates a `uint16` by truncating `x` to 16 bits.
     @intrinsic
@@ -582,8 +582,8 @@ pub class uint16 : Comparable[int64] & ToString {
 
 /// A 32-bit unsigned integer.
 ///
-/// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
-/// are performed via implicit promotion to `uint64`.
+/// Used to truncate a wider integer value down to 32 bits. Its operators work on `int64`:
+/// arithmetic takes and returns `int64`, and comparison takes `int64`.
 pub class uint32 : Comparable[int64] & ToString {
     /// Creates a `uint32` by truncating `x` to 32 bits.
     @intrinsic
@@ -785,8 +785,8 @@ pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
 
 /// A 16-bit floating-point number (half precision).
 ///
-/// Used to truncate a `float64` value down to 16 bits. Arithmetic operations
-/// are performed via implicit promotion to `float64`.
+/// Used to truncate a `float64` value down to 16 bits. Its operators work on `float64`:
+/// arithmetic takes and returns `float64`, and comparison takes `float64`.
 pub class float16 : Comparable[float64] & ToString {
     /// Creates a `float16` by truncating `x` to 16 bits.
     @intrinsic
@@ -847,8 +847,8 @@ pub class float16 : Comparable[float64] & ToString {
 
 /// A 32-bit floating-point number (single precision).
 ///
-/// Used to truncate a `float64` value down to 32 bits. Arithmetic operations
-/// are performed via implicit promotion to `float64`.
+/// Used to truncate a `float64` value down to 32 bits. Its operators work on `float64`:
+/// arithmetic takes and returns `float64`, and comparison takes `float64`.
 pub class float32 : Comparable[float64] & ToString {
 
     /// Creates a `float32` by truncating `x` to 32 bits.

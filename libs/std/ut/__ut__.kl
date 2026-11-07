@@ -218,13 +218,11 @@ pub func assert_float_ne(a float, b float) {
 
 /// Assert that two `int` values `a` and `b` are equal (`a == b`).
 ///
-/// Thanks to Koala's type promotion system, smaller concrete unsigned integer types
-/// (such as `int8` or `uint8`) will be automatically and implicitly promoted to `int64`
-/// when calling this concrete function.
+/// The parameters are concrete, so narrower integers (such as `int8` or `uint8`) can be
+/// passed as `int64`.
 ///
-/// NOTE: While Koala supports automatic type promotion for concrete parameters,
-/// generic functions (like `assert_eq[T]`) cannot perform type promotion across
-/// type parameters due to strict generic type inference.
+/// NOTE: A generic function (like `assert_eq[T]`) does not widen its type argument: both
+/// arguments must agree on `T`.
 ///
 /// On failure, raises a panic displaying both formatting values.
 pub func assert_int_eq(a int, b int) {
@@ -258,9 +256,8 @@ pub func assert_int_ge(a int, b int) {
 
 /// Assert that two unsigned integers `a` and `b` are equal (`a == b`).
 ///
-/// Thanks to Koala's type promotion system, smaller concrete unsigned integer
-/// types (such as `uint8` or `uint16`) will be automatically and implicitly
-/// promoted to `uint64` when calling this concrete function.
+/// The parameters are concrete, so narrower unsigned integers (such as `uint8` or
+/// `uint16`) can be passed as `uint64`.
 ///
 /// On failure, raises a panic displaying both formatting values.
 pub func assert_uint_eq(a uint, b uint) {

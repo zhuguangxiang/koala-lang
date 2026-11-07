@@ -2579,13 +2579,13 @@ trait_method
     {
         $$ = $1;
         PrefixFlags flags = { .pub.flag = 1 };
-        stmt_set_prefix($$, flags);
+        if ($$) stmt_set_prefix($$, flags);
     }
     | access func_proto_decl
     {
         $$ = $2;
         $1.pub.flag = 1;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
     }
     | semi
     {

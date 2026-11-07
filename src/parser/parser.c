@@ -1237,6 +1237,7 @@ static Symbol *_add_field(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     }
 
     var->sym = sym;
+    sym->loc = id->loc;
     ((VarSymbol *)sym)->scope = VAR_SCOPE_FIELD;
     return sym;
 }
@@ -1639,6 +1640,7 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
 
     sym->path = ps->pm->pkg_path;
     ASSERT(sym->path);
+    sym->loc = id->loc;
     FuncSymbol *fn_sym = (FuncSymbol *)sym;
 
     // add tps
@@ -2653,12 +2655,25 @@ static TypeSpec *_get_class_self_type(KlassDeclStmt *kls)
     return ts;
 }
 
+static void add_root_method(ParserState *ps, KlassDeclStmt *kls, Stmt *stmt)
+{
+    PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
+    flags->ann.ident = "native";
+    flags->pub.flag = 1;
+
+    if (!kls->stmts) kls->stmts = vector_create_ptr();
+    vector_push_back(kls->stmts, &stmt);
+
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt, 0);
+    fn->parent = sym;
+    vector_push_back(sym->funcs, &fn);
+}
+
 static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
 {
     if (kls->kind != STMT_CLASS_KIND) return;
 
-    bool has_eq = false;
-    bool has_ne = false;
     bool has_hash = false;
     bool has_fmt = false;
     Stmt *stmt;
@@ -2669,11 +2684,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
             // TODO: check var name is not __eq__, __ne__, hash and fmt
         } else if (stmt->kind == STMT_FUNC_KIND) {
             FuncDeclStmt *fn_stmt = (FuncDeclStmt *)stmt;
-            if (str_equal(fn_stmt->id.name, "__eq__"))
-                has_eq = true;
-            else if (str_equal(fn_stmt->id.name, "__ne__"))
-                has_ne = true;
-            else if (str_equal(fn_stmt->id.name, "hash"))
+            if (str_equal(fn_stmt->id.name, "hash"))
                 has_hash = true;
             else if (str_equal(fn_stmt->id.name, "fmt"))
                 has_fmt = true;
@@ -2682,58 +2693,11 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         }
     }
 
-    if (!has_eq) {
-        Ident _id = { .name = "__eq__" };
-        TypeSpec *_ret = bool_type_spec();
-        Vector *_args = vector_create_ptr();
-        Loc _loc = { 0 };
-        Ident _name = { .name = "other" };
-        ParamDecl *param = param_new(_loc, _name, _get_class_self_type(kls), NULL);
-        vector_push_back(_args, &param);
-        Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
-        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->ann.ident = "native";
-        flags->pub.flag = 1;
-
-        if (!kls->stmts) {
-            kls->stmts = vector_create_ptr();
-        }
-        vector_push_back(kls->stmts, &stmt);
-        log_info("add __eq__ for class '%s' automatically", kls->id.name);
-    }
-
-    if (!has_ne) {
-        Ident _id = { .name = "__ne__" };
-        TypeSpec *_ret = bool_type_spec();
-        Vector *_args = vector_create_ptr();
-        Loc _loc = { 0 };
-        Ident _name = { .name = "other" };
-        ParamDecl *param = param_new(_loc, _name, _get_class_self_type(kls), NULL);
-        vector_push_back(_args, &param);
-        Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
-        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->ann.ident = "native";
-        flags->pub.flag = 1;
-
-        if (!kls->stmts) {
-            kls->stmts = vector_create_ptr();
-        }
-        vector_push_back(kls->stmts, &stmt);
-        log_info("add __ne__ for class '%s' automatically", kls->id.name);
-    }
-
     if (!has_hash) {
         Ident id = { .name = "hash" };
         TypeSpec *ret = int64_type_spec();
         Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
-        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->ann.ident = "native";
-        flags->pub.flag = 1;
-
-        if (!kls->stmts) {
-            kls->stmts = vector_create_ptr();
-        }
-        vector_push_back(kls->stmts, &stmt);
+        add_root_method(ps, kls, stmt);
         log_info("add hash for class '%s' automatically", kls->id.name);
     }
 
@@ -2746,14 +2710,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         ParamDecl *param = param_new(_loc, _name, arg_ts, NULL);
         vector_push_back(_args, &param);
         Stmt *stmt = stmt_from_func_decl(id, _args, NULL, NULL);
-        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->ann.ident = "native";
-        flags->pub.flag = 1;
-
-        if (!kls->stmts) {
-            kls->stmts = vector_create_ptr();
-        }
-        vector_push_back(kls->stmts, &stmt);
+        add_root_method(ps, kls, stmt);
         log_info("add 'fmt' for class '%s' automatically", kls->id.name);
     }
 }
@@ -2846,9 +2803,6 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
             vector_push_back(kls->stmts, &init_fn);
         }
     }
-
-    /* if there is no root methods, add them automatically */
-    try_to_add_root_methods(ps, kls);
 
     Stmt *stmt;
     vector_foreach(stmt, kls->stmts) {
@@ -3029,37 +2983,15 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
     }
 }
 
-/* add root contract traits (Hashable/Equatable/Printable) */
+/* add root contract traits (Hashable/Printable), see add_root_equatable() for Equatable */
 static void add_root_traits(ParserState *ps, KlassDeclStmt *kls)
 {
     if (kls->kind != STMT_CLASS_KIND) return;
 
     if (!kls->bases) kls->bases = vector_create_ptr();
 
-    bool has_equatable = false;
-
-    TypeSpec *base;
-    vector_foreach(base, kls->bases) {
-        if (!base) continue;
-        ASSERT(base->kind == TYPE_UNRESOLVED);
-        char *path = base->unresolved.pkg.name;
-        if (!path || !str_equal(path, "std/builtin")) continue;
-
-        char *name = base->unresolved.name.name;
-        if (str_equal(name, "Equatable"))
-            has_equatable = true;
-        else if (str_equal(name, "Comparable"))
-            has_equatable = true;
-    }
-
     TypeIdent name = { 0 };
     TypeSpec *ts;
-    if (!has_equatable) {
-        name.name = "Equatable";
-        ts = unresolved_type_spec(NULL, name, NULL);
-        vector_push_front(kls->bases, &ts);
-        log_info("add Equatable to class '%s' automatically", kls->id.name);
-    }
 
     name.name = "Hashable";
     ts = unresolved_type_spec(NULL, name, NULL);
@@ -3256,6 +3188,119 @@ static void compute_vtbl_info(KlassSymbol *sym)
     compute_lro(sym);
     compute_scm(sym);
     print_vtbl_info(sym);
+}
+
+/*
+ * Find the type argument of Equatable in the bases of a class, directly or through another trait:
+ *
+ *     class Age : Comparable[int] {}    // Comparable[int] : Equatable[int], so `int`
+ *     class Score : Comparable {}       // Comparable[Score] : Equatable[Score], so `Score`
+ */
+static TypeSpec *find_equatable_arg(Vector *bases)
+{
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, bases) {
+        if (!base_ts) continue;
+
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        Vector *next_bases;
+        if (base_sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst = (InstanceSymbol *)base_sym;
+            Symbol *origin = inst->origin;
+            if (origin->path && str_equal(origin->path, "std/builtin") &&
+                str_equal(origin->name, "Equatable")) {
+                return vector_get(inst->tp_args, 0);
+            }
+            next_bases = inst->bases;
+        } else {
+            next_bases = &((KlassSymbol *)base_sym)->bases;
+        }
+
+        if (!next_bases) continue;
+
+        TypeSpec *found = find_equatable_arg(next_bases);
+        if (found) return found;
+    }
+
+    return NULL;
+}
+
+/*
+ * Add Equatable to a class that does not have it yet, directly or through another trait:
+ *
+ *     class Plain {}                                  // Equatable[Plain] is added
+ *     class int8 : Comparable[int64] & ToString {}    // has Equatable[int64] from Comparable
+ *
+ * It goes after Printable and Hashable, so it comes before the declared traits in the lro.
+ */
+static void add_root_equatable(ParserState *ps, KlassDeclStmt *kls)
+{
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    if (find_equatable_arg(&sym->bases)) return;
+
+    TypeIdent name = { 0 };
+    name.name = "Equatable";
+    TypeSpec *ts = unresolved_type_spec(NULL, name, NULL);
+
+    int has_tp = vector_size(&sym->tps) > 0;
+    if (parse_bound_or_base(ps, ts, &kls->id, sym->name, has_tp, kls)) return;
+
+    TypeSpec *base_ts = resolve_type(ps, ts);
+    if (!base_ts || !check_type(ps, base_ts)) return;
+
+    int root_traits = 2;
+    vector_insert(&sym->bases, root_traits, &base_ts);
+    log_info("add Equatable to class '%s' automatically", kls->id.name);
+}
+
+static int klass_declares_func(KlassDeclStmt *kls, char *name)
+{
+    Stmt *stmt;
+    vector_foreach(stmt, kls->stmts) {
+        if (!stmt || stmt->kind != STMT_FUNC_KIND) continue;
+        if (str_equal(((FuncDeclStmt *)stmt)->id.name, name)) return 1;
+    }
+
+    return 0;
+}
+
+static void add_root_eq_method(ParserState *ps, KlassDeclStmt *kls, char *name,
+                               TypeSpec *equatable_arg)
+{
+    if (klass_declares_func(kls, name)) return;
+
+    /* an unresolved type is resolved once, so each method has its own */
+    TypeSpec *param_ts = equatable_arg;
+    if (!param_ts) param_ts = _get_class_self_type(kls);
+
+    Ident id = { .name = name };
+    Vector *args = vector_create_ptr();
+    Loc loc = { 0 };
+    Ident param_name = { .name = "other" };
+    ParamDecl *param = param_new(loc, param_name, param_ts, NULL);
+    vector_push_back(args, &param);
+
+    Stmt *stmt = stmt_from_func_decl(id, args, bool_type_spec(), NULL);
+    add_root_method(ps, kls, stmt);
+    log_info("add %s for class '%s' automatically", name, kls->id.name);
+}
+
+/*
+ * Add the `__eq__` and `__ne__` a class does not declare. Their parameter is the type argument of
+ * its Equatable, so they match the trait:
+ *
+ *     class Plain {}                    // __eq__(other Plain), __ne__(other Plain)
+ *     class Age : Comparable[int] {}    // __eq__(other int), __ne__(other int)
+ *
+ * Without the Equatable of std/builtin, which a user trait of that name can hide, it is the class.
+ */
+static void add_root_eq_methods(ParserState *ps, KlassDeclStmt *kls)
+{
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    TypeSpec *equatable_arg = find_equatable_arg(&sym->bases);
+
+    add_root_eq_method(ps, kls, "__eq__", equatable_arg);
+    add_root_eq_method(ps, kls, "__ne__", equatable_arg);
 }
 
 static void parse_klass(ParserState *ps, Stmt *stmt)
@@ -3851,11 +3896,20 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
     // parse type parameter's bounds
     parse_type_params(ps, kls->tps, (Symbol *)sym);
 
-    /* add Hashable, Equatable and Printable traits */
+    /* add Hashable and Printable traits */
     add_root_traits(ps, kls);
 
     /* parse base traits */
     parse_bases(ps, kls);
+
+    if (kls->kind == STMT_CLASS_KIND) {
+        /* add Equatable if the base traits do not bring it */
+        add_root_equatable(ps, kls);
+
+        /* if there is no root methods, add them automatically */
+        add_root_eq_methods(ps, kls);
+        try_to_add_root_methods(ps, kls);
+    }
 
     exit_scope(ps);
 
@@ -4300,6 +4354,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             if (!sym) return;
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;
+            sym->loc = kls->id.loc;
             sym->arg = kls;
             break;
         }

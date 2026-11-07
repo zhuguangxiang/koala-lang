@@ -1663,6 +1663,45 @@ bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b)
                    a->int_flt_info.sign == b->int_flt_info.sign;
         }
 
+        case TYPE_NO_TYPE:
+        case TYPE_BOOL:
+        case TYPE_STR:
+        case TYPE_ANY:
+        case TYPE_TYPE: {
+            return true;
+        }
+
+        case TYPE_OPTIONAL: {
+            return type_spec_equal_exact(a->opt.src, b->opt.src);
+        }
+
+        case TYPE_VA_LIST: {
+            return type_spec_equal_exact(a->va_list.src, b->va_list.src);
+        }
+
+        case TYPE_UNION: {
+            int size = vector_size(a->union_type.args);
+            if (size != vector_size(b->union_type.args)) return false;
+            for (int i = 0; i < size; i++) {
+                TypeSpec *arg_a = vector_get(a->union_type.args, i);
+                TypeSpec *arg_b = vector_get(b->union_type.args, i);
+                if (!type_spec_equal_exact(arg_a, arg_b)) return false;
+            }
+            return true;
+        }
+
+        case TYPE_PROTO: {
+            if (!type_spec_equal_exact(a->proto_type.ret, b->proto_type.ret)) return false;
+            int size = vector_size(a->proto_type.args);
+            if (size != vector_size(b->proto_type.args)) return false;
+            for (int i = 0; i < size; i++) {
+                TypeSpec *arg_a = vector_get(a->proto_type.args, i);
+                TypeSpec *arg_b = vector_get(b->proto_type.args, i);
+                if (!type_spec_equal_exact(arg_a, arg_b)) return false;
+            }
+            return true;
+        }
+
         default: {
             UNREACHABLE();
             return false;

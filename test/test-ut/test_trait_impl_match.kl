@@ -39,42 +39,130 @@ class OtherDefault : D {
     pub func d(x int, y = 2) int { return x + y }
 }
 
-// A covariant return: the class returns a type that implements the trait's.
+// A return type is the one the trait declares, the class may build a concrete value.
 trait SetMaker { func make() Set[int] }
 
 class HashSetMaker : SetMaker {
-    pub func make() hashset[int] { return hashset[int]() }
+    pub func make() Set[int] { return hashset[int]() }
 }
 
-// A return of `T` is narrower than `T?`.
 trait Maybe { func get() int? }
 
 class Always : Maybe {
-    pub func get() int { return 1 }
+    pub func get() int? { return 1 }
 }
 
-// `any` is the parent of every type.
-trait AnyMaker { func make() any }
-
-class IntMaker : AnyMaker {
-    pub func make() int { return 1 }
-}
-
-// A parameter may widen to a union, an optional or `any`.
-trait Taker {
-    func take_int(x int) int
-    func take_str(x str) int
-}
+// A union parameter is valid when it takes everything the trait declares.
+trait Taker { func take_int(x int) int }
 
 class WideTaker : Taker {
     pub func take_int(x int | str) int { return 1 }
-    pub func take_str(x any) int { return 3 }
 }
 
-trait OptionalTaker { func take(x int) int }
+trait UnionTaker { func take(x int | str) int }
 
-class NilTaker : OptionalTaker {
-    pub func take(x int?) int { return 4 }
+class WiderUnion : UnionTaker {
+    pub func take(x int | str | bool) int { return 2 }
+}
+
+class SameUnion : UnionTaker {
+    pub func take(x str | int) int { return 3 }
+}
+
+trait GenericTaker[T] { func take(x T) int }
+
+class BoundUnion : GenericTaker[uint8] {
+    pub func take(x uint8 | str) int { return 4 }
+}
+
+// The same generic trait reached twice with the same type arguments is one trait.
+trait Base[T] { func base(x T) int }
+trait Left[T] : Base[T] {}
+trait Right[T] : Base[T] {}
+
+class Diamond : Left[int] & Right[int] {
+    pub func base(x int) int { return x + 1 }
+}
+
+class GenericDiamond[T] : Left[T] & Right[T] {
+    pub func base(x T) int { return 2 }
+}
+
+// Equatable comes through a trait, so it is not added automatically.
+trait Ord[T] : Equatable[T] { func lt(o T) bool }
+
+class ThroughOrd : Ord[int] {
+    pub func lt(o int) bool { return true }
+    pub func __eq__(o int) bool { return o == 1 }
+    pub func __ne__(o int) bool { return o != 1 }
+}
+
+// Comparable on itself brings Equatable[Self].
+class Score : Comparable {
+    let v int
+
+    pub func __init__(_v int) { v = _v }
+    pub func __eq__(o Score) bool { return v == o.v }
+    pub func __ne__(o Score) bool { return v != o.v }
+    pub func __lt__(o Score) bool { return v < o.v }
+    pub func __le__(o Score) bool { return v <= o.v }
+    pub func __gt__(o Score) bool { return v > o.v }
+    pub func __ge__(o Score) bool { return v >= o.v }
+}
+
+// The default `__eq__` and `__ne__` take the type argument of Equatable.
+class Age : Comparable[int] {
+    pub func __lt__(o int) bool { return true }
+}
+
+class OnlyEq : Comparable[int] {
+    pub func __eq__(o int) bool { return o == 7 }
+}
+
+class Box[T] {
+    let v T
+
+    pub func __init__(_v T) { v = _v }
+}
+
+// Equatable declared next to the trait that brings it is the same trait.
+class ThroughOrdDeclared : Ord[int] & Equatable[int] {
+    pub func lt(o int) bool { return true }
+    pub func __eq__(o int) bool { return o == 1 }
+    pub func __ne__(o int) bool { return o != 1 }
+}
+
+// The same type arguments written twice are one trait.
+class SameTwice : Base[int] & Base[int] {
+    pub func base(x int) int { return x }
+}
+
+// `T` is bound inside every form of a type.
+trait Shapes[T] {
+    func opt(x T?) T?
+    func lst(x list[T]) list[T]
+    func tup(x (T, int)) (T, int)
+    func dct(x dict[str, T]) dict[str, list[T]]
+    func many(xs ...T) int
+    func uni(x list[T] | bool) int
+}
+
+class StrShapes : Shapes[str] {
+    pub func opt(x str?) str? { return x }
+    pub func lst(x list[str]) list[str] { return x }
+    pub func tup(x (str, int)) (str, int) { return x }
+    pub func dct(x dict[str, str]) dict[str, list[str]] { return dict[str, list[str]]() }
+    pub func many(xs ...str) int { return 1 }
+    pub func uni(x list[str] | bool) int { return 2 }
+}
+
+class GenericShapes[K] : Shapes[K] {
+    pub func opt(x K?) K? { return x }
+    pub func lst(x list[K]) list[K] { return x }
+    pub func tup(x (K, int)) (K, int) { return x }
+    pub func dct(x dict[str, K]) dict[str, list[K]] { return dict[str, list[K]]() }
+    pub func many(xs ...K) int { return 1 }
+    pub func uni(x list[K] | bool) int { return 2 }
 }
 
 // A method with an `infer` type parameter is deduced by the compiler, not checked.
@@ -85,20 +173,188 @@ class InferIndexed : Indexed {
 }
 
 @test
-func test_covariant_return() {
+func test_return_as_declared() {
     ut.assert_eq(HashSetMaker().make().len(), 0)
-    ut.assert_eq(Always().get(), 1)
-    ut.assert_eq(IntMaker().make(), 1)
+    ut.assert_eq(Always().get()!, 1)
 }
 
 @test
 func test_wider_param_through_trait() {
     let t Taker = WideTaker()
     ut.assert_eq(t.take_int(1), 1)
-    ut.assert_eq(t.take_str("x"), 3)
 
-    let o OptionalTaker = NilTaker()
-    ut.assert_eq(o.take(1), 4)
+    let wider UnionTaker = WiderUnion()
+    ut.assert_eq(wider.take(1), 2)
+    ut.assert_eq(wider.take("x"), 2)
+
+    let same UnionTaker = SameUnion()
+    ut.assert_eq(same.take("x"), 3)
+
+    let bound GenericTaker[uint8] = BoundUnion()
+    ut.assert_eq(bound.take(uint8(1)), 4)
+}
+
+@test
+func test_diamond() {
+    let d Base[int] = Diamond()
+    ut.assert_eq(d.base(1), 2)
+
+    let g Base[str] = GenericDiamond[str]()
+    ut.assert_eq(g.base("x"), 2)
+}
+
+@test
+func test_equatable_through_a_trait() {
+    ut.assert_eq(ThroughOrd() == 1, true)
+
+    let e Equatable[int] = ThroughOrd()
+    ut.assert_eq(e == 1, true)
+
+    let s Equatable[Score] = Score(1)
+    ut.assert_eq(s is Score, true)
+    ut.assert_eq(Score(1) == Score(1), true)
+    ut.assert_eq(int8(1) == int8(1), true)
+}
+
+@test
+func test_default_eq_takes_equatable_arg() {
+    ut.assert_eq(Age() == 1, false)
+    ut.assert_eq(Age() != 1, true)
+
+    let e Equatable[int] = Age()
+    ut.assert_eq(e == 1, false)
+
+    ut.assert_eq(OnlyEq() == 7, true)
+
+    let b = Box[int](1)
+    ut.assert_eq(b == b, true)
+    ut.assert_eq(b == Box[int](1), false)
+}
+
+class Plain {}
+
+@test
+func test_default_eq_through_trait() {
+    let p = Plain()
+    let e Equatable[Plain] = p
+
+    ut.assert_eq(e == p, true)
+    ut.assert_eq(e != p, false)
+    ut.assert_eq(e == Plain(), false)
+    ut.assert_eq(e != Plain(), true)
+    ut.assert_eq(p == p, true)
+    ut.assert_eq(p == Plain(), false)
+
+    let n Equatable[int] = 1
+    ut.assert_eq(n == 1, true)
+}
+
+@test
+func test_default_hash_through_trait() {
+    let p = Plain()
+    let h Hashable = p
+
+    ut.assert_eq(h.hash(), p.hash())
+    ut.assert_eq(p.hash(), p.hash())
+
+    let found = hashset[Plain]()
+    found.add(p)
+    ut.assert_true(p in found)
+
+    let keys = hashset[Hashable]()
+    keys.add(h)
+    ut.assert_true(h in keys)
+}
+
+// A native method returns a plain object, so the set methods convert it to the trait value.
+@test
+func test_set_methods_return_trait_values() {
+    let a = hashset[int]()
+    a.add(1)
+    a.add(2)
+
+    ut.assert_eq(a.union([2, 3]).len(), 3)
+    ut.assert_eq(a.intersect([2, 3]).len(), 1)
+    ut.assert_eq(a.diff([2]).len(), 1)
+
+    let u = a.union([2, 3])
+    ut.assert_eq(1 in u, true)
+    ut.assert_eq(3 in u, true)
+    ut.assert_eq(9 in u, false)
+
+    let s Set[int] = a
+    ut.assert_eq(s.union([2, 3]).len(), 3)
+    ut.assert_eq(s.intersect([2, 3]).diff([2]).len(), 0)
+
+    let v = s.union([7])
+    ut.assert_eq(7 in v, true)
+    ut.assert_eq(9 in v, false)
+
+    ut.assert_eq((a | [7]).len(), 3)
+    ut.assert_eq((a - [1]).len(), 1)
+}
+
+// `Comparable[int64]` brings `Equatable[int64]`, so a narrow type satisfies `T : Equatable`.
+@test
+func test_narrow_types_satisfy_equatable_bound() {
+    ut.assert_eq(int8(1), int8(1))
+    ut.assert_eq(int16(1), int16(1))
+    ut.assert_eq(int32(1), int32(1))
+    ut.assert_eq(uint8(1), uint8(1))
+    ut.assert_eq(uint16(1), uint16(1))
+    ut.assert_eq(uint32(1), uint32(1))
+    ut.assert_eq(float32(1.5), float32(1.5))
+    ut.assert_eq(float16(1.5), float16(1.5))
+}
+
+// A trait reached through a generic base still counts for `is`.
+@test
+func test_is_through_generic_base() {
+    let n Equatable[int] = 4
+    ut.assert_eq(n is int, true)
+
+    let s Equatable[Score] = Score(1)
+    ut.assert_eq(s is Score, true)
+}
+
+// Another trait declared first moves Equatable in the table, and dispatch still works.
+trait Other { func other() int }
+
+class OtherFirst : Other & Comparable[int] {
+    pub func other() int { return 1 }
+    pub func __eq__(o int) bool { return o == 1 }
+    pub func __ne__(o int) bool { return o != 1 }
+}
+
+@test
+func test_equatable_after_a_declared_trait() {
+    let e Equatable[int] = OtherFirst()
+    ut.assert_eq(e == 1, true)
+    ut.assert_eq(e != 1, false)
+
+    let o Other = OtherFirst()
+    ut.assert_eq(o.other(), 1)
+}
+
+@test
+func test_equatable_declared_next_to_its_trait() {
+    ut.assert_eq(ThroughOrdDeclared() == 1, true)
+
+    let t Base[int] = SameTwice()
+    ut.assert_eq(t.base(3), 3)
+}
+
+@test
+func test_type_argument_in_every_form() {
+    let s Shapes[str] = StrShapes()
+    ut.assert_eq(s.opt("a")!, "a")
+    ut.assert_eq(s.lst(["b"]).len(), 1)
+    ut.assert_eq(s.many("a", "b"), 1)
+
+    let g Shapes[int] = GenericShapes[int]()
+    ut.assert_eq(g.opt(1)!, 1)
+    ut.assert_eq(g.lst([2]).len(), 1)
+    ut.assert_eq(g.many(1, 2), 1)
 }
 
 @test

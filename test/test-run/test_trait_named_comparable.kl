@@ -1,0 +1,15 @@
+// RUN: koala %s | filecheck %s
+
+// A user trait that only shares the name is an ordinary trait, the class still has `==`.
+
+trait Comparable { func f() int }
+
+class C : Comparable {
+    pub func f() int { return 1 }
+}
+
+func main() {
+    let c = C()
+    print(c == c, c != c, c == C(), c.f())
+    // CHECK: true false false 1
+}

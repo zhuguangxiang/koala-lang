@@ -1,0 +1,104 @@
+// RUN: koala %s | filecheck %s
+
+// The default `__eq__`, `__ne__`, `hash` and `fmt` only depend on the object, whether they are called
+// directly or through a trait. The same object may be a plain value `{TAG_OBJECT, obj}` or a trait
+// value `{itab, obj}`.
+
+class Plain {}
+
+class Box[T] {
+    let v T
+
+    pub func __init__(_v T) { v = _v }
+}
+
+class Age : Comparable[int] {
+    pub func __lt__(o int) bool { return true }
+}
+
+class Own {
+    pub func hash() int { return 42 }
+}
+
+func hash_of(h Hashable) int { return h.hash() }
+
+func text_of(p Printable) str { return format("{}", p) }
+
+func main() {
+    // __eq__ and __ne__
+    let p = Plain()
+    let ep Equatable[Plain] = p
+    print(p == p, p != p, p == Plain(), p != Plain())
+    // CHECK: true false false true
+    print(ep == p, ep != p, ep == Plain(), ep != Plain())
+    // CHECK-NEXT: true false false true
+
+    let b = Box[int](1)
+    let eb Equatable[Box[int]] = b
+    print(b == b, b != b, b == Box[int](1), b != Box[int](1))
+    // CHECK-NEXT: true false false true
+    print(eb == b, eb != b, eb == Box[int](1), eb != Box[int](1))
+    // CHECK-NEXT: true false false true
+
+    // The parameter is the type argument of Equatable, and a number is never the object.
+    let a = Age()
+    let ea Equatable[int] = a
+    print(a == 1, a != 1)
+    // CHECK-NEXT: false true
+    print(ea == 1, ea != 1)
+    // CHECK-NEXT: false true
+
+    // hash
+    let hp Hashable = p
+    print(hp.hash() == p.hash(), hash_of(p) == p.hash(), p.hash() == p.hash())
+    // CHECK-NEXT: true true true
+
+    let hb Hashable = b
+    print(hb.hash() == b.hash(), hash_of(b) == b.hash())
+    // CHECK-NEXT: true true
+
+    let ha Hashable = a
+    print(ha.hash() == a.hash(), hash_of(a) == a.hash())
+    // CHECK-NEXT: true true
+
+    // A hash the class declares is not replaced.
+    let o = Own()
+    let ho Hashable = o
+    print(ho.hash(), o.hash(), hash_of(o))
+    // CHECK-NEXT: 42 42 42
+
+    // An object is found in a set, and two objects are two elements.
+    let set = hashset[Plain]()
+    set.add(p)
+    set.add(p)
+    print(set.len(), p in set, Plain() in set)
+    // CHECK-NEXT: 1 true false
+    set.add(Plain())
+    print(set.len())
+    // CHECK-NEXT: 2
+
+    // An object is a dict key.
+    let d = dict[Plain, int]()
+    d[p] = 5
+    print(d[p], p in d, Plain() in d, d.len())
+    // CHECK-NEXT: 5 true false 1
+
+    // fmt
+    let pp Printable = p
+    print(format("{}", p) == format("{}", pp), text_of(p) == format("{}", p))
+    // CHECK-NEXT: true true
+    print(format("{}", p) == format("{}", Plain()))
+    // CHECK-NEXT: false
+    print(p)
+    // CHECK-NEXT: <test_default_methods_through_trait.Plain object at 0x{{[0-9a-f]+}}>
+    print(pp)
+    // CHECK-NEXT: <test_default_methods_through_trait.Plain object at 0x{{[0-9a-f]+}}>
+
+    let pb Printable = b
+    print(format("{}", b) == format("{}", pb), text_of(b) == format("{}", b))
+    // CHECK-NEXT: true true
+
+    let pa Printable = a
+    print(format("{}", a) == format("{}", pa), text_of(a) == format("{}", a))
+    // CHECK-NEXT: true true
+}

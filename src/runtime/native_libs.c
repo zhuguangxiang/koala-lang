@@ -28,22 +28,37 @@ static TValue _default_fmt(TValue *self, TValue *args, int nargs)
 
 static TValue _default_hash(TValue *self, TValue *args, int nargs)
 {
-    unsigned int hash = mem_hash(self, sizeof(TValue));
+    /* The same object may be a plain value `{TAG_OBJECT, obj}` or a trait value `{itab, obj}`. */
+    unsigned int hash = mem_hash(&self->obj, sizeof(self->obj));
     return int64_value(hash);
+}
+
+/* A heap object, held directly or as a trait value. */
+static int _is_object(TValue *v)
+{
+    if (is_ref(v)) return 1;
+    if (!is_intf(v)) return 0;
+
+    IntfTable *itab = v->itab;
+    return tp_is_ref_type(itab->tp);
+}
+
+/* The same object may be a plain value `{TAG_OBJECT, obj}` or a trait value `{itab, obj}`. */
+static int _same_object(TValue *a, TValue *b)
+{
+    return _is_object(a) && _is_object(b) && a->obj == b->obj;
 }
 
 static TValue _default___eq__(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    int r = memcmp(self, args, sizeof(TValue));
-    return bool_value(r == 0);
+    return bool_value(_same_object(self, args));
 }
 
 static TValue _default___ne__(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    int r = memcmp(self, args, sizeof(TValue));
-    return bool_value(r != 0);
+    return bool_value(!_same_object(self, args));
 }
 
 Object *kl_get_native(Object *m, char *name)

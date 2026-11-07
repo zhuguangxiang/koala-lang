@@ -1,0 +1,207 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// A method that both the trait declares and the class implements is checked with `T` bound.
+// Parameters, the return type and type arguments are invariant.
+
+class WrongParamType : Sequence[uint8] {
+    pub func __getitem__(name str) uint8 { return 'q' }
+    // CHECK: method '__getitem__' does not match trait 'Sequence': parameter 1 expected 'int64', but got 'str'.
+}
+
+class WrongReturnType : Iterable[uint8] {
+    pub func iter(step = 1) Iterator[int] { return list[int]().iter(step) }
+    // CHECK-NEXT: method 'iter' does not match trait 'Iterable': return type expected 'std/builtin.Iterator<C>', but got 'std/builtin.Iterator<j>'.
+}
+
+class WrongParamCount : Iterable[uint8] {
+    pub func iter() Iterator[uint8] { return b"".iter() }
+    // CHECK-NEXT: method 'iter' does not match trait 'Iterable': expected 1 parameters, but got 0.
+}
+
+trait P { func f(x int) int }
+trait Q { func f(x str) int }
+
+class TwoTraits : P & Q {
+    pub func f(x int) int { return x + 1 }
+    // CHECK-NEXT: method 'f' does not match trait 'Q': parameter 1 expected 'str', but got 'int64'.
+}
+
+trait G[T] { func g(x T) int }
+trait H[T] : G[T] {}
+
+class TwoInstances : G[int] & G[str] {
+    pub func g(x int) int { return x }
+    // CHECK-NEXT: class 'TwoInstances' implements trait 'G' with different type arguments: 'G[int64]' and 'G[str]'.
+}
+
+class InheritedInstance : H[int] & G[str] {
+    pub func g(x int) int { return x }
+    // CHECK-NEXT: class 'InheritedInstance' implements trait 'G' with different type arguments: 'G[int64]' and 'G[str]'.
+}
+
+class NestedInstance : G[list[int]] & G[str] {
+    pub func g(x list[int]) int { return 1 }
+    // CHECK-NEXT: class 'NestedInstance' implements trait 'G' with different type arguments: 'G[list[int64]]' and 'G[str]'.
+}
+
+trait Merger { func merge(x Set[int]) }
+
+class NarrowerParam : Merger {
+    pub func merge(x hashset[int]) { }
+    // CHECK-NEXT: method 'merge' does not match trait 'Merger': parameter 1 expected 'std/builtin.Set<j>', but got 'std/builtin.hashset<j>'.
+}
+
+trait Taker { func take(x hashset[int]) int }
+
+class ParamToTrait : Taker {
+    pub func take(x Set[int]) int { return x.len() }
+    // CHECK-NEXT: method 'take' does not match trait 'Taker': parameter 1 expected 'std/builtin.hashset<j>', but got 'std/builtin.Set<j>'.
+}
+
+trait TakesOptional { func o(x int?) }
+
+class OptionalToAny : TakesOptional {
+    pub func o(x any) { }
+    // CHECK-NEXT: method 'o' does not match trait 'TakesOptional': parameter 1 expected 'int64?', but got 'any'.
+}
+
+trait Maker { func make() hashset[int] }
+
+class WiderReturn : Maker {
+    pub func make() Set[int] { return hashset[int]() }
+    // CHECK-NEXT: method 'make' does not match trait 'Maker': return type expected 'std/builtin.hashset<j>', but got 'std/builtin.Set<j>'.
+}
+
+trait Widens { func w(x int) }
+
+class NoNumericWidening : Widens {
+    pub func w(x int8) { }
+    // CHECK-NEXT: method 'w' does not match trait 'Widens': parameter 1 expected 'int64', but got 'int8'.
+}
+
+trait TakesUnion { func u(x int | str) }
+
+class NarrowerUnion : TakesUnion {
+    pub func u(x int) { }
+    // CHECK-NEXT: method 'u' does not match trait 'TakesUnion': parameter 1 expected 'int64 | str', but got 'int64'.
+}
+
+trait Getter { func get() Set[int] }
+
+class TypeVarReturn[T: Set[int]] : Getter {
+    let v T
+    pub func __init__(_v T) { v = _v }
+    pub func get() T { return v }
+    // CHECK-NEXT: method 'get' does not match trait 'Getter': return type expected 'std/builtin.Set<j>', but got 'TypeVarReturn:T'.
+}
+
+class FieldNotMethod : Sized {
+    var len int = 0
+    // CHECK-NEXT: 'len' of class 'FieldNotMethod' is not a method, but trait 'Sized' declares it as one.
+}
+
+class StaticNotMethod : Sized {
+    pub static func len() int { return 0 }
+    // CHECK-NEXT: method 'len' does not match trait 'Sized': it must not be static.
+}
+
+trait ReturnsNothing { func r() }
+
+class ExtraReturn : ReturnsNothing {
+    pub func r() int { return 1 }
+    // CHECK-NEXT: method 'r' does not match trait 'ReturnsNothing': return type expected '<NO-TYPE>', but got 'int64'.
+}
+
+trait OptMaker { func get() int? }
+
+class NarrowerOptional : OptMaker {
+    pub func get() int { return 1 }
+    // CHECK-NEXT: method 'get' does not match trait 'OptMaker': return type expected 'int64?', but got 'int64'.
+}
+
+trait AnyMaker { func make() any }
+
+class NarrowerAny : AnyMaker {
+    pub func make() int { return 1 }
+    // CHECK-NEXT: method 'make' does not match trait 'AnyMaker': return type expected 'any', but got 'int64'.
+}
+
+trait SetMaker { func make() Set[int] }
+
+class NarrowerReturn : SetMaker {
+    pub func make() hashset[int] { return hashset[int]() }
+    // CHECK-NEXT: method 'make' does not match trait 'SetMaker': return type expected 'std/builtin.Set<j>', but got 'std/builtin.hashset<j>'.
+}
+
+trait IntTaker { func take(x int) int }
+
+class ToAny : IntTaker {
+    pub func take(x any) int { return 1 }
+    // CHECK-NEXT: method 'take' does not match trait 'IntTaker': parameter 1 expected 'int64', but got 'any'.
+}
+
+trait AutoEq { func f() }
+
+// The automatic traits are checked too.
+class WrongEq : AutoEq {
+    pub func f() { }
+    pub func __eq__(other int) bool { return true }
+    // CHECK-NEXT: method '__eq__' does not match trait 'Equatable': parameter 1 expected 'test_trait_impl_mismatch.WrongEq', but got 'int64'.
+}
+
+trait TakesInt { func i(x int) }
+
+class UnionWithoutInt : TakesInt {
+    pub func i(x str | bool) { }
+    // CHECK-NEXT: method 'i' does not match trait 'TakesInt': parameter 1 expected 'int64', but got
+}
+
+class UnionMissesMember : TakesUnion {
+    pub func u(x int | bool) { }
+    // CHECK-NEXT: method 'u' does not match trait 'TakesUnion': parameter 1 expected
+}
+
+// A return value is not converted: a class that implements the trait's type is still another type.
+trait SizedMaker { func make() Sized }
+
+class Thing : Sized {
+    pub func len() int { return 7 }
+}
+
+class ClassForTrait : SizedMaker {
+    pub func make() Thing { return Thing() }
+    // CHECK-NEXT: method 'make' does not match trait 'SizedMaker': return type expected
+}
+
+class StrForTrait : SizedMaker {
+    pub func make() str { return "abc" }
+    // CHECK-NEXT: method 'make' does not match trait 'SizedMaker': return type expected
+}
+
+class ListForTrait : SizedMaker {
+    pub func make() list[int] { return list[int](1) }
+    // CHECK-NEXT: method 'make' does not match trait 'SizedMaker': return type expected
+}
+
+trait HashMaker { func make() Hashable }
+
+class IntForHashable : HashMaker {
+    pub func make() int { return 5 }
+    // CHECK-NEXT: method 'make' does not match trait 'HashMaker': return type expected
+}
+
+trait PrintMaker { func make() Printable }
+
+class IntForPrintable : PrintMaker {
+    pub func make() int { return 6 }
+    // CHECK-NEXT: method 'make' does not match trait 'PrintMaker': return type expected
+}
+
+trait OptPrintMaker { func make() Printable? }
+
+class OptForOptTrait : OptPrintMaker {
+    pub func make() int? { return 9 }
+    // CHECK-NEXT: method 'make' does not match trait 'OptPrintMaker': return type expected
+}
+
+// CHECK-NOT: error:

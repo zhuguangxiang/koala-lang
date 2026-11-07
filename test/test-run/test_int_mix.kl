@@ -1,0 +1,311 @@
+// RUN: koala %s | filecheck %s
+
+// How the integer types work with each other, as declared in `std/builtin/number.kl`.
+// The combinations the compiler rejects are in test-kl/test_number_errors.kl.
+
+// Each left operand with every right operand it accepts.
+func mix_int8(n int8, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_int16(n int16, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_int32(n int32, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_int64(n int64, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_uint8(n uint8, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_uint16(n uint16, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_uint32(n uint32, a int8, b int16, c int32, d int64, e uint8, f uint16, g uint32) {
+    print(n + a, n + b, n + c, n + d, n + e, n + f, n + g)
+    print(typeof(n + a), typeof(n + b), typeof(n + c), typeof(n + d))
+    print(typeof(n + e), typeof(n + f), typeof(n + g))
+}
+
+func mix_uint64(n uint64, e uint8, f uint16, g uint32, u uint64) {
+    print(n + e, n + f)
+    print(n + g, n + u)
+    print(typeof(n + e), typeof(n + f), typeof(n + g), typeof(n + u))
+}
+
+// Every arithmetic and bitwise operator of each type.
+func ops_int8(n int8, m int8) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_int16(n int16, m int16) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_int32(n int32, m int32) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_int64(n int64, m int64) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_uint8(n uint8, m uint8) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_uint16(n uint16, m uint16) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_uint32(n uint32, m uint32) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+func ops_uint64(n uint64, m uint64) {
+    print(n + m, n - m, n * m, n / m, n % m)
+    print(n & m, n | m, n ^ m, n << m, n >> m)
+    print(typeof(n - m), typeof(n / m), typeof(n & m), typeof(n << m))
+}
+
+// The sign decides how a shift and a division work.
+func shr_int8(n int8, m int8) int64 { return n >> m }
+func shr_uint8(n uint8, m uint8) int64 { return n >> m }
+func shr_uint64(n uint64, m uint64) uint64 { return n >> m }
+func div_uint8(n uint8, m uint8) int64 { return n / m }
+func div_uint64(n uint64, m uint64) uint64 { return n / m }
+
+// The six comparisons.
+func cmp_int8_int16(n int8, m int16) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+func cmp_int8_uint8(n int8, m uint8) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+func cmp_uint8_int8(n uint8, m int8) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+func cmp_uint32_int8(n uint32, m int8) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+func cmp_int32_uint16(n int32, m uint16) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+func cmp_int64_uint32(n int64, m uint32) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+func cmp_uint64_uint8(n uint64, m uint8) { print(n == m, n != m, n < m, n <= m, n > m, n >= m) }
+
+// Literals and named constants.
+func literal_int8(n int8) { print(n + 1, 1 + n, n == 1, typeof(n + 1), typeof(1 + n)) }
+func literal_uint8(n uint8) { print(n + 1, 1 + n, n == 200, typeof(n + 1), typeof(1 + n)) }
+func literal_uint64(n uint64) { print(n + 1, n - 2, n == 1, typeof(n + 1), typeof(n - 2)) }
+func constant_int8(n int8) { print(n + INT8_MAX, typeof(n + INT8_MAX)) }
+func constant_uint8(n uint8) { print(n + UINT8_MAX, typeof(n + UINT8_MAX)) }
+func constant_uint64(n uint64) { print(n + UINT64_MAX, typeof(n + UINT64_MAX)) }
+
+// A widened value keeps its own type, and an operator on it still follows the declared type.
+func take_int64(v int64) { print(v, typeof(v), v + 1, typeof(v + 1)) }
+func take_int16(v int16) { print(v, typeof(v), v + 1, typeof(v + 1)) }
+func take_uint64(v uint64) { print(v, typeof(v), v + 1, typeof(v + 1)) }
+func return_int64(v int8) int64 { return v }
+func return_uint64(v uint8) uint64 { return v }
+
+func assign_int64(v int8) {
+    let w int64 = v
+    print(w, typeof(w), w + 1, typeof(w + 1))
+}
+
+// An explicit conversion wraps to the target width.
+func to_int8(n int64) int8 { return int8(n) }
+func to_uint8(n int64) uint8 { return uint8(n) }
+func to_int16(n int64) int16 { return int16(n) }
+func to_uint64(n int64) uint64 { return uint64(n) }
+func to_int64(n uint64) int64 { return int64(n) }
+func narrow_sum(a int8, b int8) int8 { return int8(a + b) }
+
+// The boundaries: a narrow operation does not wrap at its own width.
+func add_int8(n int8, m int8) int64 { return n + m }
+func add_uint8(n uint8, m uint8) int64 { return n + m }
+func sub_uint8(n uint8, m uint8) int64 { return n - m }
+func add_int16(n int16, m int16) int64 { return n + m }
+func add_uint16(n uint16, m uint16) int64 { return n + m }
+func mul_int32(n int32, m int32) int64 { return n * m }
+func add_uint32(n uint32, m uint32) int64 { return n + m }
+func add_int64(n int64, m int64) int64 { return n + m }
+func add_uint64(n uint64, m uint64) uint64 { return n + m }
+func sub_uint64(n uint64, m uint64) uint64 { return n - m }
+
+func main() {
+    let a = int8(-8)
+    let b = int16(-16)
+    let c = int32(-32)
+    let d = int64(-64)
+    let e = uint8(8)
+    let f = uint16(16)
+    let g = uint32(32)
+
+    mix_int8(int8(100), a, b, c, d, e, f, g)
+    // CHECK: 92 84 68 36 108 116 132
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_int16(int16(1000), a, b, c, d, e, f, g)
+    // CHECK-NEXT: 992 984 968 936 1008 1016 1032
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_int32(int32(100000), a, b, c, d, e, f, g)
+    // CHECK-NEXT: 99992 99984 99968 99936 100008 100016 100032
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_int64(10000000000, a, b, c, d, e, f, g)
+    // CHECK-NEXT: 9999999992 9999999984 9999999968 9999999936 10000000008 10000000016 10000000032
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_uint8(uint8(200), a, b, c, d, e, f, g)
+    // CHECK-NEXT: 192 184 168 136 208 216 232
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_uint16(uint16(60000), a, b, c, d, e, f, g)
+    // CHECK-NEXT: 59992 59984 59968 59936 60008 60016 60032
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_uint32(uint32(4000000000), a, b, c, d, e, f, g)
+    // CHECK-NEXT: 3999999992 3999999984 3999999968 3999999936 4000000008 4000000016 4000000032
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'>
+    mix_uint64(uint64(18000000000000000000), e, f, g, uint64(64))
+    // CHECK-NEXT: 18000000000000000008 18000000000000000016
+    // CHECK-NEXT: 18000000000000000032 18000000000000000064
+    // CHECK-NEXT: <class 'uint64'> <class 'uint64'> <class 'uint64'> <class 'uint64'>
+
+    ops_int8(int8(13), int8(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_int16(int16(13), int16(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_int32(int32(13), int32(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_int64(13, 4)
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_uint8(uint8(13), uint8(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_uint16(uint16(13), uint16(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_uint32(uint32(13), uint32(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'int64'> <class 'int64'> <class 'int64'> <class 'int64'>
+    ops_uint64(uint64(13), uint64(4))
+    // CHECK-NEXT: 17 9 52 3 1
+    // CHECK-NEXT: 4 13 9 208 0
+    // CHECK-NEXT: <class 'uint64'> <class 'uint64'> <class 'uint64'> <class 'uint64'>
+
+    print(shr_int8(int8(-16), int8(2)), shr_uint8(uint8(200), uint8(1)))
+    // CHECK-NEXT: -4 100
+    print(shr_uint64(UINT64_MAX, uint64(60)))
+    // CHECK-NEXT: 15
+    print(div_uint8(uint8(200), uint8(7)), div_uint64(uint64(18000000000000000000), uint64(2)))
+    // CHECK-NEXT: 28 9000000000000000000
+
+    cmp_int8_int16(int8(-1), int16(-1))
+    // CHECK-NEXT: true false false true false true
+    cmp_int8_uint8(int8(-1), uint8(1))
+    // CHECK-NEXT: false true true true false false
+    cmp_uint8_int8(uint8(1), int8(-1))
+    // CHECK-NEXT: false true false false true true
+    cmp_uint8_int8(uint8(255), int8(-1))
+    // CHECK-NEXT: false true false false true true
+    cmp_uint32_int8(uint32(1), int8(-1))
+    // CHECK-NEXT: false true false false true true
+    cmp_int32_uint16(int32(-1), uint16(1))
+    // CHECK-NEXT: false true true true false false
+    cmp_int64_uint32(-1, uint32(4294967295))
+    // CHECK-NEXT: false true true true false false
+    cmp_uint64_uint8(uint64(200), uint8(200))
+    // CHECK-NEXT: true false false true false true
+    cmp_uint64_uint8(uint64(256), uint8(0))
+    // CHECK-NEXT: false true false false true true
+
+    literal_int8(int8(1))
+    // CHECK-NEXT: 2 2 true <class 'int64'> <class 'int64'>
+    literal_uint8(uint8(200))
+    // CHECK-NEXT: 201 201 true <class 'int64'> <class 'int64'>
+    literal_uint64(uint64(1))
+    // CHECK-NEXT: 2 18446744073709551615 true <class 'uint64'> <class 'uint64'>
+    constant_int8(int8(1))
+    // CHECK-NEXT: 128 <class 'int64'>
+    constant_uint8(uint8(255))
+    // CHECK-NEXT: 510 <class 'int64'>
+    constant_uint64(uint64(1))
+    // CHECK-NEXT: 0 <class 'uint64'>
+
+    take_int64(int8(-5))
+    // CHECK-NEXT: -5 <class 'int8'> -4 <class 'int64'>
+    take_int64(uint32(5))
+    // CHECK-NEXT: 5 <class 'uint32'> 6 <class 'int64'>
+    take_int16(uint8(5))
+    // CHECK-NEXT: 5 <class 'uint8'> 6 <class 'int64'>
+    take_uint64(uint16(5))
+    // CHECK-NEXT: 5 <class 'uint16'> 6 <class 'uint64'>
+
+    let r = return_int64(int8(-5))
+    print(r, typeof(r), r + 1, typeof(r + 1))
+    // CHECK-NEXT: -5 <class 'int8'> -4 <class 'int64'>
+    let s = return_uint64(uint8(5))
+    print(s, typeof(s), s + 1, typeof(s + 1))
+    // CHECK-NEXT: 5 <class 'uint8'> 6 <class 'uint64'>
+    assign_int64(int8(-5))
+    // CHECK-NEXT: -5 <class 'int8'> -4 <class 'int64'>
+
+    print(to_int8(300), to_uint8(-1), to_int16(40000))
+    // CHECK-NEXT: 44 255 -25536
+    print(to_uint64(-1), to_int64(UINT64_MAX))
+    // CHECK-NEXT: 18446744073709551615 -1
+    print(narrow_sum(int8(100), int8(100)))
+    // CHECK-NEXT: -56
+
+    print(add_int8(INT8_MAX, INT8_MAX), add_uint8(UINT8_MAX, UINT8_MAX))
+    // CHECK-NEXT: 254 510
+    print(sub_uint8(uint8(0), uint8(1)))
+    // CHECK-NEXT: -1
+    print(add_int16(INT16_MAX, INT16_MAX), add_uint16(UINT16_MAX, UINT16_MAX))
+    // CHECK-NEXT: 65534 131070
+    print(mul_int32(INT32_MAX, INT32_MAX), add_uint32(UINT32_MAX, UINT32_MAX))
+    // CHECK-NEXT: 4611686014132420609 8589934590
+    print(add_int64(INT64_MAX, 1))
+    // CHECK-NEXT: -9223372036854775808
+    print(add_uint64(UINT64_MAX, uint64(1)), sub_uint64(uint64(1), uint64(2)))
+    // CHECK-NEXT: 0 18446744073709551615
+}

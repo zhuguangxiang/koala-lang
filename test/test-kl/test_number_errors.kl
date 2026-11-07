@@ -14,3 +14,48 @@ func test_i64_eq_u64(n int64, m uint64) bool { return n == m }
 
 func test_u8_add_u64(n uint8, m uint64) uint64 { return n + m }
 // CHECK: argument type mismatch for operator '+' of type 'uint8'.
+
+func test_narrow_sum(n int8, m int8) int8 { return n + m }
+// CHECK: return type mismatch in function 'test_narrow_sum'
+
+// A left operand that takes an int64 does not accept a uint64.
+func test_i8_add_u64(n int8, m uint64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'int8'.
+
+func test_i16_add_u64(n int16, m uint64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'int16'.
+
+func test_i32_add_u64(n int32, m uint64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'int32'.
+
+func test_i64_add_u64(n int64, m uint64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'int64'.
+
+func test_u16_add_u64(n uint16, m uint64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'uint16'.
+
+func test_u32_add_u64(n uint32, m uint64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'uint32'.
+
+func test_literal_add_u64(m uint64) { print(1 + m) }
+// CHECK: argument type mismatch for operator '+' of type 'int64'.
+
+// A uint64 does not accept a signed value.
+func test_u64_add_i8(n uint64, m int8) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'uint64'.
+
+func test_u64_add_i16(n uint64, m int16) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'uint64'.
+
+func test_u64_add_i32(n uint64, m int32) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'uint64'.
+
+func test_u64_add_i64(n uint64, m int64) { print(n + m) }
+// CHECK: argument type mismatch for operator '+' of type 'uint64'.
+
+// The named constant channel, TODO §17: both of these should become legal.
+func test_u64_add_constant(n uint64) { print(n + UINT8_MAX) }
+// CHECK: argument type mismatch for operator '+' of type 'uint64'.
+
+func test_i8_add_wider_constant(n int8) { print(n + INT16_MAX) }
+// CHECK: Literal value out of range for int8

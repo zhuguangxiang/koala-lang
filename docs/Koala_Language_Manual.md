@@ -203,10 +203,31 @@ When a literal appears where a type is expected, that type wins: the value is ch
 target range, and a non-decimal literal is read as a bit pattern, so `0xFF` is -1 when it is
 initialized as an `int8`.
 
-Narrow integer types are *init-only*: they accept narrow literals at initialization, while in
-expressions values are automatically promoted to the natural operand width (int8/int16/int32 to
-int64, unsigned types to uint64). The promotion is a compiler mechanism; nothing hidden appears in
-the standard library sources.
+Narrow integer types store a value at a smaller width. Nothing is promoted behind the scenes: the
+classes in `std/builtin/number.kl` declare what each operator takes and returns, and an operator is
+a method of its left operand:
+
+| Left operand | Right operand | Arithmetic result |
+| --- | --- | --- |
+| `int8`, `int16`, `int32`, `uint8`, `uint16`, `uint32`, `int64` | up to `int64`, or a literal | `int64` |
+| `uint64` | `uint8`, `uint16`, `uint32`, `uint64`, or a literal | `uint64` |
+
+```kl
+let a = int8(100)
+let b = uint8(2)
+
+let c = a + b           // int64, value 102
+let d = b - uint8(3)    // int64, value -1
+let e = uint64(5) + b   // uint64, value 7
+let f = a < b           // false, both are compared as int64
+
+let g = b + uint64(5)            // error: uint64 does not fit the int64 parameter
+let h = int64(1) + uint64(1)     // error: int64 and uint64 cannot mix
+let i int8 = a + b               // error: the int64 result does not narrow implicitly
+
+var j = int8(1)
+j += 1                           // error, for the same reason
+```
 
 Integer overflow is safe by definition. The implementation provides trap and wrap overflow
 policies, controlled at the compiler/VM level; literal values that do not fit the annotated type are
@@ -225,9 +246,9 @@ let pi = 3.14159     // float (float64)
 let eps float32 = 0.001
 ```
 
-Like narrow integers, narrow float types are init-only and are promoted to `float64` inside
-expressions. Floating-point overflow behavior is likewise a defined trap/wrap policy, not undefined
-behavior.
+The narrow float types work the same way: `float16`, `float32` and `bfloat16` declare their
+operators with `float64` parameters and `float64` results. Floating-point overflow behavior is
+likewise a defined trap/wrap policy, not undefined behavior.
 
 ### Integer Conversions
 
@@ -235,17 +256,16 @@ Conversions between integer types are explicit and use constructor-call syntax. 
 requires an explicit conversion:
 
 ```kl
-func wrap(n int) int8 {
-    return int8(n)        // explicit narrowing conversion
-}
+func wrap(n int) int8 { return int8(n)        // explicit narrowing conversion }
 
-func widen(n int16) uint32 {
-    return uint32(n)      // explicit conversion between integer types
-}
+func widen(n int16) uint32 { return uint32(n)      // explicit conversion between integer types }
 ```
 
-Widening between same-sign integer widths is implicit: where a wider type is expected, the compiler
-inserts the conversion automatically.
+Widening is implicit where a wider type is expected: between integer widths of the same sign, from
+an unsigned type to a wider signed type, and to a wider float type. A widened value keeps its own
+type at run time, and the VM works with it by value: an `int8` appended to a `list[int64]` has
+`typeof` `int8`, and it still adds, compares and hashes as the number it is. `is` follows the
+declared type of a number variable; on an `any` it sees the type at run time.
 
 Conversions that lose information are checked: converting a value that does not fit the target range
 produces a runtime panic (for example, casting `300` to `int8`).
@@ -857,6 +877,36 @@ Dispatch is fully static: every type carries an intf-table built at compile time
 is one indirect slot call (O(1), no lookup), and a direct class method call is a plain direct call.
 Partial trait implementation is allowed: a conforming class may leave some methods unimplemented;
 they are filled with a placeholder and panic only if actually called.
+
+A class implements a generic trait with one list of type arguments: `class C : G[int] & G[str]` is a
+compile error, whether `G` is declared directly or reached through another trait.
+
+A method a class implements must have the signature the trait declares, with `T` bound to the type
+argument. Parameters and the return type are invariant: the class cannot narrow or widen them, and
+a mismatch is a compile error. Parameter names and default values may differ. The one allowance is a
+union parameter that takes everything the trait's parameter declares:
+
+```kl
+trait Maker { func make() Set[int] }
+
+class HashMaker : Maker {
+    pub func make() Set[int] { return hashset[int]() }    // ok: builds a concrete value
+}
+
+class Wrong : Maker {
+    pub func make() hashset[int] { return hashset[int]() }    // error: return type
+}
+
+trait Taker { func take(x int) int }
+
+class WideTaker : Taker {
+    pub func take(x int | str) int { return 1 }    // ok: the union takes an int
+}
+
+class AnyTaker : Taker {
+    pub func take(x any) int { return 1 }    // error: parameter 1
+}
+```
 
 Generics are written with square brackets and constrained with trait bounds. Bare conformance infers
 the self type automatically (a class conforming to `Equatable` becomes `Equatable[Self]` without

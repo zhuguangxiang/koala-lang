@@ -36,6 +36,10 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - 内建值类型（int64 / uint64 / float64 / bool / str）覆写三件套为值语义。其中 int / float / bool 声明 `hash()` 仅为模板可见性（builtin 是用户的代码范本），VM 实际走默认实现——零装箱使同一性即值相等，identity 默认天然正确；str 为真值语义。
 - 覆写 `__eq__` 而不覆写 `hash()` → 编译器警告。
 - 自动遵循在 LRO 中可见，无隐藏。
+- `Equatable` is added only to a class that does not have it yet, directly or through another trait,
+  found by a recursive walk of its bases: `int8 : Comparable[int64]` has `Equatable[int64]` and gets
+  no `Equatable[int8]`. The default `__eq__` and `__ne__` take the type argument of that `Equatable`:
+  `class Age : Comparable[int]` gets `__eq__(other int)`, and `class Plain` gets `__eq__(other Plain)`.
 
 **为什么不合并进 any**：合入非泛型的普适 `any` 会强制 `other any` 签名，需要豁免不变检查 + intf-table 桩代码两个隐藏机制，违背"无隐藏特性"。保持泛型 trait 则每个类型实例化独立槽位（如 `Equatable[int64].__eq__(other int64)`），类型精确、零桩、零豁免。
 
@@ -190,9 +194,14 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
   - A type argument satisfies a bound only by having that trait: declared in its base list, or added automatically. Having the methods is not enough. This also applies to inferred type arguments.
   - The automatic traits count as having the bound: every class has `Equatable`, `Hashable` and `Printable`, so `[T]` already can use `==`, `!=`, `hash()` and `fmt()`, and `T : Printable` is satisfied without declaring it.
   - A concrete type is not a type parameter: `a < b` on two `Score` values only needs `__lt__`, and `Score` still does not satisfy `T : Comparable` unless it declares it.
+- **One list of type arguments:** a class implements a generic trait once. `class C : G[int] & G[str]`
+  is a compile error, also through another trait, because the intf-table has one entry for `G`. The
+  same arguments reached twice, as in a diamond, are one trait.
 - **自类型推断**：裸遵循自动推断自类型参数（如 Equatable → Equatable[bool]），无 Self 关键字。
 - **LRO（线性化）**：`--dump=itable` 可见每个类的 Intf-Table——槽位含方法名 + code_index + parents。线性化顺序：`[0] any` 打头，紧接编译器自动遵循的三契约 `[1] Printable / [2] Hashable / [3] Equatable`（§2.2），之后才是用户声明的 trait（按 C3 线性化，菱形继承去重，test-run/test_lro.kl・test_lro_2.kl 守护）。类型内省可见全部遵循关系与编译器插入的内容，无隐藏。
 - **变型**：参数与返回值一律**不变**（invariant），不支持协变 / 逆变。根因：泛型场景下协变返回值无法适配——intf-table 槽里存的是实现类的具体方法，返回值原样拷贝，没有 concrete→trait 的适配层（上述三轨分发不含“返回类型改写”一轨），协变返回在泛型分发下无法静态保证类型一致，故一律收为不变。落地要求：实现侧必须按 trait 声明的原类型收发——`iter()` 声明 `Iterator[T]` 就只能返回 `Iterator[T]`（不能返回 `StrIter`），`Map.keys()` 声明 `Sequence[K]` 就只能返回 `Sequence[K]`（不能返回 `list[K]`），`Set.union()` 声明 `Set[T]` 就只能返回 `Set[T]`（不能返回 `hashset[T]`）；具体实现仍可在函数体内构造具体类，由返回下降完成 make_intf 上转。“宽进”不靠覆写期变型，而靠 trait 设计期选最小能力类型（如参数一律 `Iterable[T]`）。
+  - **The compiler checks this (2026-11-07):** `check_intf_methods` runs after `build_intf_table` and before IR generation. For each method a trait declares and a class implements, with `T` bound, the number of parameters, each parameter type and the return type must match exactly. `T?` -> `T`, `any` -> `int`, `Set[T]` -> `hashset[T]` and `int` -> `int8` are errors. Parameter names and default values are not compared, and a method with a type parameter of its own is not checked.
+  - **A union parameter of the class** is valid when it takes everything the trait's parameter declares: `bytes.__contains__(value uint8 | bytes)` matches `item uint8`.
 
 **三轨分发，零运行期名字解析**——Koala 全部调用形态归入三条轨道，没有一轨需要 vtable 式的方法名运行时查找：
 
@@ -209,17 +218,50 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 ## 5. 数值类型
 
 - 类型族：`int`（机器字）、`int8/16/32/64`、`uint8/16/32/64`、`float16/32/64`。
-- **窄类型 init-only**：只在初始化时接受窄类型字面量，运算时自动提升：
-  - int8/16/32 → int64，uint → uint64，float → float64
-  - 提升是**编译器机制**，标准库源码中不可见。
-- **整型的向下兼容（隐式混算）**：窄整数可以直接与更宽的类型混算，不需要显式转换；公共类型由操作数的符号性统一决定，**结果永不回窄**（实现机制见 §5.3）。
-  - **有任何有符号操作数 → 公共类型 int64（源码写作 `int`）**。`int8 + int16`、`int8 + uint16`、`uint8 % int8`、`uint32 / int64` 全部合法且结果都是 `int`。uint8/16/32 的整个值域都能无损落入 int64，因此这条路上没有精度损失，也没有"有符号 vs 无符号"的二义。
-  - **操作数全为无符号 → 公共类型 uint64（源码写作 `uint`）**。`uint8 + uint8`、`uint16 * uint32`、`uint32 / uint64` 结果都是 uint64；下溢按 UINT64_MAX 回绕（`10u - 20u == 18446744073709551606`）。
-  - **uint64 是孤岛**：它是唯一放不进 int64 的整数类型，故**不允许 uint64 与任何有符号类型（int8/16/32/64、int）隐式混算**，编译期直接报错。要混算必须显式转换，留在哪个域由作者选定：`n + int64(m)` 进有符号域，`n + uint64(m)` 进无符号域。
-  - **int64 与窄类型混算合法**（窄类型先提升到 int64），会溢出的只有 int64 自己——它无处可提升，故 `INT64_MAX + 1 == INT64_MIN` 按位回绕。窄类型因为先提升反而不回绕：`INT8_MAX + INT8_MAX == 254`、`INT32_MAX * INT32_MAX == 4611686014132420609`、`-INT32_MIN == 2147483648`。
+- **The class declarations in `libs/std/builtin/number.kl` are the promotion rule (2026-11-07).**
+  The compiler has no promotion step for binary operators: an operator is a method of the left
+  operand, the right operand must be compatible with its parameter, and the result has its declared
+  return type (§5.3).
+
+  | Left operand | Declared base | Comparison parameter | Arithmetic parameter and result |
+  |---|---|---|---|
+  | `int8/16/32`, `uint8/16/32` | `Comparable[int64]` | `int64` | `int64` |
+  | `int64` | `Comparable & Arithmetic & Bitwise` | `int64` | `int64` |
+  | `uint64` | `Comparable & Arithmetic & Bitwise` | `uint64` | `uint64` |
+  | `float16/32`, `bfloat16` | `Comparable[float64]` | `float64` | `float64` |
+  | `float64` | `Comparable & Arithmetic` | `float64` | `float64` |
+
+  - **Narrow integers and literals work with `int64`, signed or not.** `int8 + int16`,
+    `uint8 + uint8`, `uint8 + int8` and `uint8 + 1` are all `int64`, so `uint8(1) - uint8(2) == -1`.
+    A narrow operation does not wrap at its own width: `INT8_MAX + INT8_MAX == 254`. Only `int64`
+    wraps: `INT64_MAX + 1 == INT64_MIN`.
+  - **`int64` and `uint64` cannot mix.** `uint64` is the one integer type that does not fit into
+    `int64`: an explicit conversion picks the domain, `int64(m) + n` or `m + uint64(n)`.
+  - **`uint64` on the left accepts unsigned narrow values and literals.** `uint64 + uint8` is
+    `uint64` because `uint8` widens to `rhs uint64`, while `uint8 + uint64` is an error because
+    `uint64` does not fit `rhs int64`: the left operand decides. `uint64 - uint64` wraps at
+    `UINT64_MAX`: `uint64(10) - uint64(20) == 18446744073709551606`.
+  - **The result never narrows implicitly.** `a += 1` with `a int8` and `let c int8 = a + b` are
+    errors, because the `int64` result cannot go back to `int8` without `int8(...)`.
+  - **Comparisons follow the declared parameter.** Both operands are converted to it, so
+    `uint8(1) < int8(-1)` is false.
+  - **Unary operators are not there yet.** `-n` and `~n` still hard-code their result type, see
+    `Koala_TODO.md` §75.
 - **隐式转换（赋值 / 返回 / 传参）的允许方向**：有符号 → 更宽有符号；无符号 → 更宽无符号；无符号 → 值域能容纳它的更宽有符号（uint8→int16/int32/int64、uint16→int32/int64、uint32→int64）。反之一律需要显式 cast：**有符号 → 无符号**（含同宽度，如 int8→uint8、int64→uint64）、**窄化**（int16→int8、uint32→uint16）、**uint64 → int64**。显式窄化在变量路径上按 §5.1 的 wrap 语义保留低位再重解释。
-- **断言辅助函数据此分两套**：`ut.assert_int_eq(a int, b int)` 与 `ut.assert_uint_eq(a uint, b uint)` 是具体类型，窄类型实参会自动提升进来；泛型 `ut.assert_eq[T]` 因严格类型推断**不做提升**，窄类型比较必须用前两者。
-- **覆盖面**：八个宽度各有专档——`test-ut/test_int8.kl`、`test_uint8.kl`、`test_int16.kl`、`test_uint16.kl`、`test_int32.kl`、`test_uint32.kl`、`test_int64.kl`、`test_uint64.kl`，逐档覆盖隐式 / 显式转换方向、混算公共类型、边界值与回绕。
+- **A widened value keeps its own type at run time.** Passing a narrow value to a wider parameter
+  inserts no conversion, and the VM handles a narrow tag wherever a wider one is expected: after
+  `l.append(int8(1))` on a `list[int64]`, `typeof(l[0])` is `int8`, while `l[0] + 1`, `1 in l` and a
+  dict key lookup all work by value. On a declared number type `is` follows the declared type; on
+  `any` it sees the type at run time.
+- **Generics and number types.** Compatibility in a generic bound applies only to number types:
+  `int8` declares `Comparable[int64]` and can be passed as an `int64`, so it satisfies
+  `T : Comparable` with `T` bound to `int8`. Other types stay invariant (§4). A type argument is not
+  widened: `ut.assert_int_eq(a int, b int)` and `ut.assert_uint_eq(a uint, b uint)` take concrete
+  types and accept narrow arguments, while both arguments of `ut.assert_eq[T]` must agree on `T`.
+- **Tests**: `test-ut/test_int8.kl`, `test_uint8.kl`, `test_int16.kl`, `test_uint16.kl`,
+  `test_int32.kl`, `test_uint32.kl`, `test_int64.kl` and `test_uint64.kl` cover each width.
+  `test-run/test_number.kl`, `test-run/test_number_narrow_values.kl` and
+  `test-kl/test_number_errors.kl` cover the rules above.
 
 ### 5.1 数值类型转换：常量与变量分轨
 
@@ -268,119 +310,75 @@ pub class int64 : Comparable & Arithmetic & Bitwise {
 
 **实现状态**：设计定案，未落地。当前 int64/uint64/float64 的 `__init__` 仍含 `str`（`intobj.c` 的 `int_init`/`str_to_int` 整段注释，构造器 str 路径未实现）；`from_str` 家族 src 中不存在。详见 `Koala_TODO.md` §14。
 
-### 5.3 整型提升的实现机制：parser 改类型、irgen 插 cast
+### 5.3 Implementation of the number operators
 
-提升在标准库源码里不可见，但在编译器里可 grep，分两阶段。
+There is no promotion step. The declaration decides the types, and each later stage reads them from
+it.
 
-**阶段一·parser 定公共类型与结果类型**（`src/parser/parser_expr.c`）：
+**Parser** (`parse_binary` in `src/parser/parser_expr.c`):
 
-- `parse_binary` 只在**两侧都是 `TYPE_INT`** 时调 `promote_integer_type`；两侧都是 float 则直接抬到 float64；int 与 float 混算不在这里处理，落到后面的运算符方法解析。
-- `promote_integer_type(lhs, rhs)` 的三条分支就是 §5 规则的原文：
-  - `type_is_uint64(lhs) && type_is_int(rhs)`（或对称）→ `return -1`，`parse_binary` 据此报 `cannot do binary operation on int64 and uint64 with different signs.`。判定用的 `type_is_int` 是**任意宽度的有符号**（`include/parser/typespec.h`：`kind == TYPE_INT && sign == 1`），`type_is_uint64` 是 `sign == 0 && width == 8`——所以被拦下的恰好只有 (uint64, 任意有符号) 这一对，uint32 与 int8 混算不在拦截范围。
-  - 两侧 `sign == 0` → `lhs->ts = rhs->ts = uint64_type_spec()`；否则 → 两边都赋 `int64_type_spec()`。
-  - 提升是**就地改写两个子表达式的 `Expr.ts`**，不插中间节点，因此提升后两侧类型必然相同。
-- **结果类型来自 dunder 的声明返回**：改写后 `parse_binary` 用 `get_symbol_by_id(lhs->ts->sym_id)` 取到的是 **int64 / uint64 的类型符号**，运算符方法在它们身上解析（具体类走 `stbl_get(stbl, "__add__")`，类型参数走 `get_func_from_tp`，trait 类型走 `get_instance_method`），最后 `exp->ts = fn_sym->ret`。这就是"结果永不回窄"的机械原因：`int8 + int8` 实际解析的是 `int64.__add__(int64) int64`。
-- **一元运算符同样提升**：`parse_unary` 里 `-n` 与 `~n` 按 `sign` 分别抬到 int64 / uint64（无符号取负抬到 uint64），所以 `-n`（n int8）的类型是 `int` 而不是 int8。
-- 参数校验 `type_spec_compatible(arg_ts, rhs->ts)` 在提升之后才做，两侧已同型，校验恒过。
+- It looks up the operator method on the left operand by name, for a number type in its class symbol
+  table (a type parameter goes through `get_func_from_tp`, a trait type through
+  `get_instance_method`).
+- It checks the right operand with `type_spec_compatible(arg_ts, rhs->ts)`, so `uint8 + uint64`
+  reports `argument type mismatch for operator '+' of type 'uint8'.`
+- The result is `exp->ts = fn_sym->ret`: `int8 + int8` is `int8.__add__(rhs int64) int64`.
 
-**阶段二·irgen 按原宽度补 cast**（`src/parser/irgen.c` 的 `emit_ir_binary`）：
+**IR generation** (`emit_ir_binary` in `src/parser/irgen.c`):
 
-- 读的是 `lhs->ir_val->ts`（**仍带原窄类型**，parser 只改了 `Expr.ts`），据此对 `width < 8` 的一侧插 `klr_build_cast`：两侧都是 `type_is_uint` → cast 到 uint64，否则 → cast 到 int64。分支条件与 `promote_integer_type` 完全同构。
-- 比较运算符（`BINARY_GT..BINARY_NEQ`）走 `klr_build_cmp`，其余走 `klr_build_binary`，两者都在 cast 之后。
+- `number_operand_type` picks the type both operands are cast to: the result type of an arithmetic
+  operator, or the parameter of the left class's `__eq__` for a comparison, whose result is a
+  `bool`.
+- `cast_number_operand` inserts the `klr_build_cast`, only between values of the same kind and only
+  when the type differs.
 
-**右操作数的期望类型传播：孤岛规则的两条豁免通道**（`parse_binary` 开头）：
+**Instruction selection and VM:** the result tag comes from the opcode, never from an operand:
+`OP_INT_*` produces `TAG_INT64` and `OP_UINT_*` produces `TAG_UINT64`. `OP_INT_NOT` is the exception
+until `Koala_TODO.md` §75 is done.
 
-- **字面量**：`rhs` 是 `EXPR_LITERAL_KIND` 且 `lhs` 是 uint64 → 先给 `rhs->expected = lhs->ts` 再解析。于是 `x - 20`（x uint64）合法：20 按 uint64 解析，不构成 (uint64, 有符号) 组合。**这是 uint64 能与"看起来像 int"的字面量混算的唯一原因。**
-- **具名常量**：`rhs` 是 `EXPR_ID_KIND` 且符号带 `SYM_FLAGS_CONST` 且 `lhs` **不是** uint64 → 设 `rhs->expected = lhs->ts` 并**重新解析 rhs**。于是 `n + INT8_MAX`（n int8）里 INT8_MAX 按 int8 解析。
-- **两者的不对称留下一个未覆盖组合**：`lhs` 是 uint64 且 `rhs` 是具名常量时，两条通道都不生效（第一条只管字面量，第二条显式排除 uint64），rhs 保留常量自身的推断类型。`UINT64_MAX` 的字面量超出 int64 故自身即 uint64，`test_uint8.kl` 的 `... == UINT64_MAX` 因此通过；但 `uint64 + UINT8_MAX`（UINT8_MAX = 255，无注解故推断为有符号）按代码推演会撞孤岛报错——**此路径现有测试未覆盖，属推演结论、未实测**。修法见 §5.4。
+**Expected type of the right operand** (start of `parse_binary`), which has two channels:
 
-### 5.4 整型提升的既定修法（**未实现**，问题挂账 `Koala_TODO.md` §17）
+- **Literal:** when `rhs` is a literal and `lhs` is `uint64`, `rhs->expected = lhs->ts` is set
+  before parsing it. So `x - 20` with `x uint64` is legal: 20 is read as `uint64`.
+- **Named constant:** when `rhs` is a constant and `lhs` is not `uint64`, `rhs->expected = lhs->ts`
+  is set and `rhs` is parsed again. So `INT8_MAX` in `n + INT8_MAX` with `n int8` is read as `int8`.
 
-§5.3 的实现里有三处缺陷。修法已定案，改的都是 `src/parser/parser_expr.c`，**尚未实施**。
+### 5.4 Open problem: the named constant channel (**not implemented**, `Koala_TODO.md` §17)
 
-**修法一·孤岛诊断带上真实操作数类型**
+The first two fixes once planned here, the diagnostic and the log of `promote_integer_type`, went
+away with that function. The channels above still have a gap.
+`test-kl/test_number_errors.kl` records the errors of `x + UINT8_MAX` and `n + INT16_MAX`:
 
-`promote_integer_type` 返回 -1 时两侧的 `Expr.ts` 还没被改写，可直接用于诊断。把 `parse_binary` 里那句写死的 `kl_error` 换成：
+| Expression | Now | After the fix |
+| --- | --- | --- |
+| `x + UINT8_MAX` (`x uint64`) | argument type mismatch: the constant stays `int64` | legal, `uint64` |
+| `x + 255` (`x uint64`) | legal, `uint64` | unchanged |
+| `x + INT8_MIN` (`x uint64`) | argument type mismatch | unchanged: -128 does not fit `uint64` |
+| `n + INT16_MAX` (`n int8`) | literal out of range: the constant is read as `int8` | legal, `int64` |
+| `n + 32767` (`n int8`) | legal, `int64` | unchanged |
 
-    kl_error(bin->op_loc,
-             "cannot do binary operation on '%s' and '%s': uint64 can only mix with unsigned "
-             "integer types; cast explicitly with int64(x) or uint64(x).",
-             lhs->ts->signature, rhs->ts->signature);
+The principle: the expected type of a right operand is only a hint, not a type the user declared.
+When the value does not fit the hint, the operand keeps its own type and the parameter check
+decides. The assignment, `return` and argument paths have a declared target, so an out-of-range
+value remains an error there.
 
-即报出两侧真实类型（不再一律说 int64/uint64），并把两条显式 cast 出路写进消息，文字与 §5 的孤岛规则一致。`TypeSpec.signature` 是现成的 `char *`。
+The fix adds a check that only answers and never reports, using the range logic of `parse_lit_int`:
 
-**修法二·提升日志改用已保存的原始类型**
+    static int int_value_fits(__int128 val, int bit_mode, TypeSpec *ts);
 
-`promote_integer_type` 开头已把原始类型存进 `lhs_ts` / `rhs_ts`，但四条 `log_info` 读的都是**赋值之后**的 `lhs->ts`，因此恒打印 `from int64 to int64`。改法是先打印后赋值，或直接引用这两个局部量：
+Then the named constant channel uses it in place of the `uint64` exception:
 
-    if ((lhs->ts->int_flt_info.sign == 0) && (rhs->ts->int_flt_info.sign == 0)) {
-        log_info("promote binary-lhs from uint%d to uint64", lhs_ts->int_flt_info.width * 8);
-        log_info("promote binary-rhs from uint%d to uint64", rhs_ts->int_flt_info.width * 8);
-        lhs->ts = uint64_type_spec();
-        rhs->ts = uint64_type_spec();
-    } else {
-        log_info("promote binary-lhs from %s%d to int64", lhs_ts->int_flt_info.sign ? "int" : "uint",
-                 lhs_ts->int_flt_info.width * 8);
-        log_info("promote binary-rhs from %s%d to int64", rhs_ts->int_flt_info.sign ? "int" : "uint",
-                 rhs_ts->int_flt_info.width * 8);
-        lhs->ts = int64_type_spec();
-        rhs->ts = int64_type_spec();
+    if (rhs->kind == EXPR_ID_KIND && rhs->sym && (rhs->sym->flags & SYM_FLAGS_CONST)
+        && lhs->ts->kind == TYPE_INT
+        && int_value_fits(const_lit_value((VarSymbol *)rhs->sym), 0, lhs->ts)) {
+        rhs->expected = lhs->ts;
+        parser_visit_expr(ps, rhs);
     }
 
-判定分支仍读 `lhs->ts` / `rhs->ts` 的 `sign`，语义不变。同文件 `parse_unary` 用 `orig_ts` 打印，是正确写法的现成对照。
-
-**修法三·统一 rhs 的期望类型传播**
-
-原则：**二元运算里 rhs 的期望类型只是"该按哪个类型取公共类型"的提示，不是用户声明的目标类型**。提示不满足就回退到 rhs 自身类型、交给提升规则决定，不该报常量越界。赋值 / `return` / 函数实参三条路径的目标类型是用户显式声明的，越界必须报错，**维持现状不动**（仍走 `parse_lit_int` 的 `Value ... overflows` 与 `check_literal_as_expected`）。
-
-具体三步：
-
-1. 新增一个**纯判定、不报错**的适配函数，值域数学照抄 `parse_lit_int` 的 `phys_max` / `min_limit` / `max_limit`（含 `bit_mode` 非十进制分支），超范围只 `return 0`：
-
-       static int int_value_fits(__int128 val, int bit_mode, TypeSpec *ts);
-
-   字面量侧从 `LitExpr` 的 `ival_128` / `bit_mode` 取值（**必须在 `parser_visit_expr` 之前取**——`len` 与 `ival` 是 `parse_lit_int` 在解析过程中才算出来的，解析前是脏值，因此不能用 `expr_to_literal`）；具名常量侧从 `((VarSymbol *)sym)->lit` 的 `sign` / `ival` 还原数值。两条通道共用这一个判定，`include/parser/literal_as_expected.h` 那 435 行既不用复制也不用改。
-
-2. 两条通道都加上适配前置条件，并去掉 uint64 特例（字面量通道放宽到任意 `TYPE_INT` 的 lhs；具名常量通道删掉 `!type_is_uint64(lhs->ts)`）：
-
-       rhs->ctx = EXPR_CTX_LOAD;
-       if (rhs->kind == EXPR_LITERAL_KIND && ((LitExpr *)rhs)->which == LIT_EXPR_INT
-           && lhs->ts && lhs->ts->kind == TYPE_INT
-           && (int_value_fits(((LitExpr *)rhs)->ival_128, ((LitExpr *)rhs)->bit_mode, lhs->ts)
-               || type_is_uint64(lhs->ts))) {
-           // 末项保留：超 uint64 即超一切整型，仍按原样报错，不丢精确诊断
-           rhs->expected = lhs->ts;
-       }
-       parser_visit_expr(ps, rhs);
-
-       if (!lhs->ts || !rhs->ts) return;
-
-       if (rhs->kind == EXPR_ID_KIND && rhs->sym && (rhs->sym->flags & SYM_FLAGS_CONST)
-           && lhs->ts->kind == TYPE_INT
-           && int_value_fits(const_lit_value((VarSymbol *)rhs->sym), 0, lhs->ts)) {
-           rhs->expected = lhs->ts;
-           parser_visit_expr(ps, rhs);   // 重解析
-       }
-
-   结构上仍是两段（具名常量必须先解析一次才拿得到 `rhs->sym`），但两条通道现在**判定条件一致、都不含 uint64 特例**。加了适配前置后，`check_literal_as_expected` 在二元路径上必然返回 1，§17.3 的连带误报随之消失。
-
-3. 行为变化与需补的用例：
-
-| 表达式 | 现状 | 修法后 |
-| --- | --- | --- |
-| `x + UINT8_MAX`（x uint64） | 孤岛报错 | **合法**，结果 `uint` |
-| `x + 255`（x uint64） | 合法，`uint` | 不变 |
-| `x + INT8_MIN`（x uint64） | 孤岛报错 | 仍报错（-128 不适配 uint64 → 回退 → 孤岛），但诊断按修法一改善 |
-| `n + INT16_MAX`（n int8） | 常量越界误报 | **合法**，结果 `int` |
-| `n + 32767`（n int8） | 合法，`int` | 不变 |
-| `u + 100`（u uint8） | 合法，结果 `int` | **结果变 `uint64`** |
-| `u + UINT8_MAX`（u uint8） | 合法，结果 `uint64` | 不变 |
-
-   倒数第二行是**唯一的语义变化**，而它修的正是现状的自相矛盾：今天 `u + 100` 得 `int`，`u + UINT8_MAX`（255，同一量级）得 `uint64`——字面量与具名常量两种写法结果类型不同。修法三让两者对齐到"常量适配 lhs 类型即按 lhs 的符号性参与提升"。**这一行需作者确认后再实施**：若倾向保守，可只做具名常量通道（删 `!type_is_uint64` + 加适配前置），字面量通道保持仅 uint64，代价是上表最后两行的不一致继续存在。
-
-   范围限定：只在 lhs 是 `TYPE_INT` 时传播，float 与 int/float 混算路径不动。
-
-**验证方式**：改完跑 `./test-debug.sh`。修法一、二不影响任何行为，应直接全绿；修法三只可能消除报错，唯一可能改变结果类型的是 `窄无符号 + 适配字面量`——已核对 `test-ut` 的八个整型宽度专档，其中窄类型的字面量运算全部走函数实参路径（实参通道 `:597-616` 本就对字面量与具名常量一视同仁、且不排除 uint64，正是 `test_u64_add_u8(UINT64_MAX, UINT8_MAX)` 能通过的原因），故不受影响；其余测试目录未逐一核对，实施时需全量复验。另按上表七行各补一个用例进 `test_uint64.kl` / `test_int8.kl` / `test_uint8.kl`。
+The literal channel stays as it is. The result type now comes from the declaration, so `u + 100` and
+`u + UINT8_MAX` with `u uint8` are both `int64`, and the earlier difference between them is gone.
+When this is fixed, move those two cases from `test_number_errors.kl` to
+`test-run/test_int_mix.kl`.
 
 ---
 

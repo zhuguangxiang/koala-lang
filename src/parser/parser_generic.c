@@ -282,9 +282,6 @@ static Symbol *generic_ref_origin_sym(TypeSpec *ts, ParserModule *pm)
     return sym;
 }
 
-/* Forward declaration, defined just below. */
-static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps);
-
 /*
  * Searches 'bases' for a type whose origin matches 'origin' and returns the
  * type arguments of it. The returned vector is borrowed from the symbol
@@ -308,7 +305,7 @@ static Vector *find_matched_tp_args_in_bases(Symbol *origin, Vector *bases, Pars
  * correspond to the 'origin' class/trait. The returned vector is borrowed
  * from the symbol table, do not free it.
  */
-static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps)
+Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps)
 {
     if (!arg_ts) return NULL;
 
@@ -564,10 +561,317 @@ TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args, HashMap *stbl, Par
     } else if (ts->kind == TYPE_OPTIONAL) {
         TypeSpec *inst_inner = type_spec_specialize(ts->opt.src, tp_args, stbl, pm);
         arg_ts = optional_type_spec_intern(inst_inner);
+    } else if (ts->kind == TYPE_VA_LIST) {
+        TypeSpec *inst_src = type_spec_specialize(ts->va_list.src, tp_args, stbl, pm);
+        arg_ts = va_list_type_spec_intern(inst_src);
+    } else if (ts->kind == TYPE_UNION) {
+        Vector *inst_args = vector_create_ptr();
+        TypeSpec *_arg_ts;
+        vector_foreach(_arg_ts, ts->union_type.args) {
+            TypeSpec *inst_arg = type_spec_specialize(_arg_ts, tp_args, stbl, pm);
+            vector_push_back(inst_args, &inst_arg);
+        }
+        arg_ts = union_type_spec_intern(inst_args);
     } else {
         arg_ts = ts;
     }
     return arg_ts;
+}
+
+static int union_has_exact_member(TypeSpec *union_ts, TypeSpec *ts)
+{
+    TypeSpec *member;
+    vector_foreach(member, union_ts->union_type.args) {
+        if (type_spec_equal_exact(member, ts)) return 1;
+    }
+
+    return 0;
+}
+
+/*
+ * A class parameter that is a union is valid when it takes everything the trait's parameter
+ * declares:
+ *
+ *     trait Collection[T] { func __contains__(item T) bool }
+ *
+ *     class bytes : Collection[uint8] {
+ *         pub func __contains__(value uint8 | bytes) bool {}    // ok, it takes a uint8
+ *     }
+ *
+ *     trait P { func f(x int | str) }
+ *
+ *     class A : P { pub func f(x int | str | bool) {} }         // ok, it takes both members
+ *     class B : P { pub func f(x int | bool) {} }               // error, it does not take a str
+ */
+static int union_param_takes_trait_param(TypeSpec *union_ts, TypeSpec *trait_ts)
+{
+    if (trait_ts->kind != TYPE_UNION) return union_has_exact_member(union_ts, trait_ts);
+
+    TypeSpec *member;
+    vector_foreach(member, trait_ts->union_type.args) {
+        if (!union_has_exact_member(union_ts, member)) return 0;
+    }
+
+    return 1;
+}
+
+static int intf_param_matches(TypeSpec *expected, TypeSpec *actual)
+{
+    if (actual->kind == TYPE_UNION) return union_param_takes_trait_param(actual, expected);
+
+    return type_spec_equal_exact(expected, actual);
+}
+
+static void intf_param_error(FuncSymbol *fn, KlassSymbol *trait, int index, TypeSpec *expected,
+                             ParserState *ps)
+{
+    ArgInfo *arg = vector_get(fn->params, index);
+
+    BUF(expected_buf);
+    type_spec_print(expected, &expected_buf);
+    BUF(actual_buf);
+    type_spec_print(arg->ts, &actual_buf);
+
+    kl_error(fn->loc,
+             "method '%s' does not match trait '%s': parameter %d expected '%s', but got '%s'.",
+             fn->name, trait->name, index + 1, BUF_STR(expected_buf), BUF_STR(actual_buf));
+
+    FINI_BUF(expected_buf);
+    FINI_BUF(actual_buf);
+}
+
+static void intf_return_error(FuncSymbol *fn, KlassSymbol *trait, TypeSpec *expected,
+                              ParserState *ps)
+{
+    BUF(expected_buf);
+    type_spec_print(expected, &expected_buf);
+    BUF(actual_buf);
+    type_spec_print(fn->ret, &actual_buf);
+
+    kl_error(fn->loc,
+             "method '%s' does not match trait '%s': return type expected '%s', but got '%s'.",
+             fn->name, trait->name, BUF_STR(expected_buf), BUF_STR(actual_buf));
+
+    FINI_BUF(expected_buf);
+    FINI_BUF(actual_buf);
+}
+
+/*
+ * Check a class method against the trait method it implements. Parameters and the return type are
+ * invariant, with `T` bound to the type argument of the class:
+ *
+ *     trait Iterable[T] { func iter(step = 1) Iterator[T] }
+ *
+ *     class Ok : Iterable[uint8] {
+ *         pub func iter(step = 1) Iterator[uint8] { ... }
+ *     }
+ *
+ *     class Wrong : Iterable[uint8] {
+ *         pub func iter(step = 1) Iterator[int] { ... }    // error: return type
+ *     }
+ */
+static void check_intf_method(KlassSymbol *kls, KlassSymbol *trait, FuncSymbol *trait_fn,
+                              Symbol *method, Vector *tp_args, ParserState *ps)
+{
+    /* the trait's own default, or a method the class does not implement */
+    if (method->kind == SYM_INHERITED || method == (Symbol *)trait_fn) return;
+
+    if (method->kind != SYM_FUNC) {
+        kl_error(method->loc,
+                 "'%s' of class '%s' is not a method, but trait '%s' declares it as one.",
+                 method->name, kls->name, trait->name);
+        return;
+    }
+
+    FuncSymbol *fn = (FuncSymbol *)method;
+
+    if (fn->flags & SYM_FLAGS_STATIC) {
+        kl_error(fn->loc, "method '%s' does not match trait '%s': it must not be static.", fn->name,
+                 trait->name);
+        return;
+    }
+
+    /* an `infer` type parameter is deduced by the compiler, not declared by the trait */
+    if (!vector_empty(&trait_fn->tps) || !vector_empty(&fn->tps)) return;
+
+    int size = vector_size(trait_fn->params);
+    if (size != vector_size(fn->params)) {
+        kl_error(fn->loc,
+                 "method '%s' does not match trait '%s': expected %d parameters, but got %d.",
+                 fn->name, trait->name, size, vector_size(fn->params));
+        return;
+    }
+
+    HashMap *stbl = ps->pm->stbl;
+
+    for (int i = 0; i < size; i++) {
+        ArgInfo *trait_arg = vector_get(trait_fn->params, i);
+        ArgInfo *arg = vector_get(fn->params, i);
+
+        TypeSpec *expected = type_spec_specialize(trait_arg->ts, tp_args, stbl, ps->pm);
+        if (!intf_param_matches(expected, arg->ts)) {
+            intf_param_error(fn, trait, i, expected, ps);
+        }
+    }
+
+    TypeSpec *expected_ret = type_spec_specialize(trait_fn->ret, tp_args, stbl, ps->pm);
+    if (!type_spec_equal_exact(expected_ret, fn->ret)) {
+        intf_return_error(fn, trait, expected_ret, ps);
+    }
+}
+
+/*
+ * Walk one entry of a class's interface table. An inherited slot is skipped: the trait that
+ * declares it has its own entry, which reports the mismatch once.
+ */
+static void check_intf_entry(KlassSymbol *kls, IntfEntry *entry, ParserState *ps)
+{
+    KlassSymbol *trait = (KlassSymbol *)entry->trait;
+
+    Vector *tp_args = find_matched_tp_args(entry->trait, kls->instance_ts, ps);
+    if (!vector_empty(&trait->tps) && !tp_args) return;
+
+    int size = vector_size(trait->funcs);
+    for (int i = 0; i < size; i++) {
+        Symbol *slot = vector_get(trait->funcs, i);
+        if (slot->kind == SYM_INHERITED) continue;
+
+        Symbol *method = vector_get(&entry->methods, i);
+        check_intf_method(kls, trait, (FuncSymbol *)slot, method, tp_args, ps);
+    }
+}
+
+static TypeSpec *find_generic_trait(Vector *seen, Symbol *origin)
+{
+    TypeSpec *ts;
+    vector_foreach(ts, seen) {
+        InstanceSymbol *inst = (InstanceSymbol *)get_symbol_by_id(ts->sym_id);
+        if ((Symbol *)inst->origin == origin) return ts;
+    }
+
+    return NULL;
+}
+
+/* Print an instance as it is written, `G[list[int64]]`, not by its signature `G<...>`. */
+static void generic_trait_print(TypeSpec *ts, Buffer *buf)
+{
+    Symbol *sym = NULL;
+    if (ts->sym_id >= 0) sym = get_symbol_by_id(ts->sym_id);
+
+    if (!sym || sym->kind != SYM_INSTANCE) {
+        type_spec_print(ts, buf);
+        return;
+    }
+
+    InstanceSymbol *inst = (InstanceSymbol *)sym;
+    buf_write_str(buf, inst->origin->name);
+    buf_write_char(buf, '[');
+
+    TypeSpec *arg;
+    vector_foreach(arg, inst->tp_args) {
+        if (i__ > 0) buf_write_str(buf, ", ");
+        generic_trait_print(arg, buf);
+    }
+
+    buf_write_char(buf, ']');
+}
+
+/*
+ * A class implements a generic trait with one list of type arguments, directly or through another
+ * trait. The same list reached twice is the same trait:
+ *
+ *     trait G[T] { func g(x T) int }
+ *     trait L[T] : G[T] {}
+ *     trait R[T] : G[T] {}
+ *
+ *     class Ok : L[int] & R[int] {}          // ok, G[int] twice
+ *     class Twice : G[int] & G[str] {}       // error
+ *     class Inherited : L[int] & G[str] {}   // error
+ */
+static void check_generic_traits_once(KlassSymbol *kls, Vector *bases, Vector *seen,
+                                      ParserState *ps)
+{
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, bases) {
+        if (!base_ts) continue;
+
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        if (!base_sym) continue;
+        if (base_sym->kind == SYM_IMPORTED) base_sym = ((ImportedSymbol *)base_sym)->origin;
+
+        if (base_sym->kind != SYM_INSTANCE) {
+            check_generic_traits_once(kls, &((KlassSymbol *)base_sym)->bases, seen, ps);
+            continue;
+        }
+
+        InstanceSymbol *inst = (InstanceSymbol *)base_sym;
+        TypeSpec *other_ts = find_generic_trait(seen, (Symbol *)inst->origin);
+        if (!other_ts) {
+            vector_push_back(seen, &base_ts);
+        } else if (get_symbol_by_id(other_ts->sym_id) != base_sym) {
+            BUF(first_buf);
+            generic_trait_print(other_ts, &first_buf);
+            BUF(second_buf);
+            generic_trait_print(base_ts, &second_buf);
+
+            kl_error(kls->loc,
+                     "class '%s' implements trait '%s' with different type arguments: '%s' and '%s'.",
+                     kls->name, inst->origin->name, BUF_STR(first_buf), BUF_STR(second_buf));
+
+            FINI_BUF(first_buf);
+            FINI_BUF(second_buf);
+        }
+
+        if (inst->bases) check_generic_traits_once(kls, inst->bases, seen, ps);
+    }
+}
+
+static int cmp_symbol_by_id(const void *a, const void *b)
+{
+    Symbol **sym1 = (Symbol **)a;
+    Symbol **sym2 = (Symbol **)b;
+    return (*sym1)->id - (*sym2)->id;
+}
+
+int check_intf_methods(ParserModule *pm)
+{
+    /* binding a type argument can add instances to the symbol table, so walk a copy */
+    Vector classes = VECTOR_INIT_PTR;
+
+    HashMapIter it;
+    hashmap_iter_init(pm->stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = (Symbol *)hashmap_iter_entry(&it);
+        if (sym->kind == SYM_CLASS) vector_push_back(&classes, &sym);
+    }
+
+    /* report in the order of the declarations */
+    vector_sort(&classes, cmp_symbol_by_id);
+
+    int errors = 0;
+
+    KlassSymbol *kls;
+    vector_foreach(kls, &classes) {
+        ParserState *ps = kls->ps;
+        int errors_before = ps->errors;
+
+        Vector seen = VECTOR_INIT_PTR;
+        check_generic_traits_once(kls, &kls->bases, &seen, ps);
+        vector_fini(&seen);
+
+        /* one interface table entry cannot stand for two lists of type arguments */
+        if (ps->errors == errors_before) {
+            IntfEntry *entry;
+            vector_foreach(entry, &kls->intf_table) {
+                check_intf_entry(kls, entry, ps);
+            }
+        }
+
+        errors += ps->errors - errors_before;
+    }
+
+    vector_fini(&classes);
+    return errors;
 }
 
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,

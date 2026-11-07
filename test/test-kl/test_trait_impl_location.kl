@@ -1,0 +1,27 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// An error points to the declaration in the source, not to 0:0.
+
+trait Wrong { func w(x int) int }
+
+class Bad : Wrong {
+    var a = 1
+
+    pub func w(x str) int { return 1 }
+}
+// CHECK: test_trait_impl_location.kl:10:14:{{.*}}method 'w' does not match trait 'Wrong'
+
+trait G[T] { func g(x T) int }
+
+class Twice : G[int] & G[str] {}
+// CHECK-NEXT: test_trait_impl_location.kl:16:7:{{.*}}class 'Twice' implements trait 'G' with different
+
+class Field : Sized {
+    var len int = 0
+}
+// CHECK-NEXT: test_trait_impl_location.kl:20:9:{{.*}}'len' of class 'Field' is not a method
+
+// The default methods take the type argument of Equatable, so they are not reported.
+class Age : Comparable[int] {}
+
+// CHECK-NOT: :0:0:

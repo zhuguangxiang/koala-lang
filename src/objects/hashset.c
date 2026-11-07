@@ -743,9 +743,6 @@ static MethodDef hashset_methods[] = {
     { "__bitor__", _hashset_bitor },
     { "__bitand__", _hashset_bitand },
     { "__sub__", _hashset_sub },
-    { "union", _hashset_bitor },
-    { "intersect", _hashset_bitand },
-    { "diff", _hashset_sub },
     { "sym_diff", _hashset_sym_diff },
     { NULL },
 };
