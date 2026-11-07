@@ -68,6 +68,7 @@ From these principles follow a number of advanced features that most languages d
 - [Functions](#functions)
 - [Classes and Interfaces](#classes-and-interfaces)
 - [Generics](#generics)
+  - [Generic Methods](#generic-methods)
   - [Instantiating Generic Functions](#instantiating-generic-functions)
 - [Operator Overloading](#operator-overloading)
 - [Error Handling](#error-handling)
@@ -1037,6 +1038,36 @@ let empty list[int] = list[int]()
 
 Note the asymmetry for parameter types: a bare trait name is not a valid parameter type —
 concrete trait instances such as `Arithmetic[int]` must be spelled out there.
+
+### Generic Methods
+
+A method may declare type parameters of its own, in a plain class or a generic class, static or
+not, with bounds like a function's. Its type arguments are inferred from the call or written out:
+
+```kl
+class Box {
+    func pass[T](x T) T { return x }
+    func same[T : Equatable](a T, b T) bool { return a == b }
+    static func make[T](x T) T { return x }
+}
+
+class Cell[T] {
+    let value T
+    func __init__(v T) { value = v }
+    func pair[U](u U) (T, U) { return (value, u) }
+}
+
+let b = Box()
+b.pass(1)               // T inferred as int
+b.pass[str]("koala")    // T written out
+Box.make[int](7)
+Cell(5).pair("x")       // (5, "x"): T is the class's, U is the method's
+Cell[int](5).pair[str]("x")
+```
+
+This works the same for a class imported from another package. Generic methods always use type
+erasure, and a call is never routed to a specialized function (see below): a top-level function
+named `pass_int64` is not taken for `b.pass(1)`.
 
 ### Instantiating Generic Functions
 

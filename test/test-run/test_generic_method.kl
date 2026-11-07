@@ -1,0 +1,84 @@
+// RUN: koala %s | filecheck %s
+// Generic methods: methods with type parameters of their own, in a plain class and in a
+// generic class. test_ext_generic_method.kl runs the same forms from another package.
+
+class Box {
+    func __init__() {}
+
+    func pass[T](x T) T { return x }
+
+    func same[T : Equatable](a T, b T) bool { return a == b }
+
+    func wrap[T](x T) list[T] {
+        let l = list[T]()
+        l.append(x)
+        return l
+    }
+
+    // A generic method calling generic methods through self.
+    func twice[T](x T) list[T] {
+        let l = wrap(x)
+        l.append(pass(x))
+        return l
+    }
+
+    static func make[T](x T) T { return x }
+}
+
+class Cell[T] {
+    let _value T
+
+    func __init__(value T) { _value = value }
+
+    func pair[U](u U) (T, U) { return (_value, u) }
+}
+
+// A method of the same name in another class: its own instance.
+class Bag {
+    func __init__() {}
+
+    func pass[T](x T) list[T] {
+        let l = list[T]()
+        l.append(x)
+        return l
+    }
+}
+
+// Same name as a method: unrelated to it.
+func pass(x int) int { return x + 1 }
+
+// The mangled name of `pass` at int: a call of the method must not be routed here.
+func pass_int64(x int) int { return x + 100 }
+
+func main() {
+    let b = Box()
+    print(b.pass(1), b.pass("koala"))
+    print(b.same(3, 3), b.same("a", "b"))
+    print(b.wrap(3).len(), b.twice("k").len())
+    print(Box.make(7))
+    print(pass(1))
+
+    let p = Cell[int](5).pair("x")
+    print(p[0], p[1])
+
+    // Type args written out or inferred, for methods and for the constructor.
+    print(b.pass[int](1), b.pass[str]("s"))
+    print(Box.make[int](7))
+    print(b.wrap[str]("w")[0])
+    print(Bag().pass(1).len(), Bag().pass[int](1).len())
+    let c = Cell(5)
+    let d = Cell[int](6)
+    print(c.pair[str]("x")[0], c.pair("y")[1], d.pair[str]("z")[0])
+}
+
+// CHECK: 1 koala
+// CHECK-NEXT: true false
+// CHECK-NEXT: 1 2
+// CHECK-NEXT: 7
+// CHECK-NEXT: 2
+// CHECK-NEXT: 5 x
+// CHECK-NEXT: 1 s
+// CHECK-NEXT: 7
+// CHECK-NEXT: w
+// CHECK-NEXT: 1 1
+// CHECK-NEXT: 5 y 6

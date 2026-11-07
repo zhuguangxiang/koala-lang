@@ -1,0 +1,270 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// One argument a `Parser` knows: an option such as `--output`, or a
+/// positional such as `dir`.
+///
+/// Each kind of value is its own class: `Flag`, `StrOption`,
+/// `IntOption` and `Positional`. Declare one, hand it to
+/// `Parser.add`, and read its `value()` after the parse.
+pub trait Arg {
+    /// Long name of an option (`output` for `--output`), or the name of
+    /// a positional.
+    func name() str
+
+    /// One-letter short name of an option (`o` for `-o`), or "" when it
+    /// has none.
+    func short() str
+
+    /// Help text shown next to the argument.
+    func help() str
+
+    /// True for a positional argument.
+    func is_positional() bool
+
+    /// True when the option takes a value; a flag takes none.
+    func takes_value() bool
+
+    /// True when a parse must see this argument.
+    func is_required() bool
+
+    /// The default shown in help, or nil when there is none.
+    func default_text() str?
+
+    /// Forget the value of an earlier parse.
+    func reset()
+
+    /// Take `text` as the value. A flag gets "". Returns an error
+    /// message when `text` is not a valid value.
+    func accept(text str) str?
+
+    /// Whether the argument appeared in the parsed command line.
+    func is_seen() bool
+}
+
+/// An option without a value, e.g. `-v` / `--verbose`. Its value is
+/// true when it appears.
+pub class Flag : Arg {
+    let _name str
+    var _short str = ""
+    var _help str = ""
+    var _value bool = false
+
+    pub func __init__(name str) {
+        _name = name
+    }
+
+    /// Set the one-letter short name.
+    pub func set_short(letter str) Flag {
+        _short = letter
+        return self
+    }
+
+    /// Set the help text.
+    pub func set_help(text str) Flag {
+        _help = text
+        return self
+    }
+
+    /// Whether the flag appeared.
+    pub func value() bool { return _value }
+
+    pub func name() str { return _name }
+    pub func short() str { return _short }
+    pub func help() str { return _help }
+    pub func is_positional() bool { return false }
+    pub func takes_value() bool { return false }
+    pub func is_required() bool { return false }
+    pub func default_text() str? { return nil }
+    pub func reset() { _value = false }
+    pub func is_seen() bool { return _value }
+
+    pub func accept(text str) str? {
+        _value = true
+        return nil
+    }
+}
+
+/// An option with a string value, e.g. `-o dir` / `--output=dir`.
+pub class StrOption : Arg {
+    let _name str
+    var _short str = ""
+    var _help str = ""
+    var _default str? = nil
+    var _required bool = false
+    var _value str? = nil
+
+    pub func __init__(name str) {
+        _name = name
+    }
+
+    /// Set the one-letter short name.
+    pub func set_short(letter str) StrOption {
+        _short = letter
+        return self
+    }
+
+    /// Set the help text.
+    pub func set_help(text str) StrOption {
+        _help = text
+        return self
+    }
+
+    /// Set the value used when the option does not appear.
+    pub func set_default(value str) StrOption {
+        _default = value
+        return self
+    }
+
+    /// Make the option mandatory.
+    pub func set_required() StrOption {
+        _required = true
+        return self
+    }
+
+    /// The given value, else the default, else nil.
+    pub func value() str? { return _value ?? _default }
+
+    pub func name() str { return _name }
+    pub func short() str { return _short }
+    pub func help() str { return _help }
+    pub func is_positional() bool { return false }
+    pub func takes_value() bool { return true }
+    pub func is_required() bool { return _required }
+    pub func default_text() str? { return _default }
+    pub func reset() { _value = nil }
+    pub func is_seen() bool { return _value != nil }
+
+    pub func accept(text str) str? {
+        _value = text
+        return nil
+    }
+}
+
+/// An option with an integer value, e.g. `-j 4` / `--jobs=4`.
+pub class IntOption : Arg {
+    let _name str
+    var _short str = ""
+    var _help str = ""
+    var _default int? = nil
+    var _required bool = false
+    var _value int? = nil
+
+    pub func __init__(name str) {
+        _name = name
+    }
+
+    /// Set the one-letter short name.
+    pub func set_short(letter str) IntOption {
+        _short = letter
+        return self
+    }
+
+    /// Set the help text.
+    pub func set_help(text str) IntOption {
+        _help = text
+        return self
+    }
+
+    /// Set the value used when the option does not appear.
+    pub func set_default(value int) IntOption {
+        _default = value
+        return self
+    }
+
+    /// Make the option mandatory.
+    pub func set_required() IntOption {
+        _required = true
+        return self
+    }
+
+    /// The given value, else the default, else nil.
+    pub func value() int? { return _value ?? _default }
+
+    pub func name() str { return _name }
+    pub func short() str { return _short }
+    pub func help() str { return _help }
+    pub func is_positional() bool { return false }
+    pub func takes_value() bool { return true }
+    pub func is_required() bool { return _required }
+    pub func reset() { _value = nil }
+    pub func is_seen() bool { return _value != nil }
+
+    pub func default_text() str? {
+        if let d = _default { return str(d) }
+        return nil
+    }
+
+    pub func accept(text str) str? {
+        if !_is_decimal(text) { return "invalid int value: '" + text + "'" }
+        _value = text.to_int()
+        return nil
+    }
+}
+
+/// A positional argument, e.g. `dir` in `clean dir`. Positionals are
+/// filled in the order they were added. Required unless
+/// `set_optional` is called.
+pub class Positional : Arg {
+    let _name str
+    var _help str = ""
+    var _required bool = true
+    var _value str? = nil
+
+    pub func __init__(name str) {
+        _name = name
+    }
+
+    /// Set the help text.
+    pub func set_help(text str) Positional {
+        _help = text
+        return self
+    }
+
+    /// Allow the positional to be left out.
+    pub func set_optional() Positional {
+        _required = false
+        return self
+    }
+
+    /// The given value, or nil when it was left out.
+    pub func value() str? { return _value }
+
+    pub func name() str { return _name }
+    pub func short() str { return "" }
+    pub func help() str { return _help }
+    pub func is_positional() bool { return true }
+    pub func takes_value() bool { return true }
+    pub func is_required() bool { return _required }
+    pub func default_text() str? { return nil }
+    pub func reset() { _value = nil }
+    pub func is_seen() bool { return _value != nil }
+
+    pub func accept(text str) str? {
+        _value = text
+        return nil
+    }
+}
+
+// The most digits accepted, so that `to_int` cannot overflow int64.
+const _MAX_DIGITS = 18
+
+// True when `text` is an optional '-' followed by 1 to _MAX_DIGITS
+// decimal digits.
+func _is_decimal(text str) bool {
+    var start = 0
+    if text.starts_with("-") { start = 1 }
+
+    let digits = text.len() - start
+    if digits < 1 || digits > _MAX_DIGITS { return false }
+
+    var i = start
+    while i < text.len() {
+        let c = text.substr(i, i + 1)
+        if "0123456789".index(c) < 0 { return false }
+        i += 1
+    }
+    return true
+}

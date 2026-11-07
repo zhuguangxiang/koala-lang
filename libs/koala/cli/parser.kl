@@ -1,0 +1,356 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/sys"
+
+/// Why a command line was rejected.
+pub class ParseError {
+    let _message str
+
+    pub func __init__(message str) {
+        _message = message
+    }
+
+    /// The error text, without the program name, e.g.
+    /// `argument -j/--jobs: invalid int value: 'x'`.
+    pub func message() str { return _message }
+}
+
+/// A command-line parser, in the spirit of Python's argparse.
+///
+/// Declare the arguments with `add`, which returns the argument so its
+/// value can be read after the parse:
+///
+///     let app = cli.Parser("tool", "Do a thing")
+///     let verbose = app.add(cli.Flag("verbose").set_short("v"))
+///     let out = app.add(cli.StrOption("output").set_short("o").set_default("."))
+///     app.parse_or_exit(sys.args())
+///     print(verbose.value(), out.value()!)
+///
+/// Accepted forms: `-v`, `-vq`, `-o x`, `-ox`, `--output x`,
+/// `--output=x`, and `--`, after which everything is positional.
+/// `-h` / `--help` is always there and cannot be redeclared.
+pub class Parser {
+    let _prog str
+    let _description str
+    let _args list[Arg]
+    var _help_requested bool = false
+
+    /// `prog` is the program name shown in usage and errors.
+    pub func __init__(prog str, description str = "") {
+        _prog = prog
+        _description = description
+        _args = list[Arg]()
+    }
+
+    /// Declare `arg` and return it. Panics when its name or short name
+    /// is already taken, or is `help` / `h`.
+    pub func add[T : Arg](arg T) T {
+        _check_names(arg)
+        _args.append(arg)
+        return arg
+    }
+
+    /// Whether the last parse saw `-h` / `--help`. Parsing stops there,
+    /// and required arguments are not checked.
+    pub func help_requested() bool { return _help_requested }
+
+    /// Parse `argv`, the arguments without the program name, as
+    /// `sys.args()` returns them. Returns nil on success.
+    pub func parse(argv list[str]) ParseError? {
+        for a in _args { a.reset() }
+        _help_requested = false
+
+        let positionals = list[Arg]()
+        for a in _args {
+            if a.is_positional() { positionals.append(a) }
+        }
+
+        let cursor = _Cursor(argv)
+        var next_positional = 0
+        var only_positional = false
+
+        while let text = cursor.next() {
+            if !only_positional && text == "--" {
+                only_positional = true
+                continue
+            }
+
+            if only_positional || !_is_option_text(text) {
+                if next_positional >= positionals.len() {
+                    return ParseError("unrecognized arguments: " + text)
+                }
+                positionals[next_positional].accept(text)
+                next_positional += 1
+                continue
+            }
+
+            var err ParseError? = nil
+            if text.starts_with("--") {
+                err = _parse_long(text, cursor)
+            } else {
+                err = _parse_short(text, cursor)
+            }
+            if err != nil { return err }
+            if _help_requested { return nil }
+        }
+
+        return _check_required()
+    }
+
+    /// Parse `argv` like `parse`. On `-h` print the help and exit 0; on
+    /// an error print the usage and the error to stderr and exit 2, as
+    /// Python's argparse does.
+    pub func parse_or_exit(argv list[str]) {
+        let err = parse(argv)
+        if let e = err {
+            sys.stderr.write_str(usage() + "\n")
+            sys.stderr.write_str(_prog + ": error: " + e.message() + "\n")
+            sys.stderr.flush()
+            sys.exit(2)
+        }
+        if _help_requested {
+            print(help())
+            sys.exit(0)
+        }
+    }
+
+    /// The one-line usage, e.g. `usage: tool [-h] [-v] [-o OUTPUT] dir`.
+    pub func usage() str {
+        var line = "usage: " + _prog + " [-h]"
+        for a in _args {
+            if !a.is_positional() { line += " " + _usage_part(a) }
+        }
+        for a in _args {
+            if a.is_positional() { line += " " + _usage_part(a) }
+        }
+        return line
+    }
+
+    /// The full help: usage, description, positionals and options.
+    pub func help() str {
+        let lines = list[str]()
+        lines.append(usage())
+
+        if _description.len() > 0 {
+            lines.append("")
+            lines.append(_description)
+        }
+
+        let positionals = list[str]()
+        for a in _args {
+            if a.is_positional() { positionals.append(_help_line(a.name(), _help_text(a))) }
+        }
+        if positionals.len() > 0 {
+            lines.append("")
+            lines.append("positional arguments:")
+            for ln in positionals { lines.append(ln) }
+        }
+
+        lines.append("")
+        lines.append("options:")
+        lines.append(_help_line("-h, --help", "show this help message and exit"))
+        for a in _args {
+            if !a.is_positional() { lines.append(_help_line(_invocation(a), _help_text(a))) }
+        }
+
+        return "\n".join(lines)
+    }
+
+    // `--name`, `--name=value` or `--name value`.
+    func _parse_long(text str, cursor _Cursor) ParseError? {
+        var name = text.substr(2)
+        var inline str? = nil
+        let eq = name.index("=")
+        if eq >= 0 {
+            inline = name.substr(eq + 1)
+            name = name.substr(0, eq)
+        }
+
+        if name == "help" {
+            _help_requested = true
+            return nil
+        }
+
+        let found = _find_long(name)
+        if found == nil { return ParseError("unrecognized arguments: " + text) }
+        let arg = found
+
+        if !arg.takes_value() {
+            if let v = inline {
+                let msg = "ignored explicit argument '" + v + "'"
+                return ParseError("argument " + _display(arg) + ": " + msg)
+            }
+            return _accept(arg, "")
+        }
+
+        // Only take the next argument when there is no inline value.
+        var value = inline
+        if value == nil { value = cursor.next() }
+        if value == nil {
+            return ParseError("argument " + _display(arg) + ": expected one argument")
+        }
+        return _accept(arg, value)
+    }
+
+    // A cluster of short options: `-v`, `-vq`, `-o x` or `-ox`. A
+    // value-taking option ends the cluster: the rest of `text`, or else
+    // the next argument, is its value.
+    func _parse_short(text str, cursor _Cursor) ParseError? {
+        var i = 1
+        while i < text.len() {
+            let letter = text.substr(i, i + 1)
+            if letter == "h" {
+                _help_requested = true
+                return nil
+            }
+
+            let found = _find_short(letter)
+            if found == nil { return ParseError("unrecognized arguments: " + text) }
+            let arg = found
+
+            if !arg.takes_value() {
+                let err = _accept(arg, "")
+                if err != nil { return err }
+                i += 1
+                continue
+            }
+
+            let rest = text.substr(i + 1)
+            var value str? = rest
+            if rest.len() == 0 { value = cursor.next() }
+            if value == nil {
+                return ParseError("argument " + _display(arg) + ": expected one argument")
+            }
+            return _accept(arg, value)
+        }
+        return nil
+    }
+
+    // Hand `text` to `arg`, turning its complaint into a ParseError.
+    func _accept(arg Arg, text str) ParseError? {
+        let msg = arg.accept(text)
+        if msg == nil { return nil }
+        return ParseError("argument " + _display(arg) + ": " + msg)
+    }
+
+    func _check_required() ParseError? {
+        let missing = list[str]()
+        for a in _args {
+            if a.is_required() && !a.is_seen() { missing.append(_display(a)) }
+        }
+        if missing.len() == 0 { return nil }
+        return ParseError("the following arguments are required: " + ", ".join(missing))
+    }
+
+    func _check_names(arg Arg) {
+        let name = arg.name()
+        let letter = arg.short()
+        if name.len() == 0 { panic("cli: argument with an empty name") }
+        if name == "help" || letter == "h" { panic("cli: -h/--help is reserved") }
+        if letter.len() > 1 { panic("cli: short name '" + letter + "' is not one letter") }
+
+        for a in _args {
+            if a.name() == name { panic("cli: argument '" + name + "' declared twice") }
+            if letter.len() > 0 && a.short() == letter {
+                panic("cli: short name '-" + letter + "' declared twice")
+            }
+        }
+    }
+
+    func _find_long(name str) Arg? {
+        for a in _args {
+            if !a.is_positional() && a.name() == name { return a }
+        }
+        return nil
+    }
+
+    func _find_short(letter str) Arg? {
+        for a in _args {
+            if !a.is_positional() && a.short() == letter { return a }
+        }
+        return nil
+    }
+}
+
+// Reads the command line one argument at a time.
+class _Cursor {
+    let _argv list[str]
+    var _pos int = 0
+
+    func __init__(argv list[str]) {
+        _argv = argv
+    }
+
+    // The next argument, or nil at the end.
+    func next() str? {
+        if _pos >= _argv.len() { return nil }
+        let text = _argv[_pos]
+        _pos += 1
+        return text
+    }
+}
+
+// The column where help text starts, as in Python's argparse.
+const _HELP_COLUMN = 24
+
+// True when `text` looks like an option. A lone "-" is a positional,
+// conventionally meaning stdin.
+func _is_option_text(text str) bool {
+    return text.starts_with("-") && text.len() > 1
+}
+
+// The option's value placeholder in help, e.g. `OUTPUT` for --output.
+func _metavar(arg Arg) str {
+    return arg.name().upper().replace("-", "_")
+}
+
+// How errors name an argument: `-o/--output`, `--output` or `dir`.
+func _display(arg Arg) str {
+    if arg.is_positional() { return arg.name() }
+    if arg.short().len() > 0 { return "-" + arg.short() + "/--" + arg.name() }
+    return "--" + arg.name()
+}
+
+// How help lists an option: `-o, --output OUTPUT` or `-v, --verbose`.
+func _invocation(arg Arg) str {
+    var text = "--" + arg.name()
+    if arg.short().len() > 0 { text = "-" + arg.short() + ", " + text }
+    if arg.takes_value() { text += " " + _metavar(arg) }
+    return text
+}
+
+// How usage shows an argument: `[-v]`, `[-o OUTPUT]`, `-o OUTPUT`,
+// `dir` or `[dir]`.
+func _usage_part(arg Arg) str {
+    var text = arg.name()
+    if !arg.is_positional() {
+        var flag = "--" + arg.name()
+        if arg.short().len() > 0 { flag = "-" + arg.short() }
+        text = flag
+        if arg.takes_value() { text += " " + _metavar(arg) }
+    }
+    if arg.is_required() { return text }
+    return "[" + text + "]"
+}
+
+// The help text plus the default, when there is one.
+func _help_text(arg Arg) str {
+    let d = arg.default_text()
+    if d == nil { return arg.help() }
+
+    let note = "(default: " + d + ")"
+    if arg.help().len() == 0 { return note }
+    return arg.help() + " " + note
+}
+
+// One help entry: the invocation, then the text from _HELP_COLUMN, or
+// on the next line when the invocation is too wide.
+func _help_line(invocation str, text str) str {
+    let head = "  " + invocation
+    if text.len() == 0 { return head }
+    if head.len() < _HELP_COLUMN - 1 { return head.ljust(_HELP_COLUMN) + text }
+    return head + "\n" + "".ljust(_HELP_COLUMN) + text
+}

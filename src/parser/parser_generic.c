@@ -882,8 +882,28 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
     // concrete instantiation, so never routed to a specialized func: always the erased instance.
     // Keyed by the type-name form 'f<...>', which no declared func name can match.
     int generic = tps_are_generic(tp_args);
-    char *mangled_name =
-        generic ? mangle_type_name(origin->name, tp_args) : mangle_func_name(origin->name, tp_args);
+
+    // A method has no specialized func, and its instance is keyed by its class too, e.g.
+    // 'Box.pass<int64>': by 'pass_int64' it would be a top-level func of that name, or the
+    // instance of a method of the same name in another class.
+    Symbol *parent = origin->parent;
+    int is_method = parent && (parent->kind == SYM_CLASS || parent->kind == SYM_INSTANCE ||
+                               parent->kind == SYM_TRAIT);
+
+    char *mangled_name;
+    if (is_method) {
+        BUF(qualified);
+        buf_write_str(&qualified, parent->name);
+        buf_write_char(&qualified, '.');
+        buf_write_str(&qualified, origin->name);
+        mangled_name = mangle_type_name(BUF_STR(qualified), tp_args);
+        FINI_BUF(qualified);
+    } else if (generic) {
+        mangled_name = mangle_type_name(origin->name, tp_args);
+    } else {
+        mangled_name = mangle_func_name(origin->name, tp_args);
+    }
+
     Symbol *sym = stbl_get(stbl, mangled_name);
     if (sym) {
         log_info("found existing func instance symbol '%s'", mangled_name);
@@ -891,7 +911,7 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
         return sym;
     }
 
-    if (!generic && (origin->flags & SYM_FLAGS_EXT)) {
+    if (!generic && !is_method && (origin->flags & SYM_FLAGS_EXT)) {
         // try to find mangled_name function from external library
         sym = find_ext_symbol(ps, origin->path, mangled_name);
         if (sym) {

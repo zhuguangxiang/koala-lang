@@ -1,0 +1,283 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/time"
+import "std/ut"
+import "koala/uuid"
+
+// The UUID every accessor test inspects: version 4, RFC 4122 variant.
+// The expected values below were produced by Python 3.14's uuid module.
+const SAMPLE = "d4ecc5a3-2665-4046-baf7-1ea19d9fddf6"
+
+func sample() uuid.UUID {
+    return uuid.UUID(SAMPLE)
+}
+
+// ============================================================
+// Parsing
+// ============================================================
+
+@test
+func test_parse_shapes() {
+    let want = sample()
+    // canonical form
+    ut.assert(uuid.UUID(SAMPLE) == want)
+    // 32 bare hex digits
+    ut.assert(uuid.UUID("d4ecc5a326654046baf71ea19d9fddf6") == want)
+    // urn prefix
+    ut.assert(uuid.UUID("urn:uuid:" + SAMPLE) == want)
+    // braces
+    ut.assert(uuid.UUID("{" + SAMPLE + "}") == want)
+    // uppercase input
+    ut.assert(uuid.UUID("D4ECC5A3-2665-4046-BAF7-1EA19D9FDDF6") == want)
+    // explicit entry points
+    ut.assert(uuid.UUID.parse(SAMPLE) == want)
+    ut.assert(uuid.UUID.from_hex("d4ecc5a326654046baf71ea19d9fddf6") == want)
+    ut.assert(uuid.UUID.from_bytes(bytes.from_hex("d4ecc5a326654046baf71ea19d9fddf6")) == want)
+}
+
+@test
+func test_try_parse() {
+    ut.assert(uuid.UUID.try_parse(SAMPLE) != nil)
+    ut.assert(uuid.UUID.try_parse("not-a-uuid") == nil)
+    ut.assert(uuid.UUID.try_parse("") == nil)
+    // 31 digits: one short
+    ut.assert(uuid.UUID.try_parse("d4ecc5a326654046baf71ea19d9fddf") == nil)
+    // 33 digits: one long
+    ut.assert(uuid.UUID.try_parse("d4ecc5a326654046baf71ea19d9fddf66") == nil)
+    // right length, non-hex digit
+    ut.assert(uuid.UUID.try_parse("d4ecc5a326654046baf71ea19d9fddfz") == nil)
+}
+
+@should_panic("uuid: invalid UUID string: 'nope'")
+func test_parse_panics_on_bad_text() {
+    uuid.UUID("nope")
+}
+
+@should_panic("uuid: expected 16 bytes, got 15")
+func test_from_bytes_panics_on_short_input() {
+    uuid.UUID(bytes(15))
+}
+
+// ============================================================
+// Accessors
+// ============================================================
+
+@test
+func test_text_forms() {
+    ut.assert_eq(sample().to_str(), SAMPLE)
+    ut.assert_eq(sample().hex(), "d4ecc5a326654046baf71ea19d9fddf6")
+    ut.assert_eq(sample().urn(), "urn:uuid:" + SAMPLE)
+    ut.assert_eq(sample().to_bytes().to_hex(), "d4ecc5a326654046baf71ea19d9fddf6")
+    ut.assert_eq(sample().bytes_le().to_hex(), "a3c5ecd465264640baf71ea19d9fddf6")
+    ut.assert_eq_int64(sample().to_str().len(), 36)
+    ut.assert_eq_int64(sample().to_bytes().len(), 16)
+}
+
+@test
+func test_version_and_variant() {
+    ut.assert_eq_int64(sample().version()!, 4)
+    ut.assert_eq(sample().variant(), uuid.RFC_4122)
+}
+
+@test
+func test_fields() {
+    let u = sample()
+    ut.assert_eq_int64(u.time_low(), 3572286883)
+    ut.assert_eq_int64(u.time_mid(), 9829)
+    ut.assert_eq_int64(u.time_hi_version(), 16454)
+    ut.assert_eq_int64(u.clock_seq_hi_variant(), 186)
+    ut.assert_eq_int64(u.clock_seq_low(), 247)
+    ut.assert_eq_int64(u.node(), 33679483067894)
+    ut.assert_eq_int64(u.time(), 19745467175585187)
+    ut.assert_eq_int64(u.clock_seq(), 15095)
+
+    let f = u.fields()
+    ut.assert_eq_int64(f.len(), 6)
+    ut.assert_eq_int64(f[0], 3572286883)
+    ut.assert_eq_int64(f[1], 9829)
+    ut.assert_eq_int64(f[2], 16454)
+    ut.assert_eq_int64(f[3], 186)
+    ut.assert_eq_int64(f[4], 247)
+    ut.assert_eq_int64(f[5], 33679483067894)
+}
+
+@test
+func test_fmt_matches_to_str() {
+    ut.assert_eq(format("{}", sample()), SAMPLE)
+    ut.assert_eq(format("{:>40}", sample()), "    " + SAMPLE)
+}
+
+// ============================================================
+// Constants
+// ============================================================
+
+@test
+func test_constants() {
+    ut.assert(uuid.NIL.is_nil())
+    ut.assert_eq(uuid.NIL.to_str(), "00000000-0000-0000-0000-000000000000")
+    ut.assert_eq(uuid.MAX.to_str(), "ffffffff-ffff-ffff-ffff-ffffffffffff")
+    ut.assert_false(uuid.MAX.is_nil())
+
+    ut.assert_eq(uuid.NAMESPACE_DNS.to_str(), "6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+    ut.assert_eq(uuid.NAMESPACE_URL.to_str(), "6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+    ut.assert_eq(uuid.NAMESPACE_OID.to_str(), "6ba7b812-9dad-11d1-80b4-00c04fd430c8")
+    ut.assert_eq(uuid.NAMESPACE_X500.to_str(), "6ba7b814-9dad-11d1-80b4-00c04fd430c8")
+
+    // The nil UUID has no RFC 4122 variant bits, so its version is nil,
+    // exactly as Python reports None.
+    ut.assert_eq(uuid.NIL.variant(), uuid.RESERVED_NCS)
+    ut.assert(uuid.NIL.version() == nil)
+    ut.assert_eq(uuid.MAX.variant(), uuid.RESERVED_FUTURE)
+    ut.assert(uuid.MAX.version() == nil)
+}
+
+// ============================================================
+// Name-based generation: the values Python's uuid module produces
+// ============================================================
+
+@test
+func test_uuid5_golden() {
+    ut.assert_eq(uuid.uuid5(uuid.NAMESPACE_DNS, "python.org").to_str(),
+                 "886313e1-3b8a-5372-9b90-0c9aee199e5d")
+    ut.assert_eq(uuid.uuid5(uuid.NAMESPACE_DNS, "www.widgets.com").to_str(),
+                 "21f7f8de-8051-5b89-8680-0195ef798b6a")
+    ut.assert_eq(uuid.uuid5(uuid.NAMESPACE_URL, "https://example.com/").to_str(),
+                 "dd2c1780-811a-5296-81c5-178a0ef488bc")
+    ut.assert_eq_int64(uuid.uuid5(uuid.NAMESPACE_DNS, "python.org").version()!, 5)
+}
+
+@test
+func test_uuid3_golden() {
+    ut.assert_eq(uuid.uuid3(uuid.NAMESPACE_DNS, "python.org").to_str(),
+                 "6fa459ea-ee8a-3ca4-894e-db77e160355e")
+    ut.assert_eq_int64(uuid.uuid3(uuid.NAMESPACE_DNS, "python.org").version()!, 3)
+}
+
+@test
+func test_name_based_is_deterministic() {
+    ut.assert(uuid.uuid5(uuid.NAMESPACE_DNS, "python.org") ==
+              uuid.uuid5(uuid.NAMESPACE_DNS, "python.org"))
+    ut.assert(uuid.uuid5(uuid.NAMESPACE_DNS, "python.org") !=
+              uuid.uuid5(uuid.NAMESPACE_DNS, "python.com"))
+    // Different name-spaces diverge for the same name.
+    ut.assert(uuid.uuid5(uuid.NAMESPACE_DNS, "x") != uuid.uuid5(uuid.NAMESPACE_URL, "x"))
+}
+
+// ============================================================
+// Random (version 4) generation
+// ============================================================
+
+@test
+func test_uuid4_shape() {
+    let u = uuid.uuid4()
+    ut.assert_eq_int64(u.version()!, 4)
+    ut.assert_eq(u.variant(), uuid.RFC_4122)
+    ut.assert_eq_int64(u.to_str().len(), 36)
+    ut.assert_eq(u.to_str().substr(8, 9), "-")
+    ut.assert_eq(u.to_str().substr(13, 14), "-")
+    ut.assert_eq(u.to_str().substr(18, 19), "-")
+    ut.assert_eq(u.to_str().substr(23, 24), "-")
+}
+
+@test
+func test_uuid4_is_unique() {
+    let seen = dict[str, int]()
+    var i = 0
+    while i < 500 {
+        seen[uuid.uuid4().to_str()] = 1
+        i += 1
+    }
+    ut.assert_eq_int64(seen.len(), 500)
+}
+
+// ============================================================
+// Time-ordered (version 7) generation
+// ============================================================
+
+@test
+func test_uuid7_shape() {
+    let u = uuid.uuid7()
+    ut.assert_eq_int64(u.version()!, 7)
+    ut.assert_eq(u.variant(), uuid.RFC_4122)
+}
+
+@test
+func test_uuid7_embeds_current_millisecond() {
+    let before = time.unix_nanos() / 1000000
+    let u = uuid.uuid7()
+    let after = time.unix_nanos() / 1000000
+
+    // The first 48 bits are the Unix time in milliseconds, big-endian.
+    let b = u.to_bytes()
+    var ms = 0
+    var i = 0
+    while i < 6 {
+        ms = (ms << 8) | int(b[i])
+        i += 1
+    }
+    ut.assert(ms >= before)
+    ut.assert(ms <= after)
+}
+
+@test
+func test_uuid7_is_unique() {
+    let seen = dict[str, int]()
+    var i = 0
+    while i < 500 {
+        seen[uuid.uuid7().to_str()] = 1
+        i += 1
+    }
+    ut.assert_eq_int64(seen.len(), 500)
+}
+
+// ============================================================
+// Value semantics
+// ============================================================
+
+@test
+func test_equality_and_hash() {
+    let a = sample()
+    let b = uuid.UUID(SAMPLE)
+    ut.assert(a == b)
+    ut.assert_false(a != b)
+    ut.assert_eq_int64(a.hash(), b.hash())
+    ut.assert(a != uuid.uuid4())
+}
+
+@test
+func test_ordering() {
+    ut.assert(uuid.NIL < uuid.MAX)
+    ut.assert_false(uuid.MAX < uuid.NIL)
+    ut.assert(uuid.MAX > uuid.NIL)
+    ut.assert(uuid.NIL <= uuid.NIL)
+    ut.assert(uuid.NIL >= uuid.NIL)
+
+    // Ordering follows the octets, most significant first.
+    let low = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    let high = uuid.UUID("00000000-0000-0000-0000-000000000002")
+    ut.assert(low < high)
+    ut.assert(high > low)
+}
+
+// ============================================================
+// Immutability: the value owns its bytes
+// ============================================================
+
+@test
+func test_bytes_are_copied_on_input() {
+    let raw = bytes.from_hex("d4ecc5a326654046baf71ea19d9fddf6")
+    let u = uuid.UUID(raw)
+    raw[0] = uint8(0)
+    ut.assert_eq(u.to_str(), SAMPLE)
+}
+
+@test
+func test_bytes_are_copied_on_output() {
+    let u = sample()
+    let out = u.to_bytes()
+    out[0] = uint8(0)
+    ut.assert_eq(u.to_str(), SAMPLE)
+}

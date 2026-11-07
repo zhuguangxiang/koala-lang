@@ -1,0 +1,7 @@
+# clangd builds these native sources with the compilation database's working
+# directory (build/<config>), not this file's directory, so relative include
+# paths are resolved from there. `../../` lands on the repository root from
+# build/debug, build/release and build/DebugTest alike.
+CompileFlags:
+  Add:
+    - -I../../libs/koala/http/native/llhttp/include

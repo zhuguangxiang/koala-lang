@@ -46,27 +46,12 @@ pub class ResponseHead {
     /// incomplete), the status line is malformed, or a header line has
     /// no colon.
     pub static func parse(data bytes) ResponseHead? {
-        let end = data.index_bytes(b"\r\n\r\n")
-        if end <= 0 { return nil }
+        let parser = _Parser.response()
+        if parser == nil { return nil }
 
-        let lines = data[0:end].split(b"\r\n")
-
-        let status = _parse_status_line(lines[0])
-        if status == nil { return nil }
-
-        let headers = list[list[str]]()
-        var i = 1
-        while i < lines.len() {
-            let ln = lines[i]
-            if ln.len() > 0 {
-                let pair = _parse_header_line(ln)
-                if pair == nil { return nil }
-                headers.append(pair)
-            }
-            i += 1
-        }
-
-        return ResponseHead(status.code(), status.reason(), headers, end + 4)
+        let head = _read_head(parser, data)
+        parser.close()
+        return head
     }
 }
 
@@ -91,106 +76,47 @@ pub class Response {
     /// whole body, sized by Content-Length or chunked encoding; a
     /// connection-close body runs to the end of `data`.
     pub static func parse(data bytes) Response? {
-        let head = ResponseHead.parse(data)
-        if head == nil { return nil }
+        let parser = _Parser.response()
+        if parser == nil { return nil }
 
-        let body = _extract_body(data, head)
-        if body == nil { return nil }
-
-        return Response(head, body)
+        let response = _read_response(parser, data)
+        parser.close()
+        return response
     }
 }
 
-// The numeric status and reason phrase of a response status line.
-class _StatusLine {
-    let _code int
-    let _reason str
-
-    func __init__(code int, reason str) {
-        _code = code
-        _reason = reason
-    }
-
-    pub func code() int { return _code }
-    pub func reason() str { return _reason }
+// Parse the head from the start of `data`. Nil on a parse error or
+// when `data` ends inside the head.
+func _read_head(parser _Parser, data bytes) ResponseHead? {
+    let n = parser.feed(data, _STATE_BODY)
+    if n < 0 { return nil }
+    if parser.state() < _STATE_BODY { return nil }
+    return _head_of(parser)
 }
 
-// Split the status line, e.g. `HTTP/1.1 200 OK`, into its status and
-// reason phrase. The reason phrase is optional.
-//
-// Returns nil when there is no numeric status.
-func _parse_status_line(sl bytes) _StatusLine? {
-    let sp1 = sl.index(' ')
-    if sp1 < 0 { return nil }
-
-    // `rest` is the text after the protocol: `200 OK` or just `200`.
-    let rest = sl[sp1 + 1:sl.len()]
-    let sp2 = rest.index(' ')
-    var code_b = rest
-    var reason = ""
-    if sp2 >= 0 {
-        code_b = rest[0:sp2]
-        reason = rest[sp2 + 1:rest.len()].to_str()
-    }
-
-    let code = _parse_num(code_b, 10)
-    if code < 0 { return nil }
-    return _StatusLine(code, reason)
+// The head `parser` has parsed. Valid once its state is past the head.
+func _head_of(parser _Parser) ResponseHead {
+    let headers = parser.headers()
+    return ResponseHead(parser.status(), parser.reason(), headers, parser.body_offset())
 }
 
-// Split one header line into `[name, value]`, dropping the whitespace
-// HTTP allows around the colon.
-//
-// Returns nil when the line has no colon.
-func _parse_header_line(ln bytes) list[str]? {
-    let colon = ln.index(':')
-    if colon < 0 { return nil }
+// Parse a whole response from `data`. Nil on a parse error or when the
+// body is cut short.
+func _read_response(parser _Parser, data bytes) Response? {
+    let head = _read_head(parser, data)
+    if head == nil { return nil }
 
-    var name_end = colon
-    while name_end > 0 && _is_ows(ln[name_end - 1]) { name_end -= 1 }
+    let rest = data[head.body_offset():data.len()]
+    let n = parser.feed(rest, _STATE_COMPLETE)
+    if n < 0 { return nil }
 
-    var vstart = colon + 1
-    while vstart < ln.len() && _is_ows(ln[vstart]) { vstart += 1 }
-
-    var vend = ln.len()
-    while vend > vstart && _is_ows(ln[vend - 1]) { vend -= 1 }
-
-    let pair = list[str]()
-    pair.append(ln[0:name_end].to_str())
-    pair.append(ln[vstart:vend].to_str())
-    return pair
-}
-
-// True for the optional whitespace (SP / HTAB) HTTP allows between a
-// field name and its value.
-func _is_ows(c uint8) bool { return c == ' ' || c == '\t' }
-
-// Value of `c` as a digit in `base`, or -1 when `c` is not a digit of
-// that base.
-func _digit_value(c uint8, base int) int {
-    let ci = int(c)
-    if ci >= '0' && ci <= '9' { return ci - '0' }
-    if base == 16 {
-        if ci >= 'a' && ci <= 'f' { return ci - 'a' + 10 }
-        if ci >= 'A' && ci <= 'F' { return ci - 'A' + 10 }
+    // Unframed by Content-Length or chunked, the body runs to the end
+    // of `data`, as if the peer closed the connection there.
+    if parser.state() < _STATE_COMPLETE {
+        if !parser.finish() { return nil }
     }
-    return -1
-}
 
-// Parse an ASCII number in `base` (10 or 16). -1 when `b` is empty or
-// holds a character that is not a digit of that base.
-func _parse_num(b bytes, base int) int {
-    let n = b.len()
-    if n == 0 { return -1 }
-    var v = 0
-    var i = 0
-    while i < n {
-        let d = _digit_value(b[i], base)
-        if d < 0 { return -1 }
-        v = v * base + d
-        i += 1
-    }
-    return v
+    return Response(head, parser.take_body())
 }
 
 func _lower(c int) int {
@@ -213,69 +139,4 @@ func _eq_ignore_case(a str, b str) bool {
         i += 1
     }
     return true
-}
-
-// Extract the body according to the response head.
-//
-// Chunked takes precedence: RFC 7230 says Transfer-Encoding overrides
-// Content-Length when both are present.
-func _extract_body(data bytes, head ResponseHead) bytes? {
-    let start = head.body_offset()
-    let n = data.len()
-    if start > n { return nil }
-
-    if let te = head.header("Transfer-Encoding") {
-        if _eq_ignore_case(te, "chunked") {
-            return _parse_chunked(data, start)
-        }
-    }
-
-    if let cl = head.header("Content-Length") {
-        let len = _parse_num(cl.to_bytes(), 10)
-        if len < 0 { return nil }
-        if start + len > n { return nil }
-        return data[start:start + len]
-    }
-
-    // No framing headers: body runs to end of input (Connection: close).
-    return data[start:n]
-}
-
-// Decode a chunked body starting at `start`.
-//
-// Each chunk is a hex size line, the payload, and CRLF; the body ends
-// with a zero-size chunk. Returns nil on any framing error or when the
-// body is truncated.
-func _parse_chunked(data bytes, start int) bytes? {
-    let chunks = list[bytes]()
-    let n = data.len()
-    var pos = start
-
-    while true {
-        if pos >= n { return nil }
-        let line_end = data.index_bytes(b"\r\n", pos)
-        if line_end < 0 { return nil }
-
-        // A size line may carry chunk extensions (`1a;name=value`);
-        // the number ends at the first ';'.
-        var size_b = data[pos:line_end]
-        let semi = size_b.index(';')
-        if semi >= 0 { size_b = size_b[0:semi] }
-
-        let size = _parse_num(size_b, 16)
-        if size < 0 { return nil }
-        pos = line_end + 2
-
-        // The zero-size chunk ends the body; the trailer section that
-        // may follow is not needed here.
-        if size == 0 { break }
-
-        // Payload plus the CRLF that terminates the chunk must fit.
-        if pos + size + 2 > n { return nil }
-        chunks.append(data[pos:pos + size])
-        if int(data[pos + size]) != '\r' || int(data[pos + size + 1]) != '\n' { return nil }
-        pos += size + 2
-    }
-
-    return b"".join(chunks)
 }

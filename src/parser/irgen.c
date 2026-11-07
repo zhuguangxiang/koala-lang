@@ -1475,7 +1475,13 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
     Expr *lhs = index->lhs;
     Vector *vec = index->vec;
 
+    // `obj.method[T](...)` / `pkg.func[T](...)`: the dot is the callee of the call, visit it as
+    // one so that it keeps `obj` / `pkg` for the call. Loaded, a method would be a closure.
+    int dot_callee = lhs->kind == EXPR_DOT_KIND && lhs->ts && lhs->ts->kind == TYPE_PROTO &&
+                     exp->ctx == EXPR_CTX_CALL;
+
     lhs->ctx = EXPR_CTX_LOAD;
+    if (dot_callee) lhs->ctx = EXPR_CTX_CALL;
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
@@ -1486,6 +1492,15 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
     }
 
     if (lhs->ts->kind == TYPE_PROTO) {
+        if (dot_callee) {
+            // the call reads the receiver from here, as from a dot callee
+            exp->arg = lhs->arg;
+            if (exp->sym == lhs->sym) {
+                exp->ir_val = lhs->ir_val;
+                return;
+            }
+        }
+
         // assign function's KlrValue to expr's ir_val
         Symbol *_sym = exp->sym;
         if (_sym->kind == SYM_INSTANCE_FUNC) {
@@ -3879,6 +3894,11 @@ static void _declare_func_and_specialized(KlrModule *m, FuncDeclStmt *fn, Parser
 static KlrValue *resolve_specialized_call(KlrValue *callee, Vector *tp_args, void *ctx)
 {
     ParserState *ps = ctx;
+
+    // a method is never routed: the specialized funcs are top-level, see find_or_add_func_instance()
+    if (callee->kind == KLR_VALUE_FUNC && ((KlrFunc *)callee)->klass) return NULL;
+    if (callee->kind == KLR_VALUE_EXT_FUNC && ((KlrExtFunc *)callee)->klass) return NULL;
+
     char *mangled_name = mangle_func_name(callee->name, tp_args);
 
     if (callee->kind == KLR_VALUE_FUNC) {

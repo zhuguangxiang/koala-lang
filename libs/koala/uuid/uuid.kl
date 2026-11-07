@@ -1,0 +1,418 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// UUIDs, the equivalent of Python's uuid module: generation, parsing and
+// formatting, all in pure Koala. Randomness and digests come from
+// `koala/crypto`, the clock from `std/time`.
+
+import "std/time"
+import "koala/crypto"
+
+/// The RFC 4122 variant, the one every UUID generated here uses. These four
+/// strings are the values Python's `uuid` module returns from `u.variant`.
+pub const RFC_4122 = "specified in RFC 4122"
+
+/// The variant of a UUID whose variant bits are `0xx`, per RFC 9562.
+pub const RESERVED_NCS = "reserved for NCS compatibility"
+
+/// The variant of a UUID whose variant bits are `110`, per RFC 9562.
+pub const RESERVED_MICROSOFT = "reserved for Microsoft compatibility"
+
+/// The variant of a UUID whose variant bits are `111`, per RFC 9562.
+pub const RESERVED_FUTURE = "reserved for future definition"
+
+/// Number of octets in a UUID.
+const BYTES_LEN = 16
+
+/// Number of hexadecimal digits in a UUID.
+const HEX_LEN = 32
+
+/// A fresh, independent copy of `b`.
+///
+/// `bytes` is a mutable array in Koala and slicing it yields a view, so the
+/// `UUID` value copies its octets on the way in and on the way out to stay
+/// immutable.
+func copy_bytes(b bytes) bytes {
+    let buf = Buffer(b.len())
+    buf.write(b)
+    return buf.to_bytes()
+}
+
+/// Decode a UUID text form into its sixteen octets, panicking when the text
+/// is malformed. Every parsing entry point funnels through here, so they all
+/// report the same message.
+func parse_text(s str) bytes {
+    let digits = normalize(s)
+    if digits == nil {
+        panic(format("uuid: invalid UUID string: '{}'", s))
+    }
+    return bytes.from_hex(digits)
+}
+
+/// Reduce the text shapes Python accepts to 32 lowercase hexadecimal digits:
+/// an optional `urn:` / `uuid:` prefix, optional braces around the value, and
+/// dashes anywhere. Returns nil when the result is not 32 hex digits.
+func normalize(s str) str? {
+    var t = s.lower()
+    t = t.replace("urn:", "")
+    t = t.replace("uuid:", "")
+    t = t.replace("{", "")
+    t = t.replace("}", "")
+    t = t.replace("-", "")
+    if t.len() != HEX_LEN { return nil }
+    if !is_hex_digits(t) { return nil }
+    return t
+}
+
+/// True when every character of `t` is a lowercase hexadecimal digit.
+func is_hex_digits(t str) bool {
+    var i = 0
+    while i < t.len() {
+        let c = t[i]
+        if !((c >= "0" && c <= "9") || (c >= "a" && c <= "f")) { return false }
+        i += 1
+    }
+    return true
+}
+
+/// A 128-bit universally unique identifier (RFC 9562).
+///
+/// The value is the sixteen octets in network byte order, the layout the
+/// canonical text form spells out. Instances are immutable: the constructor
+/// copies its input, and the accessors hand out copies in turn.
+///
+/// Equality, hashing and ordering follow Python's `uuid.UUID`: two values are
+/// equal when their octets match, and ordering is the unsigned 128-bit
+/// numeric order.
+pub class UUID {
+    /// The sixteen octets, in network byte order.
+    let _b bytes
+
+    /// Build a UUID from its text form or from sixteen raw octets.
+    ///
+    /// A `str` is accepted in the shapes Python allows: 32 hexadecimal
+    /// digits, optionally separated by dashes, optionally wrapped in braces,
+    /// and optionally carrying a `urn:uuid:` prefix. Case does not matter.
+    ///
+    /// A `bytes` value must hold exactly sixteen octets in network byte
+    /// order; it is copied, so later changes to the caller's array do not
+    /// reach the UUID.
+    ///
+    /// Panics on a malformed string or a byte count other than sixteen. Use
+    /// `try_parse` or `UUID.parse` when a non-panicking entry point is
+    /// wanted.
+    pub func __init__(x str | bytes) {
+        if x is str {
+            _b = parse_text(x)
+        } else {
+            let b = (x as bytes)!
+            if b.len() != BYTES_LEN {
+                panic(format("uuid: expected {} bytes, got {}", BYTES_LEN, b.len()))
+            }
+            _b = copy_bytes(b)
+        }
+    }
+
+    /// Parse `s`, panicking when it is not a valid UUID.
+    ///
+    /// Equivalent to Python's `uuid.UUID(s)`, which raises ValueError.
+    pub static func parse(s str) UUID {
+        return UUID(s)
+    }
+
+    /// Parse `s`, returning nil when it is not a valid UUID.
+    ///
+    /// The nil-returning counterpart of Python's ValueError; use it whenever
+    /// the text is untrusted.
+    pub static func try_parse(s str) UUID? {
+        let digits = normalize(s)
+        if digits == nil { return nil }
+        return UUID(bytes.from_hex(digits))
+    }
+
+    /// Build a UUID from exactly sixteen raw octets in network byte order.
+    ///
+    /// Panics when `b` is not sixteen bytes long. The bytes are copied.
+    pub static func from_bytes(b bytes) UUID {
+        return UUID(b)
+    }
+
+    /// Build a UUID from its hexadecimal digits, with or without dashes.
+    ///
+    /// Panics when the text is not a valid UUID.
+    pub static func from_hex(s str) UUID {
+        return UUID(s)
+    }
+
+    /// The sixteen octets in network byte order, as a fresh copy.
+    pub func to_bytes() bytes {
+        return copy_bytes(_b)
+    }
+
+    /// The sixteen octets in little-endian order, as a fresh copy.
+    ///
+    /// The first three fields are reversed (4, 2 and 2 bytes), the last eight
+    /// octets keep their order. This is the layout Python exposes as
+    /// `bytes_le`, used by Microsoft's GUID format.
+    pub func bytes_le() bytes {
+        let out = Buffer(BYTES_LEN)
+        out.write_byte(_b[3])
+        out.write_byte(_b[2])
+        out.write_byte(_b[1])
+        out.write_byte(_b[0])
+        out.write_byte(_b[5])
+        out.write_byte(_b[4])
+        out.write_byte(_b[7])
+        out.write_byte(_b[6])
+        var i = 8
+        while i < BYTES_LEN {
+            out.write_byte(_b[i])
+            i += 1
+        }
+        return out.to_bytes()
+    }
+
+    /// The 32 lowercase hexadecimal digits, no dashes.
+    pub func hex() str {
+        return _b.to_hex()
+    }
+
+    /// The canonical 36-character text form, dashes included.
+    ///
+    /// This is Python's `str(u)`; `print(u)` and `format("{}", u)` produce
+    /// the same text.
+    pub func to_str() str {
+        let h = _b.to_hex()
+        return format("{}-{}-{}-{}-{}",
+                      h.substr(0, 8), h.substr(8, 12), h.substr(12, 16),
+                      h.substr(16, 20), h.substr(20, 32))
+    }
+
+    /// The URN form, `urn:uuid:` followed by the canonical text.
+    pub func urn() str {
+        return format("urn:uuid:{}", to_str())
+    }
+
+    /// Write the canonical text form to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(to_str())
+    }
+
+    /// The version number, 1 to 8, or nil when the variant is not RFC 4122.
+    ///
+    /// Mirrors Python's `version`, which is None for a non-RFC-4122 variant
+    /// (the nil UUID, for instance, reports nil).
+    pub func version() int? {
+        if variant() != RFC_4122 { return nil }
+        return (int(_b[6]) >> 4) & 0x0f
+    }
+
+    /// The variant string: `RFC_4122`, `RESERVED_NCS`, `RESERVED_MICROSOFT`
+    /// or `RESERVED_FUTURE`.
+    pub func variant() str {
+        let b8 = int(_b[8])
+        if (b8 & 0x80) == 0 { return RESERVED_NCS }
+        if (b8 & 0x40) == 0 { return RFC_4122 }
+        if (b8 & 0x20) == 0 { return RESERVED_MICROSOFT }
+        return RESERVED_FUTURE
+    }
+
+    /// The low 32 bits of the time field.
+    pub func time_low() int {
+        return (int(_b[0]) << 24) | (int(_b[1]) << 16) | (int(_b[2]) << 8) | int(_b[3])
+    }
+
+    /// The middle 16 bits of the time field.
+    pub func time_mid() int {
+        return (int(_b[4]) << 8) | int(_b[5])
+    }
+
+    /// The high 16 bits of the time field, version nibble included.
+    pub func time_hi_version() int {
+        return (int(_b[6]) << 8) | int(_b[7])
+    }
+
+    /// The high 8 bits of the clock sequence and variant, variant bits included.
+    pub func clock_seq_hi_variant() int {
+        return int(_b[8])
+    }
+
+    /// The low 8 bits of the clock sequence.
+    pub func clock_seq_low() int {
+        return int(_b[9])
+    }
+
+    /// The 48-bit node field, the last six octets.
+    pub func node() int {
+        var n = 0
+        var i = 10
+        while i < BYTES_LEN {
+            n = (n << 8) | int(_b[i])
+            i += 1
+        }
+        return n
+    }
+
+    /// The 60-bit time field, the same value Python exposes as `time`.
+    pub func time() int {
+        return ((time_hi_version() & 0x0fff) << 48) | (time_mid() << 32) | time_low()
+    }
+
+    /// The 14-bit clock sequence, the variant bits masked off.
+    pub func clock_seq() int {
+        return ((clock_seq_hi_variant() & 0x3f) << 8) | clock_seq_low()
+    }
+
+    /// The six fields Python exposes as `fields`, in the same order:
+    /// time_low, time_mid, time_hi_version, clock_seq_hi_variant,
+    /// clock_seq_low, node.
+    pub func fields() (int, int, int, int, int, int) {
+        return (time_low(), time_mid(), time_hi_version(),
+                clock_seq_hi_variant(), clock_seq_low(), node())
+    }
+
+    /// True when every octet is zero, the nil UUID.
+    pub func is_nil() bool {
+        var i = 0
+        while i < BYTES_LEN {
+            if _b[i] != 0 { return false }
+            i += 1
+        }
+        return true
+    }
+
+    /// Fold the octets into an int, consistent with `__eq__`: equal UUIDs
+    /// always hash the same.
+    pub func hash() int {
+        var h = 17
+        var i = 0
+        while i < BYTES_LEN {
+            h = h * 31 + int(_b[i])
+            i += 1
+        }
+        return h
+    }
+
+    /// True when both UUIDs hold the same sixteen octets.
+    pub func __eq__(rhs UUID) bool {
+        return _b == rhs._b
+    }
+
+    /// True when the octets differ.
+    pub func __ne__(rhs UUID) bool {
+        return !__eq__(rhs)
+    }
+
+    /// True when this UUID sorts before `rhs`, comparing the octets from the
+    /// most significant down. Same order as Python's unsigned 128-bit `int`.
+    pub func __lt__(rhs UUID) bool {
+        var i = 0
+        while i < BYTES_LEN {
+            let a = int(_b[i])
+            let b = int(rhs._b[i])
+            if a < b { return true }
+            if a > b { return false }
+            i += 1
+        }
+        return false
+    }
+
+    /// True when this UUID is equal to or sorts before `rhs`.
+    pub func __le__(rhs UUID) bool {
+        return __lt__(rhs) || __eq__(rhs)
+    }
+
+    /// True when this UUID sorts after `rhs`.
+    pub func __gt__(rhs UUID) bool {
+        return !__le__(rhs)
+    }
+
+    /// True when this UUID is equal to or sorts after `rhs`.
+    pub func __ge__(rhs UUID) bool {
+        return !__lt__(rhs)
+    }
+}
+
+/// The nil UUID, `00000000-0000-0000-0000-000000000000`: all 128 bits zero.
+pub let NIL = UUID("00000000-0000-0000-0000-000000000000")
+
+/// The max UUID, `ffffffff-ffff-ffff-ffff-ffffffffffff`: all 128 bits one.
+pub let MAX = UUID("ffffffff-ffff-ffff-ffff-ffffffffffff")
+
+/// Name-space for fully-qualified domain names.
+pub let NAMESPACE_DNS = UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+/// Name-space for URLs.
+pub let NAMESPACE_URL = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+/// Name-space for ISO object identifiers.
+pub let NAMESPACE_OID = UUID("6ba7b812-9dad-11d1-80b4-00c04fd430c8")
+
+/// Name-space for X.500 distinguished names.
+pub let NAMESPACE_X500 = UUID("6ba7b814-9dad-11d1-80b4-00c04fd430c8")
+
+/// A random (version 4) UUID, 122 random bits.
+///
+/// Equivalent to Python's `uuid.uuid4()`: the bits come from the OS CSPRNG via
+/// `crypto.random_bytes`.
+pub func uuid4() UUID {
+    let b = crypto.random_bytes(BYTES_LEN)
+    b[6] = uint8((int(b[6]) & 0x0f) | 0x40)
+    b[8] = uint8((int(b[8]) & 0x3f) | 0x80)
+    return UUID(b)
+}
+
+/// A time-ordered (version 7) UUID, per RFC 9562.
+///
+/// The first 48 bits hold the Unix time in milliseconds, so values generated
+/// in different milliseconds sort chronologically; the remaining 74 bits are
+/// random. Two values generated within one millisecond are ordered by those
+/// random bits, not by call order -- the same caveat Python's `uuid.uuid7` has.
+pub func uuid7() UUID {
+    let b = crypto.random_bytes(BYTES_LEN)
+    let ms = time.unix_nanos() / 1000000
+    b[0] = uint8((ms >> 40) & 0xff)
+    b[1] = uint8((ms >> 32) & 0xff)
+    b[2] = uint8((ms >> 24) & 0xff)
+    b[3] = uint8((ms >> 16) & 0xff)
+    b[4] = uint8((ms >> 8) & 0xff)
+    b[5] = uint8(ms & 0xff)
+    b[6] = uint8((int(b[6]) & 0x0f) | 0x70)
+    b[8] = uint8((int(b[8]) & 0x3f) | 0x80)
+    return UUID(b)
+}
+
+/// A name-based (version 5) UUID: the SHA-1 of `ns` followed by `name`,
+/// truncated to 128 bits.
+///
+/// Deterministic -- the same name-space and name always give the same UUID.
+/// Equivalent to Python's `uuid.uuid5`.
+pub func uuid5(ns UUID, name str) UUID {
+    let buf = Buffer(BYTES_LEN + name.len())
+    buf.write(ns.to_bytes())
+    buf.write(name.to_bytes())
+    let full = crypto.sha1(buf.to_bytes())
+    let digest = full[0:BYTES_LEN]
+    digest[6] = uint8((int(digest[6]) & 0x0f) | 0x50)
+    digest[8] = uint8((int(digest[8]) & 0x3f) | 0x80)
+    return UUID(digest)
+}
+
+/// A name-based (version 3) UUID: the MD5 of `ns` followed by `name`,
+/// truncated to 128 bits.
+///
+/// Deterministic. Offered for interoperability with values minted elsewhere;
+/// prefer `uuid5` for new name-based UUIDs. Equivalent to Python's
+/// `uuid.uuid3`.
+pub func uuid3(ns UUID, name str) UUID {
+    let buf = Buffer(BYTES_LEN + name.len())
+    buf.write(ns.to_bytes())
+    buf.write(name.to_bytes())
+    let full = crypto.md5(buf.to_bytes())
+    let digest = full[0:BYTES_LEN]
+    digest[6] = uint8((int(digest[6]) & 0x0f) | 0x30)
+    digest[8] = uint8((int(digest[8]) & 0x3f) | 0x80)
+    return UUID(digest)
+}

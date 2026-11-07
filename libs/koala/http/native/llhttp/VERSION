@@ -1,0 +1,22 @@
+llhttp, vendored unmodified for koala/http.
+
+Project:   llhttp (HTTP/1.1 parser used by Node.js)
+Upstream:  https://github.com/nodejs/llhttp
+Version:   9.3.0
+Tag:       release/v9.3.0 (generated C sources live on the `release` branch)
+Commit:    86b83a59786caebd581f38d613c64c9e8c52c79e
+Tarball:   https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.3.0.tar.gz
+SHA-256:   1a2b45cb8dda7082b307d336607023aa65549d6f060da1d246b1313da22b685a (tarball)
+License:   MIT, see LICENSE-MIT
+Vendored:  2026-11-07
+
+Files taken from the tarball, paths kept as upstream:
+
+  include/llhttp.h  c15c1952dbc6f83476aa51a7d4ed07d6c1908a754812ef27a52f726773144e27
+  src/api.c         2c8e26df05af120323130b388d9afd102f793fba84f59f3765f018d24144eb78
+  src/http.c        a1f2b23168f8e9b5bfa464c89027d3ca259fc649ae3d7e72bfff997d1aeb5d72
+  src/llhttp.c      33a53046b3bc81ca7d5eaffe61eb87e7bf0c9bf3ba48df6d93279a7ee03afcd3
+  LICENSE-MIT
+
+Do not edit these files. To upgrade, download the new `release/vX.Y.Z` tarball, replace
+the files above, and update this file.

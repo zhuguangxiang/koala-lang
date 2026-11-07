@@ -47,3 +47,24 @@ func test_pipeline_after_close() {
     ut.assert_eq(cmd.result().err, redis.ERR_IO)
     ut.assert_eq(cmd.result().errmsg, "connection unavailable")
 }
+
+/// Like SingleTcpPool, the TLS pool lends its one Conn exclusively.
+@test
+func test_tls_pool_lends_exclusively() {
+    // Any TLS server will do: with no client name, acquire sends no
+    // command. No network: nothing to check.
+    let opts = redis.Options()
+    opts.host = "badssl.com"
+    opts.port = 443
+    let pool = redis.SingleTlsPool(opts)
+    let c = pool.acquire()
+    if c == nil { return }
+
+    ut.assert_true(pool.acquire() == nil)
+
+    // warning: bang operator applied on non-nullable variable('c').
+    // pool.release(c!)
+    pool.release(c)
+    ut.assert_true(pool.acquire() != nil)
+    pool.close()
+}

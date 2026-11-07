@@ -8,11 +8,13 @@
 // still passes on offline machines.
 
 import "std/ut"
+import "std/fs"
+import "std/socket" as so
 import "koala/tls"
 
-@skip
+@test
 func test_tls_get_example_com() {
-    let c = tls.dial("example.com", 443)
+    let c = tls.dial("example.com:443")
     if c == nil {
         // No network or TLS handshake failed; skip rather than fail.
         return
@@ -38,7 +40,7 @@ func test_tls_get_example_com() {
 func test_tls_dial_bad_host() {
     // .invalid is reserved by RFC 2606 and never resolves, so dial
     // must fail at DNS and return nil.
-    let c = tls.dial("this-domain-should-not-exist-koala-test.invalid", 443)
+    let c = tls.dial("this-domain-should-not-exist-koala-test.invalid:443")
     ut.assert_true(c == nil)
 }
 
@@ -46,13 +48,13 @@ func test_tls_dial_bad_host() {
 func test_tls_dial_closed_port() {
     // Loopback port 1 has no listener; TCP connect is refused before
     // TLS even starts, so dial returns nil.
-    let c = tls.dial("127.0.0.1", 1)
+    let c = tls.dial("127.0.0.1:1")
     ut.assert_true(c == nil)
 }
 
-@skip
+@test
 func test_tls_read_timeout() {
-    let c = tls.dial("example.com", 443)
+    let c = tls.dial("example.com:443")
     if c == nil { return }
 
     // No request written: the server has nothing to say, so a read
@@ -68,9 +70,9 @@ func test_tls_read_timeout() {
     c.close()
 }
 
-@skip
+@test
 func test_tls_multiple_reads() {
-    let c = tls.dial("example.com", 443)
+    let c = tls.dial("example.com:443")
     if c == nil { return }
 
     let req = "GET / HTTP/1.0\r\nHost: example.com\r\nConnection: close\r\n\r\n"
@@ -88,4 +90,119 @@ func test_tls_multiple_reads() {
     ut.assert_true(total > 0)
 
     c.close()
+}
+
+// Number of file descriptors this process has open.
+func _open_fds() int {
+    return fs.list_dir("/proc/self/fd").len()
+}
+
+@test
+func test_tls_rejects_wrong_hostname() {
+    // Control: the same server with its own name must connect. No
+    // network: nothing to check.
+    let ok = tls.dial("badssl.com:443")
+    if ok == nil { return }
+    ok.close()
+
+    // badssl.com serves a valid `*.badssl.com` chain here, which does
+    // not cover the two-level name `wrong.host.badssl.com`.
+    let c = tls.dial("wrong.host.badssl.com:443")
+    ut.assert_true(c == nil)
+}
+
+@test
+func test_tls_dial_failure_closes_tcp() {
+    let before = _open_fds()
+
+    // Port 80 speaks plain HTTP, so the handshake fails after TCP
+    // connects. Offline, the TCP connect fails instead.
+    let c = tls.dial("example.com:80")
+    ut.assert_true(c == nil)
+
+    ut.assert_eq(_open_fds(), before)
+}
+
+@test
+func test_tls_close_twice() {
+    let c = tls.dial("example.com:443")
+    if c == nil { return }
+
+    c.close()
+    c.close()
+
+    // A closed connection reports an error instead of touching the
+    // freed session.
+    ut.assert_eq(c.read(bytes(16)), -1)
+    ut.assert_eq(c.write("x".to_bytes()), -1)
+}
+
+@test
+func test_tls_read_to_end() {
+    let c = tls.dial("example.com:443")
+    if c == nil { return }
+
+    let req = "GET / HTTP/1.0\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+    ut.assert_true(c.write(req.to_bytes()) > 0)
+    ut.assert_true(c.set_read_timeout(5000))
+
+    // The server may close without close_notify; that is still EOF.
+    let all = c.read_to_end()
+    ut.assert_true(all != nil)
+    ut.assert_true(all!.to_str().starts_with("HTTP/"))
+
+    c.close()
+}
+
+@test
+func test_tls_dial_bad_url() {
+    // No port: rejected before any connect.
+    ut.assert_true(tls.dial("example.com") == nil)
+}
+
+@test
+func test_tls_handshake_timeout() {
+    // A local listener that never answers: TCP connects through the
+    // backlog, then the ClientHello waits for a reply forever.
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let port = listener.local_addr().port()
+    let before = _open_fds()
+
+    let opts = tls.TlsOptions().set_handshake_timeout_ms(300)
+    let c = tls.dial("127.0.0.1:" + port.to_str(), opts)
+    ut.assert_true(c == nil)
+
+    // The connection queued in the backlog is the listener's, not ours;
+    // our end must be closed.
+    ut.assert_eq(_open_fds(), before)
+    listener.close()
+}
+
+@test
+func test_tls_skip_verify() {
+    // Control: verification rejects this name. No network: nothing to
+    // check.
+    let ok = tls.dial("badssl.com:443")
+    if ok == nil { return }
+    ok.close()
+    ut.assert_true(tls.dial("wrong.host.badssl.com:443") == nil)
+
+    let opts = tls.TlsOptions().set_skip_verify(true)
+    let c = tls.dial("wrong.host.badssl.com:443", opts)
+    ut.assert_true(c != nil)
+    c!.close()
+}
+
+@test
+func test_tls_server_name() {
+    let ok = tls.dial("badssl.com:443")
+    if ok == nil { return }
+    ok.close()
+
+    // Connect to the host whose own name the certificate does not
+    // cover, but send and check a name it does.
+    let opts = tls.TlsOptions().set_server_name("badssl.com")
+    let c = tls.dial("wrong.host.badssl.com:443", opts)
+    ut.assert_true(c != nil)
+    c!.close()
 }

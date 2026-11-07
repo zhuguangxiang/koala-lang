@@ -98,3 +98,51 @@ func test_parse_bad_status_line() {
     ut.assert_true(Response.parse("garbage\r\n\r\n".to_bytes()) == nil)
     ut.assert_true(Response.parse("HTTP/1.1 abc OK\r\n\r\n".to_bytes()) == nil)
 }
+
+@test
+func test_parse_empty_header_value() {
+    let raw = "HTTP/1.1 200 OK\r\nX-Empty:\r\nContent-Length: 2\r\n\r\nok"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.headers().len(), 2)
+    ut.assert_eq(r.header("X-Empty")!, "")
+    ut.assert_eq(r.body().to_str(), "ok")
+}
+
+@test
+func test_parse_header_order_kept() {
+    let raw = "HTTP/1.1 200 OK\r\nB: 2\r\nA: 1\r\nContent-Length: 0\r\n\r\n"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.headers()[0][0], "B")
+    ut.assert_eq(r.headers()[1][0], "A")
+    ut.assert_eq(r.body().len(), 0)
+}
+
+@test
+func test_parse_chunked_extension_and_trailer() {
+    let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n" +
+              "5;name=value\r\nhello\r\n" +
+              "0\r\nX-Trailer: done\r\n\r\n"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.body().to_str(), "hello")
+}
+
+@test
+func test_parse_truncated_chunked() {
+    let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhel"
+    ut.assert_true(Response.parse(raw.to_bytes()) == nil)
+}
+
+@test
+func test_parse_ignores_bytes_after_message() {
+    // A second, pipelined response must not leak into the first body.
+    let raw = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nokHTTP/1.1 204 No Content\r\n\r\n"
+    let r = Response.parse(raw.to_bytes())!
+    ut.assert_eq(r.body().to_str(), "ok")
+}
+
+@test
+func test_head_offset_without_body() {
+    let raw = "HTTP/1.1 204 No Content\r\n\r\n"
+    let h = ResponseHead.parse(raw.to_bytes())!
+    ut.assert_eq(h.body_offset(), raw.len())
+}

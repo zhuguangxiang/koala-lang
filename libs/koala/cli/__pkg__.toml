@@ -1,0 +1,6 @@
+[package]
+name = "koala/cli"
+version = "0.1.0"
+description = "Command-line argument parsing, in the spirit of Python's argparse"
+dependencies = []
+natives = []

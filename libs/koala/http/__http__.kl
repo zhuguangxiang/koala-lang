@@ -5,3 +5,5 @@
 
 // Package entry for koala/http. The pub declarations in sibling files
 // are this package's public API.
+
+link "koala_http"

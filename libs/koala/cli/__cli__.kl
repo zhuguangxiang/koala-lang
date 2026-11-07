@@ -1,0 +1,7 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Package entry for koala/cli. The pub declarations in sibling files
+// are this package's public API.

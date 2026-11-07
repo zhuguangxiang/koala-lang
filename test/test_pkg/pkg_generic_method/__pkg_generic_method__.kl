@@ -1,0 +1,60 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Generic methods, loaded from this package's klc by
+// test-run/test_ext_generic_method.kl.
+
+pub class Box {
+    pub func __init__() {}
+
+    pub func pass[T](x T) T { return x }
+
+    pub func same[T : Equatable](a T, b T) bool { return a == b }
+
+    pub func wrap[T](x T) list[T] {
+        let l = list[T]()
+        l.append(x)
+        return l
+    }
+
+    // A generic method calling generic methods through self.
+    pub func twice[T](x T) list[T] {
+        let l = wrap(x)
+        l.append(pass(x))
+        return l
+    }
+
+    pub static func make[T](x T) T { return x }
+}
+
+pub class Cell[T] {
+    let _value T
+
+    pub func __init__(value T) { _value = value }
+
+    pub func pair[U](u U) (T, U) { return (_value, u) }
+}
+
+// A method of the same name in another class: its own instance.
+pub class Bag {
+    pub func __init__() {}
+
+    pub func pass[T](x T) list[T] {
+        let l = list[T]()
+        l.append(x)
+        return l
+    }
+}
+
+// Same name as the method: the type parameter of Box.pass must not be
+// looked up on this function.
+pub func pass(x int) int { return x + 1 }
+
+// The mangled name of `pass` at int: a call of the method must not be
+// routed here.
+pub func pass_int64(x int) int { return x + 100 }
+
+// A generic function, called as `pkg.ident[int](...)`.
+pub func ident[T](x T) T { return x }

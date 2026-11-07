@@ -28,6 +28,10 @@ typedef struct _FixupEntry {
     FixupKind kind;
     void *owner;
     int index;
+    /* The function or class whose type parameters the fixed type may use,
+       or NULL. A method is not a top-level symbol of the package, so the
+       owner of its type parameter cannot be found by name. */
+    Symbol *scope;
 } FixupEntry;
 
 typedef struct _LoadKlcContext {
@@ -36,6 +40,8 @@ typedef struct _LoadKlcContext {
     PkgSymbol *pkg_sym;
     KlcFile *klc;
     void *owner;
+    /* The scope of the fixup being done, see FixupEntry.scope. */
+    Symbol *scope;
     char *path;
     int is_builtin;
     Vector fixups;
@@ -63,6 +69,7 @@ static void add_fixup_entry(FixupEntry *entry, TypeSpec *ts, LoadContext *ctx)
                 .kind = FIXUP_GENERIC_VAR,
                 .owner = ts,
                 .index = i__,
+                .scope = entry->scope,
             };
             vector_push_back(&ctx->fixups, &arg_entry);
         }
@@ -148,7 +155,12 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
             UNREACHABLE();
         }
     } else if (ts->kind == TYPE_GENERIC_VAR) {
-        Symbol *owner = stbl_get(ctx->stbl, ts->generic_var.owner);
+        // Try the scope first: the owner may be a method, and a top-level
+        // symbol of the same name is then a different symbol.
+        Symbol *owner = NULL;
+        Symbol *scope = ctx->scope;
+        if (scope && !strcmp(scope->name, ts->generic_var.owner)) owner = scope;
+        if (!owner) owner = stbl_get(ctx->stbl, ts->generic_var.owner);
         if (!owner) {
             Symbol *sym = ctx->owner;
             ASSERT(sym && sym->kind == SYM_FUNC);
@@ -211,6 +223,7 @@ static void __do_fixup(Vector *fixups, LoadContext *ctx)
     vector_foreach_ptr(entry, fixups) {
         if (!entry) continue;
         ctx->owner = entry->owner;
+        ctx->scope = entry->scope;
         switch (entry->kind) {
             case FIXUP_TP_BOUND: {
                 TypeParamSymbol *tp = (TypeParamSymbol *)entry->owner;
@@ -296,6 +309,7 @@ static void load_type_params(Vector *tps, Vector *result, Symbol *owner, LoadCon
                     .kind = FIXUP_TP_BOUND,
                     .owner = (Symbol *)tp_sym,
                     .index = vector_size(&tp_sym->bound) - 1,
+                    .scope = owner,
                 };
                 add_fixup_entry(&entry, ts, ctx);
             } else if (ts->kind == TYPE_MANGLED) {
@@ -379,20 +393,6 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         arg_info->has_dfl_val = def_val ? 1 : 0;
         arg_info->dfl_val = def_val ? klc_const_to_literal(def_val, ts) : NULL;
         vector_push_back(params, &arg_info);
-        if (ts_need_fixup(ts)) {
-            FixupEntry entry = {
-                .kind = FIXUP_FUNC_PARAM,
-                .owner = arg_info,
-                .index = -1,
-            };
-            if (ts->kind == TYPE_MANGLED) {
-                add_stage_2_fixup_entry(&entry, ctx);
-            } else {
-                add_fixup_entry(&entry, ts, ctx);
-            }
-        } else {
-            // nothing
-        }
     }
 
     KlcConst *k = klc_get_const(ctx->klc, fn->name_index);
@@ -411,6 +411,25 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         sym->parent = ctx->pkg_sym;
     }
 
+    // The param fixups need the function symbol as their scope.
+    ArgInfo *param;
+    vector_foreach(param, params) {
+        if (!param) continue;
+        TypeSpec *ts = param->ts;
+        if (!ts_need_fixup(ts)) continue;
+        FixupEntry entry = {
+            .kind = FIXUP_FUNC_PARAM,
+            .owner = param,
+            .index = -1,
+            .scope = sym,
+        };
+        if (ts->kind == TYPE_MANGLED) {
+            add_stage_2_fixup_entry(&entry, ctx);
+        } else {
+            add_fixup_entry(&entry, ts, ctx);
+        }
+    }
+
     load_type_params(&fn->tps, &((FuncSymbol *)sym)->tps, sym, ctx);
 
     if (ts_need_fixup(ret_ts)) {
@@ -418,6 +437,7 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
             .kind = FIXUP_FUNC_RET,
             .owner = sym,
             .index = -1,
+            .scope = sym,
         };
         if (ret_ts->kind == TYPE_MANGLED) {
             add_stage_2_fixup_entry(&entry, ctx);

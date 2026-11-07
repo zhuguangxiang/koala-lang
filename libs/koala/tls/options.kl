@@ -1,0 +1,51 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// TLS configuration for `dial` and `TlsConn.wrap`.
+///
+/// The TCP side (connect timeout, keepalive, ...) is configured with
+/// `so.DialOptions`, passed to `dial` separately.
+pub class TlsOptions {
+    /// Handshake timeout in milliseconds. 0 means no timeout.
+    var _handshake_timeout_ms int = 0
+
+    /// Name sent as SNI and checked against the certificate. nil uses
+    /// the host being connected to.
+    var _server_name str? = nil
+
+    /// Whether to skip certificate verification. Only for tests: the
+    /// connection is then open to anyone in the middle.
+    var _skip_verify bool = false
+
+    /// Construct a TlsOptions with every field at its declared default.
+    pub func __init__() {}
+
+    /// Handshake timeout in milliseconds.
+    pub func handshake_timeout_ms() int { return _handshake_timeout_ms }
+
+    /// Name sent as SNI and checked against the certificate.
+    pub func server_name() str? { return _server_name }
+
+    /// Whether certificate verification is skipped.
+    pub func skip_verify() bool { return _skip_verify }
+
+    /// Set the handshake timeout.
+    pub func set_handshake_timeout_ms(ms int) TlsOptions {
+        _handshake_timeout_ms = ms
+        return self
+    }
+
+    /// Set the name sent as SNI and checked against the certificate.
+    pub func set_server_name(name str?) TlsOptions {
+        _server_name = name
+        return self
+    }
+
+    /// Skip or restore certificate verification.
+    pub func set_skip_verify(on bool) TlsOptions {
+        _skip_verify = on
+        return self
+    }
+}

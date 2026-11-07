@@ -29,6 +29,11 @@ static SSL_CTX *get_ctx(void)
         return NULL;
     }
     SSL_CTX_set_verify(g_ctx, SSL_VERIFY_PEER, NULL);
+
+    // Many servers close the TCP connection without sending
+    // close_notify. Treat that as EOF, not as an error.
+    SSL_CTX_set_options(g_ctx, SSL_OP_IGNORE_UNEXPECTED_EOF);
+
     if (SSL_CTX_set_default_verify_paths(g_ctx) != 1) {
         SSL_CTX_free(g_ctx);
         g_ctx = NULL;
@@ -37,7 +42,7 @@ static SSL_CTX *get_ctx(void)
     return g_ctx;
 }
 
-// func tls_conn_new(fd int, hostname str) int64
+// func tls_conn_new(fd int, hostname str, verify bool) int64
 //
 // Wraps an established TCP fd in a TLS session, sending `hostname` as
 // SNI and verifying the server certificate against the system CA
@@ -49,10 +54,11 @@ static SSL_CTX *get_ctx(void)
 // terminator.
 static TValue _tls_conn_new(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 2);
+    ASSERT(nargs == 3);
     int64_t fd = kl_arg_int(0);
     StringObject *host = kl_arg_obj_as(1, str_type);
     ASSERT(host != NULL);
+    int verify = kl_arg_bool(2);
 
     char hostname[256];
     size_t hlen = STR_LEN(host);
@@ -77,16 +83,33 @@ static TValue _tls_conn_new(TValue *self, TValue *args, int nargs)
         return int64_value(0);
     }
 
-    // SNI: send the server name in the ClientHello so a CDN returns
-    // the right certificate.
-    SSL_set_tlsext_host_name(ssl, hostname);
+    // `verify` false is for tests only: any certificate is accepted.
+    if (!verify) {
+        SSL_set_verify(ssl, SSL_VERIFY_NONE, NULL);
+    }
+
+    // A valid chain is not enough: the certificate must also be issued
+    // for this host, or any CA-signed certificate would be accepted.
+    // An IP literal is checked against the certificate's IP entries.
+    X509_VERIFY_PARAM *param = SSL_get0_param(ssl);
+    int is_ip = X509_VERIFY_PARAM_set1_ip_asc(param, hostname);
+    if (!is_ip) {
+        if (SSL_set1_host(ssl, hostname) != 1) {
+            SSL_free(ssl);
+            return int64_value(0);
+        }
+
+        // SNI: send the server name in the ClientHello so a CDN returns
+        // the right certificate. RFC 6066 forbids IP literals in SNI.
+        SSL_set_tlsext_host_name(ssl, hostname);
+    }
 
     if (SSL_connect(ssl) != 1) {
         SSL_free(ssl);
         return int64_value(0);
     }
 
-    if (SSL_get_verify_result(ssl) != X509_V_OK) {
+    if (verify && SSL_get_verify_result(ssl) != X509_V_OK) {
         SSL_free(ssl);
         return int64_value(0);
     }
@@ -106,6 +129,11 @@ static TValue _tls_read(TValue *self, TValue *args, int nargs)
     int64_t handle = kl_arg_int(0);
     BytesObject *buf = kl_arg_obj_as(1, bytes_type);
     ASSERT(buf != NULL);
+
+    // 0 is the handle of a closed connection.
+    if (handle == 0) {
+        return int64_value(-1);
+    }
 
     SSL *ssl = (SSL *)(intptr_t)handle;
     size_t len = BYTES_SIZE(buf);
@@ -135,6 +163,11 @@ static TValue _tls_write(TValue *self, TValue *args, int nargs)
     int64_t handle = kl_arg_int(0);
     BytesObject *data = kl_arg_obj_as(1, bytes_type);
     ASSERT(data != NULL);
+
+    // 0 is the handle of a closed connection.
+    if (handle == 0) {
+        return int64_value(-1);
+    }
 
     SSL *ssl = (SSL *)(intptr_t)handle;
     size_t len = BYTES_SIZE(data);

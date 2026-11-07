@@ -90,6 +90,15 @@ func test_format() {
 	print(format("pi = '{:8.2f}'", 3.14159))
 // CHECK: pi = '    3.14'
 
+	print(format("round = '{:.0f}'", 3.7))
+// CHECK: round = '4'
+
+	print(format("round even = '{:.0f}'", 2.5))
+// CHECK: round even = '2'
+
+	print(format("trailing zeros = '{:.3f}'", 2.0))
+// CHECK: trailing zeros = '2.000'
+
 	print(format("hex = '{:x}'", 255))
 // CHECK: hex = 'ff'
 

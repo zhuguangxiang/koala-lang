@@ -2999,8 +2999,15 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
         }
     }
 
+    // Only a top-level generic function is routed to a specialized one by its mangled name: the
+    // specialized functions are top-level, so for a method, `pass_int64` would be unrelated.
+    Symbol *fn_parent = lhs_sym->parent;
+    int is_method = fn_parent && (fn_parent->kind == SYM_CLASS || fn_parent->kind == SYM_INSTANCE ||
+                                  fn_parent->kind == SYM_TRAIT);
+
     char *mangled_name = mangle_func_name(lhs_sym->name, tp_args);
-    Symbol *specialized_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
+    Symbol *specialized_fn_sym = NULL;
+    if (!is_method) specialized_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
     if (specialized_fn_sym) {
         ASSERT(specialized_fn_sym->kind == SYM_FUNC ||
                specialized_fn_sym->kind == SYM_INSTANCE_FUNC);

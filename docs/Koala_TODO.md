@@ -36,7 +36,7 @@
 > trait (§57, postponed), `obj["key"]` on a plain class fails inside the compiler (§58, fixed),
 > nullable generic elements do not compile (§59, fixed), a tuple type argument asserts in the compiler
 > (§60, fixed), a field named `f` conflicts with the generated `fmt` (§61, fixed), `koala/redis`: tests that wait for a
-> mock annotation, TLS and other leftovers (§62, to do), operators on a trait value: unary operators
+> mock annotation, TLS and other leftovers (§62, to do; the TLS items fixed 2026-11-08), operators on a trait value: unary operators
 > and edge cases (§63, to fix), shift semantics: decided and implemented, leftovers (§64), small
 > compiler and runtime issues found on the way (§65, to fix), a narrow number type does not satisfy
 > `T: Comparable` when `T` is inferred (§66, fixed), a generic bound specializes to a type with
@@ -45,11 +45,15 @@
 > arguments has no `make_intf` (§71, to fix), `int.hash()` differs through a trait (§72, fixed),
 > comparing constants of a narrow float type fails in the backend (§73, to fix), `bfloat16` cannot be
 > constructed (§74, to fix), unary operators still promote automatically (§75, to fix), `T` is not
-> inferred through a `Box[T?]` parameter (§77, to fix).
+> inferred through a `Box[T?]` parameter (§77, to fix), `enum` as sugar for a final class (§78,
+> planned), native handles of `koala/http` and `koala/tls` have no finalizer (§79, waits for a
+> free path), `koala/http` leftovers (§80, to do), `koala/tls` leftovers (§81, to do).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-07 (added §77: `T` is not inferred through `Box[T?]`; §72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> 更新日期：2026-11-08 (§62: the TLS items fixed; §25.4: the network and command-line rows
+> updated; added §79: native handles without a finalizer; added §80: `koala/http` leftovers; added
+> §81: `koala/tls` leftovers)；2026-11-07 (added §78: the plan for `enum`; added §77: `T` is not inferred through `Box[T?]`; §72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
 > 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
 > decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
@@ -1328,9 +1332,9 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 
 | 场景 | Python 模块 | Koala | 说明 |
 |---|---|---|---|
-| 网络 | socket, http, urllib, ssl | **全无** | 最大空白区，属重生态，通常第三方承担 |
+| 网络 | socket, http, urllib, ssl | `std/socket`（TCP / UDP / raw）、`koala/tls`（基于 OpenSSL 的 TLS 客户端）、`koala/http`（HTTP/1.1 客户端，报文解析用 vendor 的 llhttp，URL 解析只有它的 `Url`） | 2026-11-08 更新：无服务端 TLS / HTTP，遗留见 §80、§81 |
 | 加密/编码/压缩 | hashlib, hmac, base64, zlib, gzip, codecs | **无**（`.hash()` 是 FNV-1a 内部哈希，非加密） | base64/zlib 实用但非语言核心 |
-| 命令行解析 | argparse, getopt, shlex | **无**（wombat 是构建工具，非 CLI 解析器） | 判第三方 |
+| 命令行解析 | argparse, getopt, shlex | `koala/cli`（argparse 风格：`Flag` / `StrOption` / `IntOption` / `Positional`，自动 `-h`，出错 exit 2）；无 shlex | 2026-11-08 更新：子命令、`--version` 留待 v2 |
 | 结构化配置 | enum, dataclasses | 无 | 范式差异 |
 
 ### 25.5 综合判断
@@ -3254,12 +3258,15 @@ branch of `_list_extend`, cut the elements at the first nil. `for` loops use `ha
 
 Tests against a real server check that it is up first, and return without panicking when it is not.
 
-**TLS, left as it is for now.**
+**TLS (fixed 2026-11-08).**
 
-- `SingleTlsPool` has no `_in_use` flag: a second acquire returns the same Conn, unlike
-  `SingleTcpPool`.
-- `tls.dial` takes no options, so `Options.connect_timeout_ms` has no effect over TLS.
-- `connect_tls` and `SingleTlsPool` have never been run against a server.
+- ~~`SingleTlsPool` has no `_in_use` flag~~: it lends its Conn exclusively, as `SingleTcpPool` does
+  (`test_tls_pool_lends_exclusively`).
+- ~~`tls.dial` takes no options~~: `Options.connect_timeout_ms` bounds both the TCP connect
+  (`so.DialOptions`) and the TLS handshake (`tls.TlsOptions`).
+- `connect_tls` and `SingleTlsPool` were run by hand against a local TLS-only redis (a throwaway CA
+  through `SSL_CERT_FILE`): ping / set / get work, by name and by IP. There is still no automated
+  test, see §81.
 
 **Other leftovers.**
 
@@ -3599,3 +3606,154 @@ func main() {
 
 To do: match `T?` against `int?` when inferring from a generic instance, then add this call to the
 test above.
+
+## 78. `enum` as sugar for a final class (2026-11-07, planned)
+
+An enum is a closed set of named constants without data. Data on the cases belongs to `sealed trait`
+and classes (§55). The two only share the check that the set of cases is closed, used by `switch`.
+
+```kl
+pub enum Color { RED, GREEN, BLUE = 10, ALPHA }
+
+let c = Color.BLUE
+print(c)                  // BLUE
+print(c.value)            // 10
+print(c == Color.BLUE)    // true
+
+let e Color = 10          // error: no implicit conversion
+let i int = c             // error: write c.value
+let b = c > Color.RED     // error: write c.value > Color.RED.value
+Color(0, "RED")           // error: cannot be constructed
+Color.RED = Color.BLUE    // error: a member cannot be assigned
+```
+
+The compiler generates the class, in pseudo code:
+
+```kl
+pub class Color : Equatable[Color] {
+    pub let value int64
+    let name str
+
+    func __init__(v int64, n str) {
+        value = v
+        name = n
+    }
+
+    pub func fmt(f Formatter) { f.write_str(name) }
+}
+
+// hidden module-level singletons, created when the module is initialized
+let Color.RED = Color(0, "RED")
+```
+
+Decided:
+
+- Branch `new_enum` (`47539856`) makes enum a sealed `int64` with `TYPE_ENUM` and `SYM_ENUM`. It is
+  34 commits behind and is not merged. Only its grammar and member checks are ported by hand. A class
+  gets `klc` export, generics, containers and the auto traits from the existing code.
+- No implicit conversion to or from `int`, in line with the removal of implicit number promotion.
+- No ordering in the first version. Python's `Enum` has none, and order by value and order by
+  declaration differ for `enum E { A = 10, B = 1 }`. It can be added later without breaking code.
+
+### P0: the first version
+
+- ☐ 0. Check first: how a module is initialized, the order across packages, whether `static` exists.
+- ☐ 1. Grammar: the `enum` keyword, top level only, optional `pub`. Errors as required by
+  `test/test-kl/test_enum_syntax_errors.kl`.
+- ☐ 2. Generate the final class. Forbid constructing it and giving it bases.
+- ☐ 3. Member checks, from `new_enum`: duplicate name, duplicate value, auto increment, overflow.
+- ☐ 4. Singletons: resolve `Color.RED` in `parse_dot`, create them at module initialization, reject
+  assigning to a member. This is the largest risk, item 0 is there to find problems early.
+- ☐ 5. Methods: `fmt` prints the member name. `__eq__`, `__ne__` and `hash` keep the defaults.
+- ☐ 6. `c.value`, and errors for every implicit conversion.
+- ☐ 7. `list[Color]`, `dict[Color, int]`, `Color?`, conversion to `any`, a generic `T`.
+- ☐ 8. Tests: rewrite the tests of `new_enum`, remove `SKIP` from `test_enum_syntax*.kl`, cover items
+  1 to 7 for both correct code and errors.
+- ☐ 9. Docs: design overview, language manual, §55.
+
+### P1: right after
+
+- ☐ 10. Across packages: `klc` carries the member table, `pkg.Color.RED` works, tests in `test_pkg`.
+  Until then a `pub enum` cannot be used from another package.
+- ☐ 11. `Color.from(v)` returns `Color?`, `nil` for an invalid value. Its form depends on item 0.
+- ☐ 12. `c.name()` returns the member name.
+- ☐ 13. `switch`: the grammar exists, `STMT_MATCH_KIND` has no semantics or IR yet. Support enum first.
+  It must handle every case or have a `_` branch.
+
+### P2: to decide later
+
+- ☐ 14. Listing the members, e.g. `Color.values()`, and its return type.
+- ☐ 15. Methods in an enum: the syntax, and whether it can implement a trait.
+- ☐ 16. Ordering: an explicit `Comparable` by the user, or an automatic way.
+- ☐ 17. Declaring an enum in a function or class: the lifetime and naming of its singletons.
+- ☐ 18. `sealed trait` (§55), sharing the closed-set check with `switch`.
+- ☐ 19. `switch` as an expression.
+- ☐ 20. Bit flags: whether a `Flags` kind of support is needed.
+
+Note for item 7: a generic function with `T` bound to `any` aborts the compiler at `typespec.c:1592`,
+with or without an enum, e.g. `gen([1, "a"])` for `func gen[T](x list[T])`. It is not fixed yet.
+
+---
+
+## 79. Native handles of `koala/http` and `koala/tls` have no finalizer (2026-11-08, waits for a free path)
+
+- `koala/http`: `_Parser` (`parser.kl`) wraps an `HttpParser` that `http_parser_new` allocates with
+  `calloc`. Only `close()` frees it. `Response.parse`, `ResponseHead.parse` and the client close it
+  on every path; a `_Parser` dropped without `close()` leaks.
+- `koala/tls`: `TlsConn` owns an `SSL *`. Only `close()` frees it (`SSL_shutdown` + `SSL_free`) and
+  closes the TCP fd; a `TlsConn` dropped without `close()` leaks both.
+
+The same kind of leak as §28: give both a `_free` once the run time has a free path.
+
+---
+
+## 80. `koala/http` leftovers (2026-11-08, to do)
+
+- HEAD: the native `http_parser_skip_body` exists, but the client never calls it, and `Request` has
+  only `get` / `post`. A hand-built `Request("HEAD", ...)` whose response has a `Content-Length`
+  waits for EOF, then returns nil.
+- 1xx responses, to check: llhttp completes a `100 Continue` as a message of its own, and the
+  client stops at the first complete message, so it may return the 100 as the response. Not
+  verified.
+- Keep-alive: the client forces `Connection: close`. The parser already has `keep_alive` and
+  `reset`. Keep a connection pool inside `koala/http` until a second real pool exists, then decide
+  on a shared `koala/pool` (discussed 2026-11-08: the shared core is thin, when a connection can be
+  reused is decided by each protocol, and without a concurrency API a pool gives little more than one
+  reused connection per host).
+- Parse errors are not reported: `http_parser_error` is unused, and `Response.parse` returns nil
+  without a reason.
+- Request parsing, for a server: the parser accepts requests, nothing in Koala uses it yet.
+
+---
+
+## 81. `koala/tls` leftovers (2026-11-08, to do)
+
+Fixed on 2026-11-08: the certificate is checked against the host name (`SSL_set1_host`) or, for an
+IP literal, against its IP entries with no SNI sent; a close without `close_notify` is EOF
+(`SSL_OP_IGNORE_UNEXPECTED_EOF`); `close()` twice is safe; a failed handshake closes the TCP
+connection. `dial(url, options?, net_options?)` and `TlsOptions` (handshake timeout,
+`server_name`, `skip_verify`) were added.
+
+**No automated test.**
+
+- The IP literal path: checked by hand against a local TLS redis whose certificate has an IP
+  entry. From this machine `1.1.1.1` and `8.8.8.8` port 443 cannot be reached, so a test against a
+  public server hangs.
+- Unexpected EOF: no public server reliably closes without `close_notify`, so
+  `test_tls_read_to_end` does not reproduce the old failure.
+- `redis.connect_tls` / `SingleTlsPool` against a server (by hand only, §62).
+- The network tests use example.com and badssl.com, and return early when offline.
+
+**Not supported.**
+
+- `ca_file` (custom root CAs): there is one process-wide `SSL_CTX`, a `SSL_CTX` per configuration
+  is needed.
+- A minimum protocol version, ALPN, client certificates.
+- A server side (`TlsListener`, server handshake).
+- The connection state: negotiated version, cipher, peer certificate.
+- Failure reasons: `dial` and `wrap` return nil for DNS, TCP, handshake and verification failures
+  alike.
+
+**Behavior to know.** With a handshake timeout, `wrap` clears the read and write timeouts of the
+TCP connection afterwards. This also clears the `SO_SNDTIMEO` that `so.dial` leaves set for its
+connect timeout.

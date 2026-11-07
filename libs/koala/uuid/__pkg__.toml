@@ -1,0 +1,6 @@
+[package]
+name = "koala/uuid"
+version = "0.1.0"
+description = "UUIDs (RFC 9562) with a Python-like API, implemented in pure Koala"
+dependencies = ["koala/crypto"]
+natives = []

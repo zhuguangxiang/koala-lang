@@ -18,4 +18,6 @@ packages = [
     "tls",
     "http",
     "redis",
+    "uuid",
+    "cli",
 ]

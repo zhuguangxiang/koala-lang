@@ -10,8 +10,9 @@ import "std/socket" as so
 // the class.
 
 /// Wrap an established TCP fd in a TLS session. Returns 0 on failure.
+/// `verify` false accepts any certificate.
 @native
-func tls_conn_new(fd int, hostname str) int {}
+func tls_conn_new(fd int, hostname str, verify bool) int {}
 
 /// Read up to `buf.len()` bytes. >0 count, 0 EOF, -1 error, -2 timeout.
 @native
@@ -31,7 +32,7 @@ func tls_conn_close(ssl int) {}
 /// it never dials. The `tls.dial` convenience does
 /// `TcpConn.connect` + `TlsConn.wrap`.
 pub class TlsConn : so.Conn {
-    let _ssl int
+    var _ssl int
     let _tcp so.TcpConn
 
     func __init__(ssl int, tcp so.TcpConn) {
@@ -39,11 +40,31 @@ pub class TlsConn : so.Conn {
         _tcp = tcp
     }
 
-    /// Perform the TLS handshake over `tcp`, using `hostname` for SNI
+    /// Perform the TLS handshake over `tcp`, using `server_name` for SNI
     /// and certificate verification. Returns nil when the handshake or
     /// verification fails.
-    pub static func wrap(tcp so.TcpConn, hostname str) TlsConn? {
-        let h = tls_conn_new(tcp.fd(), hostname)
+    ///
+    /// `options.server_name()`, when set, takes the place of
+    /// `server_name`. The handshake timeout covers only the handshake:
+    /// the read and write timeouts of `tcp` are cleared afterwards.
+    pub static func wrap(tcp so.TcpConn, server_name str, options TlsOptions? = nil) TlsConn? {
+        let opts = options ?? TlsOptions()
+        let name = opts.server_name() ?? server_name
+
+        let timeout = opts.handshake_timeout_ms()
+        if timeout > 0 {
+            tcp.set_read_timeout(timeout)
+            tcp.set_write_timeout(timeout)
+        }
+
+        let verify = !opts.skip_verify()
+        let h = tls_conn_new(tcp.fd(), name, verify)
+
+        if timeout > 0 {
+            tcp.set_read_timeout(0)
+            tcp.set_write_timeout(0)
+        }
+
         if h == 0 { return nil }
         return TlsConn(h, tcp)
     }
@@ -64,7 +85,11 @@ pub class TlsConn : so.Conn {
 
     /// Tear down TLS and close the underlying TCP socket.
     pub func close() {
-        if _ssl != 0 { tls_conn_close(_ssl) }
+        // 0 marks a closed connection: a second close must neither free
+        // the session again nor close an fd that may have been reused.
+        if _ssl == 0 { return }
+        tls_conn_close(_ssl)
+        _ssl = 0
         _tcp.close()
     }
 

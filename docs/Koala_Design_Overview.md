@@ -66,6 +66,7 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **变量声明**：支持默认值与**类型推导**——有初始化表达式即可省略类型注解。
 - **Tuple destructuring (decided 2026-10-27)**: `let (a, b) = t` / `var (a, b) = t`, with `_` to skip an element. Types are inferred from the tuple; each name may optionally carry a type (`let (a int8, b int?) = (1, nil)`), which is the expected type of that element, following single `let` (per-field annotations, as in Kotlin, rather than a whole-pattern type). The value must be a tuple with exactly as many elements, names must be distinct, and at least two names are required. Locals only for now; nested patterns are not supported. Implemented as its own `TupleDeclStmt`: the value is evaluated once, then each element is read with `seq.get` and converted to the variable's type, sharing `build_unpack_vars()` with `for` unpacking.
 - **泛型自动推导**：泛型类型参数由编译器从上下文推断，调用侧无需手写类型实参。
+- **Generic methods (2026-11-08)**: a method may declare type parameters of its own, e.g. `func pass[T](x T) T`, with bounds (`func same[T : Equatable](a T, b T) bool`), as a static method (`static func make[T](x T) T`), and in a generic class (`Cell[T]` with `func pair[U](u U) (T, U)`). Type args are inferred from the call args as for generic functions, or written out (`b.pass[int](1)`, `Box.make[int](7)`, `pkg.ident[int](3)`), and a generic method may call another through `self`; a generic class is constructed either way too (`Cell(5)` / `Cell[int](5)`). A method is never routed to a specialized function by its mangled name: its instance is keyed by its class (`Box.pass<int64>`), so a top-level `pass_int64`, or a method of the same name in another class, is not taken for it. Generic methods always use type erasure: no IR clone is made, and `@specialized` on a method is ignored (§7.4). They work across packages: when a klc is loaded, the owner of a method's type parameter is the method being loaded, recorded on each fixup, because a method is not a top-level symbol of its package and a top-level function of the same name is a different symbol. A generic method is not checked against a trait's declaration (§4). Covered by test-run/test_generic_method.kl (same module) and test-run/test_ext_generic_method.kl (from test_pkg/pkg_generic_method).
 - **手动泛型展开**：`@specialized` 注解按放置位置分流——挂在具体声明上映射（`list[int64]` → `int64list`），挂在泛型类 / 泛型函数上由编译器生成特化声明；实例化无论显式书写或推断所得，注解即开关，未关联则擦除（见 §7.4）。
 
 ### 2.5 Null 安全与值表示
@@ -80,6 +81,103 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **展开 `!`（后缀，变参位）**：`f(l!)` 把 list `l` 的元素展开为变参实参（与强制解包同形不同义，按上下文区分）。
 - **无 box/unbox**：实现层不存在装箱机制——值类型进入普适 `any` / 泛型容器无需变身。对照：Java autoboxing（隐藏分配 + Integer 缓存陷阱）、C# struct 装箱、Kotlin Int-as-Any 装箱、Go interface{} 装箱。"普适 any + 泛型"与"零装箱"通常互斥，Koala 两者兼得，是 VM / 表示层的工程成就。
 - 零装箱同时是"无隐藏特性"原则的直接推论（装箱即隐藏分配、隐藏身份变化），也是基准性能的贡献项。
+
+### 2.6 枚举 `enum`（设计已定，未实现，计划见 `Koala_TODO.md` §78）
+
+**定位**：enum 是一组固定的、具名的常量，成员**不带数据**。成员要带数据时用 `sealed trait` + class
+（`Koala_TODO.md` §55）。两者只共用一处逻辑：`switch` 判断成员集合是否封闭。
+
+**模型：final class 的语法糖，成员是全局复用的单例。**
+
+```kl
+pub enum Color { RED, GREEN, BLUE = 10, ALPHA }
+```
+
+编译器生成（伪代码）：
+
+```kl
+pub class Color : Equatable[Color] {
+    pub let value int64
+    let name str
+
+    // 私有：外部不能构造
+    func __init__(v int64, n str) {
+        value = v
+        name = n
+    }
+
+    pub func fmt(f Formatter) { f.write_str(name) }
+
+    pub static let RED   = Color(0, "RED")
+    pub static let GREEN = Color(1, "GREEN")
+    pub static let BLUE  = Color(10, "BLUE")
+    pub static let ALPHA = Color(11, "ALPHA")
+}
+```
+
+**单例复用**：每个成员在整个程序里只创建一次，`Color.RED` 只是读取，不会 new 对象。
+
+- 创建：在模块 `__init__` 的最开头执行，早于所有用户全局变量的初始化，所以 `let g = Color.RED`
+  不管写在 enum 前还是后都能读到。
+- 读取：每次 `Color.RED` 都读同一个对象，`a = Color.RED; b = Color.RED` 后 `a` 和 `b` 是同一个对象。
+- 跨包：被导入的模块总是先初始化完（`resolve_import` 先于本模块的 `__init__`）；`pkg.Color.RED` 走
+  现有的 `IMPORT_KIND_GLOBAL`，导入方拿到的是导出方的同一个对象。
+- 不会出现第二个对象：构造函数私有，`Color(...)` 报错；成员不能赋值，`Color.RED = ...` 报错；
+  `Color.from(v)` 返回已有的单例，不 new。
+
+**`static let`**：类级的只读成员，enum 的成员就是它，普通 class 也可以用。
+
+- 语言层面：符号在类的符号表里，`Color.RED` 由 `parse_dot` 按“类名.成员”解析，和 `Date.from_str`
+  走同一条路径；模块的符号表里没有它。
+- 运行时：值放在现有的全局槽位里，内部名为 `Color.RED`（带 `.`，用户写不出来，不会和用户的变量
+  重名），读取用现有的 `get_global`。不改 VM、指令和 klc 格式。
+- `static` 目前只能修饰 `func`（`koala.y` 的 `STATIC func_decl`），`static let` 要新增语法。
+
+**规则**
+
+```kl
+let c = Color.BLUE
+print(c)                    // BLUE
+print(c.value)              // 10
+print(c == Color.BLUE)      // true
+
+let a = Color.from(11)      // Color?，ALPHA
+let b = Color.from(7)       // nil
+
+let e Color = 10            // 错误：不能隐式转换
+let i int = c               // 错误：要写 c.value
+let gt = c > Color.RED      // 错误：要写 c.value > Color.RED.value
+Color(0, "RED")             // 错误：不能构造
+Color.RED = Color.BLUE      // 错误：成员不能赋值
+```
+
+- 没有隐式转换：与“去掉数值的隐式提升”（§5）方向一致，int 和 enum 互转都要显式写。
+- 不能比较大小：Python 的 `Enum` 默认也不能；而且按值比较和按声明顺序比较会得到不同结果
+  （`enum E { A = 10, B = 1 }`，按值 `A > B`，按顺序 `A < B`）。以后要加不会破坏已有代码，
+  加了就很难再去掉。
+- 只能写在顶层，可加 `pub`；成员名只能用大写字母、数字和 `_`，以字母开头；值必须是整数字面量，
+  且在 int64 范围内；不写值时自动递增；成员名和值都不能重复。
+- enum 是普通 class，所以 `list[Color]`、`dict[Color, int]`、`Color?`、转 `any`、泛型 `T`、
+  自动契约（§2.2）都按 class 的规则工作，不需要单独的类型种类。
+
+**放弃的方案**
+
+| 方案 | 做法 | 放弃原因 |
+|---|---|---|
+| 运行时 int64（分支 `new_enum`） | 新增 `TYPE_ENUM`，成员折叠成 int64 常量 | 每个处理类型的地方都要加 `TYPE_ENUM`；跨包、泛型、打印、方法都要另做；转成 `any` 后丢失枚举身份 |
+| 编译期 class、运行时 int64 | 类型检查当 class，值是 int64，不分配对象 | 值在运行时不认识枚举，打印、`any`、`is` 都有问题；禁止转成 trait 又会挡住大量常见用法 |
+| 隐藏的模块级全局变量 | 每个成员是一个编译器生成的模块变量 | 成员应属于类，不属于模块；改为 `static let`，只借用全局槽位做存储 |
+
+**范围**
+
+- 第一版：`static let`、enum 语法和成员校验、脱糖、`fmt`、`value`、容器和泛型、跨包。
+- 之后：`Color.from(v)`（普通的 `pub static func`）、`c.name()`、`switch` 的语义（必须穷尽，否则要有
+  `_` 分支）。
+- 以后再定：遍历所有成员、枚举内自定义方法、大小比较、在函数或类内声明、`switch` 作为表达式、
+  位标志枚举。
+
+**待确认**：循环导入时 `_find_module` 会返回还没初始化完的模块，可能读到空的槽位；默认参数
+`func f(c Color = Color.RED)` 现在要求字面量或常量，是否支持要单独决定。
 
 ---
 

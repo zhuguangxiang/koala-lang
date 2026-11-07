@@ -14,7 +14,7 @@ pub class Options {
     /// Name reported via CLIENT SETNAME on each new Conn; empty skips it.
     pub var name = ""
 
-    /// Connect timeout in milliseconds. 0 means no timeout. TCP only: tls.dial takes no options.
+    /// Connect timeout in milliseconds. 0 means no timeout. With TLS it also bounds the handshake.
     pub var connect_timeout_ms = 5000
 
     /// Read timeout in milliseconds. 0 means no timeout.

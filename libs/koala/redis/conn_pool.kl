@@ -115,6 +115,9 @@ pub class SingleTlsPool : ConnPool {
     /// True once close ran; acquire then refuses to hand out a Conn.
     var _closed bool = false
 
+    /// True while the Conn is lent out; acquire then returns nil.
+    var _in_use bool = false
+
     /// Create a TLS pool configured by `opts`.
     pub func __init__(opts Options) {
         _opts = opts
@@ -122,11 +125,19 @@ pub class SingleTlsPool : ConnPool {
 
     /// Return the cached Conn, creating it if necessary.
     pub func acquire() Conn? {
-        if _closed { return nil }
+        if _closed || _in_use { return nil }
 
-        if let c = _conn { return c }
+        if let c = _conn {
+            _in_use = true
+            return c
+        }
 
-        let sock = tls.dial(_opts.host, _opts.port)
+        let url = _opts.host + ":" + str(_opts.port)
+        let dial_opts = so.DialOptions().set_timeout_ms(_opts.connect_timeout_ms)
+        // The handshake is part of connecting, so it gets the same bound.
+        let tls_opts = tls.TlsOptions().set_handshake_timeout_ms(_opts.connect_timeout_ms)
+
+        let sock = tls.dial(url, tls_opts, dial_opts)
         if sock == nil { return nil }
 
         let c = Conn(sock)
@@ -136,18 +147,20 @@ pub class SingleTlsPool : ConnPool {
         }
 
         _conn = c
+        _in_use = true
         return c
     }
 
     /// Keep the Conn for reuse. The caller must only pass a healthy Conn.
     pub func release(conn Conn) {
-        // Nothing to do: the single Conn is already cached.
+        _in_use = false
     }
 
     /// Close the Conn and clear the cache so the next acquire reconnects.
     pub func discard(conn Conn) {
         conn.close()
         _conn = nil
+        _in_use = false
     }
 
     /// Close the cached Conn, if any, and refuse further acquires.

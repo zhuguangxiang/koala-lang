@@ -56,11 +56,10 @@ func _do(req Request) Response? {
 
 // Send `req` over `conn` and read the full response.
 //
-// Forces Connection: close so the peer signals end-of-body by
-// closing, then reads to EOF and parses the whole thing. This is
-// correct for every framing because Response.parse handles
-// Content-Length, chunked, and connection-close once it has the
-// complete bytes.
+// Forces Connection: close so a body framed by neither Content-Length
+// nor chunked ends when the peer closes. Reads and feeds the parser
+// piece by piece, and stops as soon as the response is complete,
+// without waiting for EOF.
 func _send_on(conn so.Conn, req Request) Response? {
     req.header("Connection", "close")
 
@@ -72,18 +71,45 @@ func _send_on(conn so.Conn, req Request) Response? {
     // promptly, but without a timeout a stalled peer blocks forever.
     conn.set_read_timeout(5000)
 
-    let all = conn.read_to_end()
-    if all == nil { return nil }
+    let parser = _Parser.response()
+    if parser == nil { return nil }
 
-    return Response.parse(all)
+    let response = _read_from(conn, parser)
+    parser.close()
+    return response
+}
+
+// Read from `conn` and feed `parser` until the response is complete.
+// Nil on a read error, a parse error, or a response cut short by EOF.
+func _read_from(conn so.Conn, parser _Parser) Response? {
+    let buf = bytes(4096)
+    while parser.state() < _STATE_COMPLETE {
+        let n = conn.read(buf)
+        if n < 0 { return nil }
+
+        // EOF: a body framed by connection close ends here.
+        if n == 0 {
+            if !parser.finish() { return nil }
+            break
+        }
+
+        let fed = parser.feed(buf[0:n], _STATE_COMPLETE)
+        if fed < 0 { return nil }
+    }
+
+    let head = _head_of(parser)
+    return Response(head, parser.take_body())
 }
 
 // Pick the transport by scheme. Private: the public surface is
 // Client / get / post.
 func _dial(url Url) so.Conn? {
-    if url.is_tls() {
-        return tls.dial(url.host(), url.port())
-    }
     let addr = url.host() + ":" + str(url.port())
+    if url.is_tls() {
+        // Same bound as the read timeout in _send_on: a stalled peer
+        // must not block the handshake forever.
+        let opts = tls.TlsOptions().set_handshake_timeout_ms(5000)
+        return tls.dial(addr, opts)
+    }
     return so.dial(addr, so.SocketTypeSpec.tcp())
 }

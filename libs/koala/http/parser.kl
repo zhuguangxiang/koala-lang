@@ -1,0 +1,147 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The @native declarations below mirror native/http_shim.c, a thin
+// layer over the vendored llhttp. They are not part of the package's
+// public API.
+
+/// Create a parser. `kind` is 1 for requests, 2 for responses.
+/// Returns 0 on failure.
+@native
+func http_parser_new(kind int) int {}
+
+/// Mark the coming response as one to a HEAD request: no body follows
+/// the head. Set before the head is fed.
+@native
+func http_parser_skip_body(p int, skip bool) {}
+
+/// Parse `data`. Returns the bytes consumed, less than `data.len()`
+/// when the parser stopped at the end of the head or of the message.
+/// -1 on a parse error.
+@native
+func http_parser_feed(p int, data bytes) int {}
+
+/// The peer closed the connection. 0 when the message is complete,
+/// -1 when it was cut short.
+@native
+func http_parser_finish(p int) int {}
+
+/// 0 in the head, 1 once the head is parsed, 2 once the message is.
+@native
+func http_parser_state(p int) int {}
+
+@native
+func http_parser_status(p int) int {}
+
+@native
+func http_parser_reason(p int) str {}
+
+@native
+func http_parser_header_count(p int) int {}
+
+@native
+func http_parser_header_name(p int, i int) str {}
+
+@native
+func http_parser_header_value(p int, i int) str {}
+
+/// Where the body starts, counted from the first byte of the message.
+@native
+func http_parser_body_offset(p int) int {}
+
+/// The body decoded so far, chunked framing removed. The parser keeps
+/// no copy.
+@native
+func http_parser_take_body(p int) bytes {}
+
+/// Whether the connection can carry another message after this one.
+@native
+func http_parser_keep_alive(p int) bool {}
+
+/// The reason for the last parse error, or "" when there is none.
+@native
+func http_parser_error(p int) str {}
+
+/// Get ready for the next message on the same connection.
+@native
+func http_parser_reset(p int) {}
+
+@native
+func http_parser_free(p int) {}
+
+// Progress of the message, as http_parser_state reports it.
+const _STATE_HEAD = 0
+const _STATE_BODY = 1
+const _STATE_COMPLETE = 2
+
+// llhttp's parser type for responses.
+const _KIND_RESPONSE = 2
+
+// A parser for one message at a time, over the native handle.
+//
+// Nothing frees the handle on its own yet, so the owner calls close()
+// when done.
+class _Parser {
+    let _p int
+
+    func __init__(p int) {
+        _p = p
+    }
+
+    // A response parser, or nil when the native side cannot make one.
+    static func response() _Parser? {
+        let p = http_parser_new(_KIND_RESPONSE)
+        if p == 0 { return nil }
+        return _Parser(p)
+    }
+
+    func state() int { return http_parser_state(_p) }
+    func status() int { return http_parser_status(_p) }
+    func reason() str { return http_parser_reason(_p) }
+    func body_offset() int { return http_parser_body_offset(_p) }
+    func take_body() bytes { return http_parser_take_body(_p) }
+
+    // The headers in arrival order, each as `[name, value]`.
+    func headers() list[list[str]] {
+        let headers = list[list[str]]()
+        let n = http_parser_header_count(_p)
+        var i = 0
+        while i < n {
+            let pair = list[str]()
+            pair.append(http_parser_header_name(_p, i))
+            pair.append(http_parser_header_value(_p, i))
+            headers.append(pair)
+            i += 1
+        }
+        return headers
+    }
+
+    // Feed `data` until the parser reaches `until` or can go no
+    // further. Returns the bytes consumed, or -1 on a parse error.
+    //
+    // A feed stops early at the end of the head and of the message, so
+    // feed again until nothing is consumed. Feeding the empty rest
+    // still matters: it lets a message with no body complete.
+    func feed(data bytes, until int) int {
+        var pos = 0
+        while http_parser_state(_p) < until {
+            let n = http_parser_feed(_p, data[pos:data.len()])
+            if n < 0 { return -1 }
+            pos += n
+            if n == 0 { break }
+        }
+        return pos
+    }
+
+    // The peer closed the connection. False when the message was cut
+    // short.
+    func finish() bool {
+        return http_parser_finish(_p) == 0
+    }
+
+    func close() {
+        http_parser_free(_p)
+    }
+}

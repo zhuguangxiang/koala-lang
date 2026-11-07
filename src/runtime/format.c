@@ -19,6 +19,7 @@ typedef struct {
     int width;      // field width
     int precision;  // precision for floats
     char flag_zero; // zero padding flag
+    char flag_prec; // '.' was given, even when the precision is 0
 } FormatSpec;
 
 static void parse_format_spec(const char *fmt, int *i, FormatSpec *spec)
@@ -59,6 +60,7 @@ static void parse_format_spec(const char *fmt, int *i, FormatSpec *spec)
 
     // precision
     if (fmt[*i] == '.') {
+        spec->flag_prec = 1;
         (*i)++;
         while (isdigit((unsigned char)fmt[*i])) {
             spec->precision = spec->precision * 10 + (fmt[*i] - '0');
@@ -131,7 +133,7 @@ static void format_float(Buffer *out, double v, const FormatSpec *spec)
     char fmt[16];
     char tmp[128];
 
-    if (spec->precision > 0)
+    if (spec->flag_prec)
         snprintf(fmt, sizeof(fmt), "%%.%df", spec->precision);
     else
         strcpy(fmt, "%f");

@@ -4,3 +4,17 @@ version = "0.1.0"
 description = "HTTP/1.1 client over TCP and TLS"
 dependencies = []
 natives = []
+
+[native]
+name = "koala_http"
+sources = [
+    "native/http_shim.c",
+    "native/llhttp/src/api.c",
+    "native/llhttp/src/http.c",
+    "native/llhttp/src/llhttp.c",
+]
+includes = [
+    "native/llhttp/include",
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

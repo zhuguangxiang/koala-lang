@@ -1,0 +1,34 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// UUIDs matching Python's `uuid` module, implemented in pure Koala.
+///
+/// Generation: `uuid4()` (random), `uuid7()` (time-ordered, RFC 9562),
+/// `uuid5(ns, name)` (SHA-1) and `uuid3(ns, name)` (MD5).
+///
+/// Parsing and formatting live on the `UUID` value type, whose member names
+/// follow Python's: `hex()`, `to_bytes()`, `urn()`, `version()`, `variant()`,
+/// `fields()`, `time_low()`, `time_mid()`, `time_hi_version()`,
+/// `clock_seq_hi_variant()`, `clock_seq_low()`, `node()`, `time()`,
+/// `clock_seq()` and `bytes_le()`.
+///
+/// Two Python details cannot be carried over, and the difference is
+/// deliberate:
+///   - Koala has no computed properties, so every Python attribute is a
+///     method here: `u.hex` becomes `u.hex()`;
+///   - `int` is 64-bit, so a UUID's 128-bit `int` form is not offered; use
+///     `hex()`, `to_str()` or `to_bytes()` instead.
+///
+/// `print(u)` and `format("{}", u)` yield the canonical 36-character text,
+/// the same as Python's `str(u)`.
+///
+/// Example:
+///     let u = uuid.uuid4()
+///     print(u)                            // 0f8fad5b-d9cb-469f-a165-70867728950e
+///     print(u.version(), u.variant())     // 4 specified in RFC 4122
+///     let v = uuid.UUID("0f8fad5bd9cb469fa16570867728950e")
+///     print(v == u)                       // true
+///     print(uuid.uuid5(uuid.NAMESPACE_DNS, "www.widgets.com"))
+///     // 3d813cbb-47fb-50d8-9ed5-1ab7bd8f7dbe

@@ -1,0 +1,283 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Every accepted form and every error goes through Parser.parse, which
+// reports instead of exiting.
+
+import "std/ut"
+import "koala/cli"
+
+// The message of the error `argv` produces, or "" when it parses.
+func _error_of(p cli.Parser, argv list[str]) str {
+    let err = p.parse(argv)
+    if let e = err { return e.message() }
+    return ""
+}
+
+// ---------- flags ----------
+
+@test
+func test_flag_absent() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    ut.assert_true(p.parse([]) == nil)
+    ut.assert_false(v.value())
+}
+
+@test
+func test_flag_short_and_long() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    let q = p.add(cli.Flag("quiet"))
+    ut.assert_true(p.parse(["-v", "--quiet"]) == nil)
+    ut.assert_true(v.value())
+    ut.assert_true(q.value())
+}
+
+@test
+func test_flag_cluster() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    let y = p.add(cli.Flag("yes").set_short("y"))
+    ut.assert_true(p.parse(["-vy"]) == nil)
+    ut.assert_true(v.value())
+    ut.assert_true(y.value())
+}
+
+@test
+func test_flag_rejects_inline_value() {
+    let p = cli.Parser("t")
+    p.add(cli.Flag("verbose").set_short("v"))
+    let msg = _error_of(p, ["--verbose=1"])
+    ut.assert_eq(msg, "argument -v/--verbose: ignored explicit argument '1'")
+}
+
+// ---------- string options ----------
+
+@test
+func test_str_option_forms() {
+    let forms = [["-o", "x"], ["-ox"], ["--output", "x"], ["--output=x"]]
+    for argv in forms {
+        let p = cli.Parser("t")
+        let o = p.add(cli.StrOption("output").set_short("o"))
+        ut.assert_true(p.parse(argv) == nil)
+        ut.assert_eq(o.value()!, "x")
+    }
+}
+
+@test
+func test_str_option_default_and_absent() {
+    let p = cli.Parser("t")
+    let o = p.add(cli.StrOption("output").set_default("./dist"))
+    let n = p.add(cli.StrOption("name"))
+    ut.assert_true(p.parse([]) == nil)
+    ut.assert_eq(o.value()!, "./dist")
+    ut.assert_true(n.value() == nil)
+}
+
+@test
+func test_str_option_takes_dash_value() {
+    // The next argument is the value even when it starts with '-', as
+    // getopt does.
+    let p = cli.Parser("t")
+    let o = p.add(cli.StrOption("output").set_short("o"))
+    ut.assert_true(p.parse(["-o", "-"]) == nil)
+    ut.assert_eq(o.value()!, "-")
+}
+
+@test
+func test_str_option_empty_inline_value() {
+    let p = cli.Parser("t")
+    let o = p.add(cli.StrOption("output"))
+    ut.assert_true(p.parse(["--output="]) == nil)
+    ut.assert_eq(o.value()!, "")
+}
+
+@test
+func test_option_after_cluster_flag() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    let o = p.add(cli.StrOption("output").set_short("o"))
+    ut.assert_true(p.parse(["-vox"]) == nil)
+    ut.assert_true(v.value())
+    ut.assert_eq(o.value()!, "x")
+}
+
+@test
+func test_option_missing_value() {
+    let p = cli.Parser("t")
+    p.add(cli.StrOption("output").set_short("o"))
+    ut.assert_eq(_error_of(p, ["-o"]), "argument -o/--output: expected one argument")
+    ut.assert_eq(_error_of(p, ["--output"]), "argument -o/--output: expected one argument")
+}
+
+@test
+func test_required_option() {
+    let p = cli.Parser("t")
+    p.add(cli.StrOption("output").set_short("o").set_required())
+    let msg = _error_of(p, [])
+    ut.assert_eq(msg, "the following arguments are required: -o/--output")
+}
+
+// ---------- int options ----------
+
+@test
+func test_int_option() {
+    let p = cli.Parser("t")
+    let j = p.add(cli.IntOption("jobs").set_short("j").set_default(4))
+    ut.assert_true(p.parse([]) == nil)
+    ut.assert_eq(j.value()!, 4)
+
+    ut.assert_true(p.parse(["-j", "8"]) == nil)
+    ut.assert_eq(j.value()!, 8)
+
+    ut.assert_true(p.parse(["--jobs=-3"]) == nil)
+    ut.assert_eq(j.value()!, -3)
+}
+
+@test
+func test_int_option_invalid() {
+    let p = cli.Parser("t")
+    p.add(cli.IntOption("jobs").set_short("j"))
+    ut.assert_eq(_error_of(p, ["-j", "x"]), "argument -j/--jobs: invalid int value: 'x'")
+    ut.assert_eq(_error_of(p, ["-j", "-"]), "argument -j/--jobs: invalid int value: '-'")
+    ut.assert_eq(_error_of(p, ["-j", "1.5"]), "argument -j/--jobs: invalid int value: '1.5'")
+
+    // Too many digits for int64 is rejected rather than overflowing.
+    let big = "1234567890123456789"
+    ut.assert_eq(_error_of(p, ["-j", big]), "argument -j/--jobs: invalid int value: '" + big + "'")
+}
+
+// ---------- positionals ----------
+
+@test
+func test_positionals_in_order() {
+    let p = cli.Parser("t")
+    let src = p.add(cli.Positional("src"))
+    let dst = p.add(cli.Positional("dst").set_optional())
+    ut.assert_true(p.parse(["a"]) == nil)
+    ut.assert_eq(src.value()!, "a")
+    ut.assert_true(dst.value() == nil)
+
+    ut.assert_true(p.parse(["a", "b"]) == nil)
+    ut.assert_eq(dst.value()!, "b")
+}
+
+@test
+func test_positionals_mixed_with_options() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    let dir = p.add(cli.Positional("dir"))
+    ut.assert_true(p.parse(["src", "-v"]) == nil)
+    ut.assert_eq(dir.value()!, "src")
+    ut.assert_true(v.value())
+}
+
+@test
+func test_required_positional() {
+    let p = cli.Parser("t")
+    p.add(cli.Positional("src"))
+    p.add(cli.Positional("dst"))
+    let msg = _error_of(p, [])
+    ut.assert_eq(msg, "the following arguments are required: src, dst")
+}
+
+@test
+func test_extra_positional() {
+    let p = cli.Parser("t")
+    p.add(cli.Positional("dir"))
+    ut.assert_eq(_error_of(p, ["a", "b"]), "unrecognized arguments: b")
+}
+
+@test
+func test_double_dash_ends_options() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    let dir = p.add(cli.Positional("dir"))
+    ut.assert_true(p.parse(["--", "-v"]) == nil)
+    ut.assert_eq(dir.value()!, "-v")
+    ut.assert_false(v.value())
+}
+
+@test
+func test_lone_dash_is_positional() {
+    let p = cli.Parser("t")
+    let file = p.add(cli.Positional("file"))
+    ut.assert_true(p.parse(["-"]) == nil)
+    ut.assert_eq(file.value()!, "-")
+}
+
+// ---------- unknown options ----------
+
+@test
+func test_unknown_options() {
+    let p = cli.Parser("t")
+    p.add(cli.Flag("verbose").set_short("v"))
+    ut.assert_eq(_error_of(p, ["-x"]), "unrecognized arguments: -x")
+    ut.assert_eq(_error_of(p, ["-vx"]), "unrecognized arguments: -vx")
+    ut.assert_eq(_error_of(p, ["--nope"]), "unrecognized arguments: --nope")
+}
+
+// ---------- help ----------
+
+@test
+func test_help_stops_parsing() {
+    let forms = [["-h"], ["--help"], ["-vh"]]
+    for argv in forms {
+        let p = cli.Parser("t")
+        p.add(cli.Flag("verbose").set_short("v"))
+        // Required arguments are not checked once help is asked for.
+        p.add(cli.Positional("dir"))
+        ut.assert_true(p.parse(argv) == nil)
+        ut.assert_true(p.help_requested())
+    }
+}
+
+@test
+func test_parse_resets_previous_values() {
+    let p = cli.Parser("t")
+    let v = p.add(cli.Flag("verbose").set_short("v"))
+    let o = p.add(cli.StrOption("output"))
+    ut.assert_true(p.parse(["-v", "--output=x", "--help"]) == nil)
+    ut.assert_true(p.help_requested())
+
+    ut.assert_true(p.parse([]) == nil)
+    ut.assert_false(v.value())
+    ut.assert_true(o.value() == nil)
+    ut.assert_false(p.help_requested())
+}
+
+@test
+func test_usage() {
+    let p = cli.Parser("tool")
+    p.add(cli.Flag("verbose").set_short("v"))
+    p.add(cli.StrOption("output").set_short("o"))
+    p.add(cli.IntOption("jobs").set_required())
+    p.add(cli.Positional("src"))
+    p.add(cli.Positional("dst").set_optional())
+    ut.assert_eq(p.usage(), "usage: tool [-h] [-v] [-o OUTPUT] --jobs JOBS src [dst]")
+}
+
+@test
+func test_help_text() {
+    let p = cli.Parser("tool", "Copy things.")
+    p.add(cli.Flag("verbose").set_short("v").set_help("Print each step"))
+    p.add(cli.StrOption("output-dir").set_short("o").set_default("./dist").set_help("Where to write"))
+    p.add(cli.Positional("src").set_help("What to copy"))
+
+    let want = "usage: tool [-h] [-v] [-o OUTPUT_DIR] src\n" +
+               "\n" +
+               "Copy things.\n" +
+               "\n" +
+               "positional arguments:\n" +
+               "  src                   What to copy\n" +
+               "\n" +
+               "options:\n" +
+               "  -h, --help            show this help message and exit\n" +
+               "  -v, --verbose         Print each step\n" +
+               "  -o, --output-dir OUTPUT_DIR\n" +
+               "                        Where to write (default: ./dist)"
+    ut.assert_eq(p.help(), want)
+}
