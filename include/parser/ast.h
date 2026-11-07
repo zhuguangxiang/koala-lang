@@ -73,6 +73,7 @@ typedef enum _ExprKind {
     EXPR_TUPLE_KIND,
     EXPR_ANONY_KIND,
     EXPR_TYPE_KIND,
+    EXPR_OPTIONAL_TYPE_KIND,
     EXPR_CALL_KIND,
     EXPR_DOT_KIND,
     EXPR_INDEX_KIND,
@@ -287,6 +288,14 @@ typedef struct _TypeExpr {
 } TypeExpr;
 
 Expr *expr_from_type(TypeSpec *type);
+
+/* `src?` in a type argument, `src` is an expression that names a type */
+typedef struct _OptionalTypeExpr {
+    EXPR_HEAD
+    Expr *src;
+} OptionalTypeExpr;
+
+Expr *expr_from_optional_type(Expr *src);
 
 typedef struct _ListExpr {
     EXPR_HEAD

@@ -1,0 +1,107 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "test_pkg/pkg_no_init"
+
+// An optional type as a type argument when creating an object: Foo[Bar?](), Foo[Bar[Z, int]?]().
+
+class Bar {
+    var n int
+    func __init__(value int) { n = value }
+}
+
+class Pair[A, B] {
+    var a A
+    var b B
+    func __init__(first A, second B) {
+        a = first
+        b = second
+    }
+}
+
+class Box[T] {
+    var v T
+    func __init__(value T) { v = value }
+    func get() T { return v }
+}
+
+func wrap[T](value T) Box[T?] {
+    return Box[T?](value)
+}
+
+func wrap_nil[T](value T) Box[T?] {
+    return Box[T?](nil)
+}
+
+@test
+func test_class_type_arg() {
+    let a Box[Bar?] = Box[Bar?](nil)
+    ut.assert_true(a.get() == nil)
+
+    let b = Box[Bar?](Bar(1))
+    ut.assert_eq(b.get()!.n, 1)
+}
+
+@test
+func test_primitive_type_arg() {
+    let a = Box[int?](nil)
+    ut.assert_true(a.get() == nil)
+
+    let b = Box[int?](1)
+    ut.assert_eq(b.get()!, 1)
+}
+
+@test
+func test_generic_instance_type_arg() {
+    let a Box[Pair[str, int]?] = Box[Pair[str, int]?](nil)
+    ut.assert_true(a.get() == nil)
+
+    let b = Box[Pair[str, int]?](Pair[str, int]("x", 1))
+    ut.assert_eq(b.get()!.b, 1)
+}
+
+@test
+func test_nested_type_arg() {
+    let a Box[Box[Bar?]?] = Box[Box[Bar?]?](nil)
+    ut.assert_true(a.get() == nil)
+
+    let b = Box[Box[Bar?]?](Box[Bar?](Bar(2)))
+    ut.assert_eq(b.get()!.get()!.n, 2)
+}
+
+@test
+func test_builtin_container() {
+    let a = list[Bar?]()
+    a.append(nil)
+    a.append(Bar(3))
+    ut.assert_true(a[0] == nil)
+    ut.assert_eq(a[1]!.n, 3)
+
+    let b = dict[str, Pair[str, int]?]()
+    b["k"] = nil
+    ut.assert_eq(b.len(), 1)
+}
+
+@test
+func test_tuple_item_type_arg() {
+    let a = list[(Bar?, int)]()
+    a.append((nil, 1))
+    ut.assert_eq(a[0][1], 1)
+}
+
+@test
+func test_type_of_other_package() {
+    let a = list[pkg_no_init.Plain?]()
+    a.append(nil)
+    ut.assert_eq(a.len(), 1)
+
+    let b = list[pkg_no_init.WithInit[int]?]()
+    b.append(pkg_no_init.WithInit[int]())
+    ut.assert_eq(b.len(), 1)
+}
+
+@test
+func test_type_parameter() {
+    ut.assert_eq(wrap(1).get()!, 1)
+    ut.assert_true(wrap_nil("x").get() == nil)
+}

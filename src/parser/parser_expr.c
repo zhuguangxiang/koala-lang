@@ -2803,6 +2803,13 @@ static void parse_slice_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
  */
 static TypeSpec *type_arg_of_expr(Expr *arg, ParserState *ps)
 {
+    /* Foo[Bar?](), Foo[Bar[Z, int]?]() */
+    if (arg->kind == EXPR_OPTIONAL_TYPE_KIND) {
+        TypeSpec *src_ts = type_arg_of_expr(((OptionalTypeExpr *)arg)->src, ps);
+        if (!src_ts) return NULL;
+        return optional_type_spec_intern(src_ts);
+    }
+
     if (arg->kind == EXPR_TUPLE_KIND) {
         Vector *item_types = vector_create_ptr();
 
@@ -2849,6 +2856,12 @@ static TypeSpec *type_arg_of_expr(Expr *arg, ParserState *ps)
 
     kl_error(arg->loc, "type argument must be a class/trait type.");
     return NULL;
+}
+
+/* Reached only outside a type argument, where type_arg_of_expr takes `src?`. */
+static void parse_optional_type(ParserState *ps, Expr *exp)
+{
+    kl_error(exp->loc, "'?' is only allowed in a type argument.");
 }
 
 static void parse_index_new_type(ParserState *ps, IndexExpr *index)
@@ -4369,6 +4382,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_MAP_ENTRY_KIND] = parse_map_entry,
         [EXPR_TUPLE_KIND]   = parse_tuple,
         [EXPR_TYPE_KIND]    = parse_type,
+        [EXPR_OPTIONAL_TYPE_KIND] = parse_optional_type,
         [EXPR_CALL_KIND]    = parse_call,
         [EXPR_DOT_KIND]     = parse_dot,
         [EXPR_INDEX_KIND]   = parse_index,

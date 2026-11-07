@@ -339,6 +339,14 @@ Expr *expr_from_type(TypeSpec *type)
     return (Expr *)exp;
 }
 
+Expr *expr_from_optional_type(Expr *src)
+{
+    OptionalTypeExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_OPTIONAL_TYPE_KIND;
+    exp->src = src;
+    return (Expr *)exp;
+}
+
 Expr *expr_from_list(Vector *vec)
 {
     ListExpr *exp = mm_alloc_obj(exp);
@@ -505,6 +513,13 @@ static void const_tuple_expr_free(Expr *exp)
 static void anony_expr_free(Expr *exp) { mm_free(exp); }
 static void type_expr_free(Expr *exp) { mm_free(exp); }
 
+static void optional_type_expr_free(Expr *exp)
+{
+    OptionalTypeExpr *e = (OptionalTypeExpr *)exp;
+    expr_free(e->src);
+    mm_free(exp);
+}
+
 static void call_expr_free(Expr *exp)
 {
     CallExpr *e = (CallExpr *)exp;
@@ -620,6 +635,7 @@ void expr_free(Expr *exp)
         [EXPR_CONST_TUPLE_KIND] = const_tuple_expr_free,
         [EXPR_ANONY_KIND] = anony_expr_free,
         [EXPR_TYPE_KIND] = type_expr_free,
+        [EXPR_OPTIONAL_TYPE_KIND] = optional_type_expr_free,
         [EXPR_CALL_KIND] = call_expr_free,
         [EXPR_DOT_KIND] = dot_expr_free,
         [EXPR_INDEX_KIND] = index_expr_free,

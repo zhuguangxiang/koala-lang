@@ -3516,6 +3516,16 @@ primary_expr
         $$ = expr_from_bang($1);
         expr_set_loc($$, lloc(@1, @2));
     }
+    | primary_expr '?'
+    {
+        // for type only: Bar?, z.Bar? and Bar[int]? in Foo[Bar?]()
+        if ($1 == NULL) {
+            $$ = NULL;
+        } else {
+            $$ = expr_from_optional_type($1);
+            expr_set_loc($$, lloc(@1, @2));
+        }
+    }
     ;
 
 call_expr
@@ -3587,14 +3597,6 @@ dot_expr
         $$ = expr_from_dot($1, &id, DOT_NORMAL);
         expr_set_loc($$, lloc(@1, @3));
     }
-    | primary_expr '.' ID '?'
-    {
-        // for type only: z.Foo? in List[z.Foo?]
-        printf("NYI: type only: z.Foo?\n");
-        expr_free($1);
-        $$ = NULL;
-        NYI();
-    }
     | primary_expr OPT_DOT ID
     {
         IDENT(id, $3, loc(@3));
@@ -3626,15 +3628,6 @@ index_expr
         // Foo[Bar, Baz]()
         $$ = expr_from_index($1, $3);
         expr_set_loc($$, lloc(@1, @4));
-    }
-    | primary_expr '[' index_expr_list ']' '?'
-    {
-        // for type only: List[List[z.Foo]?]
-        printf("NYI: type only: List[List[z.Foo]?]\n");
-        expr_free($1);
-        free_expr_list($3);
-        $$ = NULL;
-        NYI();
     }
     | primary_expr '[' error
     {
@@ -3777,16 +3770,6 @@ atom_expr
     {
         $$ = expr_from_type($1);
         expr_set_loc($$, loc(@1));
-    }
-    | atom_type '?'
-    {
-        if ($1 == NULL) {
-            $$ = NULL;
-        } else {
-            TypeSpec *ts = optional_type_spec($1);
-            $$ = expr_from_type(ts);
-            expr_set_loc($$, lloc(@1, @2));
-        }
     }
     | ARRAY
     {

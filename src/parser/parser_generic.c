@@ -236,6 +236,7 @@ static inline int ts_is_generic(TypeSpec *ts)
     ASSERT(ts);
     if (ts->kind == TYPE_GENERIC_VAR) return 1;
     if (ts->kind == TYPE_GENERIC_REF) return 1;
+    if (ts->kind == TYPE_OPTIONAL && ts->opt.src) return ts_is_generic(ts->opt.src);
     return 0;
 }
 

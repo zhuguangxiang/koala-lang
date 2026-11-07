@@ -1,0 +1,29 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// `?` after an expression names an optional type, only in a type argument.
+
+class Bar {}
+
+class Box[T] {}
+
+func main() {
+    let x = 1
+
+    let a = x?
+    // CHECK: test_optional_type_arg_errors.kl:12:{{.*}}'?' is only allowed in a type argument.
+
+    let b = Bar?
+    // CHECK: test_optional_type_arg_errors.kl:15:{{.*}}'?' is only allowed in a type argument.
+
+    let c = Box[x?]()
+    // CHECK: test_optional_type_arg_errors.kl:18:{{.*}}type argument must be a class/trait type.
+
+    let d = Box[1?]()
+    // CHECK: test_optional_type_arg_errors.kl:21:{{.*}}type argument must be a class/trait type.
+
+    let e Box[Bar] = Box[Bar?]()
+    // CHECK: test_optional_type_arg_errors.kl:24:{{.*}}Types of two sides are not matched.
+
+    let f Box[Bar?] = Box[Bar]()
+    // CHECK: test_optional_type_arg_errors.kl:27:{{.*}}Types of two sides are not matched.
+}

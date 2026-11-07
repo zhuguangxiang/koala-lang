@@ -44,11 +44,12 @@
 > external class without a public `__init__` (§69, to fix), a repeated call with explicit type
 > arguments has no `make_intf` (§71, to fix), `int.hash()` differs through a trait (§72, fixed),
 > comparing constants of a narrow float type fails in the backend (§73, to fix), `bfloat16` cannot be
-> constructed (§74, to fix), unary operators still promote automatically (§75, to fix).
+> constructed (§74, to fix), unary operators still promote automatically (§75, to fix), `T` is not
+> inferred through a `Box[T?]` parameter (§77, to fix).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-07 (§72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
+> 更新日期：2026-11-07 (added §77: `T` is not inferred through `Box[T?]`; §72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
 > 2026-11-03 (added §52: `BufReader.read_line` and the '\r' of a CRLF line, plan recorded, to
 > decide)；2026-11-02 (§50 fixed: a bare block statement only opens a scope and emits in place)；2026-11-02 (added §51: `find_loop_scope()` does not stop at a function / anonymous scope, latent
@@ -3574,3 +3575,27 @@ func main() {
 To do: report the declaration, by looking for a type parameter inside each member. Then remove `uni`
 from `Shapes` in `test/test-ut/test_trait_impl_match.kl`, and add the error to a test in
 `test/test-kl`.
+
+## 77. `T` is not inferred through a `Box[T?]` parameter (2026-11-07, to fix)
+
+A type parameter inside an optional type argument cannot be inferred from the call argument. Creating
+the object and returning `Box[T?]` both work, see `test/test-ut/test_optional_type_arg_new.kl`.
+
+```kl
+class Box[T] {
+    var v T
+    func __init__(value T) { v = value }
+    func get() T { return v }
+}
+
+func same[T](b Box[T?]) Box[T?] { return b }
+
+func main() {
+    let a Box[int?] = Box[int?](1)
+    let c = same(a)    // error: cannot infer type parameter
+    print(c.get()!)
+}
+```
+
+To do: match `T?` against `int?` when inferring from a generic instance, then add this call to the
+test above.
