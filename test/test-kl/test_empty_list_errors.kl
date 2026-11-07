@@ -1,0 +1,40 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// `[]` takes its type only from an expected list[X], Iterable[X] or Sequence[X]. Another type gives
+// it nothing, and a non-empty list is never inferred.
+
+func take_list(items list[str]) {}
+
+func take_dict(items dict[str, int]) {}
+
+func return_dict() dict[str, int] {
+    return []
+    // CHECK: test_empty_list_errors.kl:11:{{.*}}
+}
+
+func return_list() list[str] {
+    return [1]
+    // CHECK: test_empty_list_errors.kl:16:{{.*}}
+}
+
+func main() {
+    take_dict([])
+    // CHECK: test_empty_list_errors.kl:21:{{.*}}
+
+    take_list([1])
+    // CHECK: test_empty_list_errors.kl:24:{{.*}}
+
+    let a dict[str, int] = []
+    // CHECK: test_empty_list_errors.kl:27:{{.*}}
+
+    let b list[str] = [1]
+    // CHECK: test_empty_list_errors.kl:30:{{.*}}
+
+    var c = {"x": 1}
+    c = []
+    // CHECK: test_empty_list_errors.kl:34:{{.*}}
+
+    var d = ["x"]
+    d = [1]
+    // CHECK: test_empty_list_errors.kl:38:{{.*}}
+}

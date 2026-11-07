@@ -1,0 +1,43 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// `{:}` has no entry to give its type, it takes the type from the expected type: a parameter, a
+// declared variable, an assignment or a return type.
+
+func size(items dict[str, int]) int {
+    return items.len()
+}
+
+func none() dict[str, int] {
+    return {:}
+}
+
+@test
+func test_empty_map_as_argument() {
+    ut.assert_eq(size({:}), 0)
+}
+
+@test
+func test_empty_map_as_variable() {
+    let a dict[str, int] = {:}
+    a["k"] = 1
+    ut.assert_eq(a["k"], 1)
+}
+
+@test
+func test_empty_map_as_assignment() {
+    var a = {"x": 1}
+    a = {:}
+    ut.assert_eq(a.len(), 0)
+
+    a["k"] = 2
+    ut.assert_eq(a["k"], 2)
+}
+
+@test
+func test_empty_map_as_return() {
+    let a = none()
+    a["k"] = 1
+    ut.assert_eq(a.len(), 1)
+}

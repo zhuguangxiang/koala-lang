@@ -958,8 +958,8 @@ func test_list_extend_edges() {
     let v = [1]
     // v.extend([])                     // empty list: no-op
     ut.assert_eq(v.len(), 1)
-    // v.extend(())                     // empty tuple: no-op
-    // ut.assert_eq(v.len(), 1)
+    v.extend(())                     // empty tuple: no-op
+    ut.assert_eq(v.len(), 1)
     v.extend(range(2, 2))            // empty range: no-op
     ut.assert_eq(v.len(), 1)
 

@@ -1,0 +1,40 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// `()` takes its type only from an expected Iterable[X] or Sequence[X]. A tuple type gives it
+// nothing, and a non-empty tuple is never inferred.
+
+func take_iterable(items Iterable[int]) {}
+
+func take_pair(pair (int, int)) {}
+
+func return_pair() (int, int) {
+    return ()
+    // CHECK: test_empty_tuple_errors.kl:11:{{.*}}
+}
+
+func return_iterable() Iterable[int] {
+    return ("a",)
+    // CHECK: test_empty_tuple_errors.kl:16:{{.*}}
+}
+
+func main() {
+    take_pair(())
+    // CHECK: test_empty_tuple_errors.kl:21:{{.*}}
+
+    take_iterable(("a",))
+    // CHECK: test_empty_tuple_errors.kl:24:{{.*}}
+
+    let a (int, int) = ()
+    // CHECK: test_empty_tuple_errors.kl:27:{{.*}}
+
+    let b Iterable[int] = ("a",)
+    // CHECK: test_empty_tuple_errors.kl:30:{{.*}}
+
+    var c = (1, 2)
+    c = ()
+    // CHECK: test_empty_tuple_errors.kl:34:{{.*}}
+
+    var d Iterable[int] = (1,)
+    d = ("a",)
+    // CHECK: test_empty_tuple_errors.kl:38:{{.*}}
+}

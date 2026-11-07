@@ -1,8 +1,6 @@
 // RUN: ! koalac %s 2>&1 | filecheck %s
 
 let empty = ()
-// CHECK: expected an expr.
-// CHECK: variable 'empty' needs a type or an initializer
 
 let t = tuple[int, int](1, 2)
 let t2 = tuple(1, 2, 3.0)

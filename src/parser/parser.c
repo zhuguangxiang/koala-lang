@@ -3647,6 +3647,7 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
         lhs->arg = rhs;
         parser_visit_expr(ps, lhs);
         if (!lhs->ts || !rhs->ts) return;
+        parse_empty_literal(ps, rhs, lhs->ts);
         parse_simple_assign(ps, assign);
     } else {
         log_info("compound assignment detected.");

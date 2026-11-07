@@ -1,0 +1,51 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// `()` has no element to give its type, it takes the element type from an expected Iterable[X] or
+// Sequence[X]: a parameter, a declared variable, an assignment or a return type.
+
+func size(items Sequence[str]) int {
+    return items.len()
+}
+
+func extended(items Iterable[int]) int {
+    let v = [1]
+    v.extend(items)
+    return v.len()
+}
+
+func none() Iterable[int] {
+    return ()
+}
+
+@test
+func test_empty_tuple_as_argument() {
+    ut.assert_eq(size(()), 0)
+    ut.assert_eq(extended(()), 1)
+}
+
+@test
+func test_empty_tuple_as_variable() {
+    let a Sequence[str] = ()
+    ut.assert_eq(size(a), 0)
+
+    let b Iterable[int] = ()
+    ut.assert_eq(extended(b), 1)
+}
+
+@test
+func test_empty_tuple_as_assignment() {
+    var a Sequence[str] = ("x",)
+    a = ()
+    ut.assert_eq(size(a), 0)
+
+    var b Iterable[int] = (2,)
+    b = ()
+    ut.assert_eq(extended(b), 1)
+}
+
+@test
+func test_empty_tuple_as_return() {
+    ut.assert_eq(extended(none()), 1)
+}

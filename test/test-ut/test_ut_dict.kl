@@ -939,8 +939,9 @@ func test_dict_update_preserves_insertion_order() {
 func test_dict_update_empty_src_is_noop() {
     let d = dict[str, int]()
     d["a"] = 1
-    // TODO(empty-tuple): the empty tuple literal `()` is not yet accepted by
-    // the parser; add a `d.update(())` case here (expected: no-op) once it is.
+    d.update(())               // empty tuple
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["a"], 1)
     let empty_list = list[tuple[str, int]]()
     d.update(empty_list)       // empty list
     ut.assert_eq(d.len(), 1)

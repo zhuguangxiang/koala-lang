@@ -448,6 +448,45 @@ static void parse_self(ParserState *ps, Expr *exp)
     log_type_spec(exp->ts);
 }
 
+/* The type arguments of `ts` if it is an instance of `origin`, also an open one like list[T]. */
+static Vector *instance_tp_args(TypeSpec *ts, Symbol *origin)
+{
+    if (!origin) return NULL;
+
+    if (type_is_generic_ref(ts)) {
+        if (strcmp(ts->generic_ref.name, origin->name)) return NULL;
+        if (strcmp(ts->generic_ref.pkg, origin->path)) return NULL;
+        return ts->generic_ref.args;
+    }
+
+    if (!type_is_klass(ts)) return NULL;
+
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym || sym->kind != SYM_INSTANCE) return NULL;
+
+    InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+    if (inst_sym->origin != origin) return NULL;
+
+    return inst_sym->tp_args;
+}
+
+/*
+ * The element type an empty literal takes from an expected Iterable[X], Sequence[X] or an instance
+ * of the literal's own class `own_origin`, or NULL.
+ */
+static TypeSpec *empty_literal_elem_type(ParserState *ps, TypeSpec *expected, Symbol *own_origin)
+{
+    if (expected && type_is_optional(expected)) expected = expected->opt.src;
+    if (!expected) return NULL;
+
+    Vector *args = instance_tp_args(expected, own_origin);
+    if (!args) args = instance_tp_args(expected, stbl_get(ps->pm->builtin, "Iterable"));
+    if (!args) args = instance_tp_args(expected, stbl_get(ps->pm->builtin, "Sequence"));
+    if (!args) return NULL;
+
+    return vector_get(args, 0);
+}
+
 static void parse_list(ParserState *ps, Expr *exp)
 {
     ListExpr *list_exp = (ListExpr *)exp;
@@ -461,14 +500,17 @@ static void parse_list(ParserState *ps, Expr *exp)
         vector_push_back(tp_args, &e->ts);
     }
 
-    TypeSpec *infer_ts = find_lub(tp_args);
+    Symbol *origin = stbl_get(ps->pm->builtin, "list");
+
+    TypeSpec *infer_ts = NULL;
+    if (vector_empty(tp_args)) infer_ts = empty_literal_elem_type(ps, exp->expected, origin);
+    if (!infer_ts) infer_ts = find_lub(tp_args);
     log_info("infer list type:");
     log_type_spec(infer_ts);
 
     vector_clear(tp_args);
     vector_push_back(tp_args, &infer_ts);
 
-    Symbol *origin = stbl_get(ps->pm->builtin, "list");
     InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args, ps->pm);
     inst_sym->arg = infer_ts; // save infered list type for later use
 
@@ -535,8 +577,10 @@ static void parse_tuple(ParserState *ps, Expr *exp)
         // receives zero variadic arguments) is typed as tuple<any>: without a
         // type argument, the mangled instance name would be the bare "tuple",
         // which collides with the builtin tuple class in symbol lookups.
-        TypeSpec *any = any_type_spec();
-        vector_push_back(tp_args, &any);
+        // An expected Iterable[X] or Sequence[X] gives it the element type X.
+        TypeSpec *elem_ts = empty_literal_elem_type(ps, tuple_ts, NULL);
+        if (!elem_ts) elem_ts = any_type_spec();
+        vector_push_back(tp_args, &elem_ts);
     }
 
     TypeSpec *infer_ts = find_lub(tp_args);
@@ -588,6 +632,15 @@ static void parse_map(ParserState *ps, Expr *exp)
                 key_ts = vector_get(map_args, 0);
                 val_ts = vector_get(map_args, 1);
             }
+        }
+    }
+
+    /* `{:}` for an open dict[K, V] in a generic body */
+    if (map_ts && !key_ts && vector_empty(map_exp->vec)) {
+        Vector *map_args = instance_tp_args(map_ts, stbl_get(ps->pm->builtin, "dict"));
+        if (vector_size(map_args) == 2) {
+            key_ts = vector_get(map_args, 0);
+            val_ts = vector_get(map_args, 1);
         }
     }
 
@@ -717,6 +770,30 @@ static void parse_map_entry(ParserState *ps, Expr *exp)
     exp->ts = val->ts;
 }
 
+/*
+ * `()`, `[]` and `{:}` have no element to give their type, and an argument or the right side of an
+ * assignment is parsed before its expected type is known: parse them again with it.
+ */
+void parse_empty_literal(ParserState *ps, Expr *exp, TypeSpec *expected)
+{
+    Vector *vec = NULL;
+    if (exp->kind == EXPR_TUPLE_KIND) {
+        vec = ((TupleExpr *)exp)->vec;
+    } else if (exp->kind == EXPR_LIST_KIND) {
+        vec = ((ListExpr *)exp)->vec;
+    } else if (exp->kind == EXPR_MAP_KIND) {
+        vec = ((MapExpr *)exp)->vec;
+    } else {
+        return;
+    }
+    if (!vector_empty(vec)) return;
+
+    exp->ctx = EXPR_CTX_LOAD;
+    exp->expected = expected;
+    exp->sym = NULL;
+    parser_visit_expr(ps, exp);
+}
+
 static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i__)
 {
     log_info("check keyword argument: '%s' at %d", kw->key.name, i__);
@@ -725,6 +802,7 @@ static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i
     for (int i = i__; i < param_size; i++) {
         ArgInfo *arg = vector_get(params, i);
         if (!strcmp(arg->name, kw->key.name)) {
+            parse_empty_literal(ps, kw->value, arg->ts);
             if (!type_spec_compatible(arg->ts, kw->value->ts)) {
                 kl_error_incompatible_type(kw->loc, arg->ts, kw->value->ts);
             }
@@ -757,6 +835,7 @@ static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int 
                 return;
             }
             log_info("kw-param: '%s', check value passed by positional argument", arg->name);
+            parse_empty_literal(ps, e, arg->ts);
             if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error_incompatible_type(e->loc, arg->ts, e->ts);
             }
@@ -862,6 +941,8 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                     log_info("after parsing identifier expr, arg type is:");
                     log_type_spec(e->ts);
                 }
+            } else {
+                parse_empty_literal(ps, e, arg->ts);
             }
 
             if (!type_spec_compatible(arg->ts, e->ts)) {

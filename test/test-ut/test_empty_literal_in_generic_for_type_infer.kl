@@ -1,0 +1,134 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// In a generic body, an empty literal takes an open expected type like list[T] or dict[K, V]: a
+// parameter, a declared variable, an assignment or a return type.
+
+class Box[K, V] {
+    var items list[V]
+    var table dict[K, V]
+
+    func __init__() {
+        items = []
+        table = {:}
+    }
+
+    func put(key K, val V) {
+        items.append(val)
+        table[key] = val
+    }
+
+    func clear() {
+        items = []
+        table = {:}
+    }
+
+    func no_items() list[V] {
+        return []
+    }
+
+    func no_table() dict[K, V] {
+        return {:}
+    }
+
+    func no_iterable() Iterable[V] {
+        return ()
+    }
+
+    func item_count(xs list[V]) int {
+        return xs.len()
+    }
+
+    func table_count(xs dict[K, V]) int {
+        return xs.len()
+    }
+
+    func pass_empty() int {
+        return item_count([]) + table_count({:})
+    }
+
+    func local_empty() int {
+        let a list[V] = []
+        let b dict[K, V] = {:}
+        let c Sequence[V] = ()
+        return a.len() + b.len() + c.len()
+    }
+
+    func size() int {
+        return items.len() + table.len()
+    }
+}
+
+func make_list[T](first T) list[T] {
+    var out list[T] = []
+    out.append(first)
+    return out
+}
+
+func none[T](first T) list[T] {
+    return []
+}
+
+@test
+func test_empty_literal_as_field_assignment() {
+    let b = Box[str, int]()
+    ut.assert_eq(b.size(), 0)
+
+    b.put("a", 1)
+    ut.assert_eq(b.size(), 2)
+
+    b.clear()
+    ut.assert_eq(b.size(), 0)
+}
+
+@test
+func test_empty_literal_as_generic_return() {
+    let b = Box[str, int]()
+
+    let items = b.no_items()
+    items.append(1)
+    ut.assert_eq(items[0], 1)
+
+    let table = b.no_table()
+    table["k"] = 2
+    ut.assert_eq(table["k"], 2)
+
+    let v = [1]
+    v.extend(b.no_iterable())
+    ut.assert_eq(v.len(), 1)
+}
+
+@test
+func test_empty_literal_as_generic_argument() {
+    ut.assert_eq(Box[str, int]().pass_empty(), 0)
+}
+
+@test
+func test_empty_literal_as_generic_variable() {
+    ut.assert_eq(Box[str, int]().local_empty(), 0)
+}
+
+@test
+func test_empty_list_in_generic_function() {
+    let a = make_list(1)
+    ut.assert_eq(a[0], 1)
+
+    let b = make_list("x")
+    ut.assert_eq(b[0], "x")
+
+    let c = none(1)
+    c.append(2)
+    ut.assert_eq(c[0], 2)
+}
+
+@test
+func test_empty_literal_in_two_instances() {
+    let a = Box[str, int]()
+    a.put("x", 1)
+    ut.assert_eq(a.size(), 2)
+
+    let b = Box[int, str]()
+    b.put(1, "x")
+    ut.assert_eq(b.size(), 2)
+}

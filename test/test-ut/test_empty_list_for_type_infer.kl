@@ -1,0 +1,60 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// `[]` has no element to give its type, it takes the type from the expected type: a parameter, a
+// declared variable, an assignment or a return type.
+
+func size(items list[str]) int {
+    return items.len()
+}
+
+func extended(items Iterable[int]) int {
+    let v = [1]
+    v.extend(items)
+    return v.len()
+}
+
+func none() list[int] {
+    return []
+}
+
+@test
+func test_empty_list_as_index_assignment() {
+    let a = {"x": [1]}
+    a["y"] = []
+    ut.assert_eq(a["y"].len(), 0)
+}
+
+@test
+func test_empty_list_as_argument() {
+    ut.assert_eq(size([]), 0)
+    ut.assert_eq(extended([]), 1)
+}
+
+@test
+func test_empty_list_as_variable() {
+    let a list[int] = []
+    a.append(1)
+    ut.assert_eq(a.len(), 1)
+
+    let b Iterable[int] = []
+    ut.assert_eq(extended(b), 1)
+}
+
+@test
+func test_empty_list_as_assignment() {
+    var a = [1, 2]
+    a = []
+    ut.assert_eq(a.len(), 0)
+
+    a.append(3)
+    ut.assert_eq(a[0], 3)
+}
+
+@test
+func test_empty_list_as_return() {
+    let a = none()
+    a.append(1)
+    ut.assert_eq(a[0], 1)
+}
