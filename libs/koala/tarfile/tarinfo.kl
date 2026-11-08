@@ -1,0 +1,786 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// ---------------------------------------------------------------------------
+// Layout of a header block: the offset and the length of every field.
+// ---------------------------------------------------------------------------
+const NAME_OFF = 0
+const NAME_LEN = 100
+const MODE_OFF = 100
+const MODE_LEN = 8
+const UID_OFF = 108
+const UID_LEN = 8
+const GID_OFF = 116
+const GID_LEN = 8
+const SIZE_OFF = 124
+const SIZE_LEN = 12
+const MTIME_OFF = 136
+const MTIME_LEN = 12
+const CHKSUM_OFF = 148
+const CHKSUM_LEN = 8
+const TYPE_OFF = 156
+const TYPE_LEN = 1
+const LINKNAME_OFF = 157
+const LINKNAME_LEN = 100
+const MAGIC_OFF = 257
+const MAGIC_LEN = 8
+const UNAME_OFF = 265
+const UNAME_LEN = 32
+const GNAME_OFF = 297
+const GNAME_LEN = 32
+const DEVMAJOR_OFF = 329
+const DEVMAJOR_LEN = 8
+const DEVMINOR_OFF = 337
+const DEVMINOR_LEN = 8
+const PREFIX_OFF = 345
+const PREFIX_LEN = 155
+
+/// The name Python gives the header that carries a pax record list.
+const PAX_HEADER_NAME = "././@PaxHeader"
+
+/// The name Python gives the header that carries an over-long name.
+const GNU_LONGNAME_NAME = "././@LongLink"
+
+// ---------------------------------------------------------------------------
+// Number and string fields. All of them are ASCII on disk; only the strings
+// are text, and they are UTF-8 here because a Koala `str` is.
+// ---------------------------------------------------------------------------
+
+/// Round `count` up to a whole number of blocks; Python's `_block()`.
+pub func blocks(count int) int {
+    if count < 0 { panic("tarfile: invalid offset") }
+    return ((count + BLOCKSIZE - 1) / BLOCKSIZE) * BLOCKSIZE
+}
+
+/// The biggest value that `digits` octal digits can hold.
+func oct_limit(digits int) int {
+    var m = 1
+    var i = 0
+    while i < digits {
+        m = m * 8
+        i += 1
+    }
+    return m
+}
+
+/// Read a number field: octal ASCII digits ended by NUL or a space, or - when
+/// the high bit of the first byte is set - GNU's base-256 form.
+///
+/// Anything else is `InvalidHeaderError("invalid header")`, as in Python.
+pub func nti(b bytes, off int, len int) int {
+    let first = int(b[off])
+    if first == 0x80 || first == 0xff {
+        var v = 0
+        var i = 1
+        while i < len {
+            v = (v << 8) | int(b[off + i])
+            i += 1
+        }
+        if first == 0xff {
+            // The rest of the field is a two's complement negative number.
+            v = v - pow256(len - 1)
+        }
+        return v
+    }
+    var v = 0
+    var i = 0
+    while i < len {
+        let c = int(b[off + i])
+        if c == 0x00 || c == 0x20 { break }
+        if c < 0x30 || c > 0x37 { panic("tarfile: invalid header") }
+        v = v * 8 + (c - 0x30)
+        i += 1
+    }
+    return v
+}
+
+/// `256 ** n`, the weight of the first byte of a base-256 field.
+func pow256(n int) int {
+    var m = 1
+    var i = 0
+    while i < n {
+        m = m * 256
+        i += 1
+    }
+    return m
+}
+
+/// Read a string field: the bytes up to the first NUL, as UTF-8.
+pub func nts(b bytes, off int, len int) str {
+    var end = off
+    let stop = off + len
+    while end < stop {
+        if int(b[end]) == 0x00 { break }
+        end += 1
+    }
+    if end == off { return "" }
+    return b.view(off, end).to_str()
+}
+
+/// Append a number field: `len - 1` octal digits and a NUL, or - when the
+/// value does not fit and the format is GNU - the base-256 form.
+pub func itn(buf Buffer, v int, len int, format int) {
+    if v >= 0 && v < oct_limit(len - 1) {
+        var i = len - 2
+        while i >= 0 {
+            buf.write_byte(uint8(0x30 + ((v >> (3 * i)) & 0x07)))
+            i -= 1
+        }
+        buf.write_byte(0)
+        return
+    }
+    if format == GNU_FORMAT && v >= -pow256(len - 1) && v < pow256(len - 1) {
+        let wide = bytes(len)
+        var n = v
+        if n >= 0 {
+            wide[0] = uint8(0x80)
+        } else {
+            wide[0] = uint8(0xff)
+            n = pow256(len - 1) + n
+        }
+        var i = len - 1
+        while i >= 1 {
+            wide[i] = uint8(n & 0xff)
+            n = n >> 8
+            i -= 1
+        }
+        buf.write(wide)
+        return
+    }
+    panic("tarfile: overflow in number field")
+}
+
+/// Append a string field: its UTF-8 bytes, cut at `len` and filled up with
+/// NUL. Python's `stn()`.
+pub func stn(buf Buffer, s str, len int) {
+    let b = s.to_bytes()
+    var i = 0
+    while i < len {
+        if i < b.len() {
+            buf.write_byte(b[i])
+        } else {
+            buf.write_byte(0)
+        }
+        i += 1
+    }
+}
+
+/// True when every byte of `s` is ASCII, which is what a ustar field can hold.
+func is_ascii(s str) bool {
+    let b = s.to_bytes()
+    var i = 0
+    while i < b.len() {
+        if int(b[i]) > 0x7f { return false }
+        i += 1
+    }
+    return true
+}
+
+/// True when every byte of `b` is zero: the end-of-archive marker.
+pub func is_zero_block(b bytes) bool {
+    var i = 0
+    while i < b.len() {
+        if int(b[i]) != 0 { return false }
+        i += 1
+    }
+    return true
+}
+
+/// `s` without its trailing `/` characters; Python's `s.rstrip("/")`, which
+/// Koala's `str.rstrip()` cannot spell - it takes no argument.
+pub func trim_slashes(s str) str {
+    var end = s.len()
+    while end > 0 && s[end - 1] == "/" {
+        end -= 1
+    }
+    return s.substr(0, end)
+}
+
+/// The two checksums of a header block - the plain byte sum, and the sum that
+/// counts a byte with the high bit set as negative, which some old tars wrote.
+/// The eight checksum bytes count as spaces. Python's `calc_chksums()`.
+pub func calc_chksums(blk bytes) (int, int) {
+    var uns = 0
+    var sgn = 0
+    var i = 0
+    while i < blk.len() {
+        var v = int(blk[i])
+        if i >= CHKSUM_OFF && i < CHKSUM_OFF + CHKSUM_LEN { v = 0x20 }
+        uns += v
+        if v > 0x7f { sgn += v - 256 } else { sgn += v }
+        i += 1
+    }
+    return (uns, sgn)
+}
+
+/// Pad `b` with NUL up to the next block boundary; Python's
+/// `_create_payload()`.
+pub func payload_bytes(b bytes) bytes {
+    let total = blocks(b.len())
+    if total == b.len() { return b }
+    let out = bytes(total)
+    if b.len() > 0 { out.copy(b) }
+    return out
+}
+
+/// Build one 512-byte header block: `t`'s fields, then `prefix`, and the
+/// format's magic and number encoding. Python's `_create_header()`.
+func header_block(t TarInfo, prefix str, magic bytes, format int) bytes {
+    let buf = Buffer(BLOCKSIZE)
+    stn(buf, t.name, NAME_LEN)
+    itn(buf, t.mode & 0o7777, MODE_LEN, format)
+    itn(buf, t.uid, UID_LEN, format)
+    itn(buf, t.gid, GID_LEN, format)
+    itn(buf, t.size, SIZE_LEN, format)
+    itn(buf, t.mtime, MTIME_LEN, format)
+    // The checksum field reads as spaces until it is filled in below.
+    var i = 0
+    while i < CHKSUM_LEN {
+        buf.write_byte(0x20)
+        i += 1
+    }
+    buf.write(t.typeflag)
+    stn(buf, t.linkname, LINKNAME_LEN)
+    buf.write(magic)
+    stn(buf, t.uname, UNAME_LEN)
+    stn(buf, t.gname, GNAME_LEN)
+    if t.typeflag == CHRTYPE || t.typeflag == BLKTYPE {
+        itn(buf, t.devmajor, DEVMAJOR_LEN, format)
+        itn(buf, t.devminor, DEVMINOR_LEN, format)
+    } else {
+        stn(buf, "", DEVMAJOR_LEN)
+        stn(buf, "", DEVMINOR_LEN)
+    }
+    stn(buf, prefix, PREFIX_LEN)
+    // Pad out to one block, then put the checksum in place: six octal digits,
+    // a NUL and the space the field already holds.
+    while buf.len() < BLOCKSIZE {
+        buf.write_byte(0)
+    }
+    let sum = calc_chksums(buf.to_bytes())[0]
+    var k = 5
+    var s = sum
+    while k >= 0 {
+        buf[CHKSUM_OFF + k] = uint8(0x30 + (s & 0x07))
+        s = s >> 3
+        k -= 1
+    }
+    buf[CHKSUM_OFF + 6] = uint8(0)
+    return buf.to_bytes()
+}
+
+/// Split a name that does not fit in 100 bytes into the `prefix` field and
+/// the `name` field, at a `/` boundary; Python's `_posix_split_name()`.
+pub func posix_split_name(name str) (str, str) {
+    let parts = name.split("/", -1)
+    var i = 1
+    while i < parts.len() {
+        let prefix = join_parts(parts, 0, i)
+        let rest = join_parts(parts, i, parts.len())
+        if prefix.to_bytes().len() <= LENGTH_PREFIX &&
+           rest.to_bytes().len() <= LENGTH_NAME {
+            return (prefix, rest)
+        }
+        i += 1
+    }
+    panic("tarfile: name is too long")
+}
+
+/// Join `parts[start, end)` with `/`.
+func join_parts(parts list[str], start int, end int) str {
+    var out = ""
+    var i = start
+    while i < end {
+        if i > start { out = out + "/" }
+        out = out + parts[i]
+        i += 1
+    }
+    return out
+}
+
+/// The blocks of a GNU header that carries `name` - a name or a link name too
+/// long for its field. Python's `_create_gnu_long_header()`.
+pub func gnu_long_header(name str, typ bytes) bytes {
+    let body = name.to_bytes()
+    let t = TarInfo(GNU_LONGNAME_NAME)
+    t.typeflag = typ
+    t.size = body.len() + 1
+    let out = Buffer()
+    out.write(header_block(t, "", GNU_MAGIC, USTAR_FORMAT))
+    out.write(payload_bytes_all(body))
+    return out.to_bytes()
+}
+
+/// `body` followed by a NUL and then NULs up to the next block boundary: the
+/// payload of a GNU long-name header keeps its terminator.
+func payload_bytes_all(body bytes) bytes {
+    let out = bytes(blocks(body.len() + 1))
+    out.copy(body)
+    out[body.len()] = uint8(0)
+    return out
+}
+
+/// The blocks of a pax header that carries `headers`; Python's
+/// `_create_pax_generic_header()`. `typ` is `XHDTYPE` for one member and
+/// `XGLTYPE` for every member after it.
+pub func pax_generic_header(headers dict[str, str], typ bytes) bytes {
+    let records = Buffer()
+    for key in headers.keys() {
+        let keyword = key.to_bytes()
+        let value = headers[key].to_bytes()
+        // The length of a record counts its own digits, so it has to settle:
+        // a wider length can push the record into a wider length still.
+        let base = keyword.len() + value.len() + 3
+        var p = 0
+        var n = 0
+        while true {
+            n = base + format("{}", p).len()
+            if n == p { break }
+            p = n
+        }
+        records.write_str(format("{} ", p))
+        records.write(keyword)
+        records.write(_EQ)
+        records.write(value)
+        records.write(_NL)
+    }
+    let body = records.to_bytes()
+    let t = TarInfo(PAX_HEADER_NAME)
+    t.typeflag = typ
+    t.size = body.len()
+    let out = Buffer()
+    out.write(header_block(t, "", POSIX_MAGIC, USTAR_FORMAT))
+    out.write(payload_bytes(body))
+    return out.to_bytes()
+}
+/// Parse the records of a pax header: `"<length> <key>=<value>\n"`, the length
+/// counting the whole record including itself.
+///
+/// A malformed record is `InvalidHeaderError("invalid header")`, as in Python.
+pub func parse_pax(buf bytes) dict[str, str] {
+    let out = dict[str, str]()
+    var pos = 0
+    while pos < buf.len() && int(buf[pos]) != 0x00 {
+        var sp = pos
+        while sp < buf.len() && int(buf[sp]) != 0x20 {
+            sp += 1
+        }
+        if sp >= buf.len() { panic("tarfile: invalid header") }
+        let len = buf.view(pos, sp).to_str().to_int()
+        // "5 x=\n" is the shortest record there can be.
+        if len < 5 || pos + len > buf.len() { panic("tarfile: invalid header") }
+        if int(buf[pos + len - 1]) != 0x0a { panic("tarfile: invalid header") }
+        let body = buf.view(sp + 1, pos + len - 1)
+        let eq = body.index(uint8(0x3d))
+        if eq <= 0 { panic("tarfile: invalid header") }
+        out[body.view(0, eq).to_str()] = body.view(eq + 1, body.len()).to_str()
+        pos += len
+    }
+    return out
+}
+
+// ---------------------------------------------------------------------------
+// TarInfo
+// ---------------------------------------------------------------------------
+
+/// One member of an archive: Python's `tarfile.TarInfo`.
+///
+/// The field names are Python's - `name`, `mode`, `uid`, `gid`, `size`,
+/// `mtime`, `chksum`, `linkname`, `uname`, `gname`, `devmajor`, `devminor`,
+/// `offset`, `offset_data`, `pax_headers` - and they are fields, not methods.
+///
+/// Three of Python's spellings change, and only these three:
+///   - `type` is named `typeflag`, because `type` is a Koala keyword (it
+///     introduces a type alias). It is a one-byte `bytes`, as in Python: the
+///     NUL that marks an old v7 regular file cannot be held by a `str`.
+///   - the constructor parameter is `nm` rather than `name`, because Koala
+///     rejects a parameter that shadows a field.
+///   - `replace(**kwargs)` becomes `copy()` plus field assignment: Koala has
+///     no keyword arguments.
+///
+/// Positional calls read the same as in Python.
+pub class TarInfo {
+    /// The member name inside the archive, `/`-separated.
+    pub var name str
+
+    /// The permission bits, the file type bits included when they come from
+    /// a `stat()`.
+    pub var mode int
+
+    /// The user id that stored the member.
+    pub var uid int
+
+    /// The group id that stored the member.
+    pub var gid int
+
+    /// The member's size in bytes; meaningful for regular files only.
+    pub var size int
+
+    /// The time of last modification, in seconds since the epoch.
+    pub var mtime int
+
+    /// The checksum of the header this member was read from.
+    pub var chksum int
+
+    /// The type flag: `REGTYPE`, `DIRTYPE`, `SYMTYPE` and so on, one byte.
+    pub var typeflag bytes
+
+    /// The target of a hard or a symbolic link, empty otherwise.
+    pub var linkname str
+
+    /// The user name, empty unless the archive carries one.
+    pub var uname str
+
+    /// The group name, empty unless the archive carries one.
+    pub var gname str
+
+    /// The major number of a device member.
+    pub var devmajor int
+
+    /// The minor number of a device member.
+    pub var devminor int
+
+    /// Where the member's header starts in the archive.
+    pub var offset int
+
+    /// Where the member's data starts in the archive.
+    pub var offset_data int
+
+    /// The records of the pax extended header that goes with the member.
+    pub var pax_headers dict[str, str]
+
+    /// The extents of a GNU sparse member, `(offset, size)` pairs; `nil`
+    /// unless the member is sparse.
+    pub var sparse list[(int, int)]?
+
+    /// Where a hard link points on disk while the member is being extracted;
+    /// Python's `_link_target`. `TarFile` sets it, an archive never does.
+    var _link_target str?
+
+    /// Create a member named `nm`, with the defaults Python uses: mode 0644,
+    /// no owner, no size, no time, a regular file.
+    pub func __init__(nm = "") {
+        name = nm
+        mode = 0o644
+        uid = 0
+        gid = 0
+        size = 0
+        mtime = 0
+        chksum = 0
+        typeflag = REGTYPE
+        linkname = ""
+        uname = ""
+        gname = ""
+        devmajor = 0
+        devminor = 0
+        offset = 0
+        offset_data = 0
+        pax_headers = dict[str, str]()
+        sparse = nil
+        _link_target = nil
+    }
+
+    /// True for a regular file, however a header marks one; Python's
+    /// `isreg()`.
+    pub func isreg() bool {
+        return typeflag == REGTYPE || typeflag == AREGTYPE || typeflag == CONTTYPE ||
+               typeflag == GNUTYPE_SPARSE
+    }
+
+    /// True for a regular file; Python's `isfile()`, which is `isreg()`.
+    pub func isfile() bool {
+        return isreg()
+    }
+
+    /// True for a directory.
+    pub func isdir() bool {
+        return typeflag == DIRTYPE
+    }
+
+    /// True for a symbolic link.
+    pub func issym() bool {
+        return typeflag == SYMTYPE
+    }
+
+    /// True for a hard link.
+    pub func islnk() bool {
+        return typeflag == LNKTYPE
+    }
+
+    /// True for a character device.
+    pub func ischr() bool {
+        return typeflag == CHRTYPE
+    }
+
+    /// True for a block device.
+    pub func isblk() bool {
+        return typeflag == BLKTYPE
+    }
+
+    /// True for a FIFO.
+    pub func isfifo() bool {
+        return typeflag == FIFOTYPE
+    }
+
+    /// True for a member with sparse extents.
+    pub func issparse() bool {
+        return sparse != nil
+    }
+
+    /// True for a character device, a block device or a FIFO.
+    pub func isdev() bool {
+        return typeflag == CHRTYPE || typeflag == BLKTYPE || typeflag == FIFOTYPE
+    }
+
+    /// True when the type flag is one this module knows. A member that is not
+    /// is read as a regular file, as in Python.
+    pub func is_supported() bool {
+        return typeflag in SUPPORTED_TYPES
+    }
+
+    /// The member's name; Python's `path` property, which exists because a
+    /// pax header calls it `path`.
+    pub func path() str {
+        return name
+    }
+
+    /// The member's link target; Python's `linkpath` property.
+    pub func linkpath() str {
+        return linkname
+    }
+
+    /// A copy of the member, `pax_headers` included. Python uses
+    /// `copy.copy()`; `TarInfo.replace()` needs keyword arguments, so a
+    /// `copy()` plus field assignment takes its place.
+    pub func copy() TarInfo {
+        let t = TarInfo(name)
+        t.mode = mode
+        t.uid = uid
+        t.gid = gid
+        t.size = size
+        t.mtime = mtime
+        t.chksum = chksum
+        t.typeflag = typeflag
+        t.linkname = linkname
+        t.uname = uname
+        t.gname = gname
+        t.devmajor = devmajor
+        t.devminor = devminor
+        t.offset = offset
+        t.offset_data = offset_data
+        t.pax_headers = pax_copy(pax_headers)
+        t.sparse = sparse
+        t._link_target = _link_target
+        return t
+    }
+/// The member as header blocks, in `format` - `USTAR_FORMAT`,
+    /// `GNU_FORMAT` or `PAX_FORMAT`.
+    ///
+    /// Python's `tobuf()` also takes `encoding` and `errors`; a Koala `str`
+    /// is UTF-8, so there is nothing to choose and every name is written as
+    /// UTF-8.
+    pub func tobuf(format = DEFAULT_FORMAT) bytes {
+        if format == USTAR_FORMAT { return create_ustar_header() }
+        if format == GNU_FORMAT { return create_gnu_header() }
+        if format == PAX_FORMAT { return create_pax_header() }
+        panic("tarfile: invalid format")
+    }
+
+    /// The member as one ustar header block; Python's
+    /// `create_ustar_header()`.
+    ///
+    /// A name that does not fit is split between the `prefix` field and the
+    /// `name` field. A link name that does not fit has no ustar home, so it
+    /// panics with Python's `ValueError` wording.
+    pub func create_ustar_header() bytes {
+        if linkname.to_bytes().len() > LENGTH_LINK {
+            panic("tarfile: linkname is too long")
+        }
+        if name.to_bytes().len() > LENGTH_NAME {
+            let (prefix, inner) = posix_split_name(name)
+            let t = copy()
+            t.name = inner
+            return header_block(t, prefix, POSIX_MAGIC, USTAR_FORMAT)
+        }
+        return header_block(self, "", POSIX_MAGIC, USTAR_FORMAT)
+    }
+
+    /// The member as GNU header blocks: an over-long name or link name gets a
+    /// `GNUTYPE_LONGNAME` / `GNUTYPE_LONGLINK` header in front of the real
+    /// one, which is how the GNU format escapes the 100-byte fields.
+    pub func create_gnu_header() bytes {
+        let out = Buffer()
+        if linkname.to_bytes().len() > LENGTH_LINK {
+            out.write(gnu_long_header(linkname, GNUTYPE_LONGLINK))
+        }
+        if name.to_bytes().len() > LENGTH_NAME {
+            out.write(gnu_long_header(name, GNUTYPE_LONGNAME))
+        }
+        out.write(header_block(self, "", GNU_MAGIC, GNU_FORMAT))
+        return out.to_bytes()
+    }
+
+    /// The member as pax header blocks: a ustar header preceded, when a field
+    /// does not fit it, by an `XHDTYPE` header carrying the real value.
+    ///
+    /// The text fields that can overflow are `path` and `linkpath` (100 bytes)
+    /// and `uname` and `gname` (32 bytes); anything that is not ASCII goes to
+    /// pax whatever its length. The numbers that can overflow are `uid` and
+    /// `gid` (8 bytes), `size` and `mtime` (12 bytes).
+    pub func create_pax_header() bytes {
+        let pax = pax_copy(pax_headers)
+        pax_put_str(pax, "path", name, LENGTH_NAME)
+        pax_put_str(pax, "linkpath", linkname, LENGTH_LINK)
+        pax_put_str(pax, "uname", uname, UNAME_LEN)
+        pax_put_str(pax, "gname", gname, GNAME_LEN)
+        let t = copy()
+        t.uid = pax_put_num(pax, "uid", uid, UID_LEN)
+        t.gid = pax_put_num(pax, "gid", gid, GID_LEN)
+        t.size = pax_put_num(pax, "size", size, SIZE_LEN)
+        t.mtime = pax_put_num(pax, "mtime", mtime, MTIME_LEN)
+        let out = Buffer()
+        if !pax.empty() {
+            out.write(pax_generic_header(pax, XHDTYPE))
+        }
+        out.write(header_block(t, "", POSIX_MAGIC, USTAR_FORMAT))
+        return out.to_bytes()
+    }
+
+    /// Apply the records of a pax header to this member; Python's
+    /// `_apply_pax_info()`. `path` renames the member, `size` resizes it, and
+    /// every other known record lands on the field of the same name.
+    ///
+    /// The parameter is `headers` rather than Python's `pax_headers`, which
+    /// would shadow the field. A record whose value is not a number counts as
+    /// zero, as in Python.
+    pub func apply_pax_info(headers dict[str, str]) {
+        for key in headers.keys() {
+            let value = headers[key]
+            if key == "path" {
+                name = trim_slashes(value)
+            } else if key == "linkpath" {
+                linkname = value
+            } else if key == "uname" {
+                uname = value
+            } else if key == "gname" {
+                gname = value
+            } else if key in PAX_NUMBER_FIELDS {
+                if key == "size" {
+                    size = pax_num(value)
+                } else if key == "mtime" {
+                    mtime = pax_num(value)
+                } else if key == "uid" {
+                    uid = pax_num(value)
+                } else if key == "gid" {
+                    gid = pax_num(value)
+                }
+            }
+        }
+        pax_headers = pax_copy(headers)
+    }
+
+    /// Build a `TarInfo` from one 512-byte header block; Python's
+    /// `frombuf()`.
+    ///
+    /// A block that is empty, short, all zero or short of its checksum panics
+    /// with the wording of the matching `HeaderError` subclass.
+    pub static func frombuf(buf bytes) TarInfo {
+        return parse_header(buf, true)
+    }
+
+    /// The blocks of a pax global header, which applies to every member after
+    /// it; Python's `create_pax_global_header()`.
+    pub static func create_pax_global_header(pax_headers dict[str, str]) bytes {
+        return pax_generic_header(pax_headers, XGLTYPE)
+    }
+}
+
+/// A copy of `headers`, so a write leaves the caller's dict alone; Python's
+/// `dict.copy()`.
+pub func pax_copy(headers dict[str, str]) dict[str, str] {
+    let out = dict[str, str]()
+    for key in headers.keys() {
+        out[key] = headers[key]
+    }
+    return out
+}
+
+/// Move a text field to the pax header when a ustar field cannot hold it: it
+/// does not fit, or it is not ASCII. An existing record has priority.
+func pax_put_str(pax dict[str, str], key str, value str, len int) {
+    if key in pax { return }
+    if !is_ascii(value) || value.to_bytes().len() > len {
+        pax[key] = value
+    }
+}
+
+/// Move a number to the pax header when it does not fit its octal field, and
+/// answer what the header field holds instead - zero, as in Python. An
+/// existing record has priority.
+func pax_put_num(pax dict[str, str], key str, v int, len int) int {
+    if v >= 0 && v < oct_limit(len - 1) { return v }
+    if !(key in pax) {
+        pax[key] = format("{}", v)
+    }
+    return 0
+}
+
+/// A pax number as an `int`; a value that is not one counts as zero, as in
+/// Python. A fractional part - pax can store `mtime` as a float - is dropped.
+func pax_num(value str) int {
+    var text = value
+    let dot = value.index(".", 0, -1)
+    if dot >= 0 { text = value.substr(0, dot) }
+    if text.len() == 0 { return 0 }
+    var i = 0
+    if text[0] == "-" || text[0] == "+" { i = 1 }
+    if i == text.len() { return 0 }
+    while i < text.len() {
+        if text[i] < "0" || text[i] > "9" { return 0 }
+        i += 1
+    }
+    return text.to_int()
+}
+
+/// Build a `TarInfo` from one header block. Python's `_frombuf()`; `dircheck`
+/// is false for the header that follows a GNU long-name header, which must not
+/// be read as a directory just because its name ends in `/`.
+pub func parse_header(buf bytes, dircheck bool) TarInfo {
+    if buf.len() == 0 { panic("tarfile: empty header") }
+    if buf.len() != BLOCKSIZE { panic("tarfile: truncated header") }
+    if is_zero_block(buf) { panic("tarfile: end of file header") }
+    let sum = nti(buf, CHKSUM_OFF, CHKSUM_LEN)
+    let (uns, sgn) = calc_chksums(buf)
+    if sum != uns && sum != sgn { panic("tarfile: bad checksum") }
+
+    let t = TarInfo(nts(buf, NAME_OFF, NAME_LEN))
+    t.mode = nti(buf, MODE_OFF, MODE_LEN)
+    t.uid = nti(buf, UID_OFF, UID_LEN)
+    t.gid = nti(buf, GID_OFF, GID_LEN)
+    t.size = nti(buf, SIZE_OFF, SIZE_LEN)
+    t.mtime = nti(buf, MTIME_OFF, MTIME_LEN)
+    t.chksum = sum
+    t.typeflag = buf.view(TYPE_OFF, TYPE_OFF + TYPE_LEN)
+    t.linkname = nts(buf, LINKNAME_OFF, LINKNAME_LEN)
+    t.uname = nts(buf, UNAME_OFF, UNAME_LEN)
+    t.gname = nts(buf, GNAME_OFF, GNAME_LEN)
+    t.devmajor = nti(buf, DEVMAJOR_OFF, DEVMAJOR_LEN)
+    t.devminor = nti(buf, DEVMINOR_OFF, DEVMINOR_LEN)
+    let prefix = nts(buf, PREFIX_OFF, PREFIX_LEN)
+
+    // The old v7 format marks a directory with a trailing `/` and no type.
+    if dircheck && t.typeflag == AREGTYPE && t.name.ends_with("/") {
+        t.typeflag = DIRTYPE
+    }
+    if t.isdir() {
+        t.name = trim_slashes(t.name)
+    }
+    // A ustar name split across `prefix` and `name` is one name again; the
+    // GNU format uses that space for its own purposes.
+    if prefix.len() > 0 && !(t.typeflag in GNU_TYPES) {
+        t.name = prefix + "/" + t.name
+    }
+    return t
+}

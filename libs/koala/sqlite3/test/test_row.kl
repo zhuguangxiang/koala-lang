@@ -1,0 +1,76 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/sqlite3"
+
+// Row: access by index and by column name, as Python's sqlite3.Row.
+
+func _row() sqlite3.Row {
+    let conn = sqlite3.connect(":memory:")!
+    let cur = conn.execute("select 1 as id, 'ann' as Name, null as age")!
+    return cur.fetchone()!
+}
+
+@test
+func test_index() {
+    let row = _row()
+    ut.assert_eq((row[0]! as int)!, 1)
+    ut.assert_eq((row[1]! as str)!, "ann")
+    ut.assert_true(row[2] == nil)
+}
+
+@test
+func test_negative_index() {
+    let row = _row()
+    ut.assert_true(row[-1] == nil)
+    ut.assert_eq((row[-3]! as int)!, 1)
+}
+
+@test
+func test_name() {
+    let row = _row()
+    ut.assert_eq((row["id"]! as int)!, 1)
+    ut.assert_true(row["age"] == nil)
+    // Names match case-insensitively.
+    ut.assert_eq((row["name"]! as str)!, "ann")
+    ut.assert_eq((row["NAME"]! as str)!, "ann")
+}
+
+@test
+func test_keys_and_len() {
+    let row = _row()
+    let keys = row.keys()
+    ut.assert_eq(keys.len(), 3)
+    ut.assert_eq(keys[0], "id")
+    ut.assert_eq(keys[1], "Name")
+    ut.assert_eq(row.len(), 3)
+    ut.assert_eq(len(row), 3)
+}
+
+@test
+func test_iterate() {
+    let row = _row()
+    var count = 0
+    var nils = 0
+    for value in row {
+        count += 1
+        if value == nil { nils += 1 }
+    }
+    ut.assert_eq(count, 3)
+    ut.assert_eq(nils, 1)
+}
+
+@test
+func test_rows_share_names() {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(x)")
+    conn.execute("insert into t values (1)")
+    conn.execute("insert into t values (2)")
+    let rows = conn.execute("select x from t order by x")!.fetchall()!
+    ut.assert_eq((rows[0]["x"]! as int)!, 1)
+    ut.assert_eq((rows[1]["x"]! as int)!, 2)
+    conn.close()
+}

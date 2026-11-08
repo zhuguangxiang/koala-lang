@@ -2698,6 +2698,8 @@ static void emit_ir_visit_block(ParserState *ps, Vector *block)
     }
 }
 
+static void emit_ir_if_let_stmt(ParserState *ps, Stmt *stmt);
+
 static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
 {
     KlrValue *fn = CURRENT_FUNC;
@@ -2735,8 +2737,10 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
 
         if (s->_else->kind == STMT_BLOCK_KIND) {
             emit_ir_visit_block(ps, ((BlockStmt *)s->_else)->stmts);
-        } else {
+        } else if (s->_else->kind == STMT_IF_KIND) {
             emit_ir_if_stmt(ps, s->_else);
+        } else {
+            emit_ir_if_let_stmt(ps, s->_else);
         }
 
         if (!block_has_terminator(_sc->bb)) {
@@ -3375,9 +3379,11 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 
     emit_ir_visit_block(ps, s->block);
 
-    ASSERT(!block_has_terminator(ps->scope->bb));
-    klr_builder_end(&bldr, ps->scope->bb);
-    klr_build_jmp(&bldr, loop_cond_incr);
+    // a body that ends in break, continue or return has already left
+    if (!block_has_terminator(ps->scope->bb)) {
+        klr_builder_end(&bldr, ps->scope->bb);
+        klr_build_jmp(&bldr, loop_cond_incr);
+    }
 
     // add jmp to loop_cond block in loop_cond_incr
     if (which == GEN_RANGE) {
@@ -3724,8 +3730,10 @@ static void emit_ir_if_let_stmt(ParserState *ps, Stmt *stmt)
 
         if (s->_else->kind == STMT_BLOCK_KIND) {
             emit_ir_visit_block(ps, ((BlockStmt *)s->_else)->stmts);
-        } else {
+        } else if (s->_else->kind == STMT_IF_KIND) {
             emit_ir_if_stmt(ps, s->_else);
+        } else {
+            emit_ir_if_let_stmt(ps, s->_else);
         }
 
         if (!block_has_terminator(_sc->bb)) {

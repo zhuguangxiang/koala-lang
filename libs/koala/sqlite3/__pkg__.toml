@@ -1,0 +1,24 @@
+[package]
+name = "koala/sqlite3"
+version = "0.1.0"
+description = "DB-API 2.0 interface for SQLite databases over a vendored SQLite"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_sqlite3"
+sources = [
+    "native/sqlite3_shim.c",
+    "native/sqlite3/sqlite3.c",
+]
+includes = [
+    "native/sqlite3",
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+cflags = [
+    "-O2",
+    "-DSQLITE_THREADSAFE=1",
+    "-DSQLITE_OMIT_LOAD_EXTENSION",
+    "-DSQLITE_DQS=0",
+]

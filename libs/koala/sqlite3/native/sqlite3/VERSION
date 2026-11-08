@@ -1,0 +1,22 @@
+SQLite, vendored unmodified for koala/sqlite3.
+
+Project:   SQLite (the amalgamation: the whole library as one C file)
+Upstream:  https://www.sqlite.org/download.html
+Version:   3.54.1
+Source ID: 2026-10-16 14:45:20 555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76
+Zip:       https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip
+SHA3-256:  92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30 (zip, as published)
+SHA-256:   0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9 (zip)
+License:   public domain, see https://www.sqlite.org/copyright.html
+Vendored:  2026-11-08
+
+Files taken from the zip:
+
+  sqlite3.c  0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52
+  sqlite3.h  d6c84557261893439b341d2e6c35187ae3ea24fbfd843ad94616f72d89242b8c
+
+The zip's shell.c and sqlite3ext.h are not needed: there is no command-line shell and loadable
+extensions are compiled out (SQLITE_OMIT_LOAD_EXTENSION in __pkg__.toml).
+
+Do not edit these files. To upgrade, download the new amalgamation zip, check its SHA3-256
+against the download page, replace the files above, and update this file.

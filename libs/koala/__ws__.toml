@@ -22,5 +22,7 @@ packages = [
     "zlib",
     "gzip",
     "zipfile",
+    "tarfile",
     "cli",
+    "sqlite3",
 ]

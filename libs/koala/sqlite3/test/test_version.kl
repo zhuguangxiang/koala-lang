@@ -1,0 +1,22 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/sqlite3"
+
+// The version of the vendored SQLite, see native/sqlite3/VERSION.
+
+@test
+func test_sqlite_version() {
+    ut.assert_eq(sqlite3.sqlite_version, "3.54.1")
+}
+
+@test
+func test_sqlite_version_info() {
+    let (major, minor, patch) = sqlite3.sqlite_version_info
+    ut.assert_eq(major, 3)
+    ut.assert_eq(minor, 54)
+    ut.assert_eq(patch, 1)
+}

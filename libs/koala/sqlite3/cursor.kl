@@ -1,0 +1,375 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// SQLite's storage classes, from stmt_column_type.
+const _INTEGER = 1
+const _FLOAT = 2
+const _TEXT = 3
+const _BLOB = 4
+
+/// Runs statements and reads their rows, as Python's `sqlite3.Cursor`.
+///
+/// A row is a `Row` of `any?` values: NULL is nil, INTEGER an `int`, REAL
+/// a `float`, TEXT a `str` and BLOB `bytes`. A parameter is one of these
+/// too, or a `bool`, stored as 0 or 1.
+///
+///     let cur = conn.cursor()
+///     cur.execute("select name from t where id > ?", [0])
+///     while let row = cur.fetchone() {
+///         let name = (row[0]! as str)!
+///     }
+///
+/// See `Connection` for how errors are reported.
+pub class Cursor {
+    /// The connection this cursor belongs to.
+    pub let connection Connection
+    /// How many rows `fetchmany()` reads by default.
+    pub var arraysize int = 1
+    /// Rows changed by the last INSERT, UPDATE, DELETE or REPLACE; -1
+    /// after any other statement.
+    pub var rowcount int = -1
+    /// The rowid of the last row inserted on the connection; nil before
+    /// the first `execute`.
+    pub var lastrowid int? = nil
+    /// The columns of the last query, one 7-tuple each: the column name,
+    /// then six nils, as in Python. Nil after a statement that returns no
+    /// rows.
+    pub var description list[(str, any?, any?, any?, any?, any?, any?)]? = nil
+
+    // The running statement, 0 when there is none, and its SQL text.
+    var _st int = 0
+    var _sql str = ""
+    // The column names of `_st`, shared by its rows.
+    var _names list[str] = list[str]()
+    // `_st` has a row ready for the next fetch.
+    var _has_row bool = false
+    var _closed bool = false
+
+    func __init__(conn Connection) {
+        connection = conn
+    }
+
+    /// Run the statement `sql`. `params` are bound to its `?`
+    /// placeholders, or `named` to its named ones (`:id`, `@id`, `$id`).
+    /// Returns this cursor, nil on a database error.
+    pub func execute(sql str, params list[any?]? = nil,
+                     named dict[str, any?]? = nil) Cursor? {
+        if !_prepare(sql) { return nil }
+        if _st == 0 { return self }
+        if !_begin() { return nil }
+        _bind_all(params, named)
+
+        let rc = stmt_step(_st)
+        if rc != SQLITE_ROW && rc != SQLITE_DONE {
+            connection._record_error()
+            _finish()
+            return nil
+        }
+
+        let db = connection._db
+        if stmt_is_dml(_st) { rowcount = db_changes(db) }
+        lastrowid = db_last_insert_rowid(db)
+        description = _columns(_st)
+        _names = _column_names(_st)
+
+        if rc == SQLITE_ROW {
+            _has_row = true
+        } else {
+            _finish()
+        }
+        return self
+    }
+
+    /// Run the statement `sql` once for each parameter list of `params`,
+    /// or each dict of `named`. `rowcount` is the sum of the rows changed;
+    /// `lastrowid` is not updated, as in Python. Returns this cursor, nil
+    /// on a database error. Panics on a statement that returns rows.
+    pub func executemany(sql str, params list[list[any?]]? = nil,
+                         named list[dict[str, any?]]? = nil) Cursor? {
+        if params != nil && named != nil {
+            panic("sqlite3: params and named cannot both be given")
+        }
+        if !_prepare(sql) { return nil }
+        if _st == 0 { return self }
+        if stmt_readonly(_st) {
+            _finish()
+            panic("sqlite3: executemany() can only execute DML statements.")
+        }
+        if !_begin() { return nil }
+
+        var count = 0
+        if let lists = params { count = lists.len() }
+        if let dicts = named { count = dicts.len() }
+
+        let db = connection._db
+        let is_dml = stmt_is_dml(_st)
+        if is_dml { rowcount = 0 }
+        for i in range(count) {
+            stmt_reset(_st)
+            if let lists = params { _bind_all(lists[i], nil) }
+            if let dicts = named { _bind_all(nil, dicts[i]) }
+
+            let rc = stmt_step(_st)
+            if rc == SQLITE_ROW {
+                _finish()
+                panic("sqlite3: executemany() can only execute DML statements.")
+            }
+            if rc != SQLITE_DONE {
+                connection._record_error()
+                _finish()
+                return nil
+            }
+            if is_dml { rowcount = rowcount + db_changes(db) }
+        }
+
+        _finish()
+        return self
+    }
+
+    /// Run the statements of `sql_script`, with no parameters. An open
+    /// transaction is committed first, as in Python. Returns this cursor,
+    /// nil on a database error.
+    pub func executescript(sql_script str) Cursor? {
+        _check_open()
+        let conn = connection
+        conn._clear_error()
+        _finish()
+        rowcount = -1
+        description = nil
+
+        let db = conn._db
+        if !db_autocommit(db) {
+            if conn._run("COMMIT") != SQLITE_OK { return nil }
+        }
+        if conn._run(sql_script) != SQLITE_OK { return nil }
+        return self
+    }
+
+    /// The next row, nil when there are no more rows or on a database
+    /// error.
+    pub func fetchone() Row? {
+        _check_open()
+        let conn = connection
+        conn._clear_error()
+        if !_has_row { return nil }
+
+        let row = _row(_st, _names)
+        let rc = stmt_step(_st)
+        if rc == SQLITE_ROW { return row }
+
+        if rc != SQLITE_DONE {
+            conn._record_error()
+            _finish()
+            return nil
+        }
+        _finish()
+        return row
+    }
+
+    /// The next `size` rows, fewer at the end; `arraysize` rows by
+    /// default. Nil on a database error.
+    pub func fetchmany(size int = -1) list[Row]? {
+        var n = size
+        if n < 0 { n = arraysize }
+
+        let rows = list[Row]()
+        while rows.len() < n {
+            let row = fetchone()
+            if row == nil { break }
+            rows.append(row)
+        }
+        if connection._errcode != SQLITE_OK { return nil }
+        return rows
+    }
+
+    /// The remaining rows. Nil on a database error.
+    pub func fetchall() list[Row]? {
+        let rows = list[Row]()
+        while let row = fetchone() {
+            rows.append(row)
+        }
+        if connection._errcode != SQLITE_OK { return nil }
+        return rows
+    }
+
+    /// Close the cursor; using it afterwards panics. Closing again does
+    /// nothing.
+    pub func close() {
+        _finish()
+        _closed = true
+    }
+
+    func _check_open() {
+        if _closed { panic("sqlite3: Cannot operate on a closed cursor.") }
+        connection._check_open()
+    }
+
+    // Start running `sql`: reset the cursor and take a statement for it.
+    // False on a database error. `_st` is 0 when `sql` holds no
+    // statement.
+    func _prepare(sql str) bool {
+        _check_open()
+        let conn = connection
+        conn._clear_error()
+        _finish()
+        rowcount = -1
+        description = nil
+
+        let st = conn._take_statement(sql)
+        if st < 0 {
+            conn._record_error()
+            return false
+        }
+        _st = st
+        _sql = sql
+
+        if st != 0 && stmt_has_tail(st) {
+            _finish()
+            panic("sqlite3: You can only execute one statement at a time.")
+        }
+        return true
+    }
+
+    // Open a transaction before an INSERT, UPDATE, DELETE or REPLACE when
+    // none is open, unless the connection is in autocommit mode. False on
+    // a database error.
+    func _begin() bool {
+        let conn = connection
+        if let level = conn._isolation_level {
+            if stmt_is_dml(_st) && db_autocommit(conn._db) {
+                if conn._run("BEGIN " + level) != SQLITE_OK {
+                    _finish()
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    // Give back the running statement.
+    func _finish() {
+        if _st != 0 { connection._give_back_statement(_sql, _st) }
+        _st = 0
+        _has_row = false
+    }
+
+    // Bind `params` to the `?` placeholders of `_st`, or `named` to its
+    // named ones.
+    func _bind_all(params list[any?]?, named dict[str, any?]?) {
+        if params != nil && named != nil {
+            _finish()
+            panic("sqlite3: params and named cannot both be given")
+        }
+        if let values = named {
+            _bind_named(values)
+            return
+        }
+
+        let expected = stmt_bind_parameter_count(_st)
+        var given = 0
+        if let values = params { given = values.len() }
+        if given != expected {
+            _finish()
+            panic(format("sqlite3: Incorrect number of bindings supplied. The current statement " +
+                         "uses {}, and there are {} supplied.", expected, given))
+        }
+
+        if let values = params {
+            for i in range(given) {
+                _bind(i + 1, values[i])
+            }
+        }
+    }
+
+    // Bind `values` to the named placeholders of `_st`, looked up by the
+    // name without its prefix. Keys no placeholder names are ignored.
+    func _bind_named(values dict[str, any?]) {
+        let count = stmt_bind_parameter_count(_st)
+        for i in range(1, count + 1) {
+            let name = stmt_bind_parameter_name(_st, i)
+            if name.len() == 0 {
+                _finish()
+                panic(format("sqlite3: Binding {} has no name, but you supplied a dictionary " +
+                             "(which has only names).", i))
+            }
+
+            let key = name.substr(1)
+            if !(key in values) {
+                _finish()
+                panic(format("sqlite3: You did not supply a value for binding parameter {}.",
+                             name))
+            }
+            _bind(i, values[key])
+        }
+    }
+
+    // Bind `value` to placeholder `i`.
+    func _bind(i int, value any?) {
+        if value == nil {
+            stmt_bind_null(_st, i)
+            return
+        }
+
+        let v = value
+        if let b = v as bool {
+            stmt_bind_int64(_st, i, b.to_int())
+        } else if let n = v as int {
+            stmt_bind_int64(_st, i, n)
+        } else if let f = v as float {
+            stmt_bind_double(_st, i, f)
+        } else if let s = v as str {
+            stmt_bind_text(_st, i, s)
+        } else if let bs = v as bytes {
+            stmt_bind_blob(_st, i, bs)
+        } else {
+            let name = typeof(v).name()
+            _finish()
+            panic(format("sqlite3: Error binding parameter {}: type '{}' is not supported", i,
+                         name))
+        }
+    }
+}
+
+// The columns of statement `st`, nil when it returns no rows.
+func _columns(st int) list[(str, any?, any?, any?, any?, any?, any?)]? {
+    let n = stmt_column_count(st)
+    if n == 0 { return nil }
+
+    let columns = list[(str, any?, any?, any?, any?, any?, any?)]()
+    for i in range(n) {
+        let name = stmt_column_name(st, i)
+        let column (str, any?, any?, any?, any?, any?, any?) = (name, nil, nil, nil, nil, nil, nil)
+        columns.append(column)
+    }
+    return columns
+}
+
+// The column names of statement `st`.
+func _column_names(st int) list[str] {
+    let names = list[str]()
+    for i in range(stmt_column_count(st)) {
+        names.append(stmt_column_name(st, i))
+    }
+    return names
+}
+
+// The current row of statement `st`, whose columns are `names`.
+func _row(st int, names list[str]) Row {
+    let values = list[any?]()
+    for i in range(names.len()) {
+        values.append(_column_value(st, i))
+    }
+    return Row(values, names)
+}
+
+// Column `i` of the current row, by its storage class.
+func _column_value(st int, i int) any? {
+    let kind = stmt_column_type(st, i)
+    if kind == _INTEGER { return stmt_column_int64(st, i) }
+    if kind == _FLOAT { return stmt_column_double(st, i) }
+    if kind == _TEXT { return stmt_column_text(st, i) }
+    if kind == _BLOB { return stmt_column_blob(st, i) }
+    return nil
+}

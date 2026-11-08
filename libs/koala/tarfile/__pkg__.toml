@@ -1,0 +1,6 @@
+[package]
+name = "koala/tarfile"
+version = "0.1.0"
+description = "Read and write tar archives with Python's tarfile module API"
+dependencies = ["koala/gzip"]
+natives = []

@@ -637,6 +637,23 @@ let more list[int] = list[int]()
 let m = {1: 2, 3: 4}
 ```
 
+A literal's element type comes from its elements: `[1, 2]` is a `list[int]`, `[1, "s"]` a
+`list[any]`, and a `nil` element makes the element type optional, so `[1, nil]` is a
+`list[int?]` and `[nil]` a `list[any?]`. Where a list or dict type is expected, a literal whose
+elements fit it takes that type instead, nested literals included:
+
+```kl
+func run(sql str, params list[any?]) {}
+func run_many(sql str, rows list[list[any?]]) {}
+
+run("insert into t values (?, ?)", ["ann", 30])   // a list[any?], not a list[any]
+run_many("insert into t values (?)", [["a"], [nil]])
+let named dict[str, any?] = {"id": 1}
+
+let values = ["ann", 30]                            // a list[any]: a variable keeps its type
+run("...", values)                                  // error: list[any] is not list[any?]
+```
+
 Containers are indexed and sliced with the usual syntax; slicing bounds follow the half-open
 `[start, end)` convention:
 

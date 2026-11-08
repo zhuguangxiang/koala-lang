@@ -16,6 +16,12 @@ equivalent, byte for byte. `gzip` and `zipfile` are pure Koala on top of it.
 | `koala/zlib` | - | vendored zlib 1.3.1 + `zlib_shim.c`, `compressobj.c`, `decompressobj.c` |
 | `koala/gzip` | `koala/zlib` | none |
 | `koala/zipfile` | `koala/zlib` | none |
+| `koala/tarfile` | `koala/gzip` | none |
+
+`koala/tarfile` - the 1:1 port of CPython's `tarfile` - is documented apart,
+in [`koala_tarfile_api.md`](koala_tarfile_api.md), because its API surface
+(`TarInfo`, `TarFile`, the PEP 706 filters) is much larger than the three
+modules below; it uses `koala/gzip` for its `:gz` modes.
 
 ## Contents
 

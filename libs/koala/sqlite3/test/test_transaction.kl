@@ -1,0 +1,161 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/sqlite3"
+
+// Transactions under the isolation levels, as Python's legacy transaction
+// control.
+
+func _count(conn sqlite3.Connection) int {
+    let row = conn.execute("select count(*) from t")!.fetchone()!
+    return (row[0]! as int)!
+}
+
+func _path(name str) str = "/tmp/koala_sqlite3_test_" + name + ".db"
+
+func _fresh(name str, isolation_level str? = "") sqlite3.Connection {
+    let conn = sqlite3.connect(_path(name), isolation_level=isolation_level)!
+    conn.executescript("drop table if exists t; create table t(x);")
+    return conn
+}
+
+@test
+func test_dml_opens_a_transaction() {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(x)")
+    ut.assert_false(conn.in_transaction())
+    conn.execute("insert into t values (1)")
+    ut.assert_true(conn.in_transaction())
+    conn.commit()
+    ut.assert_false(conn.in_transaction())
+
+    // A query does not open one.
+    conn.execute("select * from t")
+    ut.assert_false(conn.in_transaction())
+    conn.close()
+}
+
+@test
+func test_rollback_undoes() {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(x)")
+    conn.execute("insert into t values (1)")
+    conn.commit()
+    conn.execute("insert into t values (2)")
+    conn.execute("delete from t where x = 1")
+    conn.rollback()
+    ut.assert_eq(_count(conn), 1)
+    conn.close()
+}
+
+@test
+func test_close_does_not_commit() {
+    let conn = _fresh("close")
+    conn.execute("insert into t values (1)")
+    conn.close()
+
+    let again = sqlite3.connect(_path("close"))!
+    ut.assert_eq(_count(again), 0)
+    again.close()
+}
+
+@test
+func test_autocommit() {
+    let conn = _fresh("autocommit", nil)
+    ut.assert_true(conn.isolation_level() == nil)
+    conn.execute("insert into t values (1)")
+    ut.assert_false(conn.in_transaction())
+    conn.close()
+
+    let again = sqlite3.connect(_path("autocommit"))!
+    ut.assert_eq(_count(again), 1)
+    again.close()
+}
+
+@test
+func test_isolation_levels() {
+    for level in ["DEFERRED", "IMMEDIATE", "EXCLUSIVE"] {
+        let conn = sqlite3.connect(":memory:", isolation_level=level)!
+        conn.execute("create table t(x)")
+        conn.execute("insert into t values (1)")
+        ut.assert_true(conn.in_transaction())
+        ut.assert_eq(conn.commit(), sqlite3.SQLITE_OK)
+        conn.close()
+    }
+}
+
+@test
+func test_isolation_level_is_upper_case() {
+    let conn = sqlite3.connect(":memory:", isolation_level="immediate")!
+    ut.assert_eq(conn.isolation_level()!, "IMMEDIATE")
+    let plain = sqlite3.connect(":memory:")!
+    ut.assert_eq(plain.isolation_level()!, "")
+    conn.close()
+    plain.close()
+}
+
+@test
+func test_set_isolation_level_nil_commits() {
+    let conn = _fresh("set_level")
+    conn.execute("insert into t values (1)")
+    ut.assert_true(conn.in_transaction())
+    ut.assert_eq(conn.set_isolation_level(nil), sqlite3.SQLITE_OK)
+    ut.assert_false(conn.in_transaction())
+    conn.execute("insert into t values (2)")
+    ut.assert_false(conn.in_transaction())
+
+    conn.set_isolation_level("deferred")
+    ut.assert_eq(conn.isolation_level()!, "DEFERRED")
+    conn.execute("insert into t values (3)")
+    ut.assert_true(conn.in_transaction())
+    conn.close()
+
+    let again = sqlite3.connect(_path("set_level"))!
+    ut.assert_eq(_count(again), 2)
+    again.close()
+}
+
+@test
+func test_executescript_commits_first() {
+    let conn = _fresh("script")
+    conn.execute("insert into t values (1)")
+    ut.assert_true(conn.in_transaction())
+    conn.executescript("insert into t values (2); insert into t values (3);")
+    ut.assert_false(conn.in_transaction())
+    conn.close()
+
+    let again = sqlite3.connect(_path("script"))!
+    ut.assert_eq(_count(again), 3)
+    again.close()
+}
+
+@test
+func test_executescript_error() {
+    let conn = sqlite3.connect(":memory:")!
+    ut.assert_true(conn.executescript("create table t(x); insert into missing values (1);") == nil)
+    ut.assert_eq(conn.errmsg(), "no such table: missing")
+    // The statements before the failing one ran.
+    ut.assert_eq(_count(conn), 0)
+    conn.close()
+}
+
+@test
+func test_begin_fails_when_locked() {
+    let path = _path("locked")
+    let first = _fresh("locked", "EXCLUSIVE")
+    first.commit()
+    first.execute("insert into t values (1)")
+    ut.assert_true(first.in_transaction())
+
+    let second = sqlite3.connect(path, timeout=0.0)!
+    ut.assert_true(second.execute("insert into t values (2)") == nil)
+    ut.assert_eq(second.sqlite_errorcode() & 0xff, sqlite3.SQLITE_BUSY)
+    ut.assert_false(second.in_transaction())
+
+    first.commit()
+    second.close()
+    first.close()
+}

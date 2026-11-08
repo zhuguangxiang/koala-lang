@@ -1,0 +1,38 @@
+// RUN: koala %s | filecheck %s
+// A `for` body that ends in `break`, `continue` or `return`: `emit_ir_for_stmt: Assertion
+// '!block_has_terminator(ps->scope->bb)' failed`, over a list, a range and an iterator alike.
+
+func first(xs list[int]) int {
+    for x in xs {
+        return x
+    }
+    return -1
+}
+
+func first_key(d dict[str, int]) str {
+    var key = ""
+    for k in d.keys() {
+        key = k
+        break
+    }
+    return key
+}
+
+func last_in_range(n int) int {
+    var last = -1
+    for i in range(n) {
+        last = i
+        continue
+    }
+    return last
+}
+
+func main() {
+    print(first([3, 4]), first([]))
+    print(first_key({"a": 1, "b": 2}), first_key(dict[str, int]()))
+    print(last_in_range(5), last_in_range(0))
+}
+
+// CHECK: 3 -1
+// CHECK-NEXT: a
+// CHECK-NEXT: 4 -1

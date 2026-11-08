@@ -487,6 +487,32 @@ static TypeSpec *empty_literal_elem_type(ParserState *ps, TypeSpec *expected, Sy
     return vector_get(args, 0);
 }
 
+/*
+ * The element type a non-empty list literal takes from an expected list[X], Iterable[X] or
+ * Sequence[X]: X, when every element can be assigned to it, or NULL. The literal is new and
+ * nothing else refers to it, so `["a", 1]` can be a list[any?] without loosening invariance.
+ */
+static TypeSpec *list_elem_as_expected(ParserState *ps, TypeSpec *expected, Vector *elems)
+{
+    Symbol *origin = stbl_get(ps->pm->builtin, "list");
+    TypeSpec *elem_ts = empty_literal_elem_type(ps, expected, origin);
+    if (!elem_ts) return NULL;
+
+    // a type variable is inferred from the elements, not given to them
+    TypeSpec *src = elem_ts;
+    if (type_is_optional(src) && src->opt.src) src = src->opt.src;
+    if (type_is_generic_var(src) || type_is_generic_ref(src)) return NULL;
+
+    Expr *e;
+    vector_foreach(e, elems) {
+        if (!e->ts) return NULL;
+        // a nested literal takes the element type too: `[["a", 1]]` as a list[list[any?]]
+        parse_literal_as_expected(ps, e, elem_ts);
+        if (!type_spec_compatible(elem_ts, e->ts)) return NULL;
+    }
+    return elem_ts;
+}
+
 static void parse_list(ParserState *ps, Expr *exp)
 {
     ListExpr *list_exp = (ListExpr *)exp;
@@ -503,7 +529,11 @@ static void parse_list(ParserState *ps, Expr *exp)
     Symbol *origin = stbl_get(ps->pm->builtin, "list");
 
     TypeSpec *infer_ts = NULL;
-    if (vector_empty(tp_args)) infer_ts = empty_literal_elem_type(ps, exp->expected, origin);
+    if (vector_empty(tp_args)) {
+        infer_ts = empty_literal_elem_type(ps, exp->expected, origin);
+    } else {
+        infer_ts = list_elem_as_expected(ps, exp->expected, list_exp->vec);
+    }
     if (!infer_ts) infer_ts = find_lub(tp_args);
     log_info("infer list type:");
     log_type_spec(infer_ts);
@@ -771,10 +801,44 @@ static void parse_map_entry(ParserState *ps, Expr *exp)
 }
 
 /*
- * `()`, `[]` and `{:}` have no element to give their type, and an argument or the right side of an
- * assignment is parsed before its expected type is known: parse them again with it.
+ * A non-empty dict literal of `entries` as an expected dict[K, V]: it becomes a dict[K, V] when
+ * every key can be assigned to K and every value to V. As for a list, the literal is new.
  */
-void parse_empty_literal(ParserState *ps, Expr *exp, TypeSpec *expected)
+static void map_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected, Vector *entries)
+{
+    if (expected && type_is_optional(expected)) expected = expected->opt.src;
+    if (!expected || !type_is_map(expected)) return;
+
+    Symbol *map_sym = get_symbol_by_id(expected->sym_id);
+    if (!map_sym || map_sym->kind != SYM_INSTANCE) return;
+    Vector *map_args = ((InstanceSymbol *)map_sym)->tp_args;
+    if (vector_size(map_args) != 2) return;
+
+    TypeSpec *key_ts = vector_get(map_args, 0);
+    TypeSpec *val_ts = vector_get(map_args, 1);
+    if (type_is_generic_var(key_ts) || type_is_generic_var(val_ts)) return;
+
+    Expr *e;
+    vector_foreach(e, entries) {
+        if (!e) continue;
+        MapEntryExpr *entry = (MapEntryExpr *)e;
+        if (!entry->key->ts || !type_spec_compatible(key_ts, entry->key->ts)) return;
+        if (!entry->val->ts) return;
+        parse_literal_as_expected(ps, entry->val, val_ts);
+        if (!type_spec_compatible(val_ts, entry->val->ts)) return;
+    }
+
+    exp->ts = expected;
+    exp->sym = map_sym;
+}
+
+/*
+ * An argument or the right side of an assignment is parsed before its expected type is known:
+ * give a literal that type now. `()`, `[]` and `{:}` have no element to give their type, so they
+ * are parsed again with it. A non-empty list or dict literal takes the expected type when its
+ * elements fit it, e.g. `["a", 1]` passed as a list[any?].
+ */
+void parse_literal_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected)
 {
     Vector *vec = NULL;
     if (exp->kind == EXPR_TUPLE_KIND) {
@@ -786,12 +850,34 @@ void parse_empty_literal(ParserState *ps, Expr *exp, TypeSpec *expected)
     } else {
         return;
     }
-    if (!vector_empty(vec)) return;
 
-    exp->ctx = EXPR_CTX_LOAD;
-    exp->expected = expected;
-    exp->sym = NULL;
-    parser_visit_expr(ps, exp);
+    if (vector_empty(vec)) {
+        exp->ctx = EXPR_CTX_LOAD;
+        exp->expected = expected;
+        exp->sym = NULL;
+        parser_visit_expr(ps, exp);
+        return;
+    }
+
+    // a literal that already fits keeps its type
+    if (!exp->ts || type_spec_compatible(expected, exp->ts)) return;
+
+    if (exp->kind == EXPR_LIST_KIND) {
+        TypeSpec *elem_ts = list_elem_as_expected(ps, expected, vec);
+        if (!elem_ts) return;
+
+        Vector *tp_args = vector_create_ptr();
+        vector_push_back(tp_args, &elem_ts);
+        Symbol *origin = stbl_get(ps->pm->builtin, "list");
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args, ps->pm);
+        inst_sym->arg = elem_ts;
+        vector_destroy(tp_args);
+
+        exp->ts = inst_sym->instance_ts;
+        exp->sym = (Symbol *)inst_sym;
+    } else if (exp->kind == EXPR_MAP_KIND) {
+        map_as_expected(ps, exp, expected, vec);
+    }
 }
 
 static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i__)
@@ -802,7 +888,7 @@ static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i
     for (int i = i__; i < param_size; i++) {
         ArgInfo *arg = vector_get(params, i);
         if (!strcmp(arg->name, kw->key.name)) {
-            parse_empty_literal(ps, kw->value, arg->ts);
+            parse_literal_as_expected(ps, kw->value, arg->ts);
             if (!type_spec_compatible(arg->ts, kw->value->ts)) {
                 kl_error_incompatible_type(kw->loc, arg->ts, kw->value->ts);
             }
@@ -835,7 +921,7 @@ static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int 
                 return;
             }
             log_info("kw-param: '%s', check value passed by positional argument", arg->name);
-            parse_empty_literal(ps, e, arg->ts);
+            parse_literal_as_expected(ps, e, arg->ts);
             if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error_incompatible_type(e->loc, arg->ts, e->ts);
             }
@@ -942,7 +1028,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                     log_type_spec(e->ts);
                 }
             } else {
-                parse_empty_literal(ps, e, arg->ts);
+                parse_literal_as_expected(ps, e, arg->ts);
             }
 
             if (!type_spec_compatible(arg->ts, e->ts)) {

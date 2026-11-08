@@ -1,0 +1,218 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A connection to an SQLite database, made by `sqlite3.connect`.
+///
+///     let conn = sqlite3.connect(":memory:")!
+///     conn.execute("create table t(id integer primary key, name text)")
+///     conn.execute("insert into t(name) values (?)", ["koala"])
+///     conn.commit()
+///     let cur = conn.execute("select id, name from t")!
+///     let row = cur.fetchone()!                    // row[0] is 1, row["name"] "koala"
+///     conn.close()
+///
+/// Where it differs from Python:
+///
+/// - A database error is not raised. The call returns nil (`execute`) or
+///   an error code (`commit`, `rollback`), and `sqlite_errorcode()`,
+///   `sqlite_errorname()` and `errmsg()` tell what failed - the
+///   attributes of Python's `sqlite3.Error`. They are reset by the next
+///   call.
+/// - A programming error panics: using a closed connection or cursor, a
+///   wrong number of parameters, a parameter of a type SQLite cannot
+///   store, more than one statement in `execute`.
+/// - `in_transaction`, `total_changes` and `isolation_level` are methods;
+///   `set_isolation_level` sets the level.
+/// - Named placeholders (`:id`) take their values from `named`, a dict,
+///   as `execute(sql, named={"id": 1})`; `params` is for `?`.
+/// - `close()` must be called: a connection is not closed when it is no
+///   longer used.
+pub class Connection {
+    var _db int
+    var _isolation_level str?
+    let _cursors list[Cursor]
+    // Compiled statements not in use, by SQL text, the least recently
+    // used first.
+    let _cache dict[str, int]
+    let _cache_size int
+    var _errcode int = SQLITE_OK
+    var _errmsg str = ""
+
+    func __init__(db int, isolation_level str?, cached_statements int) {
+        _db = db
+        _isolation_level = isolation_level
+        _cursors = list[Cursor]()
+        _cache = dict[str, int]()
+        _cache_size = cached_statements
+    }
+
+    /// A new cursor on this connection.
+    pub func cursor() Cursor {
+        _check_open()
+        let cur = Cursor(self)
+        _cursors.append(cur)
+        return cur
+    }
+
+    /// Run `sql` on a new cursor, as `cursor().execute(sql, params)`.
+    /// Returns the cursor, nil on a database error.
+    pub func execute(sql str, params list[any?]? = nil,
+                     named dict[str, any?]? = nil) Cursor? {
+        let cur = cursor()
+        return cur.execute(sql, params, named)
+    }
+
+    /// Run `sql` once for each parameter list, as
+    /// `cursor().executemany(sql, params, named)`.
+    pub func executemany(sql str, params list[list[any?]]? = nil,
+                         named list[dict[str, any?]]? = nil) Cursor? {
+        let cur = cursor()
+        return cur.executemany(sql, params, named)
+    }
+
+    /// Run the statements of `sql_script`, as
+    /// `cursor().executescript(sql_script)`.
+    pub func executescript(sql_script str) Cursor? {
+        let cur = cursor()
+        return cur.executescript(sql_script)
+    }
+
+    /// Commit the open transaction, if there is one. Returns SQLITE_OK,
+    /// or the error code.
+    pub func commit() int {
+        _check_open()
+        _clear_error()
+        if db_autocommit(_db) { return SQLITE_OK }
+        return _run("COMMIT")
+    }
+
+    /// Roll back the open transaction, if there is one. Returns
+    /// SQLITE_OK, or the error code.
+    pub func rollback() int {
+        _check_open()
+        _clear_error()
+        if db_autocommit(_db) { return SQLITE_OK }
+        return _run("ROLLBACK")
+    }
+
+    /// Close the connection and its cursors. An open transaction is
+    /// rolled back, not committed, as in Python. Closing again does
+    /// nothing.
+    pub func close() {
+        if _db == 0 { return }
+        for cur in _cursors { cur.close() }
+        _cursors.clear()
+        for st in _cache.values() { stmt_finalize(st) }
+        _cache.clear()
+        db_close(_db)
+        _db = 0
+    }
+
+    /// The isolation level: "", "DEFERRED", "IMMEDIATE" or "EXCLUSIVE", or
+    /// nil for autocommit.
+    pub func isolation_level() str? {
+        _check_open()
+        return _isolation_level
+    }
+
+    /// Set the isolation level, as assigning Python's `isolation_level`.
+    /// Setting nil commits the open transaction, if there is one. Returns
+    /// SQLITE_OK, or the error code of that commit. Panics on a level
+    /// Python rejects.
+    pub func set_isolation_level(level str?) int {
+        _check_open()
+        _clear_error()
+        let checked = _isolation_level_of(level)
+        if checked == nil && !db_autocommit(_db) {
+            let rc = _run("COMMIT")
+            if rc != SQLITE_OK { return rc }
+        }
+        _isolation_level = checked
+        return SQLITE_OK
+    }
+
+    /// Whether a transaction is open.
+    pub func in_transaction() bool {
+        _check_open()
+        return !db_autocommit(_db)
+    }
+
+    /// Rows changed by INSERT, UPDATE and DELETE since the connection was
+    /// opened.
+    pub func total_changes() int {
+        _check_open()
+        return db_total_changes(_db)
+    }
+
+    /// The code of the last error, as SQLITE_CONSTRAINT_UNIQUE; SQLITE_OK
+    /// when the last call succeeded.
+    pub func sqlite_errorcode() int = _errcode
+
+    /// The name of `sqlite_errorcode()`, as "SQLITE_CONSTRAINT_UNIQUE".
+    pub func sqlite_errorname() str = _error_name(_errcode)
+
+    /// The message of the last error, as "UNIQUE constraint failed: t.id";
+    /// "" when the last call succeeded.
+    pub func errmsg() str = _errmsg
+
+    // The handle; panics when the connection is closed.
+    func _handle() int {
+        _check_open()
+        return _db
+    }
+
+    func _check_open() {
+        if _db == 0 { panic("sqlite3: Cannot operate on a closed database.") }
+    }
+
+    func _clear_error() {
+        _errcode = SQLITE_OK
+        _errmsg = ""
+    }
+
+    // Record the error of the last call on the handle.
+    func _record_error() {
+        _errcode = db_errcode(_db)
+        _errmsg = db_errmsg(_db)
+    }
+
+    // A compiled statement for `sql`: from the cache, or prepared. 0 when
+    // `sql` holds no statement, -1 on an error.
+    func _take_statement(sql str) int {
+        if sql in _cache { return _cache.remove(sql) }
+        return stmt_prepare(_db, sql)
+    }
+
+    // Give back statement `st` of `sql`, no longer in use: it is kept for
+    // reuse, unless the cache is off or already has one for `sql`. The
+    // least recently used statement goes when the cache is full.
+    func _give_back_statement(sql str, st int) {
+        // `in` cannot be used inside a `||` chain: bind it first.
+        let cached = sql in _cache
+        if _cache_size <= 0 || stmt_has_tail(st) || cached {
+            stmt_finalize(st)
+            return
+        }
+
+        stmt_reset(st)
+        stmt_clear_bindings(st)
+        _cache[sql] = st
+        if _cache.len() > _cache_size {
+            let oldest = next(iter(_cache.keys()))!
+            stmt_finalize(_cache.remove(oldest))
+        }
+    }
+
+    // Run `sql`, with no parameters and no rows. Returns SQLITE_OK, or
+    // the error code.
+    func _run(sql str) int {
+        let rc = db_exec(_db, sql)
+        if rc != SQLITE_OK {
+            _record_error()
+            return _errcode
+        }
+        return SQLITE_OK
+    }
+}

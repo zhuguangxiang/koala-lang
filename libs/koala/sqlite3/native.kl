@@ -1,0 +1,128 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The @native declarations below mirror native/sqlite3_shim.c, a thin
+// layer over the vendored SQLite. They are not part of the package's
+// public API.
+//
+// `db` is a connection handle and `st` a statement handle, 0 when there
+// is none. Codes are SQLite's result codes.
+
+/// The version of the SQLite library, as "3.54.1".
+@native
+func sqlite_libversion() str {}
+
+/// The English text of a result code.
+@native
+func sqlite_errstr(code int) str {}
+
+/// Open a connection and set its busy timeout. 0 when the database
+/// cannot be opened.
+@native
+func db_open(path str, flags int, timeout_ms int) int {}
+
+@native
+func db_close(db int) int {}
+
+/// Run every statement of `sql`, with no parameters and no rows.
+@native
+func db_exec(db int, sql str) int {}
+
+/// The extended result code of the last failed call on `db`.
+@native
+func db_errcode(db int) int {}
+
+@native
+func db_errmsg(db int) str {}
+
+/// Rows changed by the last INSERT, UPDATE or DELETE.
+@native
+func db_changes(db int) int {}
+
+@native
+func db_total_changes(db int) int {}
+
+@native
+func db_last_insert_rowid(db int) int {}
+
+/// False while a transaction is open.
+@native
+func db_autocommit(db int) bool {}
+
+/// Compile the first statement of `sql`. 0 when `sql` holds only spaces
+/// and comments, -1 on an error.
+@native
+func stmt_prepare(db int, sql str) int {}
+
+@native
+func stmt_finalize(st int) {}
+
+/// More than one statement was given.
+@native
+func stmt_has_tail(st int) bool {}
+
+/// INSERT, UPDATE, DELETE or REPLACE.
+@native
+func stmt_is_dml(st int) bool {}
+
+@native
+func stmt_readonly(st int) bool {}
+
+/// Rewind the statement so it can run again; the bindings are kept.
+@native
+func stmt_reset(st int) int {}
+
+@native
+func stmt_clear_bindings(st int) {}
+
+@native
+func stmt_bind_parameter_count(st int) int {}
+
+/// The name of parameter `i` (from 1) with its prefix, as ":id"; "" for
+/// a nameless `?`.
+@native
+func stmt_bind_parameter_name(st int, i int) str {}
+
+@native
+func stmt_bind_null(st int, i int) int {}
+
+@native
+func stmt_bind_int64(st int, i int, value int) int {}
+
+@native
+func stmt_bind_double(st int, i int, value float) int {}
+
+@native
+func stmt_bind_text(st int, i int, value str) int {}
+
+@native
+func stmt_bind_blob(st int, i int, value bytes) int {}
+
+/// SQLITE_ROW when a row is ready, SQLITE_DONE at the end, otherwise an
+/// error code.
+@native
+func stmt_step(st int) int {}
+
+@native
+func stmt_column_count(st int) int {}
+
+@native
+func stmt_column_name(st int, i int) str {}
+
+/// The storage class of column `i` in the current row.
+@native
+func stmt_column_type(st int, i int) int {}
+
+@native
+func stmt_column_int64(st int, i int) int {}
+
+@native
+func stmt_column_double(st int, i int) float {}
+
+@native
+func stmt_column_text(st int, i int) str {}
+
+@native
+func stmt_column_blob(st int, i int) bytes {}

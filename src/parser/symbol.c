@@ -524,17 +524,32 @@ static TypeSpec *find_two_lub(TypeSpec *a, TypeSpec *b)
 }
 */
 
+/*
+ * The lub of `types`: their common type, `any` when they differ. An optional type or `nil` makes
+ * the lub optional: `int` and `nil` give `int?`, `str` and `int?` give `any?`, only `nil`s give
+ * `any?`.
+ */
 TypeSpec *find_lub(Vector *types)
 {
     if (vector_empty(types)) return any_type_spec();
 
-    TypeSpec *ts = vector_get(types, 0);
+    TypeSpec *ts = NULL;
+    int optional = 0;
 
-    for (int i = 1; i < vector_size(types); i++) {
-        TypeSpec *_ts = vector_get(types, i);
-        if (_ts != ts) {
+    TypeSpec *_ts;
+    vector_foreach(_ts, types) {
+        if (type_is_optional(_ts)) {
+            optional = 1;
+            // `nil` has no source type
+            _ts = _ts->opt.src;
+            if (!_ts) continue;
+        }
+
+        if (!ts) {
+            ts = _ts;
+        } else if (_ts != ts) {
             log_info("types has different arg types, lub is 'any'");
-            return any_type_spec();
+            ts = any_type_spec();
         }
         /*
         if (type_is_any(ts)) break;
@@ -542,6 +557,9 @@ TypeSpec *find_lub(Vector *types)
         ASSERT(ts);
         */
     }
+
+    if (!ts) ts = any_type_spec();
+    if (optional) ts = optional_type_spec_intern(ts);
 
     log_info("find lub: '%s'", ts->signature);
     return ts;

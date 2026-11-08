@@ -1,0 +1,214 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "std/os"
+
+/// The extraction filters of PEP 706, and the path arithmetic they need.
+///
+///     tarfile.data_filter(member, path)            -> TarInfo
+///     tarfile.tar_filter(member, path)             -> TarInfo
+///     tarfile.fully_trusted_filter(member, path)   -> TarInfo
+///
+/// A filter takes the member and the directory it would be extracted to, and
+/// answers the member to extract instead. Python's filters return `None` to
+/// exclude a member and raise `FilterError` to refuse one; there is no `None`
+/// and no exception here, so a refused member is a panic carrying Python's
+/// message. The three filters never exclude a member, so nothing is lost.
+///
+/// Two of Python's "unset" values have no Koala spelling:
+///   - Python's `data` filter sets `mode = None` to mean "leave the mode
+///     alone"; here it is `-1`, which `TarFile.chmod()` skips.
+///   - it sets `uid`, `gid`, `uname` and `gname` to `None` to mean "do not
+///     restore ownership"; here it is `-1` for the ids - the value `chown`
+///     reads as "leave it" - and `""` for the names.
+
+/// Apply the named filter - `"fully_trusted"`, `"tar"` or `"data"` - to
+/// `member`.
+///
+/// This is what `TarFile.extractall(..., filter="data")` runs; a caller that
+/// wants one of the functions itself calls it directly.
+pub func apply_filter(name str, member TarInfo, dest_path str) TarInfo {
+    if name == "fully_trusted" { return fully_trusted_filter(member, dest_path) }
+    if name == "tar" { return tar_filter(member, dest_path) }
+    if name == "data" { return data_filter(member, dest_path) }
+    panic(format("tarfile: \"{}\" is not a filter: use \"fully_trusted\", \"tar\" or \"data\"", name))
+}
+
+/// Extract the member exactly as recorded, trusting the archive with
+/// everything: PEP 706's `"fully_trusted"`.
+pub func fully_trusted_filter(member TarInfo, dest_path str) TarInfo {
+    return member
+}
+
+/// Refuse the members whose *name* would land outside the destination, and
+/// drop the dangerous permission bits, but restore everything else: PEP 706's
+/// `"tar"`.
+pub func tar_filter(member TarInfo, dest_path str) TarInfo {
+    return filtered_member(member, dest_path, false)
+}
+
+/// The default, for archives of unknown provenance: PEP 706's `"data"`.
+///
+/// Beyond what `"tar"` does, this refuses special files and links that point
+/// outside the destination, and drops the ownership so that extraction does
+/// not try to restore it.
+pub func data_filter(member TarInfo, dest_path str) TarInfo {
+    return filtered_member(member, dest_path, true)
+}
+/// The body of `tar_filter()` and `data_filter()`: Python's
+/// `_get_filtered_attrs()`, answering the filtered member instead of a dict of
+/// changes.
+func filtered_member(member TarInfo, dest_path str, for_data bool) TarInfo {
+    let out = member.copy()
+    let dest = absolute_path(dest_path)
+    var name = member.name
+    // A leading `/` is tar's directory separator, not a root: strip it, then
+    // judge what is left.
+    if name.starts_with("/") {
+        name = trim_leading_slashes(name)
+        out.name = name
+    }
+    if name.starts_with("/") {
+        panic(format("tarfile: member '{}' has an absolute path", member.name))
+    }
+    let target = resolve_path(dest, name)
+    if target != dest && !target.starts_with(dest + "/") {
+        panic(format("tarfile: '{}' would be extracted to '{}', which is outside the destination",
+                     member.name, target))
+    }
+
+    // Keep the low bits, drop the setuid/setgid/sticky ones and the group and
+    // other write bits.
+    let mode = member.mode & 0o755
+    if for_data {
+        if member.isreg() || member.islnk() {
+            var m = mode
+            // No user execute bit means no execute bit at all.
+            if (m & 0o100) == 0 { m = m & 0o666 }
+            out.mode = m | 0o600
+        } else if member.isdir() || member.issym() {
+            // A directory or a symlink takes the mode the system gives it.
+            out.mode = -1
+        } else {
+            panic(format("tarfile: '{}' is a special file", member.name))
+        }
+        // A `data` extraction does not restore ownership.
+        out.uid = -1
+        out.gid = -1
+        out.uname = ""
+        out.gname = ""
+        if member.islnk() || member.issym() {
+            if member.linkname.starts_with("/") {
+                panic(format("tarfile: '{}' is a link to an absolute path", member.name))
+            }
+            // A link over the destination itself would move it for every
+            // member that follows.
+            if target == dest {
+                panic(format("tarfile: '{}' would be extracted to '{}', which is outside the destination",
+                             member.name, target))
+            }
+            let normalized = normal_path(member.linkname)
+            if normalized != member.linkname { out.linkname = normalized }
+            var link_target = ""
+            if member.issym() {
+                // A symlink is made at `name`, so its target is relative to
+                // the directory that holds `name`.
+                link_target = resolve_path(dest, parent_of(member.name) + "/" + normalized)
+            } else {
+                link_target = resolve_path(dest, normalized)
+            }
+            if link_target != dest && !link_target.starts_with(dest + "/") {
+                panic(format("tarfile: '{}' would link to '{}', which is outside the destination",
+                             member.name, link_target))
+            }
+        }
+    } else {
+        out.mode = mode
+    }
+    return out
+}
+
+/// `path` as an absolute, resolved path: the `os.path.realpath()` of Python,
+/// without looking at the file system.
+///
+/// A symlink already on disk is *not* resolved, so a link that the archive
+/// itself planted cannot redirect a later member; that case is refused by the
+/// checks above only when the name is what gives it away.
+pub func absolute_path(path str) str {
+    if path.starts_with("/") { return normal_path(path) }
+    return normal_path(os.getcwd() + "/" + path)
+}
+
+/// `path` with `.` dropped, `..` applied and repeated slashes collapsed.
+///
+/// A `..` that would climb out of a relative path is kept, since there is
+/// nothing above it to climb to.
+pub func normal_path(path str) str {
+    if path.starts_with("/") { return resolve_path("/", path) }
+    return resolve_path("", path)
+}
+
+/// `rel` resolved against `base`: `.` dropped, `..` applied, empty components
+/// dropped. `base` keeps its own leading `/`; a `..` that climbs above a
+/// relative path is kept, since there is nothing up there.
+pub func resolve_path(base str, rel str) str {
+    let absolute = base.starts_with("/")
+    let stack = list[str]()
+    for part in base.split("/", -1) {
+        if part.len() > 0 && part != "." { stack.append(part) }
+    }
+    var above = 0
+    for part in rel.split("/", -1) {
+        if part.len() == 0 || part == "." { continue }
+        if part == ".." {
+            // A `..` climbs out of `base` too: that is exactly the escape the
+            // filters have to see.
+            if stack.len() > 0 {
+                stack.pop()
+            } else if !absolute {
+                above += 1
+            }
+            continue
+        }
+        stack.append(part)
+    }
+    var out = ""
+    if absolute {
+        out = "/"
+    } else {
+        var k = 0
+        while k < above {
+            out = out + "../"
+            k += 1
+        }
+    }
+    var i = 0
+    while i < stack.len() {
+        if i > 0 { out = out + "/" }
+        out = out + stack[i]
+        i += 1
+    }
+    return out
+}
+
+/// The directory part of `path`, without the trailing name.
+pub func parent_of(path str) str {
+    var end = path.len()
+    while end > 0 {
+        if path[end - 1] == "/" { return path.substr(0, end - 1) }
+        end -= 1
+    }
+    return ""
+}
+
+/// `s` without the `/` characters it starts with.
+pub func trim_leading_slashes(s str) str {
+    var i = 0
+    while i < s.len() && s[i] == "/" {
+        i += 1
+    }
+    return s.substr(i, s.len())
+}

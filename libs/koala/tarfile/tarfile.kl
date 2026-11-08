@@ -1,0 +1,1161 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "std/os"
+import "koala/gzip"
+
+/// A block: the unit every tar header and every chunk of member data is
+/// measured in; Python's `tarfile.BLOCKSIZE`.
+pub const BLOCKSIZE = 512
+
+/// The size an archive is padded to; Python's `tarfile.RECORDSIZE`.
+pub const RECORDSIZE = 10240
+
+/// Bytes in the `name` field of a header.
+pub const LENGTH_NAME = 100
+
+/// Bytes in the `linkname` field of a header.
+pub const LENGTH_LINK = 100
+
+/// Bytes in the `prefix` field of a ustar header.
+pub const LENGTH_PREFIX = 155
+
+/// The original POSIX.1-1988 format.
+pub const USTAR_FORMAT = 0
+
+/// The GNU format, which extends ustar with long names.
+pub const GNU_FORMAT = 1
+
+/// The POSIX.1-2001 (pax) format.
+pub const PAX_FORMAT = 2
+
+/// What `TarFile` writes when nothing else is asked for. Python spells it
+/// `DEFAULT_FORMAT = PAX_FORMAT`; a `const` here has to be a literal.
+pub const DEFAULT_FORMAT = 2
+
+/// The encoding of the text fields in a header.
+pub const ENCODING = "utf-8"
+
+/// The bits of a `stat()` mode that hold the file type; `std/fs` keeps its own
+/// copy private, so the mask is spelled out again here.
+const S_IFMT = 0o170000
+
+/// A regular file.
+const S_IFREG = 0o100000
+
+/// A directory.
+const S_IFDIR = 0o040000
+
+/// A symbolic link.
+const S_IFLNK = 0o120000
+
+/// A character device.
+const S_IFCHR = 0o020000
+
+/// A block device.
+const S_IFBLK = 0o060000
+
+/// A FIFO.
+const S_IFIFO = 0o010000
+
+// ---------------------------------------------------------------------------
+// TarFile
+// ---------------------------------------------------------------------------
+
+/// One tar archive: Python's `tarfile.TarFile`.
+///
+/// `tarfile.open()` is the way in, as in Python; it picks the compression out
+/// of the mode string (`"r"`, `"r:gz"`, `"w"`, `"a"`, `"x"`, and the `|`
+/// stream modes, which read the same way here because a member is handled whole
+/// in memory).
+///
+/// The field names are Python's, with one group of exceptions: a constructor
+/// parameter may not shadow a field, so the keyword arguments of Python's
+/// `TarFile` have shorter spellings - `file` for `name`, `fmt` for `format`,
+/// `enc` for `encoding`, `errs` for `errors`, `deref` for `dereference`,
+/// `ign_zeros` for `ignore_zeros`, `paxhdr` for `pax_headers`, `dbg` for
+/// `debug`, `errlevel` for `errorlevel`. The fields themselves keep Python's
+/// names, so `tf.format`, `tf.encoding`, `tf.dereference` and the rest read as
+/// they do in Python, and `tf.mode()` is a method because `mode` is also a
+/// constructor parameter.
+///
+/// `filter=` takes the name of a PEP 706 filter - `"fully_trusted"`, `"tar"`
+/// or `"data"` - where Python takes a function; see `tarfilter.kl`.
+pub class TarFile {
+    /// The archive's file name; Python's `name`.
+    pub var name str
+
+    /// Every member read or written so far, in archive order.
+    pub var members list[TarInfo]
+
+    /// The format members are written in: `USTAR_FORMAT`, `GNU_FORMAT` or
+    /// `PAX_FORMAT`.
+    pub var format int
+
+    /// The encoding of the text fields; always `ENCODING` (UTF-8).
+    pub var encoding str
+
+    /// The error handler for undecodable names; accepted for signature
+    /// parity, unused - a name is read as UTF-8.
+    pub var errors str
+
+    /// True to follow symbolic links when a member is added from disk.
+    pub var dereference bool
+
+    /// True to keep reading past a zero block instead of stopping there.
+    pub var ignore_zeros bool
+
+    /// What an extraction error does; accepted for parity, and every error is
+    /// a panic here.
+    pub var errorlevel int
+
+    /// The debug level; accepted for parity, nothing is printed.
+    pub var debug int?
+
+    /// The filter `extractall()` and `extract()` use when they are given none.
+    /// `nil` means PEP 706's default, `"data"`.
+    pub var extraction_filter str?
+
+    /// The records of the pax global header, which apply to every member.
+    pub var pax_headers dict[str, str]
+
+    /// True once `close()` ran. `close()` is idempotent.
+    pub var closed bool
+
+    /// Where the next header starts, in bytes from the beginning of the
+    /// archive.
+    pub var offset int
+
+    /// `"r"`, `"a"`, `"w"` or `"x"`.
+    var _mode str
+
+    /// `""` or `"gz"`, from the mode string.
+    var _comptype str
+
+    /// Read modes: the archive, decompressed, whole.
+    var _raw bytes
+
+    /// Read modes: the read cursor, in bytes.
+    var _pos int
+
+    /// Write modes: what has been written so far.
+    var _out Buffer
+
+    /// True once every member has been read.
+    var _loaded bool
+
+    /// The inodes already written, `"dev:ino"` -> name, so a second hard link
+    /// becomes `LNKTYPE`.
+    var _inodes dict[str, str]
+
+    /// The member read by the constructor, which the first `next()` hands
+    /// back; Python's `firstmember`.
+    var _first TarInfo?
+
+    /// Open an archive.
+    ///
+    /// `mode` is Python's: `"r"` or `"r:*"` (transparent), `"r:"`,
+    /// `"r:gz"`, `"a"`, `"a:"`, `"w"`, `"w:"`, `"w:gz"`, `"x"`, `"x:"`,
+    /// `"x:gz"`, and the stream modes `"r|"`, `"r|*"`, `"r|gz"`, `"w|"`,
+    /// `"w|gz"`, which read like their random-access twins. `bz2`, `xz` and
+    /// `zst` parse but panic: `koala/gzip` is the only codec there is.
+    ///
+    /// `fileobj` exists for signature parity and must be `nil`: an archive is
+    /// named by a path here, not handed over as a file object.
+    ///
+    /// A name that cannot be opened, that is not an archive or whose first
+    /// header is broken panics with the wording of Python's `ReadError`.
+    pub func __init__(file str? = nil, mode = "r", fileobj bytes? = nil,
+                      fmt = DEFAULT_FORMAT, enc = ENCODING,
+                      errs = "surrogateescape", deref = false,
+                      ign_zeros = false, paxhdr dict[str, str]? = nil,
+                      dbg int? = nil, errlevel int? = nil) {
+        if fileobj != nil {
+            panic("tarfile: fileobj is not supported: open a path instead")
+        }
+        let (access, comptype) = _mode_parts(mode)
+        name = file ?? ""
+        _mode = access
+        _comptype = comptype
+        format = fmt
+        encoding = enc
+        errors = errs
+        dereference = deref
+        ignore_zeros = ign_zeros
+        errorlevel = errlevel ?? 1
+        debug = dbg
+        extraction_filter = nil
+        members = list[TarInfo]()
+        pax_headers = dict[str, str]()
+        if paxhdr != nil && fmt == PAX_FORMAT { pax_headers = pax_copy(paxhdr!) }
+        closed = false
+        offset = 0
+        _pos = 0
+        _raw = bytes(0)
+        _out = Buffer()
+        _loaded = false
+        _inodes = dict[str, str]()
+
+        if access == "r" || access == "a" {
+            if !fs.exists(name) {
+                if access == "r" {
+                    panic("tarfile: No such file or directory: '" + name + "'")
+                }
+            } else {
+                _raw = fs.read_all(name, -1)
+                if _comptype == "*" {
+                    _comptype = ""
+                    if _is_gzip(_raw) { _comptype = "gz" }
+                }
+                if _comptype == "gz" { _raw = gzip.decompress(_raw) }
+            }
+        }
+        if access == "x" && fs.exists(name) {
+            panic("tarfile: File exists: '" + name + "'")
+        }
+
+        if access == "r" {
+            // Python reads the first member here, so a file that is not an
+            // archive fails now rather than on the first `next()`.
+            if _raw.len() < BLOCKSIZE {
+                panic("tarfile: not a tar archive: '" + name + "'")
+            }
+            _first = _read_member(true)
+            if _first != nil { members.append(_first) }
+        } else if access == "a" {
+            // Append after the last member, before the end-of-archive blocks.
+            while true {
+                let m = _read_member(true)
+                if m == nil { break }
+                members.append(m)
+            }
+            offset = _pos
+            _out.write(_raw.view(0, offset))
+            _loaded = true
+        } else {
+            _loaded = true
+            if pax_headers.len() > 0 {
+                _out.write(TarInfo.create_pax_global_header(pax_headers))
+                offset = _out.len()
+            }
+        }
+    }
+
+    /// The mode string the archive was opened with, without the compression
+    /// part; Python's `TarFile.mode`.
+    pub func mode() str {
+        return _mode
+    }
+
+    /// The compression: `""` or `"gz"`; Python's `TarFile.pax_headers`'s
+    /// neighbour `TarFile.comptype`.
+    pub func comptype() str {
+        return _comptype
+    }
+
+    /// Refuse an operation the archive is not open for, and any operation once
+    /// it is closed; Python's `_check()`.
+    func _check(mode str) {
+        if closed { panic("tarfile: TarFile is closed") }
+        if mode.len() > 0 {
+            var i = 0
+            var ok = false
+            while i < mode.len() {
+                if mode[i] == _mode { ok = true }
+                i += 1
+            }
+            if !ok {
+                panic("tarfile: invalid mode '" + _mode + "'")
+            }
+        }
+    }
+
+    /// Read every remaining member; Python's `_load()`.
+    func _load() {
+        while next() != nil {}
+        _loaded = true
+    }
+
+    /// The members of the archive, in archive order; Python's `getmembers()`.
+    ///
+    /// In a write mode this is what has been added so far. The list is a fresh
+    /// copy, so a caller cannot disturb the archive through it.
+    pub func getmembers() list[TarInfo] {
+        _check("")
+        if !_loaded { _load() }
+        let out = list[TarInfo]()
+        for m in members { out.append(m) }
+        return out
+    }
+
+    /// The member names, in archive order; Python's `getnames()`.
+    pub func getnames() list[str] {
+        let out = list[str]()
+        for m in getmembers() { out.append(m.name) }
+        return out
+    }
+
+    /// The member named `name`; Python's `getmember()`.
+    ///
+    /// Panics with Python's `KeyError` wording when the archive has no such
+    /// member.
+    pub func getmember(nm str) TarInfo {
+        _check("")
+        if !_loaded { _load() }
+        let t = _getmember(trim_slashes(nm))
+        if t == nil {
+            panic("tarfile: filename '" + nm + "' not found")
+        }
+        return t
+    }
+
+    /// The member named `name`, `nil` when there is none; Python's
+    /// `_getmember()`.
+    ///
+    /// The last member with that name wins, as in Python: an archive may hold
+    /// several, and the latest is the current version.
+    func _getmember(nm str) TarInfo? {
+        var i = members.len() - 1
+        while i >= 0 {
+            if members[i].name == nm { return members[i] }
+            i -= 1
+        }
+        return nil
+    }
+
+    /// The next member of the archive, `nil` at its end; Python's `next()`,
+    /// whose end of archive is a `StopIteration`.
+    ///
+    /// The member is added to `members` as it is returned, so `for m in
+    /// tf.iter()` and a manual `next()` walk the archive once.
+    pub func next() TarInfo? {
+        _check("r")
+        if _first != nil {
+            let m = _first
+            _first = nil
+            return m
+        }
+        let m = _read_member(true)
+        if m != nil { members.append(m) }
+        return m
+    }
+
+    /// The members, one at a time; Python's `__iter__`.
+    pub func iter() Iterator[TarInfo] {
+        return TarFileIter(self)
+    }
+
+    /// Read one member at `_pos`, following a pax extended header or a GNU
+    /// long name that belongs to it; Python's `_proc_member()` and the
+    /// `_proc_*` methods behind it.
+    ///
+    /// The data blocks of a member are skipped, so `_pos` ends up at the next
+    /// header.
+    func _read_member(dircheck bool) TarInfo? {
+        while true {
+            if _pos + BLOCKSIZE > _raw.len() { return nil }
+            if is_zero_block(_raw.view(_pos, _pos + BLOCKSIZE)) {
+                if ignore_zeros {
+                    _pos += BLOCKSIZE
+                    continue
+                }
+                return nil
+            }
+            break
+        }
+        let t = parse_header(_raw.view(_pos, _pos + BLOCKSIZE), dircheck)
+        t.offset = _pos
+        _pos += BLOCKSIZE
+        t.offset_data = _pos
+
+        // A GNU long name or link: the payload is the real one, the next
+        // header the member it belongs to.
+        if t.typeflag == GNUTYPE_LONGNAME || t.typeflag == GNUTYPE_LONGLINK {
+            let body = _member_data(t.size)
+            _pos += blocks(t.size)
+            let nxt = _read_member(false)
+            if nxt == nil { panic("tarfile: unexpected end of file") }
+            let m = nxt
+            let text = nts(body, 0, body.len())
+            if t.typeflag == GNUTYPE_LONGNAME {
+                m.name = text
+            } else {
+                m.linkname = text
+            }
+            return m
+        }
+
+        // A pax extended header: its records patch the member after it, or
+        // every member after it when it is global.
+        if t.typeflag == XHDTYPE || t.typeflag == XGLTYPE ||
+           t.typeflag == SOLARIS_XHDTYPE {
+            let pax = parse_pax(_member_data(t.size))
+            _pos += blocks(t.size)
+            if t.typeflag == XGLTYPE {
+                for key in pax.keys() {
+                    pax_headers[key] = pax[key]
+                }
+                return _read_member(dircheck)
+            }
+            let merged = pax_copy(pax_headers)
+            for key in pax.keys() {
+                merged[key] = pax[key]
+            }
+            let nxt = _read_member(false)
+            if nxt == nil { panic("tarfile: unexpected end of file") }
+            let m = nxt
+            m.apply_pax_info(merged)
+            m.offset = t.offset
+            // A `size` record moves where the member ends.
+            var end = m.offset_data
+            if m.isreg() || !(m.typeflag in SUPPORTED_TYPES) {
+                end += blocks(m.size)
+            }
+            _pos = end
+            return m
+        }
+
+        // A plain member: skip what follows it, unless its flag carries no
+        // data at all.
+        if t.isreg() || !(t.typeflag in SUPPORTED_TYPES) {
+            _pos += blocks(t.size)
+        }
+        if t.isdir() { t.name = trim_slashes(t.name) }
+        if pax_headers.len() > 0 { t.apply_pax_info(pax_headers) }
+        return t
+    }
+
+    /// `size` bytes of member data at `_pos`, cut short by the end of the
+    /// archive.
+    func _member_data(size int) bytes {
+        var stop = _pos + size
+        if stop > _raw.len() { stop = _raw.len() }
+        if stop <= _pos { return bytes(0) }
+        return _raw.view(_pos, stop)
+    }
+
+    /// Build a `TarInfo` from a file on disk, ready for `addfile()`;
+    /// Python's `gettarinfo()`.
+    ///
+    /// `uname` and `gname` stay empty: Koala has no `pwd`/`grp` lookup, so an
+    /// id cannot be turned into a name. `fileobj` is accepted for parity and
+    /// must be `nil`. A file whose type has no tar spelling answers `nil`.
+    pub func gettarinfo(nm str? = nil, arcname str? = nil,
+                        fileobj bytes? = nil) TarInfo? {
+        _check("awx")
+        if fileobj != nil {
+            panic("tarfile: fileobj is not supported: name a file instead")
+        }
+        if nm == nil { return nil }
+        let src = nm
+        var arc = trim_leading_slashes(arcname ?? src)
+        let st = fs.stat(src, dereference)
+        if st == nil { return nil }
+        let s = st
+        let kind = s.mode & S_IFMT
+        var typ = REGTYPE
+        var lnk = ""
+        if kind == S_IFREG {
+            let inode = str(s.dev) + ":" + str(s.ino)
+            let seen = inode in _inodes
+            if !dereference && s.nlink > 1 && seen && _inodes[inode] != arc {
+                // A second hard link to a file already in the archive.
+                typ = LNKTYPE
+                lnk = _inodes[inode]
+            } else {
+                typ = REGTYPE
+                _inodes[inode] = arc
+            }
+        } else if kind == S_IFDIR {
+            typ = DIRTYPE
+        } else if kind == S_IFIFO {
+            typ = FIFOTYPE
+        } else if kind == S_IFLNK {
+            typ = SYMTYPE
+            let target = fs.read_link(src)
+            if target != nil { lnk = target.to_str() }
+        } else if kind == S_IFCHR {
+            typ = CHRTYPE
+        } else if kind == S_IFBLK {
+            typ = BLKTYPE
+        } else {
+            return nil
+        }
+        let t = TarInfo(arc)
+        t.mode = s.mode
+        t.uid = s.uid
+        t.gid = s.gid
+        if typ == REGTYPE { t.size = s.size }
+        t.mtime = int(s.mtime)
+        t.typeflag = typ
+        t.linkname = lnk
+        return t
+    }
+
+    /// Add `name` to the archive; Python's `add()`.
+    ///
+    /// A directory is added with everything under it unless `recursive` is
+    /// false, and its entries are added in name order. `filter` names a PEP
+    /// 706 filter, applied as if the member were being extracted into the
+    /// current directory.
+    pub func add(nm str, arcname str? = nil, recursive = true,
+                 filter str? = nil) {
+        _check("awx")
+        // Do not archive the archive into itself.
+        if !name.empty() && absolute_path(nm) == absolute_path(name) {
+            return
+        }
+        var arc = arcname ?? nm
+        let maybe = gettarinfo(nm, arc)
+        if maybe == nil { return }
+        var t = maybe
+        if filter != nil { t = apply_filter(filter, t, ".") }
+        if t.isreg() {
+            addfile(t, fs.read_all(nm, -1))
+        } else if t.isdir() {
+            addfile(t)
+            if recursive {
+                let entries = fs.list_dir(nm)
+                let names = list[str]()
+                for e in entries { names.append(e.name()) }
+                let sorted = sorted_names(names)
+                for entry in sorted {
+                    add(nm + "/" + entry, arc + "/" + entry, recursive, filter)
+                }
+            }
+        } else {
+            addfile(t)
+        }
+    }
+
+    /// Add one header - and its data when `fileobj` holds some - to the
+    /// archive; Python's `addfile()`.
+    ///
+    /// `fileobj` is the member's data as `bytes`, where Python takes a binary
+    /// file object: the first `tarinfo.size` bytes are written.
+    pub func addfile(tarinfo TarInfo, fileobj bytes? = nil) {
+        _check("awx")
+        if fileobj == nil && tarinfo.isreg() && tarinfo.size != 0 {
+            panic("tarfile: fileobj not provided for non zero-size regular file")
+        }
+        let t = tarinfo.copy()
+        _out.write(t.tobuf(format))
+        if fileobj != nil {
+            let data = fileobj
+            var stop = t.size
+            if stop > data.len() { stop = data.len() }
+            if stop > 0 { _out.write(data.view(0, stop)) }
+            let rem = t.size % BLOCKSIZE
+            if rem > 0 { _out.write(bytes(BLOCKSIZE - rem)) }
+        }
+        offset = _out.len()
+        members.append(t)
+    }
+
+    /// Print the archive's table of contents: Python's `TarFile.list()`, which
+    /// cannot carry that name here because `list` is a Koala keyword.
+    ///
+    /// `verbose` gives the `ls -l`-like table Python prints, `false` only the
+    /// names. `subset` - Python's `members` - is an optional part of the
+    /// members.
+    ///
+    /// The time column is UTC: Koala has no `time.localtime()` to make it local
+    /// the way Python does.
+    pub func print_list(verbose = true, subset list[TarInfo]? = nil) {
+        _check("")
+        var all = subset
+        if all == nil {
+            if !_loaded { _load() }
+            let copy = list[TarInfo]()
+            for m in members { copy.append(m) }
+            all = copy
+        }
+        for t in all! {
+            _list_line(t, verbose)
+        }
+    }
+
+    /// One member of `list()`'s table.
+    func _list_line(t TarInfo, verbose bool) {
+        var line = ""
+        if verbose {
+            line = filemode(t) + " " + owner_string(t) + " " +
+                   size_string(t) + " " + utc_datetime(t.mtime) + " "
+        }
+        line = line + t.name
+        if t.isdir() { line = line + "/" }
+        if verbose {
+            if t.issym() { line = line + "-> " + t.linkname }
+            if t.islnk() { line = line + "link to " + t.linkname }
+        }
+        print(line)
+    }
+
+    /// Write the archive out (write modes) or release it (read modes);
+    /// Python's `close()`.
+    ///
+    /// In `"w"`, `"x"` and `"a"` mode this appends the two end-of-archive
+    /// blocks, pads the archive to a whole `RECORDSIZE` and writes the file -
+    /// compressed, when the mode asked for it. Calling it twice does nothing,
+    /// which replaces Python's `with`.
+    pub func close() {
+        if closed { return }
+        closed = true
+        if _mode != "a" && _mode != "w" && _mode != "x" { return }
+        _out.write(bytes(BLOCKSIZE * 2))
+        offset = _out.len()
+        let rem = offset % RECORDSIZE
+        if rem > 0 { _out.write(bytes(RECORDSIZE - rem)) }
+        var body = _out.to_bytes()
+        if _comptype == "gz" { body = gzip.compress(body) }
+        if !fs.write_bytes(name, body) {
+            panic("tarfile: failed to write '" + name + "'")
+        }
+    }
+
+    /// The data of a member, or `nil` when it has none; Python's
+    /// `extractfile()`, which answers a file object.
+    ///
+    /// A regular file - and a type this module does not know, which is read as
+    /// one - answers its bytes. A hard or a symbolic link answers the data of
+    /// the member it points at. A directory or a device answers `nil`.
+    pub func extractfile(member str | TarInfo) bytes? {
+        _check("r")
+        if member is str {
+            return extractfile(getmember(member))
+        } else if member is TarInfo {
+            if member.isreg() || !(member.typeflag in SUPPORTED_TYPES) {
+                var stop = member.offset_data + member.size
+                if stop > _raw.len() { stop = _raw.len() }
+                if stop <= member.offset_data { return bytes(0) }
+                return _raw.view(member.offset_data, stop)
+            }
+            if member.islnk() || member.issym() {
+                return extractfile(_find_link_target(member))
+            }
+            return nil
+        } else {
+            unreachable()
+        }
+    }
+
+    /// The member a hard or a symbolic link points at; Python's
+    /// `_find_link_target()`.
+    func _find_link_target(t TarInfo) TarInfo {
+        var target_name = t.linkname
+        if t.issym() {
+            let dir = parent_of(t.name)
+            if dir.len() > 0 { target_name = dir + "/" + target_name }
+        }
+        let target = _getmember(normal_path(target_name))
+        if target == nil {
+            panic("tarfile: link '" + t.name + "' is broken: '" + t.linkname +
+                         "' is not in the archive")
+        }
+        return target
+    }
+
+    /// Extract every member into `path`; Python's `extractall()`.
+    ///
+    /// `filter` names the PEP 706 filter to run on each member - `"data"`
+    /// when nothing is given, which is also Python's default. A directory's
+    /// attributes are restored last, deepest first, since writing into a
+    /// directory changes its time and a read-only directory cannot be written
+    /// into.
+    pub func extractall(path = ".", subset list[TarInfo]? = nil,
+                        numeric_owner = false, filter str? = nil) {
+        _check("r")
+        let dirs = list[TarInfo]()
+        for m in _members_or_all(subset) {
+            let t = _filter_member(m, filter, path)
+            if t == nil { continue }
+            let ti = t
+            if ti.isdir() { dirs.append(m) }
+            _extract_one(ti, path, !ti.isdir(), numeric_owner)
+        }
+        if dirs.len() > 0 {
+            let names = list[str]()
+            for d in dirs { names.append(d.name) }
+            let sorted = sorted_names(names)
+            var i = sorted.len() - 1
+            while i >= 0 {
+                let d = _getmember(sorted[i])
+                if d != nil {
+                    let t = _filter_member(d, filter, path)
+                    if t != nil {
+                        let dirpath = join_path(path, t.name)
+                        chown(t, dirpath, numeric_owner)
+                        utime(t, dirpath)
+                        chmod(t, dirpath)
+                    }
+                }
+                i -= 1
+            }
+        }
+    }
+
+    /// Extract one member into `path`; Python's `extract()`.
+    pub func extract(member str | TarInfo, path = "", set_attrs = true,
+                     numeric_owner = false, filter str? = nil) {
+        _check("r")
+        if member is str {
+            let t = _filter_member(getmember(member), filter, path)
+            if t == nil { return }
+            _extract_one(t, path, set_attrs, numeric_owner)
+        } else if member is TarInfo {
+            let t = _filter_member(member, filter, path)
+            if t == nil { return }
+            _extract_one(t, path, set_attrs, numeric_owner)
+        } else {
+            unreachable()
+        }
+    }
+
+    /// The members to walk: `members` when given, the whole archive otherwise.
+    func _members_or_all(subset list[TarInfo]?) list[TarInfo] {
+        if subset != nil { return subset }
+        if !_loaded { _load() }
+        let out = list[TarInfo]()
+        for m in members { out.append(m) }
+        return out
+    }
+
+    /// The filter to run on `member` before it is extracted: the one asked
+    /// for, else the archive's `extraction_filter`, else PEP 706's `"data"`.
+    func _filter_member(member TarInfo, filter str?, path str) TarInfo? {
+        var f = filter
+        if f == nil { f = extraction_filter }
+        if f == nil { f = "data" }
+        return apply_filter(f!, member, path)
+    }
+
+    /// Extract one member into `path`; Python's `_extract_one()`.
+    func _extract_one(t TarInfo, path str, set_attrs bool, numeric_owner bool) {
+        var target = t
+        if target.islnk() {
+            // A hard link is made to a path, and the path is relative to where
+            // the archive is being extracted.
+            target = t.copy()
+            target._link_target = join_path(path, t.linkname)
+        }
+        _extract_member(target, join_path(path, target.name), set_attrs, numeric_owner)
+    }
+
+    /// Put one member on disk at `targetpath`; Python's `_extract_member()`.
+    pub func _extract_member(t TarInfo, targetpath str, set_attrs = true,
+                             numeric_owner = false) {
+        let tp = trim_slashes(targetpath)
+        // Directories above the member may not be in the archive at all, or
+        // may come later.
+        let upper = parent_of(tp)
+        if upper.len() > 0 && !fs.exists(upper) { make_dirs(upper) }
+
+        if t.isreg() {
+            makefile(t, tp)
+        } else if t.isdir() {
+            makedir(t, tp)
+        } else if t.isfifo() {
+            makefifo(t, tp)
+        } else if t.ischr() || t.isblk() {
+            makedev(t, tp)
+        } else if t.islnk() || t.issym() {
+            makelink(t, tp)
+        } else if !(t.typeflag in SUPPORTED_TYPES) {
+            makeunknown(t, tp)
+        } else {
+            makefile(t, tp)
+        }
+
+        if set_attrs {
+            chown(t, tp, numeric_owner)
+            if !t.issym() {
+                chmod(t, tp)
+                utime(t, tp)
+            }
+        }
+    }
+
+    /// Make the directory `targetpath`; Python's `makedir()`.
+    ///
+    /// The real mode is set later, so the directory is made `0o700` unless the
+    /// filter dropped the mode altogether.
+    pub func makedir(t TarInfo, targetpath str) {
+        if fs.exists(targetpath) {
+            if !fs.is_dir(targetpath) {
+                panic("tarfile: '" + targetpath + "' exists and is not a directory")
+            }
+            return
+        }
+        if !fs.mkdir(targetpath) {
+            panic("tarfile: could not make the directory '" + targetpath + "'")
+        }
+    }
+
+    /// Write the data of a regular member to `targetpath`; Python's
+    /// `makefile()`.
+    ///
+    /// A sparse member is written as if it were not sparse: Koala reads the
+    /// header of a GNU sparse member but not the extent list.
+    pub func makefile(t TarInfo, targetpath str) {
+        let data = member_bytes(_raw, t)
+        if !fs.write_bytes(targetpath, data) {
+            panic("tarfile: could not write '" + targetpath + "'")
+        }
+    }
+
+    /// Write a member of an unknown type to `targetpath`, as its data;
+    /// Python's `makeunknown()`.
+    pub func makeunknown(t TarInfo, targetpath str) {
+        makefile(t, targetpath)
+    }
+
+    /// Make a FIFO at `targetpath`; Python's `makefifo()`.
+    ///
+    /// Koala has no `mkfifo`, so this panics - reachable only through the
+    /// `"fully_trusted"` and `"tar"` filters, since `"data"` refuses a FIFO.
+    pub func makefifo(t TarInfo, targetpath str) {
+        panic("tarfile: cannot make the FIFO '" + targetpath +
+                     "': Koala has no mkfifo")
+    }
+
+    /// Make the device node `targetpath`; Python's `makedev()`.
+    ///
+    /// Koala has no `mknod`, so this panics - reachable only through the
+    /// `"fully_trusted"` and `"tar"` filters, since `"data"` refuses a device.
+    pub func makedev(t TarInfo, targetpath str) {
+        panic("tarfile: cannot make the device '" + targetpath +
+                     "': Koala has no mknod")
+    }
+
+    /// Make the hard or the symbolic link `targetpath`; Python's `makelink()`.
+    pub func makelink(t TarInfo, targetpath str) {
+        if t.islnk() {
+            let target = t._link_target ?? t.linkname
+            if fs.exists(targetpath) { fs.remove(targetpath) }
+            if !fs.hard_link(target, targetpath) {
+                panic("tarfile: could not link '" + targetpath + "' to '" + target + "'")
+            }
+        } else if t.issym() {
+            if fs.is_symlink(targetpath) || fs.exists(targetpath) {
+                fs.remove(targetpath)
+            }
+            if !fs.symlink(t.linkname, targetpath) {
+                panic("tarfile: could not make the symlink '" + targetpath + "' -> '" +
+                             t.linkname + "'")
+            }
+        } else {
+            panic("tarfile: makelink() needs a hard link or a symbolic link")
+        }
+    }
+
+    /// Restore the ownership of `targetpath`; Python's `chown()`.
+    ///
+    /// Only root may give a file away, so this does nothing for anyone else -
+    /// which is what Python's version comes to as well. `numeric_owner` makes
+    /// no difference here: Koala has no name lookup, so the ids always are the
+    /// numbers.
+    pub func chown(t TarInfo, targetpath str, numeric_owner bool) {
+        if os.geteuid() != 0 { return }
+        if t.uid < 0 && t.gid < 0 { return }
+        var uid = t.uid
+        var gid = t.gid
+        if uid < 0 { uid = -1 }
+        if gid < 0 { gid = -1 }
+        if !fs.chown(targetpath, uid, gid) {
+            panic("tarfile: could not change the owner of '" + targetpath + "'")
+        }
+    }
+
+    /// Set the permission bits of `targetpath`; Python's `chmod()`.
+    ///
+    /// A negative mode is a member whose filter dropped it - Python's `None` -
+    /// so nothing is changed.
+    pub func chmod(t TarInfo, targetpath str) {
+        if t.mode < 0 { return }
+        if !fs.chmod(targetpath, t.mode & 0o7777) {
+            panic("tarfile: could not change the mode of '" + targetpath + "'")
+        }
+    }
+
+    /// Set the access and modification time of `targetpath` to the member's;
+    /// Python's `utime()`.
+    pub func utime(t TarInfo, targetpath str) {
+        if t.mtime < 0 { return }
+        let ns = t.mtime * 1_000_000_000
+        if !fs.set_times(targetpath, ns, ns) {
+            panic("tarfile: could not set the time of '" + targetpath + "'")
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The module functions
+// ---------------------------------------------------------------------------
+
+/// Open a tar archive; Python's `tarfile.open()`.
+///
+/// The arguments are `TarFile`'s, with the spellings a parameter needs when a
+/// field already owns the name: `fmt` for `format`, `enc` for `encoding`,
+/// `errs` for `errors`, `deref` for `dereference`, `ign_zeros` for
+/// `ignore_zeros`, `paxhdr` for `pax_headers`, `dbg` for `debug` and
+/// `errlevel` for `errorlevel`.
+///
+///     let tf = tarfile.open("a.tar.gz", "r:gz")
+///     for member in tf.iter() { print(member.name) }
+///     tf.close()
+///
+/// `"r"` and `"r:*"` look at the first bytes to find the compression, so a
+/// plain archive and a gzip one both open with `"r"`, as in Python.
+pub func open(nm str? = nil, mode = "r", fileobj bytes? = nil,
+              fmt = DEFAULT_FORMAT, enc = ENCODING,
+              errs = "surrogateescape", deref = false, ign_zeros = false,
+              paxhdr dict[str, str]? = nil, dbg int? = nil,
+              errlevel int? = nil) TarFile {
+    return TarFile(nm, mode, fileobj, fmt, enc, errs, deref, ign_zeros,
+                   paxhdr, dbg, errlevel)
+}
+
+/// True when `source` - a path, or the archive bytes - is a tar archive;
+/// Python's `is_tarfile()`.
+///
+/// Python tries an `open()` and catches `TarError`; there is nothing to catch
+/// here, so the format is asked directly: a gzip member (whose payload must
+/// decompress - a corrupt one still panics), an empty archive, or a first
+/// block whose checksum holds. A path that does not exist is not an archive
+/// and is not an error, as in Python.
+pub func is_tarfile(source str | bytes) bool {
+    if source is str {
+        if !fs.exists(source) { return false }
+        return is_tar_bytes(fs.read_all(source, -1))
+    } else if source is bytes {
+        return is_tar_bytes(source)
+    } else {
+        unreachable()
+    }
+}
+
+/// True when `raw` is a tar archive, or a gzipped tar archive.
+pub func is_tar_bytes(raw bytes) bool {
+    if raw.len() == 0 { return false }
+    var body = raw
+    if _is_gzip(raw) { body = gzip.decompress(raw) }
+    if body.len() < BLOCKSIZE { return false }
+    let blk = body.view(0, BLOCKSIZE)
+    if is_zero_block(blk) { return true }
+    let (uns, sgn) = calc_chksums(blk)
+    let sum = try_octal(blk, CHKSUM_OFF, CHKSUM_LEN)
+    if sum < 0 { return false }
+    return sum == uns || sum == sgn
+}
+
+/// The value of an octal field, or -1 when it is not one: the non-panicking
+/// little brother of `nti()`.
+pub func try_octal(b bytes, off int, len int) int {
+    var v = 0
+    var seen = false
+    var i = 0
+    while i < len {
+        let c = int(b[off + i])
+        if c == 0x00 || c == 0x20 { break }
+        if c < 0x30 || c > 0x37 { return -1 }
+        v = v * 8 + (c - 0x30)
+        seen = true
+        i += 1
+    }
+    if !seen { return 0 }
+    return v
+}
+
+/// True when `b` starts with the magic of a gzip member.
+func _is_gzip(b bytes) bool {
+    if b.len() < 3 { return false }
+    return int(b[0]) == 0x1f && int(b[1]) == 0x8b && int(b[2]) == 0x08
+}
+
+/// Split a mode string into the access part and the compression part.
+///
+/// `"r"` alone means "find the compression out", so it answers `"*"`; `"r:"`
+/// is plain tar; the `|` stream modes split like the `:` ones because an
+/// archive is handled whole either way. `bz2`, `xz` and `zst` are named in
+/// Python's mode strings but there is no codec for them here, so they panic.
+func _mode_parts(mode str) (str, str) {
+    var at = mode.index("|", 0, -1)
+    if at < 0 { at = mode.index(":", 0, -1) }
+    var access = mode
+    var comp = ""
+    if at >= 0 {
+        access = mode.substr(0, at)
+        comp = mode.substr(at + 1, mode.len())
+    } else if access == "r" {
+        // `"r"` is `"r:*"`, the transparent read.
+        comp = "*"
+    }
+    if comp == "bz2" || comp == "xz" || comp == "zst" {
+        panic(format("tarfile: {} compression is not supported: only gzip is", comp))
+    }
+    if comp != "" && comp != "*" && comp != "gz" {
+        panic(format("tarfile: unknown compression '{}'", comp))
+    }
+    if access != "r" && access != "a" && access != "w" && access != "x" {
+        panic(format("tarfile: invalid mode '{}'", mode))
+    }
+    return (access, comp)
+}
+
+/// `name` under `base`: Python's `os.path.join()` for the relative names a
+/// member carries.
+pub func join_path(base str, name str) str {
+    if base.len() == 0 { return name }
+    if base.ends_with("/") { return base + name }
+    return base + "/" + name
+}
+
+/// Make `path` and every directory above it that is missing.
+pub func make_dirs(path str) {
+    if path.len() == 0 { return }
+    if fs.exists(path) { return }
+    var i = 1
+    while i <= path.len() {
+        if i == path.len() || path[i] == "/" {
+            let part = path.substr(0, i)
+            if part.len() > 0 && !fs.exists(part) { fs.mkdir(part) }
+        }
+        i += 1
+    }
+}
+
+/// The data blocks of `t` in `raw`, cut short by the end of the archive.
+pub func member_bytes(raw bytes, t TarInfo) bytes {
+    var stop = t.offset_data + t.size
+    if stop > raw.len() { stop = raw.len() }
+    if stop <= t.offset_data { return bytes(0) }
+    return raw.view(t.offset_data, stop)
+}
+
+/// The mode of a member the way `ls -l` shows it - the type letter, then the
+/// nine permission bits; Python's `stat.filemode(modetype | mode)`.
+pub func filemode(t TarInfo) str {
+    var kind = "-"
+    if t.isdir() {
+        kind = "d"
+    } else if t.issym() {
+        kind = "l"
+    } else if t.isfifo() {
+        kind = "p"
+    } else if t.ischr() {
+        kind = "c"
+    } else if t.isblk() {
+        kind = "b"
+    }
+    return kind + perm_string(t.mode)
+}
+
+/// The nine permission bits as `rwxr-xr-x`; a negative mode - one a filter
+/// dropped - reads as no permission at all.
+pub func perm_string(mode int) str {
+    let letters = "rwxrwxrwx"
+    var out = ""
+    var i = 0
+    while i < 9 {
+        if (mode & (1 << (8 - i))) != 0 {
+            out = out + letters[i]
+        } else {
+            out = out + "-"
+        }
+        i += 1
+    }
+    return out
+}
+
+/// The `user/group` column of `list()`: the names, or the ids when an archive
+/// carries no names.
+pub func owner_string(t TarInfo) str {
+    var user = t.uname
+    if user.len() == 0 { user = format("{}", t.uid) }
+    var group = t.gname
+    if group.len() == 0 { group = format("{}", t.gid) }
+    return user + "/" + group
+}
+
+/// The size column of `list()`: the byte count, or `major,minor` for a
+/// device.
+pub func size_string(t TarInfo) str {
+    if t.ischr() || t.isblk() {
+        return pad_left(format("{},{}", t.devmajor, t.devminor), 10)
+    }
+    return pad_left(format("{}", t.size), 10)
+}
+
+/// `s` padded on the left with spaces to `width`.
+pub func pad_left(s str, width int) str {
+    var out = s
+    while out.len() < width { out = " " + out }
+    return out
+}
+
+/// `s` padded on the left with zeroes to `width`.
+pub func pad_zero(s str, width int) str {
+    var out = s
+    while out.len() < width { out = "0" + out }
+    return out
+}
+
+/// The time `secs` seconds after the epoch as `YYYY-MM-DD HH:MM:SS`.
+///
+/// It is UTC: Koala has no `time.localtime()` to shift it the way Python's
+/// `list()` does.
+pub func utc_datetime(secs int) str {
+    var t = secs
+    if t < 0 { t = 0 }
+    let days = t / 86400
+    var rem = t - days * 86400
+    let hour = rem / 3600
+    rem = rem - hour * 3600
+    let minute = rem / 60
+    let second = rem - minute * 60
+    let (year, month, day) = civil_from_days(days)
+    return format("{}-{}-{} {}:{}:{}", year, pad_zero(format("{}", month), 2),
+                  pad_zero(format("{}", day), 2), pad_zero(format("{}", hour), 2),
+                  pad_zero(format("{}", minute), 2), pad_zero(format("{}", second), 2))
+}
+
+/// The year, month and day of `days` days after the epoch: the civil-from-days
+/// algorithm of Howard Hinnant, which needs no table and no `tm` struct.
+pub func civil_from_days(days int) (int, int, int) {
+    let z = days + 719468
+    let era = z / 146097
+    let doe = z - era * 146097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    let y = yoe + era * 400
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let d = doy - (153 * mp + 2) / 5 + 1
+    var m = mp - 9
+    if mp < 10 { m = mp + 3 }
+    var year = y
+    if m <= 2 { year = y + 1 }
+    return (year, m, d)
+}
+
+/// `names` in ascending order. Koala's `list.sort()` is declared but not
+/// implemented, so this insertion sort stands in for it; the lists it is given
+/// are a directory's entries, which are short.
+pub func sorted_names(names list[str]) list[str] {
+    let out = list[str]()
+    for name in names {
+        var at = out.len()
+        var i = 0
+        while i < out.len() {
+            if name < out[i] {
+                at = i
+                break
+            }
+            i += 1
+        }
+        out.insert(at, name)
+    }
+    return out
+}

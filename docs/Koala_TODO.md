@@ -46,13 +46,13 @@
 > comparing constants of a narrow float type fails in the backend (§73, to fix), `bfloat16` cannot be
 > constructed (§74, to fix), unary operators still promote automatically (§75, to fix), `T` is not
 > inferred through a `Box[T?]` parameter (§77, to fix), `enum` as sugar for a final class (§78,
-> planned), native handles of `koala/http` and `koala/tls` have no finalizer (§79, waits for a
+> planned), native handles of `koala/http`, `koala/tls` and `koala/sqlite3` have no finalizer (§79, waits for a
 > free path), `koala/http` leftovers (§80, to do), `koala/tls` leftovers (§81, to do), `as!`: a forced cast for a
-> value known to have the type (§82, to discuss).
+> value known to have the type (§82, to discuss), `koala/sqlite3` leftovers (§85, to do).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-08 (added §82: `as!`, a forced cast; §62: the TLS items fixed; §25.4: the network and command-line rows
+> 更新日期：2026-11-08 (added §85: `koala/sqlite3` leftovers; §79: `koala/sqlite3` handles; §25.4: the database row)；2026-11-08 (added §82: `as!`, a forced cast; §62: the TLS items fixed; §25.4: the network and command-line rows
 > updated; added §79: native handles without a finalizer; added §80: `koala/http` leftovers; added
 > §81: `koala/tls` leftovers)；2026-11-07 (added §78: the plan for `enum`; added §77: `T` is not inferred through `Box[T?]`; §72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
@@ -1336,6 +1336,7 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 | 网络 | socket, http, urllib, ssl | `std/socket`（TCP / UDP / raw）、`koala/tls`（基于 OpenSSL 的 TLS 客户端）、`koala/http`（HTTP/1.1 客户端，报文解析用 vendor 的 llhttp，URL 解析只有它的 `Url`） | 2026-11-08 更新：无服务端 TLS / HTTP，遗留见 §80、§81 |
 | 加密/编码/压缩 | hashlib, hmac, base64, zlib, gzip, codecs | **无**（`.hash()` 是 FNV-1a 内部哈希，非加密） | base64/zlib 实用但非语言核心 |
 | 命令行解析 | argparse, getopt, shlex | `koala/cli`：argparse 的 API（`ArgumentParser` / `add_argument` / `add_subparsers` / `add_parser` / `parse_args`，Python 的帮助与报错格式），取值 `(args.get("x")! as str)!`；`type_="int"`（`type` 是关键字），无 `store_const`、无 shlex | 2026-11-08 更新，取值的易用性见 §82 |
+| 数据库 | sqlite3, dbm | `koala/sqlite3`：sqlite3 的 API（`connect` / `Connection` / `Cursor` / `Row`，`?` 与命名参数、`executemany` / `executescript`、隐式 `BEGIN`、语句缓存），vendor 的 SQLite 3.54.1；出错返回 nil + `sqlite_errorcode()` 而非异常，行是 `Row`；无 dbm、无 MySQL 等服务端驱动 | 2026-11-08 新增，遗留见 §85 |
 | 结构化配置 | enum, dataclasses | 无 | 范式差异 |
 
 ### 25.5 综合判断
@@ -3696,13 +3697,18 @@ with or without an enum, e.g. `gen([1, "a"])` for `func gen[T](x list[T])`. It i
 
 ---
 
-## 79. Native handles of `koala/http` and `koala/tls` have no finalizer (2026-11-08, waits for a free path)
+## 79. Native handles of `koala/http`, `koala/tls` and `koala/sqlite3` have no finalizer (2026-11-08, waits for a free path)
 
 - `koala/http`: `_Parser` (`parser.kl`) wraps an `HttpParser` that `http_parser_new` allocates with
   `calloc`. Only `close()` frees it. `Response.parse`, `ResponseHead.parse` and the client close it
   on every path; a `_Parser` dropped without `close()` leaks.
 - `koala/tls`: `TlsConn` owns an `SSL *`. Only `close()` frees it (`SSL_shutdown` + `SSL_free`) and
   closes the TCP fd; a `TlsConn` dropped without `close()` leaks both.
+- `koala/sqlite3`: `Connection` owns a `sqlite3 *` and its cached statements, and a `Cursor` the
+  statement it is running. Only `Connection.close()` frees them: it closes its cursors, finalizes
+  the cache and calls `sqlite3_close_v2`. A connection dropped without `close()` leaks the
+  database handle, its statements and, for a file, keeps the file open; an open transaction stays
+  uncommitted until the process exits. Python closes on garbage collection.
 
 The same kind of leak as §28: give both a `_free` once the run time has a free path.
 
@@ -3857,3 +3863,51 @@ Two smaller findings from the same session, both worth a decision rather than a 
 Until the `const` crash is fixed, the rule for library code is: **hold module-level bytes in a
 `let`, or return them from a function**; never in a `const`.
 
+---
+
+## 84. Two `std` gaps that `koala/tarfile` had to work around (2026-11-08, to do)
+
+`koala/tarfile` is a 1:1 port of CPython 3.14's `tarfile`; two of its features have no Koala
+counterpart, and both would be small additions to `std`.
+
+1. **`std/fs` has no `mkfifo()` / `mknod()`.** `TarFile.makefifo()` and `TarFile.makedev()` are
+   therefore stubs that panic ("Koala has no mkfifo"), so a FIFO or a device member can only be
+   *listed* and *extracted* never, even though `dir()`/`chmod()`/`chown()`/`set_times()` are all
+   there. One `mkfifo(2)` wrapper in `libs/std/fs/` closes the FIFO half; `mknod(2)` on a
+   non-Linux needs `<sys/mknod.h>` juggling, so it can be Linux-only.
+2. **`std/time` has no calendar functions.** It offers `Duration`/`Instant` only - no
+   `localtime()`, no `gmtime()`, no `strftime()`. `TarFile.print_list()` therefore prints its time
+   column in **UTC**, where Python prints local time, and the formatting is done by hand
+   (`utc_datetime()`: a civil-from-days conversion over an epoch second count). Any program that
+   wants `ls -l` timestamps needs the same hand-written code, so a `time.gmtime()` returning a
+   broken-down time would be worth having on its own.
+
+Both were found while porting; the workarounds are recorded in `docs/koala_tarfile_api.md`
+("Differences from Python").
+
+---
+
+## 85. `koala/sqlite3` leftovers (2026-11-08, to do)
+
+`koala/sqlite3` follows CPython's `sqlite3` over the vendored SQLite 3.54.1. Where it differs on
+purpose, the package docs say so: errors are a nil (or an error code) plus
+`sqlite_errorcode()` / `sqlite_errorname()` / `errmsg()` instead of exceptions; programming errors
+panic; a row is always a `Row`; `named=` carries the dict of named parameters; `in_transaction`,
+`total_changes` and `isolation_level` are methods. Not done yet:
+
+- **Iterating a cursor**: Python's `for row in cur.execute(...)` has no counterpart; `Cursor` is
+  not an `Iterable[Row]`. `while let row = cur.fetchone()` works.
+- **Module attributes**: `apilevel`, `paramstyle`, `threadsafety`, `complete_statement()`.
+- **Type adaptation**: `detect_types`, `PARSE_DECLTYPES` / `PARSE_COLNAMES`, `register_adapter`,
+  `register_converter`, `text_factory`, and a `row_factory` other than `Row`.
+- **Callbacks into Koala**: `create_function`, `create_aggregate`, `create_window_function`,
+  `create_collation`, `set_authorizer`, `set_progress_handler`, `set_trace_callback`. Native code
+  cannot call back into Koala yet (see `koala/http`'s parser, §80).
+- **Other `Connection` methods**: `interrupt`, `backup`, `iterdump`, `blobopen`, `getlimit` /
+  `setlimit`, `serialize` / `deserialize`, and the `autocommit` attribute of Python 3.12.
+- **`Row` equality and hash**: Python compares two rows by their columns and values.
+- **A context manager**: Python's `with conn:` commits or rolls back. Waits for `with`.
+- **Blocking**: every call blocks the thread; a long query would stall a scheduler once Koala has a
+  concurrency API.
+- **`fetchmany` / `fetchall` on an error** return nil, so the rows read before the error are lost.
+  Python raises and loses them too; to decide whether to keep them.

@@ -1,0 +1,211 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/sqlite3"
+
+// Cursor: parameters, values, fetching and the cursor attributes.
+
+func _people() sqlite3.Connection {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table people(id integer primary key, name text, age integer)")
+    conn.execute("insert into people(name, age) values (?, ?)", ["ann", 30])
+    conn.execute("insert into people(name, age) values (?, ?)", ["bob", 25])
+    conn.execute("insert into people(name, age) values (?, ?)", ["cid", nil])
+    return conn
+}
+
+@test
+func test_value_types() {
+    let conn = sqlite3.connect(":memory:")!
+    let cur = conn.execute("select ?, ?, ?, ?, ?, ?, ?",
+                           [nil, 42, 2.5, "text", b"\x00\x01", true, false])!
+    let row = cur.fetchone()!
+    ut.assert_eq(row.len(), 7)
+    ut.assert_true(row[0] == nil)
+    ut.assert_eq((row[1]! as int)!, 42)
+    ut.assert_float_eq((row[2]! as float)!, 2.5)
+    ut.assert_eq((row[3]! as str)!, "text")
+    ut.assert_eq((row[4]! as bytes)!, b"\x00\x01")
+    // A bool is stored as 0 or 1 and reads back as an int.
+    ut.assert_eq((row[5]! as int)!, 1)
+    ut.assert_eq((row[6]! as int)!, 0)
+    ut.assert_true(cur.fetchone() == nil)
+    conn.close()
+}
+
+@test
+func test_large_and_negative_int() {
+    let conn = sqlite3.connect(":memory:")!
+    let row = conn.execute("select ?, ?", [9223372036854775807, -5])!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 9223372036854775807)
+    ut.assert_eq((row[1]! as int)!, -5)
+    conn.close()
+}
+
+@test
+func test_unicode_text() {
+    let conn = sqlite3.connect(":memory:")!
+    let row = conn.execute("select ?, length(?)", ["考拉", "考拉"])!.fetchone()!
+    ut.assert_eq((row[0]! as str)!, "考拉")
+    ut.assert_eq((row[1]! as int)!, 2)
+    conn.close()
+}
+
+@test
+func test_fetchone_order() {
+    let conn = _people()
+    let cur = conn.execute("select name from people order by id")!
+    let names = list[str]()
+    while let row = cur.fetchone() {
+        names.append((row[0]! as str)!)
+    }
+    ut.assert_eq(names.len(), 3)
+    ut.assert_eq(names[0], "ann")
+    ut.assert_eq(names[2], "cid")
+    ut.assert_true(cur.fetchone() == nil)
+    conn.close()
+}
+
+@test
+func test_fetchall() {
+    let conn = _people()
+    let cur = conn.execute("select name, age from people where age > ? order by age", [20])!
+    let rows = cur.fetchall()!
+    ut.assert_eq(rows.len(), 2)
+    ut.assert_eq((rows[0][0]! as str)!, "bob")
+    ut.assert_eq((rows[1][1]! as int)!, 30)
+    conn.close()
+}
+
+@test
+func test_fetchall_after_fetchone() {
+    let conn = _people()
+    let cur = conn.execute("select id from people order by id")!
+    cur.fetchone()
+    let rest = cur.fetchall()!
+    ut.assert_eq(rest.len(), 2)
+    ut.assert_eq(cur.fetchall()!.len(), 0)
+    conn.close()
+}
+
+@test
+func test_fetchmany() {
+    let conn = _people()
+    let cur = conn.execute("select id from people order by id")!
+    ut.assert_eq(cur.fetchmany()!.len(), 1)
+    ut.assert_eq(cur.fetchmany(5)!.len(), 2)
+    ut.assert_eq(cur.fetchmany(5)!.len(), 0)
+
+    let again = conn.execute("select id from people")!
+    again.arraysize = 2
+    ut.assert_eq(again.fetchmany()!.len(), 2)
+    conn.close()
+}
+
+@test
+func test_null_column() {
+    let conn = _people()
+    let row = conn.execute("select age from people where name = ?", ["cid"])!.fetchone()!
+    ut.assert_true(row[0] == nil)
+    conn.close()
+}
+
+@test
+func test_rowcount() {
+    let conn = _people()
+    let cur = conn.cursor()
+    ut.assert_eq(cur.rowcount, -1)
+    cur.execute("update people set age = 1 where age is not null")
+    ut.assert_eq(cur.rowcount, 2)
+    cur.execute("delete from people where name = ?", ["nobody"])
+    ut.assert_eq(cur.rowcount, 0)
+    cur.execute("select * from people")
+    ut.assert_eq(cur.rowcount, -1)
+    conn.close()
+}
+
+@test
+func test_lastrowid() {
+    let conn = _people()
+    let cur = conn.cursor()
+    ut.assert_true(cur.lastrowid == nil)
+    cur.execute("insert into people(name) values (?)", ["dan"])
+    ut.assert_eq(cur.lastrowid!, 4)
+    conn.close()
+}
+
+@test
+func test_description() {
+    let conn = _people()
+    let cur = conn.execute("select id, name as who from people")!
+    let columns = cur.description!
+    ut.assert_eq(columns.len(), 2)
+    let (first, a, b, c, d, e, f) = columns[0]
+    ut.assert_eq(first, "id")
+    ut.assert_true(a == nil && b == nil && c == nil && d == nil && e == nil && f == nil)
+    let (second, _, _, _, _, _, _) = columns[1]
+    ut.assert_eq(second, "who")
+
+    cur.execute("update people set age = 0")
+    ut.assert_true(cur.description == nil)
+    conn.close()
+}
+
+@test
+func test_description_of_empty_result() {
+    let conn = _people()
+    let cur = conn.execute("select name from people where id < 0")!
+    ut.assert_eq(cur.description!.len(), 1)
+    ut.assert_true(cur.fetchone() == nil)
+    conn.close()
+}
+
+@test
+func test_empty_sql() {
+    let conn = sqlite3.connect(":memory:")!
+    let cur = conn.execute("  -- nothing here\n")!
+    ut.assert_true(cur.fetchone() == nil)
+    ut.assert_true(cur.description == nil)
+    conn.close()
+}
+
+@test
+func test_trailing_comment_is_one_statement() {
+    let conn = sqlite3.connect(":memory:")!
+    let row = conn.execute("select 1; -- done\n /* end */")!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 1)
+    conn.close()
+}
+
+@test
+func test_execute_again_drops_the_rows() {
+    let conn = _people()
+    let cur = conn.execute("select id from people")!
+    cur.execute("select 'x'")
+    let rows = cur.fetchall()!
+    ut.assert_eq(rows.len(), 1)
+    ut.assert_eq((rows[0][0]! as str)!, "x")
+    conn.close()
+}
+
+@test
+func test_cursor_connection() {
+    let conn = sqlite3.connect(":memory:")!
+    let cur = conn.cursor()
+    ut.assert_true(cur.connection == conn)
+    conn.close()
+}
+
+@test
+func test_error_on_execute_keeps_cursor_usable() {
+    let conn = _people()
+    let cur = conn.cursor()
+    ut.assert_true(cur.execute("insert into people(id) values (1)") == nil)
+    ut.assert_eq(conn.sqlite_errorname(), "SQLITE_CONSTRAINT_PRIMARYKEY")
+    ut.assert_true(cur.execute("select count(*) from people") != nil)
+    ut.assert_eq((cur.fetchone()![0]! as int)!, 3)
+    conn.close()
+}

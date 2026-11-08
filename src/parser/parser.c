@@ -2106,6 +2106,8 @@ void inherit_if_shadows(ParserState *ps, Vector *shadows)
     vector_fini(shadows);
 }
 
+static void parse_if_let(ParserState *ps, Stmt *stmt);
+
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
     IfStmt *s = (IfStmt *)stmt;
@@ -2151,12 +2153,15 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         // inherit shadow vars from if-block
         inherit_if_shadows(ps, &shadows);
 
-        ASSERT(s->_else->kind == STMT_BLOCK_KIND || s->_else->kind == STMT_IF_KIND);
+        ASSERT(s->_else->kind == STMT_BLOCK_KIND || s->_else->kind == STMT_IF_KIND ||
+               s->_else->kind == STMT_IF_LET_KIND);
 
         if (s->_else->kind == STMT_BLOCK_KIND) {
             parse_block(ps, ((BlockStmt *)s->_else)->stmts, NULL);
-        } else {
+        } else if (s->_else->kind == STMT_IF_KIND) {
             parse_if(ps, s->_else);
+        } else {
+            parse_if_let(ps, s->_else);
         }
 
         exit_scope(ps);
@@ -3647,7 +3652,7 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
         lhs->arg = rhs;
         parser_visit_expr(ps, lhs);
         if (!lhs->ts || !rhs->ts) return;
-        parse_empty_literal(ps, rhs, lhs->ts);
+        parse_literal_as_expected(ps, rhs, lhs->ts);
         parse_simple_assign(ps, assign);
     } else {
         log_info("compound assignment detected.");

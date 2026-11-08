@@ -1,0 +1,694 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "std/ut"
+import "koala/tarfile"
+
+const TMP = "/tmp/koala_tarfile_test.tar"
+const TMP_GZ = "/tmp/koala_tarfile_test.tar.gz"
+const TMP_BAD = "/tmp/koala_tarfile_bad.tar"
+const TMP_DIR = "/tmp/koala_tarfile_out"
+const TMP_SRC = "/tmp/koala_tarfile_src.txt"
+
+/// The header block of a "hello.txt" member written by CPython 3.14's
+/// `tarfile` in the pax format - no pax record is needed, so the block is a
+/// plain ustar one. Comparing against it proves the header is byte for byte
+/// Python's, not merely readable by Python.
+const PY_HEADER = "68656c6c6f2e7478740000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030303030363434003030303137353000303030313735300030303030303030303031330031333732373431303030300030313032323200203000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000757374617200303075000000000000000000000000000000000000000000000000000000000000006700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+/// The member that `PY_HEADER` describes.
+func py_info() tarfile.TarInfo {
+    let t = tarfile.TarInfo("hello.txt")
+    t.mode = 0o644
+    t.uid = 1000
+    t.gid = 1000
+    t.size = 11
+    t.mtime = 1600000000
+    t.uname = "u"
+    t.gname = "g"
+    return t
+}
+
+/// `path` without its leading `/`: the name `add()` records for it, as
+/// Python's `gettarinfo()` does.
+func trim_slash(path str) str {
+    var i = 0
+    while i < path.len() && path[i] == "/" {
+        i += 1
+    }
+    return path.substr(i, path.len())
+}
+
+/// "a" repeated `n` times, for the over-long-name tests.
+func repeat_a(n int) str {
+    var out = ""
+    var i = 0
+    while i < n {
+        out = out + "a"
+        i += 1
+    }
+    return out
+}
+
+// ============================================================
+// Module surface
+// ============================================================
+
+@test
+func test_constants_match_cpython() {
+    ut.assert(tarfile.BLOCKSIZE == 512)
+    ut.assert(tarfile.RECORDSIZE == 10240)
+    ut.assert(tarfile.LENGTH_NAME == 100)
+    ut.assert(tarfile.LENGTH_LINK == 100)
+    ut.assert(tarfile.LENGTH_PREFIX == 155)
+    ut.assert(tarfile.USTAR_FORMAT == 0)
+    ut.assert(tarfile.GNU_FORMAT == 1)
+    ut.assert(tarfile.PAX_FORMAT == 2)
+    ut.assert(tarfile.DEFAULT_FORMAT == tarfile.PAX_FORMAT)
+    ut.assert(tarfile.ENCODING == "utf-8")
+
+    // The type flags are one byte each, as in Python.
+    ut.assert(tarfile.REGTYPE.to_hex() == "30")
+    ut.assert(tarfile.AREGTYPE.to_hex() == "00")
+    ut.assert(tarfile.LNKTYPE.to_hex() == "31")
+    ut.assert(tarfile.SYMTYPE.to_hex() == "32")
+    ut.assert(tarfile.CHRTYPE.to_hex() == "33")
+    ut.assert(tarfile.BLKTYPE.to_hex() == "34")
+    ut.assert(tarfile.DIRTYPE.to_hex() == "35")
+    ut.assert(tarfile.FIFOTYPE.to_hex() == "36")
+    ut.assert(tarfile.CONTTYPE.to_hex() == "37")
+    ut.assert(tarfile.GNUTYPE_LONGNAME.to_hex() == "4c")
+    ut.assert(tarfile.GNUTYPE_LONGLINK.to_hex() == "4b")
+    ut.assert(tarfile.GNUTYPE_SPARSE.to_hex() == "53")
+    ut.assert(tarfile.XHDTYPE.to_hex() == "78")
+    ut.assert(tarfile.XGLTYPE.to_hex() == "67")
+    ut.assert(tarfile.SOLARIS_XHDTYPE.to_hex() == "58")
+
+    ut.assert(tarfile.NUL.to_hex() == "00")
+    ut.assert(tarfile.GNU_MAGIC.to_hex() == "7573746172202000")
+    ut.assert(tarfile.POSIX_MAGIC.to_hex() == "7573746172003030")
+
+    ut.assert(tarfile.SUPPORTED_TYPES.len() == 12)
+    ut.assert(tarfile.REGULAR_TYPES.len() == 4)
+    ut.assert(tarfile.GNU_TYPES.len() == 3)
+    ut.assert(tarfile.PAX_FIELDS.len() == 8)
+    ut.assert(tarfile.PAX_NUMBER_FIELDS.len() == 6)
+}
+
+@test
+func test_tarinfo_defaults() {
+    let t = tarfile.TarInfo("x")
+    ut.assert(t.name == "x")
+    ut.assert(t.mode == 0o644)
+    ut.assert(t.uid == 0)
+    ut.assert(t.gid == 0)
+    ut.assert(t.size == 0)
+    ut.assert(t.mtime == 0)
+    ut.assert(t.chksum == 0)
+    ut.assert(t.typeflag == tarfile.REGTYPE)
+    ut.assert(t.linkname == "")
+    ut.assert(t.uname == "")
+    ut.assert(t.gname == "")
+    ut.assert(t.devmajor == 0)
+    ut.assert(t.devminor == 0)
+    ut.assert(t.offset == 0)
+    ut.assert(t.offset_data == 0)
+    ut.assert(t.pax_headers.empty())
+    ut.assert(t.sparse == nil)
+    ut.assert(t.isreg())
+    ut.assert(t.isfile())
+    ut.assert(!t.isdir())
+    ut.assert(!t.issym())
+    ut.assert(!t.islnk())
+    ut.assert(!t.ischr())
+    ut.assert(!t.isblk())
+    ut.assert(!t.isfifo())
+    ut.assert(!t.issparse())
+    ut.assert(!t.isdev())
+    ut.assert(t.is_supported())
+    ut.assert(t.path() == "x")
+    ut.assert(t.linkpath() == "")
+    ut.assert(tarfile.TarInfo().name == "")
+}
+// ============================================================
+// Header blocks, byte for byte against CPython
+// ============================================================
+
+@test
+func test_header_matches_cpython() {
+    // A pax header needs no extended record here, so the block is ustar's.
+    ut.assert(py_info().tobuf(tarfile.PAX_FORMAT) == bytes.from_hex(PY_HEADER))
+    // And so is the ustar one, which is the same bytes.
+    ut.assert(py_info().tobuf(tarfile.USTAR_FORMAT) == bytes.from_hex(PY_HEADER))
+    ut.assert(py_info().tobuf() == bytes.from_hex(PY_HEADER))
+
+    // The GNU format differs in the magic, the version - and the checksum,
+    // which covers both - so the rest of the block is the same.
+    let hdr = bytes.from_hex(PY_HEADER)
+    let gnu = py_info().tobuf(tarfile.GNU_FORMAT)
+    ut.assert(gnu.len() == tarfile.BLOCKSIZE)
+    ut.assert(gnu.view(0, 148) == hdr.view(0, 148))
+    ut.assert(gnu.view(156, 257) == hdr.view(156, 257))
+    ut.assert(gnu.view(257, 265) == tarfile.GNU_MAGIC)
+    ut.assert(gnu.view(265, tarfile.BLOCKSIZE) == hdr.view(265, tarfile.BLOCKSIZE))
+    ut.assert(tarfile.nti(gnu, 148, 8) == tarfile.calc_chksums(gnu)[0])
+}
+
+@test
+func test_header_roundtrip() {
+    let t = tarfile.TarInfo.frombuf(bytes.from_hex(PY_HEADER))
+    ut.assert(t.name == "hello.txt")
+    ut.assert(t.mode == 0o644)
+    ut.assert(t.uid == 1000)
+    ut.assert(t.gid == 1000)
+    ut.assert(t.size == 11)
+    ut.assert(t.mtime == 1600000000)
+    ut.assert(t.typeflag == tarfile.REGTYPE)
+    ut.assert(t.uname == "u")
+    ut.assert(t.gname == "g")
+    ut.assert(t.chksum == 4242)
+    ut.assert(t.linkname == "")
+    // Rewriting what was read gives the same block back.
+    ut.assert(t.tobuf(tarfile.USTAR_FORMAT) == bytes.from_hex(PY_HEADER))
+}
+
+@test
+func test_checksums() {
+    let blk = bytes.from_hex(PY_HEADER)
+    let (uns, sgn) = tarfile.calc_chksums(blk)
+    ut.assert(uns == 4242)
+    ut.assert(sgn == 4242)
+    ut.assert(tarfile.nti(blk, 148, 8) == 4242)
+    ut.assert(tarfile.nti(blk, 124, 12) == 11)
+    ut.assert(tarfile.nts(blk, 0, 100) == "hello.txt")
+    ut.assert(tarfile.blocks(0) == 0)
+    ut.assert(tarfile.blocks(1) == 512)
+    ut.assert(tarfile.blocks(512) == 512)
+    ut.assert(tarfile.blocks(513) == 1024)
+}
+
+// ============================================================
+// Writing, then reading it back
+// ============================================================
+
+@test
+func test_write_then_read() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let tf = tarfile.open(TMP, "w")
+    ut.assert(tf.mode() == "w")
+    ut.assert(tf.comptype() == "")
+    tf.addfile(py_info(), b"hello world")
+    let d = tarfile.TarInfo("dir/")
+    d.typeflag = tarfile.DIRTYPE
+    d.mode = 0o755
+    tf.addfile(d)
+    tf.close()
+    // close() is idempotent, replacing Python's `with`.
+    tf.close()
+
+    // Two members, 512 bytes of headers and data, then the end blocks and the
+    // pad to a whole RECORDSIZE.
+    ut.assert(fs.size(TMP) == 10240)
+    ut.assert(tarfile.is_tarfile(TMP))
+
+    let tr = tarfile.open(TMP, "r")
+    let names = tr.getnames()
+    ut.assert(names.len() == 2)
+    ut.assert(names[0] == "hello.txt")
+    ut.assert(names[1] == "dir")
+
+    let t = tr.getmember("hello.txt")
+    ut.assert(t.size == 11)
+    ut.assert(t.mode == 0o644)
+    ut.assert(t.uid == 1000)
+    ut.assert(t.mtime == 1600000000)
+    ut.assert(t.isreg())
+    ut.assert(tr.getmember("dir").isdir())
+    ut.assert(tr.getmember("dir/").isdir())
+    ut.assert((tr.extractfile("hello.txt")!) == b"hello world")
+    ut.assert(tr.extractfile("dir") == nil)
+    ut.assert((tr.extractfile(t)!) == b"hello world")
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_members_of_write_mode() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let tf = tarfile.open(TMP, "w")
+    tf.addfile(py_info(), b"hello world")
+    // What has been added so far is the member list, as in Python.
+    ut.assert(tf.getmembers().len() == 1)
+    ut.assert(tf.getnames()[0] == "hello.txt")
+    tf.close()
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Long names: the pax and GNU ways of escaping the 100-byte field
+// ============================================================
+
+@test
+func test_pax_long_name() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let long = repeat_a(120)
+    let tf = tarfile.open(TMP, "w", nil, tarfile.PAX_FORMAT)
+    let t = tarfile.TarInfo(long)
+    t.size = 4
+    t.mtime = 1600000000
+    tf.addfile(t, b"long")
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    ut.assert(tr.getnames().len() == 1)
+    ut.assert(tr.getnames()[0] == long)
+    ut.assert((tr.extractfile(long)!) == b"long")
+    // The record that carries the name is on the member.
+    ut.assert(tr.getmember(long).pax_headers["path"] == long)
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_pax_unicode_name() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let name = "héllo.txt"
+    let tf = tarfile.open(TMP, "w", nil, tarfile.PAX_FORMAT)
+    let t = tarfile.TarInfo(name)
+    t.size = 2
+    tf.addfile(t, b"hi")
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    ut.assert(tr.getnames()[0] == name)
+    ut.assert((tr.extractfile(name)!) == b"hi")
+    // A name that is not ASCII always goes to a pax record, however short.
+    ut.assert(tr.getmember(name).pax_headers["path"] == name)
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_gnu_long_name() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let long = repeat_a(120)
+    let tf = tarfile.open(TMP, "w", nil, tarfile.GNU_FORMAT)
+    let t = tarfile.TarInfo(long)
+    t.size = 4
+    tf.addfile(t, b"long")
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    ut.assert(tr.getnames().len() == 1)
+    ut.assert(tr.getnames()[0] == long)
+    ut.assert((tr.extractfile(long)!) == b"long")
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_ustar_prefix_split() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    // 60 + 1 + 60 bytes: no way into one 100-byte field, but a clean cut at a
+    // `/` into the prefix and name fields.
+    let name = repeat_a(60) + "/" + repeat_a(60)
+    let tf = tarfile.open(TMP, "w", nil, tarfile.USTAR_FORMAT)
+    let t = tarfile.TarInfo(name)
+    t.size = 3
+    tf.addfile(t, b"abc")
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    ut.assert(tr.getnames()[0] == name)
+    ut.assert((tr.extractfile(name)!) == b"abc")
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_long_link_name() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let target = repeat_a(120)
+    let tf = tarfile.open(TMP, "w", nil, tarfile.GNU_FORMAT)
+    let t = tarfile.TarInfo("short")
+    t.typeflag = tarfile.SYMTYPE
+    t.linkname = target
+    tf.addfile(t)
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    ut.assert(tr.getmember("short").linkname == target)
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Compression, and the modes that pick it
+// ============================================================
+
+@test
+func test_gzip_roundtrip() {
+    if fs.exists(TMP_GZ) { fs.remove(TMP_GZ) }
+    let tf = tarfile.open(TMP_GZ, "w:gz")
+    ut.assert(tf.comptype() == "gz")
+    tf.addfile(py_info(), b"hello world")
+    tf.close()
+
+    // The member is compressed, and decompresses to a whole archive.
+    ut.assert(fs.size(TMP_GZ) < 10240)
+    ut.assert(tarfile.is_tarfile(TMP_GZ))
+
+    // "r:gz" says what the compression is; "r" finds it out.
+    for mode in ["r:gz", "r", "r:*", "r|gz"] {
+        let tr = tarfile.open(TMP_GZ, mode)
+        ut.assert(tr.comptype() == "gz")
+        ut.assert(tr.getnames()[0] == "hello.txt")
+        ut.assert((tr.extractfile("hello.txt")!) == b"hello world")
+        tr.close()
+    }
+    ut.assert(fs.remove(TMP_GZ))
+}
+
+@test
+func test_append_mode() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let tf = tarfile.open(TMP, "w")
+    tf.addfile(py_info(), b"hello world")
+    tf.close()
+
+    let ta = tarfile.open(TMP, "a")
+    // The member already there is still a member.
+    ut.assert(ta.getnames().len() == 1)
+    let second = tarfile.TarInfo("second.txt")
+    second.size = 3
+    ta.addfile(second, b"two")
+    ta.close()
+
+    let tr = tarfile.open(TMP, "r")
+    ut.assert(tr.getnames().len() == 2)
+    ut.assert(tr.getnames()[1] == "second.txt")
+    ut.assert((tr.extractfile("hello.txt")!) == b"hello world")
+    ut.assert((tr.extractfile("second.txt")!) == b"two")
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_iter_visits_every_member() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let tf = tarfile.open(TMP, "w")
+    tf.addfile(py_info(), b"hello world")
+    let d = tarfile.TarInfo("dir/")
+    d.typeflag = tarfile.DIRTYPE
+    tf.addfile(d)
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    var seen = 0
+    for m in tr.iter() {
+        seen += 1
+        ut.assert(m.name == "hello.txt" || m.name == "dir")
+    }
+    ut.assert(seen == 2)
+    tr.close()
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Adding files from disk
+// ============================================================
+
+@test
+func test_add_file_from_disk() {
+    ut.assert(fs.write_str(TMP_SRC, "from a file"))
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let tf = tarfile.open(TMP, "w")
+    tf.add(TMP_SRC)
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    // A leading `/` is dropped from the member name, as Python does.
+    let arcname = trim_slash(TMP_SRC)
+    let names = tr.getnames()
+    ut.assert(names.len() == 1)
+    ut.assert(names[0] == arcname)
+    let t = tr.getmember(arcname)
+    ut.assert(t.isreg())
+    ut.assert(t.size == 11)
+    ut.assert(t.uid == fs.stat(TMP_SRC)!.uid)
+    ut.assert(t.mtime > 0)
+    ut.assert((tr.extractfile(arcname)!) == b"from a file")
+    tr.close()
+
+    ut.assert(fs.remove(TMP_SRC))
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_add_directory_recursively() {
+    if fs.exists(TMP_DIR) { fs.remove_all(TMP_DIR) }
+    ut.assert(fs.mkdir(TMP_DIR))
+    ut.assert(fs.write_str(TMP_DIR + "/a.txt", "a"))
+    ut.assert(fs.write_str(TMP_DIR + "/b.txt", "bb"))
+    if fs.exists(TMP) { fs.remove(TMP) }
+
+    let tf = tarfile.open(TMP, "w")
+    tf.add(TMP_DIR)
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    let dir = trim_slash(TMP_DIR)
+    let names = tr.getnames()
+    ut.assert(names.len() == 3)
+    ut.assert(names[0] == dir)
+    ut.assert(names[1] == dir + "/a.txt")
+    ut.assert(names[2] == dir + "/b.txt")
+    ut.assert((tr.extractfile(dir + "/b.txt")!) == b"bb")
+    tr.close()
+
+    ut.assert(fs.remove_all(TMP_DIR))
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// Extracting, and the PEP 706 filters
+// ============================================================
+
+@test
+func test_extractall_and_chmod() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    if fs.exists(TMP_DIR) { fs.remove_all(TMP_DIR) }
+    let tf = tarfile.open(TMP, "w")
+    // A mode with the setuid bit and a group-write bit: the "data" filter
+    // drops both, and the extraction must reflect that.
+    let t = py_info()
+    t.mode = 0o4755
+    tf.addfile(t, b"hello world")
+    let d = tarfile.TarInfo("sub/")
+    d.typeflag = tarfile.DIRTYPE
+    d.mode = 0o777
+    tf.addfile(d)
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    tr.extractall(TMP_DIR)
+    tr.close()
+
+    ut.assert(fs.read_all(TMP_DIR + "/hello.txt", -1) == b"hello world")
+    ut.assert(fs.is_dir(TMP_DIR + "/sub"))
+    let st = fs.stat(TMP_DIR + "/hello.txt")!
+    ut.assert((st.mode & 0o4000) == 0)
+    ut.assert((st.mode & 0o022) == 0)
+    ut.assert(fs.remove_all(TMP_DIR))
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_extract_one_member() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    if fs.exists(TMP_DIR) { fs.remove_all(TMP_DIR) }
+    let tf = tarfile.open(TMP, "w")
+    tf.addfile(py_info(), b"hello world")
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    tr.extract("hello.txt", TMP_DIR)
+    ut.assert(fs.read_all(TMP_DIR + "/hello.txt", -1) == b"hello world")
+    // `set_attrs = false` leaves the mode alone.
+    tr.extract(tr.getmember("hello.txt"), TMP_DIR, false)
+    tr.close()
+
+    ut.assert(fs.remove_all(TMP_DIR))
+    ut.assert(fs.remove(TMP))
+}
+
+@test
+func test_data_filter_rules() {
+    let ok = tarfile.TarInfo("a/b.txt")
+    ok.mode = 0o644
+    let filtered = tarfile.data_filter(ok, "/tmp")
+    // No setuid, no group write, owner can read and write.
+    ut.assert(filtered.mode == 0o644)
+    // Ownership is dropped - `-1` is the "leave it" value of `chown`.
+    ut.assert(filtered.uid == -1)
+    ut.assert(filtered.gid == -1)
+    ut.assert(filtered.uname == "")
+
+    let exe = tarfile.TarInfo("run.sh")
+    exe.mode = 0o777
+    ut.assert(tarfile.data_filter(exe, "/tmp").mode == 0o755)
+
+    let plain = tarfile.TarInfo("plain.txt")
+    plain.mode = 0o600
+    ut.assert(tarfile.data_filter(plain, "/tmp").mode == 0o600)
+
+    // The "tar" filter keeps the ownership and only drops the high bits.
+    let owned = tarfile.TarInfo("x")
+    owned.mode = 0o4755
+    owned.uid = 1000
+    let kept = tarfile.tar_filter(owned, "/tmp")
+    ut.assert(kept.mode == 0o755)
+    ut.assert(kept.uid == 1000)
+
+    // "fully_trusted" changes nothing at all.
+    let same = tarfile.fully_trusted_filter(owned, "/tmp")
+    ut.assert(same.mode == 0o4755)
+    ut.assert(same.uid == 1000)
+}
+
+@should_panic
+func test_filter_rejects_dotdot() {
+    let t = tarfile.TarInfo("../escape.txt")
+    tarfile.data_filter(t, "/tmp/koala_dest")
+}
+
+@should_panic
+func test_filter_rejects_absolute() {
+    let t = tarfile.TarInfo("a/../../escape.txt")
+    tarfile.tar_filter(t, "/tmp/koala_dest")
+}
+
+@should_panic
+func test_filter_rejects_symlink_out() {
+    let t = tarfile.TarInfo("link")
+    t.typeflag = tarfile.SYMTYPE
+    t.linkname = "../../etc/passwd"
+    tarfile.data_filter(t, "/tmp/koala_dest")
+}
+
+@should_panic
+func test_filter_rejects_device() {
+    let t = tarfile.TarInfo("dev")
+    t.typeflag = tarfile.CHRTYPE
+    tarfile.data_filter(t, "/tmp/koala_dest")
+}
+
+// ============================================================
+// Links
+// ============================================================
+
+@test
+func test_symlink_member() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    if fs.exists(TMP_DIR) { fs.remove_all(TMP_DIR) }
+    let tf = tarfile.open(TMP, "w")
+    tf.addfile(py_info(), b"hello world")
+    let lnk = tarfile.TarInfo("link.txt")
+    lnk.typeflag = tarfile.SYMTYPE
+    lnk.linkname = "hello.txt"
+    tf.addfile(lnk)
+    tf.close()
+
+    let tr = tarfile.open(TMP, "r")
+    // A link answers the data of the member it points at.
+    ut.assert((tr.extractfile("link.txt")!) == b"hello world")
+    tr.extractall(TMP_DIR)
+    ut.assert(fs.is_symlink(TMP_DIR + "/link.txt"))
+    ut.assert(fs.read_link(TMP_DIR + "/link.txt")!.to_str() == "hello.txt")
+    ut.assert(fs.read_all(TMP_DIR + "/link.txt", -1) == b"hello world")
+    tr.close()
+
+    ut.assert(fs.remove_all(TMP_DIR))
+    ut.assert(fs.remove(TMP))
+}
+
+// ============================================================
+// is_tarfile, and the failures
+// ============================================================
+
+@test
+func test_is_tarfile() {
+    if fs.exists(TMP) { fs.remove(TMP) }
+    let tf = tarfile.open(TMP, "w")
+    tf.addfile(py_info(), b"hello world")
+    tf.close()
+
+    ut.assert(tarfile.is_tarfile(TMP))
+    // The same bytes, handed over directly, are recognised too.
+    ut.assert(tarfile.is_tarfile(fs.read_all(TMP, -1)))
+    // A path that does not exist is not an archive and not an error.
+    ut.assert(!tarfile.is_tarfile("/tmp/koala_tarfile_absent.tar"))
+    // Nor is anything else.
+    ut.assert(!tarfile.is_tarfile(b"definitely not a tar archive"))
+    ut.assert(!tarfile.is_tarfile(""))
+    // An empty archive is an archive: its first block is the end-of-archive
+    // one, which is what Python's `open()` accepts.
+    ut.assert(tarfile.is_tarfile(bytes(512)))
+    ut.assert(tarfile.is_tarfile(bytes(1024)))
+    ut.assert(fs.remove(TMP))
+}
+
+@should_panic
+func test_panic_not_a_tar() {
+    ut.assert(fs.write_str(TMP_BAD, "definitely not a tar archive, but long enough to hold a header block"))
+    tarfile.open(TMP_BAD)
+}
+
+@should_panic
+func test_panic_missing_member() {
+    if fs.exists(TMP_BAD) { fs.remove(TMP_BAD) }
+    let tf = tarfile.open(TMP_BAD, "w")
+    tf.addfile(py_info(), b"hello world")
+    tf.close()
+    let tr = tarfile.open(TMP_BAD)
+    tr.getmember("nope.txt")
+}
+
+@should_panic
+func test_panic_missing_data() {
+    let tf = tarfile.open(TMP_BAD, "w")
+    let t = tarfile.TarInfo("big.txt")
+    t.size = 100
+    tf.addfile(t)
+}
+
+@should_panic
+func test_panic_bad_mode() {
+    tarfile.open(nil, "q")
+}
+
+@should_panic
+func test_panic_bzip2() {
+    tarfile.open(nil, "w:bz2")
+}
+
+@should_panic
+func test_panic_after_close() {
+    if fs.exists(TMP_BAD) { fs.remove(TMP_BAD) }
+    let tf = tarfile.open(TMP_BAD, "w")
+    tf.close()
+    tf.getmembers()
+}
+
+@should_panic
+func test_panic_bad_filter() {
+    if fs.exists(TMP_BAD) { fs.remove(TMP_BAD) }
+    let tf = tarfile.open(TMP_BAD, "w")
+    tf.addfile(py_info(), b"hello world")
+    tf.close()
+    let tr = tarfile.open(TMP_BAD)
+    tr.extractall("/tmp/koala_tarfile_out", nil, false, "nonsense")
+}

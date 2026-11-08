@@ -1,0 +1,215 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The tar archive format, presented the way Python's `tarfile` module
+/// presents it.
+///
+///     tarfile.open(name, mode)              -> TarFile
+///     tarfile.is_tarfile(name)              -> bool
+///
+///     let tf = tarfile.open("a.tar")
+///     for member in tf.getmembers() { print(member.name) }
+///     let data = tf.extractfile(member.name)      // bytes?
+///
+/// Every public name - the constants, the `TarInfo` fields, the `TarFile`
+/// methods and their parameters - is CPython 3.14's, in the same order with
+/// the same defaults, so a Python example reads as a Koala one. The places
+/// where the language forces a difference are listed below; they are the only
+/// ones.
+///
+///   - `TarInfo.type` is `bytes` of length one, as in Python: the NUL byte
+///     that marks an old v7 regular file (`AREGTYPE`) cannot be written as a
+///     `str` in Koala, nor held by one.
+///   - Python's `TarInfo` properties `path`, `linkpath`, `tarfile` and
+///     `pax_headers` are methods or fields here: `path()`, `linkpath()`, the
+///     field `pax_headers`. `TarInfo.replace(**kwargs)` needs keyword
+///     arguments, so a `copy()` plus field assignment replaces it.
+///   - `TarInfo.tobuf()` and friends take no `encoding`/`errors`: a `str` is
+///     UTF-8 in Koala, so a name is written as UTF-8 and read back as UTF-8.
+///   - `TarFile` takes a file name, not a `fileobj`: a tar archive is handled
+///     whole in memory, which is what the `|` stream modes would have needed
+///     anyway. `fileobj` is accepted for signature parity and must be `nil`.
+///   - `TarFile.next()` returns `TarInfo?` and yields `nil` at the end of the
+///     archive, where Python raises `StopIteration`.
+///   - `TarFile.extractfile()` returns the member's `bytes?` instead of a
+///     file object; `TarFile.addfile()` takes the data as `bytes?` instead of
+///     a file object.
+///   - `filter=` takes the name of a filter - `"fully_trusted"`, `"tar"` or
+///     `"data"` - rather than a function value, because Koala has no function
+///     values. `tarfile.fully_trusted_filter()`, `tar_filter()` and
+///     `data_filter()` are the functions themselves, for the rare caller that
+///     wants to apply one by hand.
+///   - `TarError` and its subclasses are panics, with Python's message, so
+///     nothing can catch them; `is_tarfile()` therefore asks the format
+///     directly instead of trying an `open()`.
+///   - `bz2`, `xz` and `zst` compression are declared (so a mode string using
+///     them parses) but panic: `koala/gzip` is the only codec available.
+///
+/// Creating, appending, listing, extracting and the three PEP 706 filters are
+/// all supported. Reading accepts ustar, GNU, PAX and old v7 archives,
+/// including GNU long names and links; writing produces ustar, GNU or PAX
+/// (the default, as in Python).
+// ---------------------------------------------------------------------------
+// The globals of the package. A Koala global lives in the entry file, which is
+// this one; nothing else here is code, only what a `let` has to call.
+// ---------------------------------------------------------------------------
+
+/// One type flag byte. Python's are the one-byte `bytes` `b"0"`, `b"\0"`, and
+/// so on; a `str` could not carry the NUL one.
+func _byte(c int) bytes {
+    let b = bytes(1)
+    b[0] = uint8(c & 0xff)
+    return b
+}
+
+/// The eight magic-and-version bytes at offset 257 of a header: `"ustar"`,
+/// then three bytes the format picks - POSIX stores `00`, GNU stores spaces
+/// and a NUL.
+func _magic(v1 int, v2 int, v3 int) bytes {
+    let b = bytes(8)
+    b.copy_str("ustar", 0, 5)
+    b[5] = uint8(v1)
+    b[6] = uint8(v2)
+    b[7] = uint8(v3)
+    return b
+}
+
+/// The flags this module understands, or the subset it reads as a regular
+/// file. Python's `SUPPORTED_TYPES` and `REGULAR_TYPES`.
+func _type_list(all bool) list[bytes] {
+    let out = list[bytes]()
+    out.append(REGTYPE)
+    out.append(AREGTYPE)
+    if all {
+        out.append(LNKTYPE)
+        out.append(SYMTYPE)
+        out.append(DIRTYPE)
+        out.append(FIFOTYPE)
+    }
+    out.append(CONTTYPE)
+    if all {
+        out.append(CHRTYPE)
+        out.append(BLKTYPE)
+        out.append(GNUTYPE_LONGNAME)
+        out.append(GNUTYPE_LONGLINK)
+    }
+    out.append(GNUTYPE_SPARSE)
+    return out
+}
+
+func _gnu_types() list[bytes] {
+    let out = list[bytes]()
+    out.append(GNUTYPE_LONGNAME)
+    out.append(GNUTYPE_LONGLINK)
+    out.append(GNUTYPE_SPARSE)
+    return out
+}
+
+func _pax_fields() list[str] {
+    let out = list[str]()
+    out.append("path")
+    out.append("linkpath")
+    out.append("size")
+    out.append("mtime")
+    out.append("uid")
+    out.append("gid")
+    out.append("uname")
+    out.append("gname")
+    return out
+}
+
+func _pax_number_fields() list[str] {
+    let out = list[str]()
+    out.append("atime")
+    out.append("ctime")
+    out.append("mtime")
+    out.append("uid")
+    out.append("gid")
+    out.append("size")
+    return out
+}
+
+/// The NUL byte, `b"\0"` in Python.
+///
+/// It is `bytes`, not `str`: a Koala `str` cannot hold a NUL.
+pub let NUL = _byte(0x00)
+
+/// The magic of a GNU header, `b"ustar  \0"` - the version bytes are part of
+/// the same eight bytes on disk, so they are part of the value.
+pub let GNU_MAGIC = _magic(0x20, 0x20, 0x00)
+
+/// The magic of a POSIX header, `b"ustar\x0000"`.
+pub let POSIX_MAGIC = _magic(0x00, 0x30, 0x30)
+
+/// A regular file; Python's `REGTYPE`.
+pub let REGTYPE = _byte(0x30) // "0"
+
+/// A regular file in the old v7 format, which stores a NUL as the flag.
+pub let AREGTYPE = _byte(0x00)
+
+/// A hard link to another member of the archive.
+pub let LNKTYPE = _byte(0x31) // "1"
+
+/// A symbolic link.
+pub let SYMTYPE = _byte(0x32) // "2"
+
+/// A character device.
+pub let CHRTYPE = _byte(0x33) // "3"
+
+/// A block device.
+pub let BLKTYPE = _byte(0x34) // "4"
+
+/// A directory.
+pub let DIRTYPE = _byte(0x35) // "5"
+
+/// A FIFO.
+pub let FIFOTYPE = _byte(0x36) // "6"
+
+/// A contiguous file, one of the two ways the old v7 format marks a regular
+/// file.
+pub let CONTTYPE = _byte(0x37) // "7"
+
+/// The GNU header that carries a name too long for 100 bytes.
+pub let GNUTYPE_LONGNAME = _byte(0x4c) // "L"
+
+/// The GNU header that carries a link name too long for 100 bytes.
+pub let GNUTYPE_LONGLINK = _byte(0x4b) // "K"
+
+/// A GNU sparse file.
+pub let GNUTYPE_SPARSE = _byte(0x53) // "S"
+
+/// A pax extended header for the member that follows.
+pub let XHDTYPE = _byte(0x78) // "x"
+
+/// A pax extended header for every member that follows.
+pub let XGLTYPE = _byte(0x67) // "g"
+
+/// The pax extended header of Solaris, which `tarfile` never writes.
+pub let SOLARIS_XHDTYPE = _byte(0x58) // "X"
+
+/// The type flags this module understands; Python's `SUPPORTED_TYPES`. A
+/// member with any other flag is read as a regular file.
+pub let SUPPORTED_TYPES = _type_list(true)
+
+/// The type flags read as a regular file, data and all; Python's
+/// `REGULAR_TYPES`.
+pub let REGULAR_TYPES = _type_list(false)
+
+/// The type flags that belong to the GNU format; Python's `GNU_TYPES`.
+pub let GNU_TYPES = _gnu_types()
+
+/// The fields of a pax header that override a `TarInfo` field; Python's
+/// `PAX_FIELDS`.
+pub let PAX_FIELDS = _pax_fields()
+
+/// The fields of a pax header that hold a number; Python's
+/// `PAX_NUMBER_FIELDS`.
+pub let PAX_NUMBER_FIELDS = _pax_number_fields()
+
+/// `b"="`, the separator inside a pax record.
+let _EQ = bytes.from_hex("3d")
+
+/// `b"\n"`, which ends a pax record.
+let _NL = bytes.from_hex("0a")

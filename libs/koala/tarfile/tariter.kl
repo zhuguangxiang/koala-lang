@@ -1,0 +1,57 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The members of a `TarFile`, one at a time: what `for member in tf` walks,
+/// Python's `TarFile.__iter__`.
+///
+/// A member is read as soon as one has been handed out, so `has_next()` is
+/// exact and a loop sees every member once. The members land in `tf.members`
+/// as they are read, the same members `getmembers()` answers.
+pub class TarFileIter : Iterator[TarInfo] {
+    let _tf TarFile
+
+    /// The member read ahead, if any.
+    var _pending TarInfo?
+
+    /// True once the end of the archive has been reached.
+    var _done bool
+
+    /// Walk `tf`, starting at its current position.
+    pub func __init__(tf TarFile) {
+        _tf = tf
+        _pending = nil
+        _done = false
+    }
+
+    /// True while another member is left.
+    pub func has_next() bool {
+        if _pending != nil { return true }
+        if _done { return false }
+        _pending = _tf.next()
+        if _pending == nil {
+            _done = true
+            return false
+        }
+        return true
+    }
+
+    /// Return the next member and move on.
+    ///
+    /// Panic if there is none.
+    pub func next_strict() TarInfo {
+        if !has_next() { panic("No more members in TarFileIter") }
+        let m = _pending!
+        _pending = nil
+        return m
+    }
+
+    /// Return the next member, or `nil` at the end of the archive.
+    pub func next() TarInfo? {
+        if !has_next() { return nil }
+        let m = _pending!
+        _pending = nil
+        return m
+    }
+}

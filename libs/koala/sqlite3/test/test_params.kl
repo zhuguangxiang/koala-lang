@@ -1,0 +1,169 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/sqlite3"
+
+// Named parameters, executemany and the statement cache.
+
+func _table() sqlite3.Connection {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(id integer primary key, name text)")
+    return conn
+}
+
+@test
+func test_named() {
+    let conn = _table()
+    conn.execute("insert into t(id, name) values (:id, :name)", named={"id": 1, "name": "ann"})
+    let row = conn.execute("select name from t where id = :id", named={"id": 1})!.fetchone()!
+    ut.assert_eq((row[0]! as str)!, "ann")
+    conn.close()
+}
+
+@test
+func test_named_prefixes() {
+    let conn = sqlite3.connect(":memory:")!
+    let cur = conn.execute("select :a, @b, $c", named={"a": 1, "b": "two", "c": nil})!
+    let row = cur.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 1)
+    ut.assert_eq((row[1]! as str)!, "two")
+    ut.assert_true(row[2] == nil)
+    conn.close()
+}
+
+@test
+func test_named_used_twice_and_extra_keys() {
+    let conn = sqlite3.connect(":memory:")!
+    let row = conn.execute("select :x + :x", named={"x": 2, "unused": 9})!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 4)
+    conn.close()
+}
+
+@test
+func test_executemany() {
+    let conn = _table()
+    let cur = conn.executemany("insert into t(name) values (?)", [["ann"], ["bob"], ["cid"]])!
+    ut.assert_eq(cur.rowcount, 3)
+    ut.assert_true(cur.lastrowid == nil)
+
+    let rows = conn.execute("select name from t order by id")!.fetchall()!
+    ut.assert_eq(rows.len(), 3)
+    ut.assert_eq((rows[2][0]! as str)!, "cid")
+    conn.close()
+}
+
+@test
+func test_executemany_named() {
+    let conn = _table()
+    let cur = conn.executemany("insert into t(id, name) values (:id, :name)",
+                               named=[{"id": 1, "name": "ann"}, {"id": 2, "name": nil}])!
+    ut.assert_eq(cur.rowcount, 2)
+    let row = conn.execute("select name from t where id = 2")!.fetchone()!
+    ut.assert_true(row[0] == nil)
+    conn.close()
+}
+
+@test
+func test_executemany_update_counts_rows() {
+    let conn = _table()
+    conn.executemany("insert into t(name) values (?)", [["a"], ["a"], ["b"]])
+    let cur = conn.executemany("update t set name = ? where name = ?", [["x", "a"], ["y", "b"]])!
+    ut.assert_eq(cur.rowcount, 3)
+    conn.close()
+}
+
+@test
+func test_executemany_empty() {
+    let conn = _table()
+    let cur = conn.executemany("insert into t(name) values (?)", list[list[any?]]())!
+    ut.assert_eq(cur.rowcount, 0)
+    conn.close()
+}
+
+@test
+func test_executemany_error_stops() {
+    let conn = _table()
+    let cur = conn.cursor()
+    ut.assert_true(cur.executemany("insert into t(id) values (?)", [[1], [1], [2]]) == nil)
+    ut.assert_eq(conn.sqlite_errorname(), "SQLITE_CONSTRAINT_PRIMARYKEY")
+    let row = conn.execute("select count(*) from t")!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 1)
+    conn.close()
+}
+
+@test
+func test_executemany_opens_a_transaction() {
+    let conn = _table()
+    conn.executemany("insert into t(name) values (?)", [["a"]])
+    ut.assert_true(conn.in_transaction())
+    conn.rollback()
+    let row = conn.execute("select count(*) from t")!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 0)
+    conn.close()
+}
+
+@test
+func test_statement_reuse() {
+    let conn = _table()
+    // The same SQL text runs again from the cache with new parameters.
+    for i in range(5) {
+        conn.execute("insert into t(name) values (?)", [format("n{}", i)])
+    }
+    let cur = conn.cursor()
+    for i in range(5) {
+        let row = cur.execute("select name from t where id = ?", [i + 1])!.fetchone()!
+        ut.assert_eq((row[0]! as str)!, format("n{}", i))
+    }
+    conn.close()
+}
+
+@test
+func test_same_sql_on_two_cursors() {
+    let conn = _table()
+    conn.executemany("insert into t(name) values (?)", [["a"], ["b"]])
+    let one = conn.execute("select name from t order by id")!
+    let two = conn.execute("select name from t order by id")!
+    ut.assert_eq((one.fetchone()![0]! as str)!, "a")
+    ut.assert_eq((two.fetchone()![0]! as str)!, "a")
+    ut.assert_eq((one.fetchone()![0]! as str)!, "b")
+    ut.assert_eq((two.fetchone()![0]! as str)!, "b")
+    conn.close()
+}
+
+@test
+func test_cache_eviction() {
+    let conn = sqlite3.connect(":memory:", cached_statements=2)!
+    for round in range(3) {
+        for i in range(4) {
+            let sql = format("select {} + ?", i)
+            let row = conn.execute(sql, [round])!.fetchone()!
+            ut.assert_eq((row[0]! as int)!, i + round)
+        }
+    }
+    conn.close()
+}
+
+@test
+func test_cache_off() {
+    let conn = sqlite3.connect(":memory:", cached_statements=0)!
+    for i in range(3) {
+        let row = conn.execute("select ?", [i])!.fetchone()!
+        ut.assert_eq((row[0]! as int)!, i)
+    }
+    conn.close()
+}
+
+@test
+func test_unfinished_query_is_reset_for_reuse() {
+    let conn = _table()
+    conn.executemany("insert into t(name) values (?)", [["a"], ["b"]])
+    let cur = conn.execute("select name from t order by id")!
+    cur.fetchone()
+    // Executing again on the cursor gives the half-read statement back.
+    cur.execute("select name from t order by id")
+    ut.assert_eq(cur.fetchall()!.len(), 2)
+    conn.close()
+}

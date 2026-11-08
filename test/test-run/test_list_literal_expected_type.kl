@@ -1,0 +1,53 @@
+// RUN: koala %s | filecheck %s
+// A non-empty list literal takes its element type from the expected type, as an empty one does:
+// `["x", 1]` passed to a `list[any?]` parameter was typed `list[any]` and rejected ("expected
+// 'std/builtin.list<o?>', but got 'std/builtin.list<o>'"). A `nil` element makes the element
+// type optional: `[1, nil]` was typed `list[any]`, not `list[int?]`. Only nils make `list[any?]`.
+// A dict literal takes its key and value types from the expected type the same way, and so does a
+// literal nested in one: `[["a", 1]]` as a `list[list[any?]]`.
+
+func count(values list[any?]) int { return values.len() }
+
+func count_ints(values list[int?]) int { return values.len() }
+
+func rows(values list[list[any?]]) int { return values.len() }
+
+func rows_named(values list[dict[str, any?]]) int { return values.len() }
+
+func count_named(named dict[str, any?]? = nil) int {
+    if let values = named { return values.len() }
+    return -1
+}
+
+func main() {
+    let declared list[any?] = ["x", 1]
+    print(count(declared), count(["x", 1, nil]), count([nil]))
+
+    print(count_ints([1, nil]), count_ints([1, 2]))
+
+    let inferred = [1, nil]
+    print(count_ints(inferred))
+
+    // Only nils: the element type is any?.
+    let only_nil = [nil, nil]
+    print(count(only_nil))
+
+    var assigned list[any?] = []
+    assigned = ["y", 2.5]
+    print(count(assigned), assigned[1])
+
+    print(count_named({"id": 1, "name": "ann"}), count_named(named={"x": nil}))
+
+    print(rows([["a", 1], ["b", nil]]), rows_named([{"id": 1}, {"id": "x"}]))
+    let nested list[list[any?]] = [["c", 3]]
+    print(rows(nested))
+}
+
+// CHECK: 2 3 1
+// CHECK-NEXT: 2 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2 2.5
+// CHECK-NEXT: 2 1
+// CHECK-NEXT: 2 2
+// CHECK-NEXT: 1

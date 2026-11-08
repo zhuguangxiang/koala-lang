@@ -1,0 +1,246 @@
+#!/usr/bin/env koala
+/*
+ * todo_demo.kl — a to-do list on the command line: koala/cli parses the
+ * commands, koala/sqlite3 keeps the items in a database file.
+ *
+ * Running it
+ *
+ *   It needs an installed koala with koala/cli and koala/sqlite3, which
+ *   `./build-debug-test.sh` at the repository root installs. Then either
+ *
+ *       koala demo/todo_demo.kl <command> ...
+ *
+ *   or make it executable and run it through its `#!` line:
+ *
+ *       chmod +x demo/todo_demo.kl
+ *       demo/todo_demo.kl <command> ...
+ *
+ * Commands
+ *
+ *   add TEXT... [-p N]           add an item; the words are joined with
+ *                                spaces. -p / --priority is 1 (urgent) to
+ *                                5 (some day), 3 by default; the database
+ *                                refuses anything else.
+ *   list [-a] [--sort KEY]       show the open items; -a / --all also the
+ *                                done ones. KEY is id (default) or
+ *                                priority.
+ *   done ID                      mark item ID as done.
+ *   rm ID                        remove item ID.
+ *   stats                        count the items, done and open.
+ *
+ *   With no command it prints the help; `-h` after a command prints that
+ *   command's options, e.g. `todo_demo.kl add -h`.
+ *
+ * The database
+ *
+ *   The items live in todo.db in the current directory, created on the
+ *   first run. --db picks another file and goes before the command, as
+ *   every option of the main parser does: `todo_demo.kl --db work.db list`.
+ *   `--db :memory:` keeps nothing.
+ *
+ * A session
+ *
+ *     $ koala todo_demo.kl add buy milk --priority 1
+ *     added #1: buy milk
+ *     $ koala todo_demo.kl add write the report
+ *     added #2: write the report
+ *     $ koala todo_demo.kl done 1
+ *     done #1
+ *     $ koala todo_demo.kl list --all --sort priority
+ *     [x] #1 p1 buy milk
+ *     [ ] #2 p3 write the report
+ *     $ koala todo_demo.kl stats
+ *     2 items, 1 done, 1 open
+ *     most urgent open priority: p3
+ *     $ koala todo_demo.kl add learn chess -p 9
+ *     todo: priority must be 1 to 5, got 9
+ *     $ koala todo_demo.kl done x
+ *     usage: todo done [-h] id
+ *     todo done: error: argument id: invalid int value: 'x'
+ */
+
+import "koala/cli"
+import "koala/sqlite3"
+
+func main() {
+    // ---- koala/cli: declare the command line, as Python's argparse ----
+
+    // The main parser. `prog` is the name in the usage and the errors.
+    let parser = cli.ArgumentParser(prog="todo", description="Keep a to-do list in SQLite.",
+                                    epilog="Run `todo <command> -h` for the options of a command.")
+    // An option of the main parser, given before the command. `%(default)s`
+    // in the help is replaced by the default.
+    parser.add_argument("--db", default="todo.db", help="the database file (default: %(default)s)")
+    // The subcommands. The chosen name is stored under "command", nil when
+    // none is given; `metavar` is how the usage shows it.
+    let sub = parser.add_subparsers(dest="command", metavar="<command>")
+
+    // add: `nargs="+"` takes one or more words as a list[str]; `type_="int"`
+    // converts the value and rejects one that is not a number.
+    let add = sub.add_parser("add", help="Add an item")
+    add.add_argument("text", nargs="+", help="what to do")
+    add.add_argument("-p", "--priority", type_="int", default=3,
+                     help="1 (urgent) to 5 (some day) (default: %(default)s)")
+
+    // list: `store_true` gives a bool, false when the flag is absent;
+    // `choices` limits the texts it accepts.
+    let show = sub.add_parser("list", help="Show the items")
+    show.add_argument("-a", "--all", action="store_true", help="also show the done items")
+    show.add_argument("--sort", choices=["id", "priority"], default="id",
+                      help="the order (default: %(default)s)")
+
+    // done / rm: one required positional, an int.
+    let done = sub.add_parser("done", help="Mark an item as done")
+    done.add_argument("id", type_="int")
+
+    let rm = sub.add_parser("rm", help="Remove an item")
+    rm.add_argument("id", type_="int")
+
+    // stats: a command with no arguments of its own.
+    sub.add_parser("stats", help="Count the items")
+
+    // Parse sys.args(). On -h it prints the help and exits 0; on a bad
+    // command line it prints the usage and the error and exits 2, so the
+    // code below only sees a valid one.
+    let args = parser.parse_args()
+
+    // A value is an `any?`: unwrap it with `!` and cast it with `as` to the
+    // type its add_argument gives, e.g. `(args.get("db")! as str)!`.
+    let command = args.get("command")
+    if command == nil {
+        parser.print_help()
+        return
+    }
+
+    // ---- koala/sqlite3: open the database, as Python's sqlite3 ----
+
+    // connect returns nil when the file cannot be opened; parser.error
+    // reports it like a command-line error and exits 2.
+    let path = (args.get("db")! as str)!
+    let conn = sqlite3.connect(path)
+    if conn == nil {
+        parser.error("cannot open database '" + path + "'")
+        return
+    }
+    let db = conn
+    if !_create_table(db) {
+        db.close()
+        return
+    }
+
+    // Each command's values are in the same Namespace as the main parser's.
+    let name = (command as str)!
+    if name == "add" {
+        _add(db, (args.get("text")! as list[str])!, (args.get("priority")! as int)!)
+    } else if name == "list" {
+        _list(db, (args.get("all")! as bool)!, (args.get("sort")! as str)!)
+    } else if name == "done" {
+        _done(db, (args.get("id")! as int)!)
+    } else if name == "rm" {
+        _remove(db, (args.get("id")! as int)!)
+    } else {
+        _stats(db)
+    }
+
+    // An INSERT, UPDATE or DELETE opened a transaction: keep its changes.
+    db.commit()
+    db.close()
+}
+
+// The table, created on the first run. The CHECK lets SQLite refuse a bad
+// priority; `_add` reports it from the error code.
+func _create_table(db sqlite3.Connection) bool {
+    let sql = "create table if not exists items(" +
+              "id integer primary key, " +
+              "text text not null, " +
+              "priority integer not null check (priority between 1 and 5), " +
+              "done integer not null default 0)"
+    if db.execute(sql) == nil {
+        print("todo: " + db.errmsg())
+        return false
+    }
+    return true
+}
+
+// Named placeholders (`:text`) take their values from `named`, a dict; `?`
+// placeholders take them from a list, as in `_done`. A database error is not
+// raised: execute returns nil and the connection tells what failed.
+func _add(db sqlite3.Connection, words list[str], priority int) {
+    let text = " ".join(words)
+    let cur = db.execute("insert into items(text, priority) values (:text, :priority)",
+                         named={"text": text, "priority": priority})
+    // lastrowid is the id SQLite gave the new row.
+    if let c = cur {
+        printf("added #{}: {}\n", c.lastrowid!, text)
+        return
+    }
+
+    // sqlite_errorcode() is the extended code of the failure, one of the
+    // SQLITE_* constants; errmsg() is SQLite's message.
+    if db.sqlite_errorcode() == sqlite3.SQLITE_CONSTRAINT_CHECK {
+        printf("todo: priority must be 1 to 5, got {}\n", priority)
+    } else {
+        print("todo: " + db.errmsg())
+    }
+}
+
+func _list(db sqlite3.Connection, all bool, sort str) {
+    var sql = "select id, text, priority, done from items"
+    if !all { sql += " where done = 0" }
+    if sort == "priority" {
+        sql += " order by priority, id"
+    } else {
+        sql += " order by id"
+    }
+
+    // fetchall returns the rows as a list[Row]. A value is read by column
+    // name (or index, `row[0]`) as an `any?`: INTEGER is an int, TEXT a str,
+    // NULL nil.
+    let rows = db.execute(sql)!.fetchall()!
+    if rows.len() == 0 {
+        print("nothing to do")
+        return
+    }
+    for row in rows {
+        var mark = " "
+        if (row["done"]! as int)! == 1 { mark = "x" }
+        let id = (row["id"]! as int)!
+        let priority = (row["priority"]! as int)!
+        let text = (row["text"]! as str)!
+        printf("[{}] #{} p{} {}\n", mark, id, priority, text)
+    }
+}
+
+// rowcount is how many rows the UPDATE or DELETE changed: 0 means no item
+// matched.
+func _done(db sqlite3.Connection, id int) {
+    let cur = db.execute("update items set done = 1 where id = ? and done = 0", [id])!
+    if cur.rowcount == 0 {
+        printf("todo: no open item #{}\n", id)
+        return
+    }
+    printf("done #{}\n", id)
+}
+
+func _remove(db sqlite3.Connection, id int) {
+    let cur = db.execute("delete from items where id = ?", [id])!
+    if cur.rowcount == 0 {
+        printf("todo: no item #{}\n", id)
+        return
+    }
+    printf("removed #{}\n", id)
+}
+
+// fetchone returns the single row of an aggregate query; `as` names the
+// columns so the row can be read by name.
+func _stats(db sqlite3.Connection) {
+    let sql = "select count(*) as total, coalesce(sum(done), 0) as done, " +
+              "coalesce(min(case when done = 0 then priority end), 0) as top from items"
+    let row = db.execute(sql)!.fetchone()!
+    let total = (row["total"]! as int)!
+    let done = (row["done"]! as int)!
+    printf("{} items, {} done, {} open\n", total, done, total - done)
+
+    let top = (row["top"]! as int)!
+    if top > 0 { printf("most urgent open priority: p{}\n", top) }
+}

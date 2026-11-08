@@ -1,0 +1,45 @@
+// RUN: koala %s | filecheck %s
+// `if let ... {} else if let ... {}`: the compiler stopped with only `koala: compilation failed`,
+// no diagnostic, for an optional binding and for an `as` binding alike. `if ... {} else if let`
+// failed `parse_if: Assertion 's->_else->kind == STMT_BLOCK_KIND || ...'`.
+
+func first(a int?, b int?) str {
+    var r = "none"
+    if let x = a {
+        r = format("a={}", x)
+    } else if let y = b {
+        r = format("b={}", y)
+    }
+    return r
+}
+
+func kind(v any) str {
+    if let b = v as bool {
+        return format("bool {}", b)
+    } else if let n = v as int {
+        return format("int {}", n)
+    } else if let s = v as str {
+        return "str " + s
+    } else {
+        return "other"
+    }
+}
+
+func pick(flag bool, a int?) str {
+    if flag {
+        return "flag"
+    } else if let x = a {
+        return format("a={}", x)
+    }
+    return "none"
+}
+
+func main() {
+    print(first(1, nil), first(nil, 2), first(nil, nil))
+    print(kind(true), kind(7), kind("s"), kind(2.5))
+    print(pick(true, nil), pick(false, 3), pick(false, nil))
+}
+
+// CHECK: a=1 b=2 none
+// CHECK-NEXT: bool true int 7 str s other
+// CHECK-NEXT: flag a=3 none

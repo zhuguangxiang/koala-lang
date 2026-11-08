@@ -1,0 +1,130 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/sqlite3"
+
+// Connection: open, commit and rollback, errors, close.
+
+@test
+func test_connect_memory() {
+    let conn = sqlite3.connect(":memory:")!
+    ut.assert_false(conn.in_transaction())
+    ut.assert_eq(conn.total_changes(), 0)
+    conn.close()
+}
+
+@test
+func test_connect_failure() {
+    ut.assert_true(sqlite3.connect("/no/such/dir/app.db") == nil)
+}
+
+@test
+func test_uri() {
+    let conn = sqlite3.connect("file::memory:?cache=private", uri=true)!
+    let row = conn.execute("select 1")!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 1)
+    conn.close()
+}
+
+@test
+func test_error_codes() {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(id integer primary key)")
+    conn.execute("insert into t(id) values (1)")
+
+    ut.assert_true(conn.execute("insert into t(id) values (1)") == nil)
+    ut.assert_eq(conn.sqlite_errorcode(), sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY)
+    ut.assert_eq(conn.sqlite_errorcode() & 0xff, sqlite3.SQLITE_CONSTRAINT)
+    ut.assert_eq(conn.sqlite_errorname(), "SQLITE_CONSTRAINT_PRIMARYKEY")
+    ut.assert_eq(conn.errmsg(), "UNIQUE constraint failed: t.id")
+
+    // The next call resets them.
+    ut.assert_true(conn.execute("select 1") != nil)
+    ut.assert_eq(conn.sqlite_errorcode(), sqlite3.SQLITE_OK)
+    ut.assert_eq(conn.sqlite_errorname(), "SQLITE_OK")
+    ut.assert_eq(conn.errmsg(), "")
+    conn.close()
+}
+
+@test
+func test_syntax_error() {
+    let conn = sqlite3.connect(":memory:")!
+    ut.assert_true(conn.execute("selec 1") == nil)
+    ut.assert_eq(conn.sqlite_errorcode(), sqlite3.SQLITE_ERROR)
+    ut.assert_eq(conn.errmsg(), "near \"selec\": syntax error")
+    conn.close()
+}
+
+@test
+func test_no_such_table() {
+    let conn = sqlite3.connect(":memory:")!
+    ut.assert_true(conn.execute("select * from missing") == nil)
+    ut.assert_eq(conn.sqlite_errorname(), "SQLITE_ERROR")
+    ut.assert_eq(conn.errmsg(), "no such table: missing")
+    conn.close()
+}
+
+@test
+func test_commit_and_rollback() {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(x)")
+
+    conn.execute("begin")
+    conn.execute("insert into t values (1)")
+    ut.assert_true(conn.in_transaction())
+    ut.assert_eq(conn.commit(), sqlite3.SQLITE_OK)
+    ut.assert_false(conn.in_transaction())
+
+    conn.execute("begin")
+    conn.execute("insert into t values (2)")
+    ut.assert_eq(conn.rollback(), sqlite3.SQLITE_OK)
+    ut.assert_false(conn.in_transaction())
+
+    let row = conn.execute("select count(*) from t")!.fetchone()!
+    ut.assert_eq((row[0]! as int)!, 1)
+
+    // With no transaction open they do nothing.
+    ut.assert_eq(conn.commit(), sqlite3.SQLITE_OK)
+    ut.assert_eq(conn.rollback(), sqlite3.SQLITE_OK)
+    conn.close()
+}
+
+@test
+func test_total_changes() {
+    let conn = sqlite3.connect(":memory:")!
+    conn.execute("create table t(x)")
+    conn.execute("insert into t values (1)")
+    conn.execute("insert into t values (2)")
+    conn.execute("update t set x = x + 1")
+    ut.assert_eq(conn.total_changes(), 4)
+    conn.close()
+}
+
+@test
+func test_close_twice() {
+    let conn = sqlite3.connect(":memory:")!
+    let cur = conn.cursor()
+    conn.close()
+    conn.close()
+    cur.close()
+}
+
+@test
+func test_file_database() {
+    let path = "/tmp/koala_sqlite3_test_file.db"
+    let conn = sqlite3.connect(path)!
+    conn.execute("drop table if exists t")
+    conn.execute("create table t(x)")
+    conn.execute("insert into t values ('kept')")
+    conn.commit()
+    conn.close()
+
+    let again = sqlite3.connect(path)!
+    let row = again.execute("select x from t")!.fetchone()!
+    ut.assert_eq((row[0]! as str)!, "kept")
+    again.execute("drop table t")
+    again.close()
+}

@@ -1,0 +1,333 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A DB-API 2.0 interface for SQLite databases.
+///
+/// This package follows CPython's `sqlite3` module: the names, the
+/// parameters, the defaults and the behaviour are Python's wherever Koala
+/// allows it.
+///
+///     sqlite3.connect(database, timeout, isolation_level,   ->  Connection?
+///                     cached_statements, uri)
+///     conn.cursor() / execute / executemany / executescript
+///     conn.commit() / rollback() / close()
+///     cur.execute(sql, params, named)                        ->  Cursor?
+///     cur.fetchone() / fetchmany(size) / fetchall()          ->  Row? / list[Row]?
+///     cur.rowcount / lastrowid / description / arraysize
+///     row[0] / row["name"] / row.keys() / len(row)
+///
+/// Where Koala differs - no exceptions, rows are `Row`, `named=` for named
+/// parameters, a few attributes as methods - is listed on `Connection`.
+/// What is not supported yet is in `docs/Koala_TODO.md` §85.
+///
+/// The SQLite engine is vendored unmodified in `native/sqlite3/` (see
+/// `native/sqlite3/VERSION`) and built into `libkoala_sqlite3.so`, so no
+/// system libsqlite3 is required.
+
+/// Native symbols for this package live in `libkoala_sqlite3.so`.
+link "koala_sqlite3"
+
+/// The version of the SQLite library, as "3.54.1".
+pub let sqlite_version = sqlite_libversion()
+
+/// `sqlite_version` as numbers, as (3, 54, 1).
+pub let sqlite_version_info = _version_info(sqlite_version)
+
+// sqlite3_open_v2 flags.
+const _OPEN_READWRITE = 2
+const _OPEN_CREATE = 4
+const _OPEN_URI = 64
+
+/// Open a connection to the database file `database`, created when it does
+/// not exist; `":memory:"` opens a database in memory. As in Python:
+///
+/// - `timeout` is how many seconds a statement waits for a lock held by
+///   another connection before it fails with SQLITE_BUSY.
+/// - `isolation_level` is "" (the default, as "DEFERRED"), "DEFERRED",
+///   "IMMEDIATE" or "EXCLUSIVE", or nil for autocommit. Unless it is nil,
+///   an INSERT, UPDATE, DELETE or REPLACE opens a transaction with
+///   `BEGIN <isolation_level>` when none is open; `commit()` ends it.
+/// - `cached_statements` is how many compiled statements the connection
+///   keeps for reuse.
+/// - `uri` reads `database` as a URI, as "file:app.db?mode=ro".
+///
+/// Returns nil when the database cannot be opened. Panics on an
+/// `isolation_level` Python rejects.
+pub func connect(database str, timeout float = 5.0, isolation_level str? = "",
+                 cached_statements int = 128, uri bool = false) Connection? {
+    let level = _isolation_level_of(isolation_level)
+
+    var flags = _OPEN_READWRITE | _OPEN_CREATE
+    if uri { flags = flags | _OPEN_URI }
+    let timeout_ms = int(timeout * 1000.0)
+
+    let db = db_open(database, flags, timeout_ms)
+    if db == 0 { return nil }
+    return Connection(db, level, cached_statements)
+}
+
+// `level` in upper case, as CPython keeps it. Panics on a level CPython
+// refuses with a ValueError.
+func _isolation_level_of(level str?) str? {
+    if let name = level {
+        let upper = name.upper()
+        if upper == "" || upper == "DEFERRED" || upper == "IMMEDIATE" || upper == "EXCLUSIVE" {
+            return upper
+        }
+        panic("sqlite3: isolation_level string must be '', 'DEFERRED', 'IMMEDIATE', or " +
+              "'EXCLUSIVE'")
+    }
+    return nil
+}
+
+func _version_info(version str) (int, int, int) {
+    let parts = version.split(".")
+    return (parts[0].to_int(), parts[1].to_int(), parts[2].to_int())
+}
+
+// SQLite result codes, under the names CPython's `sqlite3` module exports
+// them (Python 3.11 and later). The values are those of the vendored
+// `sqlite3.h`, primary codes first, then the extended ones.
+//
+// `Connection.sqlite_errorcode()` returns one of them; an extended code
+// keeps its primary code in the low 8 bits, so
+// `code & 0xff == SQLITE_CONSTRAINT` matches every constraint failure.
+
+pub const SQLITE_OK = 0
+pub const SQLITE_ERROR = 1
+pub const SQLITE_INTERNAL = 2
+pub const SQLITE_PERM = 3
+pub const SQLITE_ABORT = 4
+pub const SQLITE_BUSY = 5
+pub const SQLITE_LOCKED = 6
+pub const SQLITE_NOMEM = 7
+pub const SQLITE_READONLY = 8
+pub const SQLITE_INTERRUPT = 9
+pub const SQLITE_IOERR = 10
+pub const SQLITE_CORRUPT = 11
+pub const SQLITE_NOTFOUND = 12
+pub const SQLITE_FULL = 13
+pub const SQLITE_CANTOPEN = 14
+pub const SQLITE_PROTOCOL = 15
+pub const SQLITE_EMPTY = 16
+pub const SQLITE_SCHEMA = 17
+pub const SQLITE_TOOBIG = 18
+pub const SQLITE_CONSTRAINT = 19
+pub const SQLITE_MISMATCH = 20
+pub const SQLITE_MISUSE = 21
+pub const SQLITE_NOLFS = 22
+pub const SQLITE_AUTH = 23
+pub const SQLITE_FORMAT = 24
+pub const SQLITE_RANGE = 25
+pub const SQLITE_NOTADB = 26
+pub const SQLITE_NOTICE = 27
+pub const SQLITE_WARNING = 28
+pub const SQLITE_ROW = 100
+pub const SQLITE_DONE = 101
+pub const SQLITE_ERROR_MISSING_COLLSEQ = 257
+pub const SQLITE_ERROR_RETRY = 513
+pub const SQLITE_ERROR_SNAPSHOT = 769
+pub const SQLITE_ERROR_RESERVESIZE = 1025
+pub const SQLITE_ERROR_KEY = 1281
+pub const SQLITE_ERROR_UNABLE = 1537
+pub const SQLITE_IOERR_READ = 266
+pub const SQLITE_IOERR_SHORT_READ = 522
+pub const SQLITE_IOERR_WRITE = 778
+pub const SQLITE_IOERR_FSYNC = 1034
+pub const SQLITE_IOERR_DIR_FSYNC = 1290
+pub const SQLITE_IOERR_TRUNCATE = 1546
+pub const SQLITE_IOERR_FSTAT = 1802
+pub const SQLITE_IOERR_UNLOCK = 2058
+pub const SQLITE_IOERR_RDLOCK = 2314
+pub const SQLITE_IOERR_DELETE = 2570
+pub const SQLITE_IOERR_BLOCKED = 2826
+pub const SQLITE_IOERR_NOMEM = 3082
+pub const SQLITE_IOERR_ACCESS = 3338
+pub const SQLITE_IOERR_CHECKRESERVEDLOCK = 3594
+pub const SQLITE_IOERR_LOCK = 3850
+pub const SQLITE_IOERR_CLOSE = 4106
+pub const SQLITE_IOERR_DIR_CLOSE = 4362
+pub const SQLITE_IOERR_SHMOPEN = 4618
+pub const SQLITE_IOERR_SHMSIZE = 4874
+pub const SQLITE_IOERR_SHMLOCK = 5130
+pub const SQLITE_IOERR_SHMMAP = 5386
+pub const SQLITE_IOERR_SEEK = 5642
+pub const SQLITE_IOERR_DELETE_NOENT = 5898
+pub const SQLITE_IOERR_MMAP = 6154
+pub const SQLITE_IOERR_GETTEMPPATH = 6410
+pub const SQLITE_IOERR_CONVPATH = 6666
+pub const SQLITE_IOERR_VNODE = 6922
+pub const SQLITE_IOERR_AUTH = 7178
+pub const SQLITE_IOERR_BEGIN_ATOMIC = 7434
+pub const SQLITE_IOERR_COMMIT_ATOMIC = 7690
+pub const SQLITE_IOERR_ROLLBACK_ATOMIC = 7946
+pub const SQLITE_IOERR_DATA = 8202
+pub const SQLITE_IOERR_CORRUPTFS = 8458
+pub const SQLITE_IOERR_IN_PAGE = 8714
+pub const SQLITE_IOERR_BADKEY = 8970
+pub const SQLITE_IOERR_CODEC = 9226
+pub const SQLITE_LOCKED_SHAREDCACHE = 262
+pub const SQLITE_LOCKED_VTAB = 518
+pub const SQLITE_BUSY_RECOVERY = 261
+pub const SQLITE_BUSY_SNAPSHOT = 517
+pub const SQLITE_BUSY_TIMEOUT = 773
+pub const SQLITE_CANTOPEN_NOTEMPDIR = 270
+pub const SQLITE_CANTOPEN_ISDIR = 526
+pub const SQLITE_CANTOPEN_FULLPATH = 782
+pub const SQLITE_CANTOPEN_CONVPATH = 1038
+pub const SQLITE_CANTOPEN_DIRTYWAL = 1294
+pub const SQLITE_CANTOPEN_SYMLINK = 1550
+pub const SQLITE_CORRUPT_VTAB = 267
+pub const SQLITE_CORRUPT_SEQUENCE = 523
+pub const SQLITE_CORRUPT_INDEX = 779
+pub const SQLITE_READONLY_RECOVERY = 264
+pub const SQLITE_READONLY_CANTLOCK = 520
+pub const SQLITE_READONLY_ROLLBACK = 776
+pub const SQLITE_READONLY_DBMOVED = 1032
+pub const SQLITE_READONLY_CANTINIT = 1288
+pub const SQLITE_READONLY_DIRECTORY = 1544
+pub const SQLITE_ABORT_ROLLBACK = 516
+pub const SQLITE_CONSTRAINT_CHECK = 275
+pub const SQLITE_CONSTRAINT_COMMITHOOK = 531
+pub const SQLITE_CONSTRAINT_FOREIGNKEY = 787
+pub const SQLITE_CONSTRAINT_FUNCTION = 1043
+pub const SQLITE_CONSTRAINT_NOTNULL = 1299
+pub const SQLITE_CONSTRAINT_PRIMARYKEY = 1555
+pub const SQLITE_CONSTRAINT_TRIGGER = 1811
+pub const SQLITE_CONSTRAINT_UNIQUE = 2067
+pub const SQLITE_CONSTRAINT_VTAB = 2323
+pub const SQLITE_CONSTRAINT_ROWID = 2579
+pub const SQLITE_CONSTRAINT_PINNED = 2835
+pub const SQLITE_CONSTRAINT_DATATYPE = 3091
+pub const SQLITE_NOTICE_RECOVER_WAL = 283
+pub const SQLITE_NOTICE_RECOVER_ROLLBACK = 539
+pub const SQLITE_NOTICE_RBU = 795
+pub const SQLITE_WARNING_AUTOINDEX = 284
+pub const SQLITE_AUTH_USER = 279
+pub const SQLITE_OK_LOAD_PERMANENTLY = 256
+pub const SQLITE_OK_SYMLINK = 512
+
+// The name of each code above, for `Connection.sqlite_errorname()`.
+let _ERROR_NAMES = {
+    0: "SQLITE_OK",
+    1: "SQLITE_ERROR",
+    2: "SQLITE_INTERNAL",
+    3: "SQLITE_PERM",
+    4: "SQLITE_ABORT",
+    5: "SQLITE_BUSY",
+    6: "SQLITE_LOCKED",
+    7: "SQLITE_NOMEM",
+    8: "SQLITE_READONLY",
+    9: "SQLITE_INTERRUPT",
+    10: "SQLITE_IOERR",
+    11: "SQLITE_CORRUPT",
+    12: "SQLITE_NOTFOUND",
+    13: "SQLITE_FULL",
+    14: "SQLITE_CANTOPEN",
+    15: "SQLITE_PROTOCOL",
+    16: "SQLITE_EMPTY",
+    17: "SQLITE_SCHEMA",
+    18: "SQLITE_TOOBIG",
+    19: "SQLITE_CONSTRAINT",
+    20: "SQLITE_MISMATCH",
+    21: "SQLITE_MISUSE",
+    22: "SQLITE_NOLFS",
+    23: "SQLITE_AUTH",
+    24: "SQLITE_FORMAT",
+    25: "SQLITE_RANGE",
+    26: "SQLITE_NOTADB",
+    27: "SQLITE_NOTICE",
+    28: "SQLITE_WARNING",
+    100: "SQLITE_ROW",
+    101: "SQLITE_DONE",
+    257: "SQLITE_ERROR_MISSING_COLLSEQ",
+    513: "SQLITE_ERROR_RETRY",
+    769: "SQLITE_ERROR_SNAPSHOT",
+    1025: "SQLITE_ERROR_RESERVESIZE",
+    1281: "SQLITE_ERROR_KEY",
+    1537: "SQLITE_ERROR_UNABLE",
+    266: "SQLITE_IOERR_READ",
+    522: "SQLITE_IOERR_SHORT_READ",
+    778: "SQLITE_IOERR_WRITE",
+    1034: "SQLITE_IOERR_FSYNC",
+    1290: "SQLITE_IOERR_DIR_FSYNC",
+    1546: "SQLITE_IOERR_TRUNCATE",
+    1802: "SQLITE_IOERR_FSTAT",
+    2058: "SQLITE_IOERR_UNLOCK",
+    2314: "SQLITE_IOERR_RDLOCK",
+    2570: "SQLITE_IOERR_DELETE",
+    2826: "SQLITE_IOERR_BLOCKED",
+    3082: "SQLITE_IOERR_NOMEM",
+    3338: "SQLITE_IOERR_ACCESS",
+    3594: "SQLITE_IOERR_CHECKRESERVEDLOCK",
+    3850: "SQLITE_IOERR_LOCK",
+    4106: "SQLITE_IOERR_CLOSE",
+    4362: "SQLITE_IOERR_DIR_CLOSE",
+    4618: "SQLITE_IOERR_SHMOPEN",
+    4874: "SQLITE_IOERR_SHMSIZE",
+    5130: "SQLITE_IOERR_SHMLOCK",
+    5386: "SQLITE_IOERR_SHMMAP",
+    5642: "SQLITE_IOERR_SEEK",
+    5898: "SQLITE_IOERR_DELETE_NOENT",
+    6154: "SQLITE_IOERR_MMAP",
+    6410: "SQLITE_IOERR_GETTEMPPATH",
+    6666: "SQLITE_IOERR_CONVPATH",
+    6922: "SQLITE_IOERR_VNODE",
+    7178: "SQLITE_IOERR_AUTH",
+    7434: "SQLITE_IOERR_BEGIN_ATOMIC",
+    7690: "SQLITE_IOERR_COMMIT_ATOMIC",
+    7946: "SQLITE_IOERR_ROLLBACK_ATOMIC",
+    8202: "SQLITE_IOERR_DATA",
+    8458: "SQLITE_IOERR_CORRUPTFS",
+    8714: "SQLITE_IOERR_IN_PAGE",
+    8970: "SQLITE_IOERR_BADKEY",
+    9226: "SQLITE_IOERR_CODEC",
+    262: "SQLITE_LOCKED_SHAREDCACHE",
+    518: "SQLITE_LOCKED_VTAB",
+    261: "SQLITE_BUSY_RECOVERY",
+    517: "SQLITE_BUSY_SNAPSHOT",
+    773: "SQLITE_BUSY_TIMEOUT",
+    270: "SQLITE_CANTOPEN_NOTEMPDIR",
+    526: "SQLITE_CANTOPEN_ISDIR",
+    782: "SQLITE_CANTOPEN_FULLPATH",
+    1038: "SQLITE_CANTOPEN_CONVPATH",
+    1294: "SQLITE_CANTOPEN_DIRTYWAL",
+    1550: "SQLITE_CANTOPEN_SYMLINK",
+    267: "SQLITE_CORRUPT_VTAB",
+    523: "SQLITE_CORRUPT_SEQUENCE",
+    779: "SQLITE_CORRUPT_INDEX",
+    264: "SQLITE_READONLY_RECOVERY",
+    520: "SQLITE_READONLY_CANTLOCK",
+    776: "SQLITE_READONLY_ROLLBACK",
+    1032: "SQLITE_READONLY_DBMOVED",
+    1288: "SQLITE_READONLY_CANTINIT",
+    1544: "SQLITE_READONLY_DIRECTORY",
+    516: "SQLITE_ABORT_ROLLBACK",
+    275: "SQLITE_CONSTRAINT_CHECK",
+    531: "SQLITE_CONSTRAINT_COMMITHOOK",
+    787: "SQLITE_CONSTRAINT_FOREIGNKEY",
+    1043: "SQLITE_CONSTRAINT_FUNCTION",
+    1299: "SQLITE_CONSTRAINT_NOTNULL",
+    1555: "SQLITE_CONSTRAINT_PRIMARYKEY",
+    1811: "SQLITE_CONSTRAINT_TRIGGER",
+    2067: "SQLITE_CONSTRAINT_UNIQUE",
+    2323: "SQLITE_CONSTRAINT_VTAB",
+    2579: "SQLITE_CONSTRAINT_ROWID",
+    2835: "SQLITE_CONSTRAINT_PINNED",
+    3091: "SQLITE_CONSTRAINT_DATATYPE",
+    283: "SQLITE_NOTICE_RECOVER_WAL",
+    539: "SQLITE_NOTICE_RECOVER_ROLLBACK",
+    795: "SQLITE_NOTICE_RBU",
+    284: "SQLITE_WARNING_AUTOINDEX",
+    279: "SQLITE_AUTH_USER",
+    256: "SQLITE_OK_LOAD_PERMANENTLY",
+    512: "SQLITE_OK_SYMLINK",
+}
+
+// The name of `code`, as "SQLITE_CONSTRAINT_UNIQUE"; "unknown" for a code
+// this table does not have, as in CPython.
+func _error_name(code int) str {
+    return _ERROR_NAMES.get_or(code, "unknown")
+}

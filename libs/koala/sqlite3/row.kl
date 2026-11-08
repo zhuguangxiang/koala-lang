@@ -1,0 +1,55 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// One row of a query result, as Python's `sqlite3.Row`: a value is read by
+/// its index or by its column name.
+///
+///     let row = conn.execute("select id, name from t")!.fetchone()!
+///     let id = (row[0]! as int)!
+///     let name = (row["name"]! as str)!
+///     for value in row { print(value) }
+///
+/// A value is an `any?`: NULL is nil, INTEGER an `int`, REAL a `float`, TEXT
+/// a `str` and BLOB `bytes`.
+///
+/// Python's `fetchone()` returns a tuple unless `row_factory` is set to
+/// `sqlite3.Row`. A Koala tuple has a length fixed at compile time, so a
+/// row is always a `Row`.
+pub class Row : Iterable[any?] & Sized {
+    let _values list[any?]
+    let _names list[str]
+
+    func __init__(values list[any?], names list[str]) {
+        _values = values
+        _names = names
+    }
+
+    /// The value at index `key`, negative from the end, or of the column
+    /// named `key`, matched case-insensitively as in Python. Panics when
+    /// there is no such index or column.
+    pub func __getitem__(key int | str) any? {
+        if let index = key as int {
+            var at = index
+            if at < 0 { at = at + _values.len() }
+            if at < 0 || at >= _values.len() { panic("sqlite3: Row index out of range") }
+            return _values[at]
+        }
+
+        let name = (key as str)!.lower()
+        for i in range(_names.len()) {
+            if _names[i].lower() == name { return _values[i] }
+        }
+        panic("sqlite3: No item with that key")
+    }
+
+    /// The column names, in order.
+    pub func keys() list[str] = _names
+
+    /// The number of columns.
+    pub func len() int = _values.len()
+
+    /// The values, in order.
+    pub func iter(step = 1) Iterator[any?] = _values.iter(step)
+}
