@@ -43,6 +43,8 @@ class Commands {
                            help="Workspace or package directory (default: %(default)s)")
         build.add_argument("-o", "--output", default="./dist",
                            help="Output directory (default: %(default)s)")
+        build.add_argument("--force", action="store_true",
+                           help="Rebuild every artifact, even an up-to-date one")
 
         let check = sub.add_parser("check", help="Check without producing artifacts",
                                    epilog="Parses and type-checks without producing artifacts.")
@@ -119,7 +121,10 @@ func dispatch(argv list[str]) int {
     }
 
     if cmd == "new" { return wb.new_auto(_value(args, "name")) }
-    if cmd == "build" { return wb.build_all(_value(args, "dir"), _value(args, "output")) }
+    if cmd == "build" {
+        let force = (args.get("force")! as bool)!
+        return wb.build_all(_value(args, "dir"), _value(args, "output"), force)
+    }
     if cmd == "test" { return cmd_test(_value(args, "target")) }
     if cmd == "run" { return wb.run(_value(args, "target"), (args.get("args")! as list[str])!) }
     if cmd == "clean" { return wb.clean_all(_value(args, "dir"), (args.get("yes")! as bool)!) }

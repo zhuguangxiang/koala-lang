@@ -1,0 +1,188 @@
+// RUN: koala %s --test
+
+import "koala/wombat" as wb
+import "std/fs"
+import "std/ut"
+
+// One second in nanoseconds.
+const SECOND = 1_000_000_000
+
+// The files of the workspace `incr`, with their contents: package `a` with
+// a native library, and package `b` that imports `a`.
+func _files() dict[str, str] {
+    let files = dict[str, str]()
+    files["__ws__.toml"] = "[workspace]\nname = \"incr\"\nversion = \"0.1.0\"\n" +
+                           "packages = [\"a\", \"b\"]\n"
+    files["a/__pkg__.toml"] = "[package]\nname = \"incr/a\"\ndependencies = []\n" +
+                              "natives = []\n\n[native]\nname = \"incr_a\"\n" +
+                              "sources = [\"native/a.c\"]\n"
+    files["a/a.kl"] = "pub func one() int { return 1 }\n"
+    files["a/native/a.h"] = "int incr_a_one(void);\n"
+    files["a/native/a.c"] = "#include \"a.h\"\nint incr_a_one(void) { return 1; }\n"
+    files["b/__pkg__.toml"] = "[package]\nname = \"incr/b\"\ndependencies = [\"incr/a\"]\n" +
+                              "natives = []\n"
+    files["b/b.kl"] = "import \"incr/a\"\n\npub func two() int { return a.one() + 1 }\n"
+    return files
+}
+
+// The artifacts of `incr` under its `dist/`.
+let ARTIFACTS = ["a.klc", "b.klc", "libincr_a.so"]
+
+func _mtime(path str) int {
+    return fs.stat(path)!.mtime_ns
+}
+
+// A built workspace `incr`, its files and artifacts set back in time so a
+// rebuilt artifact shows up as a new mtime:
+//
+//   files      base - 2s
+//   artifacts  base - 1s    (`artifact_time`)
+//
+// `base` is the time of the first build, so the koala compiler, an input of
+// every `.klc`, stays older than the artifacts.
+class _Workspace {
+    let root str
+    let dist str
+    var artifact_time = 0
+
+    func __init__() {
+        root = fs.make_temp_dir("wombat_build")!.cat("incr").to_str()
+        dist = fs.Path(root).cat("dist").cat("incr").to_str()
+        fs.mkdir(root)
+        fs.mkdir(fs.Path(root).cat("a").to_str())
+        fs.mkdir(fs.Path(root).cat("a").cat("native").to_str())
+        fs.mkdir(fs.Path(root).cat("b").to_str())
+        let files = _files()
+        for name in files.keys() {
+            fs.write_str(fs.Path(root).cat(name).to_str(), files[name])
+        }
+
+        ut.assert_eq(build(), 0)
+
+        let base = _mtime(artifact("a.klc"))
+        let old = base - 2 * SECOND
+        for name in files.keys() {
+            fs.set_times(fs.Path(root).cat(name).to_str(), old, old)
+        }
+        artifact_time = base - SECOND
+        for name in ARTIFACTS {
+            fs.set_times(artifact(name), artifact_time, artifact_time)
+        }
+    }
+
+    func build(force = false) int {
+        return wb.build_all(root, "dist", force)
+    }
+
+    func artifact(name str) str {
+        return fs.Path(dist).cat(name).to_str()
+    }
+
+    // Make the file `name` newer than the artifacts, as an edit would.
+    func edit(name str) {
+        let time = artifact_time + SECOND / 2
+        fs.set_times(fs.Path(root).cat(name).to_str(), time, time)
+    }
+
+    // True when the artifact `name` was rebuilt since `__init__`.
+    func rebuilt(name str) bool {
+        return _mtime(artifact(name)) != artifact_time
+    }
+
+    func remove() {
+        fs.remove_all(fs.Path(root).parent())
+    }
+}
+
+@test
+func test_unchanged_workspace_builds_nothing() {
+    let ws = _Workspace()
+    ut.assert_eq(ws.build(), 0)
+    for name in ARTIFACTS {
+        ut.assert_false(ws.rebuilt(name), name)
+    }
+    ws.remove()
+}
+
+@test
+func test_changed_source_rebuilds_dependents() {
+    let ws = _Workspace()
+    ws.edit("a/a.kl")
+    ut.assert_eq(ws.build(), 0)
+    ut.assert_true(ws.rebuilt("a.klc"))
+    ut.assert_true(ws.rebuilt("b.klc"))
+    ut.assert_false(ws.rebuilt("libincr_a.so"))
+    ws.remove()
+}
+
+@test
+func test_changed_dependent_leaves_dependency() {
+    let ws = _Workspace()
+    ws.edit("b/b.kl")
+    ut.assert_eq(ws.build(), 0)
+    ut.assert_false(ws.rebuilt("a.klc"))
+    ut.assert_true(ws.rebuilt("b.klc"))
+    ws.remove()
+}
+
+@test
+func test_changed_manifest_rebuilds_package() {
+    let ws = _Workspace()
+    ws.edit("a/__pkg__.toml")
+    ut.assert_eq(ws.build(), 0)
+    for name in ARTIFACTS {
+        ut.assert_true(ws.rebuilt(name), name)
+    }
+    ws.remove()
+}
+
+@test
+func test_changed_native_source_rebuilds_library_only() {
+    let ws = _Workspace()
+    ws.edit("a/native/a.c")
+    ut.assert_eq(ws.build(), 0)
+    ut.assert_false(ws.rebuilt("a.klc"))
+    ut.assert_false(ws.rebuilt("b.klc"))
+    ut.assert_true(ws.rebuilt("libincr_a.so"))
+    ws.remove()
+}
+
+@test
+func test_changed_header_rebuilds_library() {
+    let ws = _Workspace()
+    ws.edit("a/native/a.h")
+    ut.assert_eq(ws.build(), 0)
+    ut.assert_false(ws.rebuilt("a.klc"))
+    ut.assert_true(ws.rebuilt("libincr_a.so"))
+    ws.remove()
+}
+
+@test
+func test_new_source_rebuilds_package() {
+    let ws = _Workspace()
+    fs.write_str(fs.Path(ws.root).cat("a").cat("extra.kl").to_str(), "pub let X = 1\n")
+    ut.assert_eq(ws.build(), 0)
+    ut.assert_true(ws.rebuilt("a.klc"))
+    ut.assert_true(ws.rebuilt("b.klc"))
+    ws.remove()
+}
+
+@test
+func test_missing_artifact_is_rebuilt() {
+    let ws = _Workspace()
+    fs.remove(ws.artifact("b.klc"))
+    ut.assert_eq(ws.build(), 0)
+    ut.assert_true(fs.exists(ws.artifact("b.klc")))
+    ut.assert_false(ws.rebuilt("a.klc"))
+    ws.remove()
+}
+
+@test
+func test_force_rebuilds_everything() {
+    let ws = _Workspace()
+    ut.assert_eq(ws.build(force=true), 0)
+    for name in ARTIFACTS {
+        ut.assert_true(ws.rebuilt(name), name)
+    }
+    ws.remove()
+}

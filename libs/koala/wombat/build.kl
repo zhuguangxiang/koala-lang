@@ -58,13 +58,17 @@ class Workspace {
 }
 
 /// Everything needed to compile one native library. Shared by
-/// `build_native` (package) and `build_workspace_native` (workspace)
-/// so `build_one_native` takes a single argument.
+/// `package_native_spec` (package) and `build_workspace_native`
+/// (workspace) so `build_one_native` takes a single argument.
+///
+/// `manifest` is the `__pkg__.toml` or `__ws__.toml` the library is
+/// declared in: editing it rebuilds the library.
 class NativeSpec {
     var name = ""
     var compiler = ""
     var base_dir = ""
     var out_dir = ""
+    var manifest = ""
     var sources = list[str]()
     var includes = list[str]()
     var cflags = list[str]()
@@ -73,7 +77,10 @@ class NativeSpec {
 }
 
 /// Load a workspace or a single package and build it.
-pub func build_all(src_dir str, output_dir str) int {
+///
+/// As make does, an artifact is rebuilt only when it is missing or one
+/// of its inputs is newer than it; `force` rebuilds every artifact.
+pub func build_all(src_dir str, output_dir str, force = false) int {
     let src_abs = fs.Path(src_dir).absolute().to_str()
 
     print("🚀 Wombat Build Started...")
@@ -101,7 +108,7 @@ pub func build_all(src_dir str, output_dir str) int {
         printf("🏗  Building Package: {} (v{})\n", ws.name, ws.version)
     }
 
-    return build_workspace(ws, out_abs)
+    return build_workspace(ws, out_abs, force)
 }
 
 /// Load a workspace if `__ws__.toml` exists, or a single-package
@@ -558,15 +565,17 @@ func build_one_native(spec NativeSpec) int {
     return 0
 }
 
-/// Build `<output_dir>/<ws_name>/lib<native_name>.so` for a package.
-func build_native(pkg Package, ws Workspace, output_dir str) int {
-    if pkg.native_name.empty() { return 0 }
-
+/// The spec of `<output_dir>/<ws_name>/lib<native_name>.so` for a
+/// package.
+func package_native_spec(pkg Package, ws Workspace, output_dir str) NativeSpec {
     var pkg_dir = ""
+    var manifest = ""
     if pkg.is_file {
         pkg_dir = fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).to_str()
+        manifest = fs.Path(ws.root).cat("__ws__.toml").to_str()
     } else {
         pkg_dir = fs.Path(ws.root).cat(pkg.dir_name).to_str()
+        manifest = fs.Path(pkg_dir).cat("__pkg__.toml").to_str()
     }
 
     let ws_name = fs.Path(ws.root).name()
@@ -576,21 +585,51 @@ func build_native(pkg Package, ws Workspace, output_dir str) int {
     spec.compiler = pkg.native_compiler
     spec.base_dir = pkg_dir
     spec.out_dir = fs.Path(output_dir).cat(ws_name).to_str()
+    spec.manifest = manifest
     spec.sources = pkg.native_sources
     spec.includes = pkg.native_includes
     spec.cflags = pkg.native_cflags
     spec.ldflags = pkg.native_ldflags
     spec.linkage = pkg.native_link
-
-    return build_one_native(spec)
+    return spec
 }
 
-/// Build every workspace-level `[[native]]`.
+/// The `.so` that `build_one_native(spec)` produces.
+func native_out(spec NativeSpec) str {
+    return fs.Path(spec.out_dir).cat("lib" + spec.name + ".so").to_str()
+}
+
+/// The files the `.so` of `spec` is built from: its sources, the `.h`
+/// files of `native/` and of each include directory, and its manifest.
+func native_inputs(spec NativeSpec) list[str] {
+    let inputs = list[str]()
+    for src in spec.sources {
+        inputs.append(resolve_path(spec.base_dir, src))
+    }
+
+    let dirs = list[str]()
+    dirs.append(fs.Path(spec.base_dir).cat("native").to_str())
+    for inc in spec.includes {
+        dirs.append(resolve_path(spec.base_dir, inc))
+    }
+    for dir in dirs {
+        let pattern = fs.Path(dir).cat("*.h").to_str()
+        for header in fs.glob(pattern) {
+            inputs.append(header.to_str())
+        }
+    }
+
+    if !spec.manifest.empty() { inputs.append(spec.manifest) }
+    return inputs
+}
+
+/// Build every workspace-level `[[native]]` that is not up to date, or
+/// every one when `force` is true.
 ///
 /// `sources` / `includes` are resolved against the workspace root.
 /// Returns 1 if any library fails; individual errors are printed by
 /// `build_one_native`.
-func build_workspace_native(ws Workspace, output_dir str) int {
+func build_workspace_native(ws Workspace, output_dir str, force bool) int {
     if ws.natives.len() == 0 { return 0 }
 
     let ws_name = fs.Path(ws.root).name()
@@ -605,18 +644,94 @@ func build_workspace_native(ws Workspace, output_dir str) int {
         spec.compiler = wn.compiler
         spec.base_dir = ws.root
         spec.out_dir = out_dir
+        spec.manifest = fs.Path(ws.root).cat("__ws__.toml").to_str()
         spec.sources = wn.sources
         spec.includes = wn.includes
         spec.cflags = wn.cflags
         spec.ldflags = wn.ldflags
         spec.linkage = wn.linkage
 
+        if !force && up_to_date(native_out(spec), native_inputs(spec)) {
+            printf("⏭  Up to date: {}\n\n", native_out(spec))
+            continue
+        }
         if build_one_native(spec) != 0 {
             any_failed = true
         }
     }
     if any_failed { return 1 }
     return 0
+}
+
+/// `path` itself if absolute, otherwise `path` under `base`.
+func resolve_path(base str, path str) str {
+    if path.starts_with("/") { return path }
+    return fs.Path(base).cat(path).to_str()
+}
+
+/// True when `out` exists and no file of `inputs` is newer than it, as
+/// make decides. A missing input counts as newer, so the build runs and
+/// reports it.
+func up_to_date(out str, inputs list[str]) bool {
+    let out_stat = fs.stat(out)
+    if out_stat == nil { return false }
+    let out_time = out_stat.mtime_ns
+
+    for input in inputs {
+        let input_stat = fs.stat(input)
+        if input_stat == nil { return false }
+        if input_stat.mtime_ns > out_time { return false }
+    }
+    return true
+}
+
+/// The file `command` runs: itself when it has a `/` (relative to
+/// `cwd`), otherwise the first match on `PATH`. "" when not found.
+func find_executable(command str, cwd str) str {
+    if "/" in command { return resolve_path(cwd, command) }
+
+    let path = os.getenv("PATH")
+    if path == nil { return "" }
+    for dir in path.split(":") {
+        let full = fs.Path(dir).cat(command).to_str()
+        if fs.is_file(full) { return full }
+    }
+    return ""
+}
+
+/// The files `<pkg>.klc` is built from: the `.kl` files `koala -c`
+/// reads, the manifest, the `.klc` of each dependency and the compiler.
+///
+/// A dependency rebuilt in this run is newer than the package's `.klc`,
+/// so the package is rebuilt after it.
+func koala_inputs(pkg Package, ws Workspace, output_dir str) list[str] {
+    let inputs = list[str]()
+
+    if pkg.is_file {
+        inputs.append(fs.Path(ws.root).cat(pkg.file).to_str())
+        inputs.append(fs.Path(ws.root).cat("__ws__.toml").to_str())
+    } else {
+        // `koala -c <dir>` compiles the `.kl` files directly in `<dir>`.
+        let pkg_dir = fs.Path(ws.root).cat(pkg.dir_name)
+        for src in fs.glob(pkg_dir.cat("*.kl").to_str()) {
+            inputs.append(src.to_str())
+        }
+        inputs.append(pkg_dir.cat("__pkg__.toml").to_str())
+    }
+
+    for dep in pkg.deps {
+        let dep_pkg = find_package(ws, dep)
+        inputs.append(fs.Path(output_dir).cat(artifact_rel(ws, dep_pkg)).to_str())
+    }
+
+    // The first word of `compiler` is the program `build_cmd` runs.
+    var command = "koala"
+    if !pkg.compiler.empty() { command = pkg.compiler.split(" ")[0] }
+    let ws_parent = fs.Path(ws.root).parent().to_str()
+    let compiler = find_executable(command, ws_parent)
+    if !compiler.empty() { inputs.append(compiler) }
+
+    return inputs
 }
 
 /// Artifact path: `<pkg.name>.klc`.
@@ -669,10 +784,14 @@ func build_cmd(pkg Package, ws Workspace, output_dir str) str {
 ///      a. koala: `koala -c` produces `<pkg>.klc`
 ///      b. native: package `[native]` then `check_natives`
 ///
+/// An artifact that is up to date (see `up_to_date`) is skipped unless
+/// `force` is true. A package counts as built when any of its artifacts
+/// was built.
+///
 /// A failure in one stage is recorded but does not skip the other
 /// stages or later packages. Every failure is printed at the end; the
 /// function returns 1 if anything failed.
-func build_workspace(ws Workspace, output_dir str) int {
+func build_workspace(ws Workspace, output_dir str, force bool) int {
     let order = topo_sort(ws.packages)
     if order.len() != ws.packages.len() {
         print("wombat build: circular dependency detected")
@@ -699,38 +818,51 @@ func build_workspace(ws Workspace, output_dir str) int {
     let failed_stages = list[str]()
 
     // All workspace-level natives first.
-    if build_workspace_native(ws, output_dir) != 0 {
+    if build_workspace_native(ws, output_dir, force) != 0 {
         failed_pkgs.append(ws.name)
         failed_stages.append("ws-native")
     }
 
+    var built = 0
     for name in order {
         let pkg = find_package(ws, name)
+        var pkg_built = false
 
         // 1. koala: build `<pkg>.klc`.
-        let sub = build_cmd(pkg, ws, output_dir)
         let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
-        let parent = fs.Path(out).parent().to_str()
-
-        let full = "cd " + ws_parent +
-                   " && mkdir -p " + parent +
-                   " && KOALA_PATH=" + koala_path + " " + sub
-
-        printf("🚀 Running: {}\n", sub)
-        let rc2 = os.system(full)
-        if rc2 != 0 {
-            printf("❌️ Failed artifact: {}\n\n", out)
-            failed_pkgs.append(pkg.name)
-            failed_stages.append("koala")
+        if !force && up_to_date(out, koala_inputs(pkg, ws, output_dir)) {
+            printf("⏭  Up to date: {}\n\n", out)
         } else {
-            printf("✅ Generated artifact: {}\n\n", out)
+            pkg_built = true
+            let sub = build_cmd(pkg, ws, output_dir)
+            let parent = fs.Path(out).parent().to_str()
+
+            let full = "cd " + ws_parent +
+                       " && mkdir -p " + parent +
+                       " && KOALA_PATH=" + koala_path + " " + sub
+
+            printf("🚀 Running: {}\n", sub)
+            let rc2 = os.system(full)
+            if rc2 != 0 {
+                printf("❌️ Failed artifact: {}\n\n", out)
+                failed_pkgs.append(pkg.name)
+                failed_stages.append("koala")
+            } else {
+                printf("✅ Generated artifact: {}\n\n", out)
+            }
         }
 
         // 2. native: build and check the package's own C library.
         var native_failed = false
         if !pkg.native_name.empty() {
-            if build_native(pkg, ws, output_dir) != 0 {
-                native_failed = true
+            let spec = package_native_spec(pkg, ws, output_dir)
+            if !force && up_to_date(native_out(spec), native_inputs(spec)) {
+                printf("⏭  Up to date: {}\n\n", native_out(spec))
+            } else {
+                pkg_built = true
+                if build_one_native(spec) != 0 {
+                    native_failed = true
+                }
             }
         }
         if !native_failed && pkg.natives.len() > 0 {
@@ -742,11 +874,13 @@ func build_workspace(ws Workspace, output_dir str) int {
             failed_pkgs.append(pkg.name)
             failed_stages.append("native")
         }
+        if pkg_built { built += 1 }
     }
 
     let total_failed = failed_pkgs.len()
     if total_failed == 0 {
-        printf("wombat build: {} package(s) built\n", order.len().to_str())
+        let fresh = order.len() - built
+        printf("wombat build: {} built, {} up to date\n", built, fresh)
         return 0
     }
 

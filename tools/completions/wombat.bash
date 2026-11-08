@@ -24,9 +24,9 @@ _wombat() {
     local cmd="${COMP_WORDS[1]}"
     case "$cmd" in
         build)
-            # `wombat build [dir] [-o DIR]`
+            # `wombat build [dir] [-o DIR] [--force]`
             if [[ "$cur" == -* ]]; then
-                COMPREPLY=( $(compgen -W "-o --output" -- "$cur") )
+                COMPREPLY=( $(compgen -W "-o --output --force" -- "$cur") )
             else
                 # Only directories that look like a workspace or package.
                 COMPREPLY=( $(compgen -W "$(_wombat_ws_dirs)" -- "$cur") )

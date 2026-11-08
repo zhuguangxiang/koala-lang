@@ -154,10 +154,26 @@ The workspace being built.
 ### `build_all`
 
 ```kl
-pub func build_all(src_dir str, output_dir str) int
+pub func build_all(src_dir str, output_dir str, force = false) int
 ```
 
 Load a workspace or a single package and build it.
+
+As make does, an artifact is rebuilt only when it is missing or one of
+its inputs is newer than it; `force` (`wombat build --force`) rebuilds
+every artifact. The inputs are:
+
+- `<pkg>.klc`: the `.kl` files directly in the package directory (or
+  the file of a `[[package]]`), its `__pkg__.toml` (or `__ws__.toml`),
+  the `.klc` of each package in `dependencies`, and the `koala`
+  executable. A dependency rebuilt in the same run is newer than its
+  dependents, so they are rebuilt after it.
+- `lib<native>.so`: its `sources`, the `.h` files of `native/` and of
+  each `includes` directory, and the manifest that declares it.
+
+Only packages of the same workspace are tracked; another workspace
+(such as `std`) is not. The build ends with
+`wombat build: N built, M up to date`.
 
 `src_dir` may contain `__ws__.toml` (workspace mode) or
 `__pkg__.toml` (single-package mode). A relative `output_dir` is
@@ -319,10 +335,11 @@ func build_cmd(pkg Package, ws Workspace, output_dir str) str
 ### `build_workspace`
 
 ```kl
-func build_workspace(ws Workspace, output_dir str) int
+func build_workspace(ws Workspace, output_dir str, force bool) int
 ```
 
-Compile every package in dependency order.
+Compile every package in dependency order, skipping the artifacts
+that are up to date unless `force` is true.
 
 <a id="base_name"></a>
 
