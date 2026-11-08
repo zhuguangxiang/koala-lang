@@ -168,8 +168,16 @@ typedef struct _TValue {
 #define to_int8(v)     ({ ASSERT(is_int8(v)); (int8_t)(v)->ival; })
 #define to_int16(v)    ({ ASSERT(is_int16(v)); (int16_t)(v)->ival; })
 #define to_int32(v)    ({ ASSERT(is_int32(v)); (int32_t)(v)->ival; })
-#define to_int64(v)    ({ ASSERT(is_int64(v)); (int64_t)(v)->ival; })
-#define to_int(v)      ({ ASSERT(is_int(v)); (int64_t)(v)->ival; })
+
+/*
+An int64 value: a widened value keeps its own tag at run time, so any signed integer, or an
+unsigned one narrower than 64 bits, arrives here; all of them fit an int64.
+*/
+#define is_widened_int64(x) \
+    (is_int(x) || (x)->tag == TAG_UINT8 || (x)->tag == TAG_UINT16 || (x)->tag == TAG_UINT32)
+
+#define to_int64(v)    ({ ASSERT(is_widened_int64(v)); (int64_t)(v)->ival; })
+#define to_int(v)      ({ ASSERT(is_widened_int64(v)); (int64_t)(v)->ival; })
 
 /* Unsigned integers */
 #define to_uint8(v)    ({ ASSERT(is_uint8(v)); (uint8_t)(v)->ival; })
@@ -363,19 +371,39 @@ Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner);
  |  String related                                                           |
  +---------------------------------------------------------------------------*/
 
+/* A str: valid UTF-8 text, any invalid byte replaced by U+FFFD when it was made. Its length,
+   indexes and slices count characters (code points); `size` is its length in bytes, for C. */
 typedef struct _StringObject {
     OBJECT_HEAD
+    /* bytes of the UTF-8 text */
     size_t size;
+    /* characters (code points) */
+    size_t nchars;
+    /* every character is ASCII: a character index is a byte offset */
+    int ascii;
     char *array;
+    /* For a non-ASCII str, built when first needed: the byte offset of every 64th character, and
+       the last character index looked up with its byte offset, so that a scan by index is O(1)
+       per step. */
+    uint32_t *offsets;
+    size_t cached_char;
+    size_t cached_byte;
 } StringObject;
 
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
 #define STR_BUF(ob) (((StringObject *)(ob))->array)
 #define STR_LEN(ob) (((StringObject *)(ob))->size)
+#define STR_NCHARS(ob) (((StringObject *)(ob))->nchars)
 
 Object *kl_new_nstr(char *s, size_t len);
 static inline Object *kl_new_str(char *s) { return kl_new_nstr(s, strlen(s)); }
+
+/* The byte offset of character `ci` of the str `s`, clamped to 0..nchars (nchars gives the end). */
+size_t kl_str_byte_offset(Object *s, int64_t ci);
+
+/* The character index of byte offset `offset` of the str `s`, which starts a character. */
+int64_t kl_str_char_index(Object *s, size_t offset);
 Object *kl_new_fmt_str(char *fmt, ...);
 void kl_free_str(Object *obj);
 

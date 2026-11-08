@@ -225,3 +225,18 @@ func test_parse_spaces_are_kept() {
     ut.assert_eq(row[1], " b ")
     ut.assert_eq(row[2], "c ")
 }
+
+// A NUL inside a field is field content: the field is "a\x00b", not cut at the NUL.
+@test
+func test_parse_field_with_nul() {
+    let rs = csv.parse("a\x00b,c\n").records()
+    ut.assert_eq(rs[0][0].len(), 3)
+    ut.assert_eq(rs[0][1], "c")
+}
+
+// The quoted pieces of a non-ASCII field are cut at the right characters.
+@test
+func test_write_quotes_non_ascii_field() {
+    ut.assert_eq(csv.write([["你\"好"]]), "\"你\"\"好\"\n")
+    ut.assert_eq(csv.write([["中,文", "字"]]), "\"中,文\",字\n")
+}

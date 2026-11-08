@@ -9,10 +9,15 @@
 #include "listobj.h"
 #include "object.h"
 #include "tupleobj.h"
+#include "utf8.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+static size_t str_byte_offset(StringObject *s, int64_t ci);
+static int64_t str_char_index(StringObject *s, size_t offset);
+static int utf8_width(unsigned char lead);
 
 static TValue _str_init(TValue *self, TValue *args, int nargs) { UNREACHABLE(); }
 
@@ -484,13 +489,13 @@ static TValue _str_index(TValue *self, TValue *args, int nargs)
     int end = kl_arg_int64(2);
 
     const char *src = STR_BUF(s);
-    size_t size = STR_LEN(s);
+    int nchars = (int)STR_NCHARS(s);
 
     const char *pat = STR_BUF(sub);
     size_t pat_size = STR_LEN(sub);
 
     // normalize end
-    if (end < 0 || end > (int)size) end = (int)size;
+    if (end < 0 || end > nchars) end = nchars;
 
     // clamp start
     if (start < 0) start = 0;
@@ -501,16 +506,16 @@ static TValue _str_index(TValue *self, TValue *args, int nargs)
         return int64_value(start);
     }
 
-    // search range
-    size_t search_len = end - start;
-
-    // memmem search
-    const char *pos = memmem(src + start, search_len, pat, pat_size);
+    // search the bytes of characters [start, end): a valid UTF-8 pattern only matches at the
+    // start of a character
+    size_t from = str_byte_offset(s, start);
+    size_t to = str_byte_offset(s, end);
+    const char *pos = memmem(src + from, to - from, pat, pat_size);
 
     if (!pos) return int64_value(-1);
 
-    // return byte index (Koala str index = byte index)
-    return int64_value((int)(pos - src));
+    // the character index of the match
+    return int64_value(str_char_index(s, (size_t)(pos - src)));
 }
 
 // pub func rindex(value str, start = 0, end = -1) int {}
@@ -525,13 +530,13 @@ static TValue _str_rindex(TValue *self, TValue *args, int nargs)
     int end = kl_arg_int64(2);
 
     const char *src = STR_BUF(s);
-    size_t size = STR_LEN(s);
+    int nchars = (int)STR_NCHARS(s);
 
     const char *pat = STR_BUF(sub);
     size_t pat_size = STR_LEN(sub);
 
     // normalize end
-    if (end < 0 || end > (int)size) end = (int)size;
+    if (end < 0 || end > nchars) end = nchars;
 
     // clamp start
     if (start < 0) start = 0;
@@ -540,14 +545,15 @@ static TValue _str_rindex(TValue *self, TValue *args, int nargs)
     // empty pattern → match at end (Python semantics)
     if (pat_size == 0) return int64_value(end);
 
-    // search range
-    size_t search_len = end - start;
+    // the bytes of characters [start, end)
+    int64_t from = (int64_t)str_byte_offset(s, start);
+    int64_t to = (int64_t)str_byte_offset(s, end);
 
     // rindex: scan from right to left
-    // last possible match starts at: end - pat_size
-    for (int i = end - pat_size; i >= start; i--) {
+    // last possible match starts at: to - pat_size
+    for (int64_t i = to - (int64_t)pat_size; i >= from; i--) {
         if (memcmp(src + i, pat, pat_size) == 0) {
-            return int64_value(i);
+            return int64_value(str_char_index(s, (size_t)i));
         }
     }
 
@@ -566,13 +572,13 @@ static TValue _str_count(TValue *self, TValue *args, int nargs)
     int64_t end = kl_arg_int64(2);
 
     const char *src = STR_BUF(s);
-    size_t size = STR_LEN(s);
+    int64_t nchars = (int64_t)STR_NCHARS(s);
 
     const char *pat = STR_BUF(sub);
     size_t pat_size = STR_LEN(sub);
 
     // normalize end
-    if (end < 0 || end > (int64_t)size) end = (int64_t)size;
+    if (end < 0 || end > nchars) end = nchars;
 
     // clamp start
     if (start < 0) start = 0;
@@ -583,12 +589,12 @@ static TValue _str_count(TValue *self, TValue *args, int nargs)
         return int64_value((end - start) + 1);
     }
 
-    size_t search_len = end - start;
     int count = 0;
 
-    // scan from left to right
-    size_t i = start;
-    while (i + pat_size <= (size_t)end) {
+    // scan the bytes of characters [start, end) from left to right
+    size_t i = str_byte_offset(s, start);
+    size_t to = str_byte_offset(s, end);
+    while (i + pat_size <= to) {
         if (memcmp(src + i, pat, pat_size) == 0) {
             count++;
             i += pat_size; // non-overlapping matches (Python semantics)
@@ -611,19 +617,19 @@ static TValue _str_substr(TValue *self, TValue *args, int nargs)
     int end = kl_arg_int64(1);
 
     char *src = STR_BUF(s);
-    size_t size = STR_LEN(s);
+    int nchars = (int)STR_NCHARS(s);
 
     // normalize end
-    if (end < 0 || end > (int)size) end = (int)size;
+    if (end < 0 || end > nchars) end = nchars;
 
     // clamp start
     if (start < 0) start = 0;
     if (start > end) start = end;
 
-    size_t len = end - start;
-
-    // create new string (copy bytes)
-    TValue val = kl_val_nstr(src + start, len);
+    // create new string (copy the bytes of the characters)
+    size_t from = str_byte_offset(s, start);
+    size_t to = str_byte_offset(s, end);
+    TValue val = kl_val_nstr(src + from, to - from);
     return val;
 }
 
@@ -893,51 +899,63 @@ static TValue _str_isupper(TValue *self, TValue *args, int nargs)
     return bool_value(true);
 }
 
+/* The fill character of center / ljust / rjust: its bytes in *fill and *fill_len. False when it
+   is not one character. */
+static bool pad_fill(TValue *args, int nargs, const char **fill, size_t *fill_len)
+{
+    *fill = " ";
+    *fill_len = 1;
+    if (nargs < 2) return true;
+    StringObject *fs = kl_arg_strobj(1);
+    if (STR_NCHARS(fs) != 1) return false;
+    *fill = STR_BUF(fs);
+    *fill_len = STR_LEN(fs);
+    return true;
+}
+
+/* `s` with `left` fill characters before it and `right` after it. */
+static Object *pad_str(StringObject *s, const char *fill, size_t fill_len, int64_t left,
+                       int64_t right)
+{
+    size_t out_len = s->size + (size_t)(left + right) * fill_len;
+    char *out = mm_alloc(out_len);
+    size_t n = 0;
+    for (int64_t i = 0; i < left; i++) {
+        memcpy(out + n, fill, fill_len);
+        n += fill_len;
+    }
+    memcpy(out + n, s->array, s->size);
+    n += s->size;
+    for (int64_t i = 0; i < right; i++) {
+        memcpy(out + n, fill, fill_len);
+        n += fill_len;
+    }
+    Object *sobj = kl_new_nstr(out, out_len);
+    mm_free(out);
+    return sobj;
+}
+
 static TValue _str_center(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs >= 1 && nargs <= 2);
 
     StringObject *s = SELF_AS(str_type);
-    const char *buf = STR_BUF(s);
-    size_t len = STR_LEN(s);
-
     int64_t width = kl_arg_int64(0);
-    const char *fill = " ";
-    size_t fill_len = 1;
-
-    if (nargs == 2) {
-        StringObject *fs = kl_arg_strobj(1);
-        fill = STR_BUF(fs);
-        fill_len = STR_LEN(fs);
-
-        if (fill_len != 1) {
-            raise_exc_str("center(): fill must be a single character");
-            return error_value;
-        }
+    const char *fill;
+    size_t fill_len;
+    if (!pad_fill(args, nargs, &fill, &fill_len)) {
+        raise_exc_str("center(): fill must be a single character");
+        return error_value;
     }
 
-    // width <= len → return original
-    if (width <= (int64_t)len) return obj_value(s);
+    // width <= the number of characters → return original
+    int64_t len = (int64_t)s->nchars;
+    if (width <= len) return obj_value(s);
 
-    int64_t total = width - (int64_t)len;
+    int64_t total = width - len;
     int64_t left = total / 2;
     int64_t right = total - left;
-
-    size_t out_len = (size_t)width;
-    char *out = mm_alloc(out_len);
-
-    // fill left
-    for (int64_t i = 0; i < left; i++) out[i] = fill[0];
-
-    // copy original
-    memcpy(out + left, buf, len);
-
-    // fill right
-    for (int64_t i = 0; i < right; i++) out[left + len + i] = fill[0];
-
-    Object *sobj = kl_new_nstr(out, out_len);
-    mm_free(out);
-    return obj_value(sobj);
+    return obj_value(pad_str(s, fill, fill_len, left, right));
 }
 
 static TValue _str_ljust(TValue *self, TValue *args, int nargs)
@@ -945,37 +963,17 @@ static TValue _str_ljust(TValue *self, TValue *args, int nargs)
     ASSERT(nargs >= 1 && nargs <= 2);
 
     StringObject *s = SELF_AS(str_type);
-    const char *buf = STR_BUF(s);
-    size_t len = STR_LEN(s);
-
     int64_t width = kl_arg_int64(0);
-    const char *fill = " ";
-    size_t fill_len = 1;
-
-    if (nargs == 2) {
-        StringObject *fs = kl_arg_strobj(1);
-        fill = STR_BUF(fs);
-        fill_len = STR_LEN(fs);
-        if (fill_len != 1) {
-            raise_exc_str("ljust(): fill must be a single character");
-            return error_value;
-        }
+    const char *fill;
+    size_t fill_len;
+    if (!pad_fill(args, nargs, &fill, &fill_len)) {
+        raise_exc_str("ljust(): fill must be a single character");
+        return error_value;
     }
 
-    if (width <= (int64_t)len) return obj_value(s);
-
-    int64_t pad = width - (int64_t)len;
-    size_t out_len = (size_t)width;
-
-    char *out = mm_alloc(out_len);
-
-    memcpy(out, buf, len);
-
-    for (int64_t i = 0; i < pad; i++) out[len + i] = fill[0];
-
-    Object *sobj = kl_new_nstr(out, out_len);
-    mm_free(out);
-    return obj_value(sobj);
+    int64_t len = (int64_t)s->nchars;
+    if (width <= len) return obj_value(s);
+    return obj_value(pad_str(s, fill, fill_len, 0, width - len));
 }
 
 static TValue _str_rjust(TValue *self, TValue *args, int nargs)
@@ -983,37 +981,17 @@ static TValue _str_rjust(TValue *self, TValue *args, int nargs)
     ASSERT(nargs >= 1 && nargs <= 2);
 
     StringObject *s = SELF_AS(str_type);
-    const char *buf = STR_BUF(s);
-    size_t len = STR_LEN(s);
-
     int64_t width = kl_arg_int64(0);
-    const char *fill = " ";
-    size_t fill_len = 1;
-
-    if (nargs == 2) {
-        StringObject *fs = kl_arg_strobj(1);
-        fill = STR_BUF(fs);
-        fill_len = STR_LEN(fs);
-        if (fill_len != 1) {
-            raise_exc_str("rjust(): fill must be a single character");
-            return error_value;
-        }
+    const char *fill;
+    size_t fill_len;
+    if (!pad_fill(args, nargs, &fill, &fill_len)) {
+        raise_exc_str("rjust(): fill must be a single character");
+        return error_value;
     }
 
-    if (width <= (int64_t)len) return obj_value(s);
-
-    int64_t pad = width - (int64_t)len;
-    size_t out_len = (size_t)width;
-
-    char *out = mm_alloc(out_len);
-
-    for (int64_t i = 0; i < pad; i++) out[i] = fill[0];
-
-    memcpy(out + pad, buf, len);
-
-    Object *sobj = kl_new_nstr(out, out_len);
-    mm_free(out);
-    return obj_value(sobj);
+    int64_t len = (int64_t)s->nchars;
+    if (width <= len) return obj_value(s);
+    return obj_value(pad_str(s, fill, fill_len, width - len, 0));
 }
 
 static inline bool is_space(unsigned char c)
@@ -1251,11 +1229,12 @@ static TValue _str_zfill(TValue *self, TValue *args, int nargs)
     const char *buf = STR_BUF(s);
     size_t len = STR_LEN(s);
 
+    // the width counts characters; the zeros are one byte each
     int64_t width = kl_arg_int64(0);
 
-    if (width <= (int64_t)len) return obj_value(s);
+    if (width <= (int64_t)s->nchars) return obj_value(s);
 
-    int64_t pad = width - (int64_t)len;
+    int64_t pad = width - (int64_t)s->nchars;
 
     // Check sign
     bool has_sign = false;
@@ -1266,15 +1245,13 @@ static TValue _str_zfill(TValue *self, TValue *args, int nargs)
         sign = buf[0];
     }
 
-    size_t out_len = (size_t)width;
+    size_t out_len = len + (size_t)pad;
     char *out = mm_alloc(out_len);
 
     size_t oi = 0;
 
-    if (has_sign) {
-        out[oi++] = sign;
-        pad++; // because sign stays at front, pad increases by 1
-    }
+    // the sign stays first, the zeros go after it
+    if (has_sign) out[oi++] = sign;
 
     for (int64_t i = 0; i < pad; i++) out[oi++] = '0';
 
@@ -1287,10 +1264,11 @@ static TValue _str_zfill(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
+/* The number of characters. */
 static TValue _str_len(TValue *self, TValue *args, int nargs)
 {
     StringObject *s = SELF_AS(str_type);
-    return int64_value((int64_t)s->size);
+    return int64_value((int64_t)s->nchars);
 }
 
 static TValue _str_getitem(TValue *self, TValue *args, int nargs)
@@ -1300,12 +1278,15 @@ static TValue _str_getitem(TValue *self, TValue *args, int nargs)
     // int64_t index = kl_arg_int64(0);
     int64_t index = kl_arg_int(0);
     StringObject *s = SELF_AS(str_type);
-    if (index < 0) index += s->size;
-    if (index < 0 || index >= (int64_t)s->size) {
+    if (index < 0) index += (int64_t)s->nchars;
+    if (index < 0 || index >= (int64_t)s->nchars) {
         raise_exc_str("str index out of range");
         return error_value;
     }
-    return kl_val_nstr(s->array + index, 1);
+    // the character at `index`
+    size_t off = str_byte_offset(s, index);
+    int width = utf8_width((unsigned char)s->array[off]);
+    return kl_val_nstr(s->array + off, (size_t)width);
 }
 
 static TValue _str_getslice(TValue *self, TValue *args, int nargs)
@@ -1327,7 +1308,7 @@ static TValue _str_getslice(TValue *self, TValue *args, int nargs)
     /* Normalize raw slice parameters into a valid [start, end) range,
      * handling None defaults, negative indices, and clamping.
      * Returns: >0 valid slice, ==0 empty slice, <0 invalid arguments. */
-    int r = slice_adjust(&start, &end, step, STR_LEN(sobj));
+    int r = slice_adjust(&start, &end, step, STR_NCHARS(sobj));
     if (r < 0) {
         raise_exc_str("invalid slice");
         return error_value;
@@ -1358,20 +1339,26 @@ static TValue _str_getslice(TValue *self, TValue *args, int nargs)
     /* Fast path: step==1 is the most common slice operation.
      * Return a zero-copy view directly into the source string buffer. */
     if (step == 1) {
-        return kl_val_nstr(sobj->array + start, len);
+        size_t from = str_byte_offset(sobj, start);
+        size_t to = str_byte_offset(sobj, start + len);
+        return kl_val_nstr(sobj->array + from, to - from);
     }
 
-    /* General path: copy elements one by one into a new buffer.
+    /* General path: copy the characters one by one into a new buffer.
      * A single loop handles both positive and negative steps because
      * "idx += step" naturally advances or retreats based on step sign,
      * eliminating the need for separate branches. */
-    char *buf = mm_alloc(len);
+    char *buf = mm_alloc((size_t)len * 4);
+    size_t n = 0;
     int64_t idx = start;
     for (int64_t i = 0; i < len; i++) {
-        buf[i] = sobj->array[idx];
+        size_t off = str_byte_offset(sobj, idx);
+        int width = utf8_width((unsigned char)sobj->array[off]);
+        memcpy(buf + n, sobj->array + off, (size_t)width);
+        n += (size_t)width;
         idx += step;
     }
-    TValue ret = kl_val_nstr(buf, len);
+    TValue ret = kl_val_nstr(buf, n);
     mm_free(buf);
     return ret;
 }
@@ -1485,8 +1472,168 @@ TypeObject str_type = {
 static StringObject empty_str = {
     ._type = &str_type,
     .size = 0,
+    .nchars = 0,
+    .ascii = 1,
     .array = "",
 };
+
+/* The UTF-8 encoding of U+FFFD, which takes the place of an invalid byte. */
+static const char REPLACEMENT[] = "\xEF\xBF\xBD";
+
+/* Count the characters of s[0:len]. Sets *ascii when they are all ASCII and *valid when s is
+   valid UTF-8; an invalid byte counts as one character, the U+FFFD it becomes. */
+static size_t count_chars(const char *s, size_t len, int *ascii, int *valid)
+{
+    size_t i = 0;
+    size_t nchars = 0;
+    *ascii = 1;
+    *valid = 1;
+    while (i < len) {
+        if ((unsigned char)s[i] < 0x80) {
+            i++;
+            nchars++;
+            continue;
+        }
+        *ascii = 0;
+        uint32_t rune;
+        int w = utf8_decode(s + i, len - i, &rune);
+        if (w == 1 && rune == UTF8_RUNE_ERROR) *valid = 0;
+        i += (size_t)w;
+        nchars++;
+    }
+    return nchars;
+}
+
+/* s[0:len] with each invalid byte replaced by U+FFFD, in a new buffer of *out_len bytes. */
+static char *repair_utf8(const char *s, size_t len, size_t *out_len)
+{
+    char *out = mm_alloc(len * 3 + 1);
+    size_t n = 0;
+    size_t i = 0;
+    while (i < len) {
+        uint32_t rune;
+        int w = utf8_decode(s + i, len - i, &rune);
+        if (w == 1 && rune == UTF8_RUNE_ERROR) {
+            memcpy(out + n, REPLACEMENT, 3);
+            n += 3;
+        } else {
+            memcpy(out + n, s + i, (size_t)w);
+            n += (size_t)w;
+        }
+        i += (size_t)w;
+    }
+    out[n] = '\0';
+    *out_len = n;
+    return out;
+}
+
+/* Characters per entry of StringObject.offsets. */
+#define OFFSET_STEP 64
+
+/* The bytes of the character that starts with `lead`, in valid UTF-8. */
+static int utf8_width(unsigned char lead)
+{
+    if (lead < 0x80) return 1;
+    if (lead < 0xE0) return 2;
+    if (lead < 0xF0) return 3;
+    return 4;
+}
+
+/* Byte offset `from`, moved forward over `count` characters. */
+static size_t skip_chars(const char *buf, size_t from, size_t count)
+{
+    size_t off = from;
+    for (size_t i = 0; i < count; i++) off += (size_t)utf8_width((unsigned char)buf[off]);
+    return off;
+}
+
+/* Build s->offsets: the byte offset of characters 0, 64, 128, ... */
+static void build_offsets(StringObject *s)
+{
+    size_t entries = s->nchars / OFFSET_STEP + 1;
+    s->offsets = mm_alloc(entries * sizeof(uint32_t));
+    size_t off = 0;
+    for (size_t k = 0; k < entries; k++) {
+        s->offsets[k] = (uint32_t)off;
+        if (k + 1 < entries) off = skip_chars(s->array, off, OFFSET_STEP);
+    }
+}
+
+/* The byte offset of character `ci`, clamped to 0..nchars (nchars gives the end). */
+static size_t str_byte_offset(StringObject *s, int64_t ci)
+{
+    if (ci <= 0) return 0;
+    if ((size_t)ci >= s->nchars) return s->size;
+    if (s->ascii) return (size_t)ci;
+
+    size_t target = (size_t)ci;
+    size_t off;
+    if (target >= s->cached_char && target - s->cached_char < OFFSET_STEP) {
+        // a little after the last lookup: a scan going forward
+        off = skip_chars(s->array, s->cached_byte, target - s->cached_char);
+    } else if (target < s->cached_char && s->cached_char - target < OFFSET_STEP) {
+        // a little before it: a scan going backward, over the continuation bytes
+        off = s->cached_byte;
+        for (size_t i = target; i < s->cached_char; i++) {
+            do {
+                off--;
+            } while (((unsigned char)s->array[off] & 0xC0) == 0x80);
+        }
+    } else {
+        if (!s->offsets) build_offsets(s);
+        size_t k = target / OFFSET_STEP;
+        off = skip_chars(s->array, s->offsets[k], target - k * OFFSET_STEP);
+    }
+    s->cached_char = target;
+    s->cached_byte = off;
+    return off;
+}
+
+/* The character index of byte offset `offset`, which starts a character. */
+static int64_t str_char_index(StringObject *s, size_t offset)
+{
+    if (s->ascii) return (int64_t)offset;
+    if (offset >= s->size) return (int64_t)s->nchars;
+
+    size_t ci = 0;
+    size_t off = 0;
+    if (offset >= s->cached_byte) {
+        ci = s->cached_char;
+        off = s->cached_byte;
+    } else if (s->nchars >= OFFSET_STEP) {
+        if (!s->offsets) build_offsets(s);
+        // the last entry at or before `offset`
+        size_t lo = 0;
+        size_t hi = s->nchars / OFFSET_STEP;
+        while (lo < hi) {
+            size_t mid = (lo + hi + 1) / 2;
+            if (s->offsets[mid] <= offset) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        ci = lo * OFFSET_STEP;
+        off = s->offsets[lo];
+    }
+    while (off < offset) {
+        off += (size_t)utf8_width((unsigned char)s->array[off]);
+        ci++;
+    }
+    return (int64_t)ci;
+}
+
+size_t kl_str_byte_offset(Object *s, int64_t ci)
+{
+    ASSERT(IS_STR(s));
+    return str_byte_offset((StringObject *)s, ci);
+}
+
+int64_t kl_str_char_index(Object *s, size_t offset)
+{
+    ASSERT(IS_STR(s));
+    return str_char_index((StringObject *)s, offset);
+}
 
 Object *kl_new_nstr(char *s, size_t len)
 {
@@ -1496,12 +1643,21 @@ Object *kl_new_nstr(char *s, size_t len)
 
     StringObject *x = mm_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &str_type, 0);
-    x->size = len;
 
-    char *data = mm_alloc(len + 1);
-    memcpy(data, s, len);
-    data[len] = '\0';
-    x->array = data;
+    int ascii;
+    int valid;
+    x->nchars = count_chars(s, len, &ascii, &valid);
+    x->ascii = ascii;
+
+    if (valid) {
+        char *data = mm_alloc(len + 1);
+        memcpy(data, s, len);
+        data[len] = '\0';
+        x->array = data;
+        x->size = len;
+    } else {
+        x->array = repair_utf8(s, len, &x->size);
+    }
 
     return (Object *)x;
 }
@@ -1529,6 +1685,7 @@ void kl_free_str(Object *obj)
     if (sobj->size > 0) {
         mm_free(sobj->array);
     }
+    if (sobj->offsets) mm_free(sobj->offsets);
     mm_free(sobj);
 }
 

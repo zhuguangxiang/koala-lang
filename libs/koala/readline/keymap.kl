@@ -1,0 +1,191 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The emacs keymap of GNU readline: the command a key runs when no binding
+// is given for its bytes.
+func _default_command(name str) str {
+    if name == "char" { return "self-insert" }
+    if name == "enter" { return "accept-line" }
+    if name == "backspace" { return "backward-delete-char" }
+    if name == "delete" || name == "ctrl-d" { return "delete-char" }
+    if name == "left" || name == "ctrl-b" { return "backward-char" }
+    if name == "right" || name == "ctrl-f" { return "forward-char" }
+    if name == "home" || name == "ctrl-a" { return "beginning-of-line" }
+    if name == "end" || name == "ctrl-e" { return "end-of-line" }
+    if name == "word-left" || name == "alt-b" { return "backward-word" }
+    if name == "word-right" || name == "alt-f" { return "forward-word" }
+    if name == "ctrl-k" { return "kill-line" }
+    if name == "ctrl-u" { return "unix-line-discard" }
+    if name == "ctrl-w" { return "unix-word-rubout" }
+    if name == "alt-backspace" { return "backward-kill-word" }
+    if name == "alt-d" { return "kill-word" }
+    if name == "ctrl-y" { return "yank" }
+    if name == "alt-y" { return "yank-pop" }
+    if name == "alt-." || name == "alt-_" { return "yank-last-arg" }
+    if name == "ctrl-t" { return "transpose-chars" }
+    if name == "alt-t" { return "transpose-words" }
+    if name == "alt-u" { return "upcase-word" }
+    if name == "alt-l" { return "downcase-word" }
+    if name == "alt-c" { return "capitalize-word" }
+    if name == "alt-\\" { return "delete-horizontal-space" }
+    if name == "alt-r" { return "revert-line" }
+    if name == "ctrl-_" { return "undo" }
+    if name == "up" || name == "ctrl-p" { return "previous-history" }
+    if name == "down" || name == "ctrl-n" { return "next-history" }
+    if name == "alt-<" { return "beginning-of-history" }
+    if name == "alt->" { return "end-of-history" }
+    if name == "ctrl-r" { return "reverse-search-history" }
+    if name == "ctrl-s" { return "forward-search-history" }
+    if name == "tab" { return "complete" }
+    if name == "alt-?" || name == "alt-=" { return "possible-completions" }
+    if name == "alt-*" { return "insert-completions" }
+    if name == "ctrl-v" || name == "ctrl-q" { return "quoted-insert" }
+    if name == "ctrl-l" { return "clear-screen" }
+    if name == "ctrl-g" { return "abort" }
+    return ""
+}
+
+// The bytes of a quoted key sequence of an init file, as "\C-x\C-u" or
+// "\e[A": \C-x is Control-x, \M-x is Escape and x, \e Escape, and the C
+// escapes \\ \" \' \a \b \d (Delete) \f \n \r \t \v \nnn \xHH.
+func _unescape(text str) str {
+    let out = Buffer()
+    var i = 0
+    let n = text.len()
+    while i < n {
+        let c = text[i]
+        if c != "\\" || i + 1 >= n {
+            out.write(c.to_bytes())
+            i += 1
+            continue
+        }
+        let e = text[i + 1]
+        i += 2
+        if (e == "C" || e == "M") && i < n && text[i] == "-" {
+            // \C-x, \M-x, and the two together
+            var control = e == "C"
+            var meta = e == "M"
+            i += 1
+            while i + 2 < n && text[i] == "\\" && (text[i + 1] == "C" || text[i + 1] == "M") &&
+                  text[i + 2] == "-" {
+                if text[i + 1] == "C" { control = true } else { meta = true }
+                i += 3
+            }
+            if i >= n { break }
+            var key = text[i]
+            i += 1
+            if key == "\\" && i < n {
+                key = _escaped(text[i])
+                i += 1
+            }
+            if meta { out.write_byte(27) }
+            if control {
+                out.write(_control(key).to_bytes())
+            } else {
+                out.write(key.to_bytes())
+            }
+        } else if e >= "0" && e <= "7" {
+            var code = _digit(e)
+            var count = 1
+            while count < 3 && i < n && text[i] >= "0" && text[i] <= "7" {
+                code = code * 8 + _digit(text[i])
+                i += 1
+                count += 1
+            }
+            out.write_byte(uint8(code & 0xFF))
+        } else if e == "x" {
+            var code = 0
+            var count = 0
+            while count < 2 && i < n && _hex_digit(text[i]) >= 0 {
+                code = code * 16 + _hex_digit(text[i])
+                i += 1
+                count += 1
+            }
+            out.write_byte(uint8(code))
+        } else {
+            out.write(_escaped(e).to_bytes())
+        }
+    }
+    return out.to_str()
+}
+
+// The character of the escape \`e`.
+func _escaped(e str) str {
+    if e == "e" { return "\x1b" }
+    if e == "a" { return "\x07" }
+    if e == "b" { return "\x08" }
+    if e == "d" { return "\x7f" }
+    if e == "f" { return "\x0c" }
+    if e == "n" { return "\n" }
+    if e == "r" { return "\r" }
+    if e == "t" { return "\t" }
+    if e == "v" { return "\x0b" }
+    return e
+}
+
+// Control-`key`: its low five bits; Control-? is Delete.
+func _control(key str) str {
+    if key == "?" { return "\x7f" }
+    let b = Buffer()
+    b.write_byte(uint8(_codepoint(key.lower()) & 0x1F))
+    return b.to_str()
+}
+
+func _digit(c str) int = _codepoint(c) - 48
+
+func _hex_digit(c str) int {
+    let lower = c.lower()
+    let i = "0123456789abcdef".index(lower)
+    if lower.len() != 1 { return -1 }
+    return i
+}
+
+// The bytes of an unquoted key name of an init file, as "Control-x",
+// "Meta-Rubout" or "TAB"; nil when it is not one.
+func _key_name(name str) str? {
+    var rest = name
+    var control = false
+    var meta = false
+    while true {
+        let lower = rest.lower()
+        if lower.starts_with("control-") {
+            control = true
+            rest = rest.substr(8)
+        } else if lower.starts_with("c-") && rest.len() > 2 {
+            control = true
+            rest = rest.substr(2)
+        } else if lower.starts_with("meta-") {
+            meta = true
+            rest = rest.substr(5)
+        } else if lower.starts_with("m-") && rest.len() > 2 {
+            meta = true
+            rest = rest.substr(2)
+        } else {
+            break
+        }
+    }
+
+    var key = rest
+    let lower = rest.lower()
+    if lower == "del" || lower == "rubout" {
+        key = "\x7f"
+    } else if lower == "esc" || lower == "escape" {
+        key = "\x1b"
+    } else if lower == "lfd" || lower == "newline" {
+        key = "\n"
+    } else if lower == "ret" || lower == "return" {
+        key = "\r"
+    } else if lower == "spc" || lower == "space" {
+        key = " "
+    } else if lower == "tab" {
+        key = "\t"
+    } else if rest.len() != 1 {
+        return nil
+    }
+
+    if control { key = _control(key) }
+    if meta { key = "\x1b" + key }
+    return key
+}

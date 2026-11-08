@@ -39,6 +39,7 @@ void init_const_placeholder(void)
     cp->ts = str_type_spec();
     cp->lit.which = LIT_STR;
     cp->lit.sval = KOALA_VERSION_STRING;
+    cp->lit.len = strlen(KOALA_VERSION_STRING);
     hashmap_put(&cph_map, cp);
 }
 

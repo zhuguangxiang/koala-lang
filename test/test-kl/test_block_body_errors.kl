@@ -1,0 +1,29 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// Only an `= expr` body gives a function its return type. A block body is statements: a block of
+// one expression returns nothing, so its value cannot be used, and it does not change the
+// function's signature.
+
+func count(s str) int { return s.len() }
+
+func write(s str) { count(s) }
+
+trait Out {
+    func put(s str)
+}
+
+// a block of one call returning a value still matches a trait method without a return type
+class Screen : Out {
+    func __init__() {}
+
+    func put(s str) { count(s) }
+}
+
+func main() {
+    let n = write("a")
+    // CHECK: test_block_body_errors.kl:23:13: {{.*}}expr has not value
+    let out Out = Screen()
+    out.put("b")
+}
+
+// CHECK-NOT: {{.}}

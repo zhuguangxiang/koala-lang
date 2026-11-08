@@ -353,7 +353,7 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
         case KL_MACH_CONST_BOOL:
             return klc_add_rt_bool(klc, kc->bval);
         case KL_MACH_CONST_STR:
-            return klc_add_rt_str(klc, kc->str, strlen(kc->str));
+            return klc_add_rt_str(klc, kc->str, kc->len);
         case KL_MACH_CONST_BYTES:
             return klc_add_rt_bytes(klc, kc->str, kc->len);
         case KL_MACH_CONST_TUPLE: {

@@ -128,3 +128,11 @@ func test_fmt_values() {
     ut.assert_eq(format("{}", toml.Boolean(true)), "true")
     ut.assert_eq(format("{}", toml.Boolean(false)), "false")
 }
+
+// The comment after a non-ASCII value is cut at the '#', not some characters later.
+@test
+func test_comment_after_non_ascii_string() {
+    let root = toml.parse_str("name = \"中文\" # 注释\nn = 1")
+    let v = (root.get("name") as toml.String)!
+    ut.assert_eq(v.value, "中文")
+}

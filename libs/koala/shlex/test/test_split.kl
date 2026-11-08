@@ -1,0 +1,582 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Generated from CPython 3.14.4's shlex: every expected value below is what
+// Python returns for the same input.
+
+import "std/ut"
+import "koala/shlex"
+
+
+func _check(got list[str]?, want list[str]) {
+    ut.assert_true(got != nil)
+    let tokens = got!
+    ut.assert_eq(tokens.len(), want.len())
+    for i in range(want.len()) {
+        ut.assert_eq(tokens[i], want[i])
+    }
+}
+
+@test
+func test_split_1() {
+    // 'a b c'
+    let want = ["a", "b", "c"]
+    _check(shlex.split("a b c"), want)
+}
+
+@test
+func test_split_2() {
+    // '  a   b  '
+    let want = ["a", "b"]
+    _check(shlex.split("  a   b  "), want)
+}
+
+@test
+func test_split_3() {
+    // ''
+    let want = list[str]()
+    _check(shlex.split(""), want)
+}
+
+@test
+func test_split_4() {
+    // '   '
+    let want = list[str]()
+    _check(shlex.split("   "), want)
+}
+
+@test
+func test_split_5() {
+    // 'add "buy milk" -p 1'
+    let want = ["add", "buy milk", "-p", "1"]
+    _check(shlex.split("add \"buy milk\" -p 1"), want)
+}
+
+@test
+func test_split_6() {
+    // "a 'b c' d"
+    let want = ["a", "b c", "d"]
+    _check(shlex.split("a 'b c' d"), want)
+}
+
+@test
+func test_split_7() {
+    // 'a\\ b'
+    let want = ["a b"]
+    _check(shlex.split("a\\ b"), want)
+}
+
+@test
+func test_split_8() {
+    // '"say \\"hi\\""'
+    let want = ["say \"hi\""]
+    _check(shlex.split("\"say \\\"hi\\\"\""), want)
+}
+
+@test
+func test_split_9() {
+    // 'x"y z"w'
+    let want = ["xy zw"]
+    _check(shlex.split("x\"y z\"w"), want)
+}
+
+@test
+func test_split_10() {
+    // '\'a "b"\''
+    let want = ["a \"b\""]
+    _check(shlex.split("'a \"b\"'"), want)
+}
+
+@test
+func test_split_11() {
+    // '"a\\\\b"'
+    let want = ["a\\b"]
+    _check(shlex.split("\"a\\\\b\""), want)
+}
+
+@test
+func test_split_12() {
+    // '"a\\b"'
+    let want = ["a\\b"]
+    _check(shlex.split("\"a\\b\""), want)
+}
+
+@test
+func test_split_13() {
+    // "'a\\b'"
+    let want = ["a\\b"]
+    _check(shlex.split("'a\\b'"), want)
+}
+
+@test
+func test_split_14() {
+    // 'a#b c'
+    let want = ["a#b", "c"]
+    _check(shlex.split("a#b c"), want)
+}
+
+@test
+func test_split_15() {
+    // 'a #b c'
+    let want = ["a", "#b", "c"]
+    _check(shlex.split("a #b c"), want)
+}
+
+@test
+func test_split_16() {
+    // '"" \'\' x'
+    let want = ["", "", "x"]
+    _check(shlex.split("\"\" '' x"), want)
+}
+
+@test
+func test_split_17() {
+    // 'a"" b'
+    let want = ["a", "b"]
+    _check(shlex.split("a\"\" b"), want)
+}
+
+@test
+func test_split_18() {
+    // 'tab\tsep\nnl'
+    let want = ["tab", "sep", "nl"]
+    _check(shlex.split("tab\tsep\nnl"), want)
+}
+
+@test
+func test_split_19() {
+    // '考拉 "中 文"'
+    let want = ["考拉", "中 文"]
+    _check(shlex.split("考拉 \"中 文\""), want)
+}
+
+@test
+func test_split_20() {
+    // '~/x *.py a=b'
+    let want = ["~/x", "*.py", "a=b"]
+    _check(shlex.split("~/x *.py a=b"), want)
+}
+
+@test
+func test_split_21() {
+    // 'a;b|c&&d'
+    let want = ["a;b|c&&d"]
+    _check(shlex.split("a;b|c&&d"), want)
+}
+
+@test
+func test_split_22() {
+    // '\\"'
+    let want = ["\""]
+    _check(shlex.split("\\\""), want)
+}
+
+@test
+func test_split_23() {
+    // 'é ß'
+    let want = ["é", "ß"]
+    _check(shlex.split("é ß"), want)
+}
+
+@test
+func test_split_24() {
+    // 'echo $HOME \'$HOME\' "$HOME"'
+    let want = ["echo", "$HOME", "$HOME", "$HOME"]
+    _check(shlex.split("echo $HOME '$HOME' \"$HOME\""), want)
+}
+
+@test
+func test_split_25() {
+    // 'a\\\nb'
+    let want = ["a\nb"]
+    _check(shlex.split("a\\\nb"), want)
+}
+
+@test
+func test_split_26() {
+    // '"multi\nline"'
+    let want = ["multi\nline"]
+    _check(shlex.split("\"multi\nline\""), want)
+}
+
+@test
+func test_split_27() {
+    // '--opt="a b" -x'
+    let want = ["--opt=a b", "-x"]
+    _check(shlex.split("--opt=\"a b\" -x"), want)
+}
+
+@test
+func test_split_28() {
+    // "'it'\\''s'"
+    let want = ["it's"]
+    _check(shlex.split("'it'\\''s'"), want)
+}
+
+@test
+func test_split_29() {
+    // '\\\\'
+    let want = ["\\"]
+    _check(shlex.split("\\\\"), want)
+}
+
+@test
+func test_split_30() {
+    // 'a\\b'
+    let want = ["ab"]
+    _check(shlex.split("a\\b"), want)
+}
+
+@test
+func test_split_31() {
+    // '"\\$x" "\\`x" "\\n"'
+    let want = ["\\$x", "\\`x", "\\n"]
+    _check(shlex.split("\"\\$x\" \"\\`x\" \"\\n\""), want)
+}
+
+@test
+func test_split_32() {
+    // '  # only a comment'
+    let want = ["#", "only", "a", "comment"]
+    _check(shlex.split("  # only a comment"), want)
+}
+
+@test
+func test_split_33() {
+    // 'a # rest\nb'
+    let want = ["a", "#", "rest", "b"]
+    _check(shlex.split("a # rest\nb"), want)
+}
+
+@test
+func test_split_34() {
+    // 'x\r\ny'
+    let want = ["x", "y"]
+    _check(shlex.split("x\r\ny"), want)
+}
+
+@test
+func test_split_35() {
+    // 'a#b c', comments
+    let want = ["a"]
+    _check(shlex.split("a#b c", comments=true), want)
+}
+
+@test
+func test_split_36() {
+    // 'a #b c', comments
+    let want = ["a"]
+    _check(shlex.split("a #b c", comments=true), want)
+}
+
+@test
+func test_split_37() {
+    // '  # only a comment', comments
+    let want = list[str]()
+    _check(shlex.split("  # only a comment", comments=true), want)
+}
+
+@test
+func test_split_38() {
+    // 'a # rest\nb', comments
+    let want = ["a", "b"]
+    _check(shlex.split("a # rest\nb", comments=true), want)
+}
+
+@test
+func test_split_39() {
+    // "x 'y # z' # w", comments
+    let want = ["x", "y # z"]
+    _check(shlex.split("x 'y # z' # w", comments=true), want)
+}
+
+@test
+func test_split_40() {
+    // '#\n#x\ny', comments
+    let want = ["y"]
+    _check(shlex.split("#\n#x\ny", comments=true), want)
+}
+
+@test
+func test_split_41() {
+    // 'a b c', non-posix
+    let want = ["a", "b", "c"]
+    _check(shlex.split("a b c", posix=false), want)
+}
+
+@test
+func test_split_42() {
+    // '  a   b  ', non-posix
+    let want = ["a", "b"]
+    _check(shlex.split("  a   b  ", posix=false), want)
+}
+
+@test
+func test_split_43() {
+    // '', non-posix
+    let want = list[str]()
+    _check(shlex.split("", posix=false), want)
+}
+
+@test
+func test_split_44() {
+    // '   ', non-posix
+    let want = list[str]()
+    _check(shlex.split("   ", posix=false), want)
+}
+
+@test
+func test_split_45() {
+    // 'add "buy milk" -p 1', non-posix
+    let want = ["add", "\"buy milk\"", "-p", "1"]
+    _check(shlex.split("add \"buy milk\" -p 1", posix=false), want)
+}
+
+@test
+func test_split_46() {
+    // "a 'b c' d", non-posix
+    let want = ["a", "'b c'", "d"]
+    _check(shlex.split("a 'b c' d", posix=false), want)
+}
+
+@test
+func test_split_47() {
+    // 'a\\ b', non-posix
+    let want = ["a\\", "b"]
+    _check(shlex.split("a\\ b", posix=false), want)
+}
+
+@test
+func test_split_48() {
+    // '"say \\"hi\\""', non-posix
+    let want = ["\"say \\\"", "hi\\\"\""]
+    _check(shlex.split("\"say \\\"hi\\\"\"", posix=false), want)
+}
+
+@test
+func test_split_49() {
+    // 'x"y z"w', non-posix
+    let want = ["x\"y", "z\"w"]
+    _check(shlex.split("x\"y z\"w", posix=false), want)
+}
+
+@test
+func test_split_50() {
+    // '\'a "b"\'', non-posix
+    let want = ["'a \"b\"'"]
+    _check(shlex.split("'a \"b\"'", posix=false), want)
+}
+
+@test
+func test_split_51() {
+    // '"a\\\\b"', non-posix
+    let want = ["\"a\\\\b\""]
+    _check(shlex.split("\"a\\\\b\"", posix=false), want)
+}
+
+@test
+func test_split_52() {
+    // '"a\\b"', non-posix
+    let want = ["\"a\\b\""]
+    _check(shlex.split("\"a\\b\"", posix=false), want)
+}
+
+@test
+func test_split_53() {
+    // "'a\\b'", non-posix
+    let want = ["'a\\b'"]
+    _check(shlex.split("'a\\b'", posix=false), want)
+}
+
+@test
+func test_split_54() {
+    // 'a#b c', non-posix
+    let want = ["a#b", "c"]
+    _check(shlex.split("a#b c", posix=false), want)
+}
+
+@test
+func test_split_55() {
+    // 'a #b c', non-posix
+    let want = ["a", "#b", "c"]
+    _check(shlex.split("a #b c", posix=false), want)
+}
+
+@test
+func test_split_56() {
+    // '"" \'\' x', non-posix
+    let want = ["\"\"", "''", "x"]
+    _check(shlex.split("\"\" '' x", posix=false), want)
+}
+
+@test
+func test_split_57() {
+    // 'a"" b', non-posix
+    let want = ["a\"\"", "b"]
+    _check(shlex.split("a\"\" b", posix=false), want)
+}
+
+@test
+func test_split_58() {
+    // 'tab\tsep\nnl', non-posix
+    let want = ["tab", "sep", "nl"]
+    _check(shlex.split("tab\tsep\nnl", posix=false), want)
+}
+
+@test
+func test_split_59() {
+    // '考拉 "中 文"', non-posix
+    let want = ["考拉", "\"中 文\""]
+    _check(shlex.split("考拉 \"中 文\"", posix=false), want)
+}
+
+@test
+func test_split_60() {
+    // '~/x *.py a=b', non-posix
+    let want = ["~/x", "*.py", "a=b"]
+    _check(shlex.split("~/x *.py a=b", posix=false), want)
+}
+
+@test
+func test_split_61() {
+    // 'a;b|c&&d', non-posix
+    let want = ["a;b|c&&d"]
+    _check(shlex.split("a;b|c&&d", posix=false), want)
+}
+
+@test
+func test_split_62() {
+    // '\\"', non-posix
+    let want = ["\\\""]
+    _check(shlex.split("\\\"", posix=false), want)
+}
+
+@test
+func test_split_63() {
+    // 'é ß', non-posix
+    let want = ["é", "ß"]
+    _check(shlex.split("é ß", posix=false), want)
+}
+
+@test
+func test_split_64() {
+    // 'echo $HOME \'$HOME\' "$HOME"', non-posix
+    let want = ["echo", "$HOME", "'$HOME'", "\"$HOME\""]
+    _check(shlex.split("echo $HOME '$HOME' \"$HOME\"", posix=false), want)
+}
+
+@test
+func test_split_65() {
+    // 'a\\\nb', non-posix
+    let want = ["a\\", "b"]
+    _check(shlex.split("a\\\nb", posix=false), want)
+}
+
+@test
+func test_split_66() {
+    // '"multi\nline"', non-posix
+    let want = ["\"multi\nline\""]
+    _check(shlex.split("\"multi\nline\"", posix=false), want)
+}
+
+@test
+func test_split_67() {
+    // '--opt="a b" -x', non-posix
+    let want = ["--opt=\"a", "b\"", "-x"]
+    _check(shlex.split("--opt=\"a b\" -x", posix=false), want)
+}
+
+@test
+func test_split_68() {
+    // "'it'\\''s'", non-posix
+    let want = ["'it'", "\\''s'"]
+    _check(shlex.split("'it'\\''s'", posix=false), want)
+}
+
+@test
+func test_split_69() {
+    // '\\\\', non-posix
+    let want = ["\\\\"]
+    _check(shlex.split("\\\\", posix=false), want)
+}
+
+@test
+func test_split_70() {
+    // 'a\\b', non-posix
+    let want = ["a\\b"]
+    _check(shlex.split("a\\b", posix=false), want)
+}
+
+@test
+func test_split_71() {
+    // '"\\$x" "\\`x" "\\n"', non-posix
+    let want = ["\"\\$x\"", "\"\\`x\"", "\"\\n\""]
+    _check(shlex.split("\"\\$x\" \"\\`x\" \"\\n\"", posix=false), want)
+}
+
+@test
+func test_split_72() {
+    // '  # only a comment', non-posix
+    let want = ["#", "only", "a", "comment"]
+    _check(shlex.split("  # only a comment", posix=false), want)
+}
+
+@test
+func test_split_73() {
+    // 'a # rest\nb', non-posix
+    let want = ["a", "#", "rest", "b"]
+    _check(shlex.split("a # rest\nb", posix=false), want)
+}
+
+@test
+func test_split_74() {
+    // 'x\r\ny', non-posix
+    let want = ["x", "y"]
+    _check(shlex.split("x\r\ny", posix=false), want)
+}
+
+@test
+func test_split_75() {
+    // '\'a\'b"c"', non-posix
+    let want = ["'a'", "b\"c\""]
+    _check(shlex.split("'a'b\"c\"", posix=false), want)
+}
+
+@test
+func test_split_76() {
+    // "a'b'c", non-posix
+    let want = ["a'b'c"]
+    _check(shlex.split("a'b'c", posix=false), want)
+}
+
+@test
+func test_split_77() {
+    // '"abc'
+    ut.assert_true(shlex.split("\"abc") == nil)
+}
+
+@test
+func test_split_78() {
+    // "'abc"
+    ut.assert_true(shlex.split("'abc") == nil)
+}
+
+@test
+func test_split_79() {
+    // 'abc\\'
+    ut.assert_true(shlex.split("abc\\") == nil)
+}
+
+@test
+func test_split_80() {
+    // 'a "b'
+    ut.assert_true(shlex.split("a \"b") == nil)
+}
+
+@test
+func test_split_81() {
+    // '"a\\'
+    ut.assert_true(shlex.split("\"a\\") == nil)
+}

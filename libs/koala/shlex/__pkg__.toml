@@ -1,0 +1,6 @@
+[package]
+name = "koala/shlex"
+version = "0.1.0"
+description = "Shell-like lexical analysis, a port of Python's shlex"
+dependencies = []
+natives = []

@@ -354,7 +354,13 @@ static Literal *klc_const_to_literal(KlcConst *k, TypeSpec *ts)
         case KLC_CONST_UTF8: {
             lit->which = LIT_STR;
             lit->len = k->len;
-            lit->sval = str_dup(k->sval);
+            lit->sval = str_ndup(k->sval, k->len);
+            break;
+        }
+        case KLC_CONST_BYTES: {
+            lit->which = LIT_BYTES;
+            lit->len = k->len;
+            lit->sval = str_ndup(k->sval, k->len);
             break;
         }
         default: {

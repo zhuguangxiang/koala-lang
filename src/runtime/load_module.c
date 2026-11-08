@@ -112,7 +112,7 @@ static void __load_const(Object *m, KlcConst *item)
         case KLC_CONST_SHORT_UTF8:
         case KLC_CONST_ASCII:
         case KLC_CONST_UTF8: {
-            kl_mo_add_str(m, item->sval);
+            kl_mo_add_str(m, item->sval, item->len);
             break;
         }
 

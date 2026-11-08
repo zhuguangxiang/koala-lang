@@ -1,0 +1,384 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Completion. The cases with a word list were also typed into GNU readline
+// 8.3 (Python's input(), a 40-column screen), which gave the same lines and
+// the same listings.
+
+import "std/fs"
+import "std/ut"
+import "koala/readline"
+
+// Completes the words of a list that start with the text, as the Python
+// completer `lambda t, s: [w for w in W if w.startswith(t)][s]`.
+class _Words : readline.Completer {
+    let _words list[str]
+    // what it was called with
+    pub var texts list[str]
+
+    func __init__(source list[str]) {
+        _words = source
+        texts = list[str]()
+    }
+
+    func complete(text str, state int) str? {
+        if state == 0 { texts.append(text) }
+        var n = 0
+        for w in _words {
+            if w.starts_with(text) {
+                if n == state { return w }
+                n += 1
+            }
+        }
+        return nil
+    }
+}
+
+let _FRUIT = ["apple", "apricot", "banana", "band", "bandana", "cherry"]
+
+// "w000", "w001", ... `count` words.
+func _w(count int) list[str] {
+    let out = list[str]()
+    for i in range(count) { out.append(format("w{}", i.to_str().zfill(3))) }
+    return out
+}
+
+// An editor completing `words` on a terminal of 40 columns and `height` rows.
+func _completing(words list[str], keys str,
+                 height int = 24) (readline.Editor, readline.MemoryTerminal) {
+    let term = readline.MemoryTerminal(keys, width=40, height=height)
+    let editor = readline.Editor(term)
+    editor.set_completer(_Words(words))
+    editor.parse_and_bind("tab: complete")
+    return (editor, term)
+}
+
+@test
+func test_unique() {
+    // one match replaces the word, with nothing after it
+    let (editor, term) = _completing(_FRUIT, "ch\t\r")
+    ut.assert_eq(editor.readline("> ")!, "cherry")
+}
+
+@test
+func test_ambiguous_prefix() {
+    // several matches with nothing more in common: a beep
+    let (editor, term) = _completing(_FRUIT, "ap\t\r")
+    ut.assert_eq(editor.readline("> ")!, "ap")
+}
+
+@test
+func test_common_start() {
+    // several matches: their common start
+    let (editor, term) = _completing(_FRUIT, "bana\t\r")
+    ut.assert_eq(editor.readline("> ")!, "banana")
+}
+
+@test
+func test_list() {
+    // a second Tab lists the matches
+    let (editor, term) = _completing(_FRUIT, "ban\t\t\r")
+    ut.assert_eq(editor.readline("> ")!, "ban")
+    ut.assert_true("banana   band     bandana  \r\n" in term.output())
+}
+
+@test
+func test_list_all() {
+    // the listing fills columns down, then across
+    let (editor, term) = _completing(_FRUIT, "\t\tb\r")
+    ut.assert_eq(editor.readline("> ")!, "b")
+    let listing = "apple    banana   bandana  \r\napricot  band     cherry   \r\n"
+    ut.assert_true(listing in term.output())
+}
+
+@test
+func test_no_match() {
+    // no match: a beep
+    let (editor, term) = _completing(_FRUIT, "zz\t\r")
+    ut.assert_eq(editor.readline("> ")!, "zz")
+}
+
+@test
+func test_after_space() {
+    // the word starts after a delimiter
+    let (editor, term) = _completing(_FRUIT, "x ch\t\r")
+    ut.assert_eq(editor.readline("> ")!, "x cherry")
+}
+
+@test
+func test_cursor_inside() {
+    // the word ends at the cursor
+    let (editor, term) = _completing(_FRUIT, "chXY\x1b[D\x1b[D\t\r")
+    ut.assert_eq(editor.readline("> ")!, "cherryXY")
+}
+
+@test
+func test_delims() {
+    // with ' ' the only delimiter, '-' is part of the word
+    let (editor, term) = _completing(_FRUIT, "x-ch\t\r")
+    editor.set_completer_delims(" ")
+    ut.assert_eq(editor.readline("> ")!, "x-ch")
+}
+
+@test
+func test_default_delims() {
+    // '-' is a delimiter by default
+    let (editor, term) = _completing(_FRUIT, "x-ch\t\r")
+    ut.assert_eq(editor.readline("> ")!, "x-cherry")
+}
+
+@test
+func test_changed_then_beep() {
+    // a Tab after one that changed the line beeps again
+    let (editor, term) = _completing(_w(30), "w\t\t\r")
+    ut.assert_eq(editor.readline("> ")!, "w0")
+}
+
+@test
+func test_third_tab_lists() {
+    // the next Tab lists
+    let (editor, term) = _completing(_w(30), "w\t\t\t\r")
+    ut.assert_eq(editor.readline("> ")!, "w0")
+    let listing = "w000  w005  w010  w015  w020  w025\r\nw001  w006  w011  w016  w021  w026\r\n"
+    ut.assert_true(listing in term.output())
+}
+
+@test
+func test_typing_resets() {
+    // a key between two Tabs starts over
+    let (editor, term) = _completing(_FRUIT, "ba\tn\t\r")
+    ut.assert_eq(editor.readline("> ")!, "bann")
+}
+
+@test
+func test_tab_inserts_a_tab_by_default() {
+    // as in Python, Tab completes only after parse_and_bind("tab: complete")
+    let editor = readline.Editor(readline.MemoryTerminal("fi\t\r"))
+    editor.set_completer(_Words(_FRUIT))
+    ut.assert_eq(editor.readline()!, "fi\t")
+}
+
+@test
+func test_self_insert_again() {
+    let (editor, term) = _completing(_FRUIT, "ch\t\r")
+    editor.parse_and_bind("tab: self-insert")
+    ut.assert_eq(editor.readline()!, "ch\t")
+}
+
+@test
+func test_beep() {
+    let (editor, term) = _completing(_FRUIT, "zz\t\r")
+    editor.readline("> ")
+    ut.assert_true("\x07" in term.output())
+}
+
+@test
+func test_listing_redraws_the_line() {
+    let (editor, term) = _completing(_FRUIT, "ban\t\t\r")
+    editor.readline("> ")
+    let listing = "\r\nbanana   band     bandana  \r\n\r> ban\x1b[0K\r\x1b[5C"
+    ut.assert_true(listing in term.output())
+}
+
+@test
+func test_last_column_not_padded() {
+    // 40 columns of 14: two columns, the second without padding
+    let words = ["file_one.txt", "file_two.txt", "subdir/"]
+    let (editor, term) = _completing(words, "\t\t\r")
+    editor.readline("> ")
+    ut.assert_true("file_one.txt  subdir/\r\nfile_two.txt  \r\n" in term.output())
+}
+
+@test
+func test_duplicates_listed_once() {
+    let (editor, term) = _completing(["bb", "ba", "bb", "ba"], "b\t\t\r")
+    editor.readline("> ")
+    ut.assert_true("\r\nba  bb  \r\n" in term.output())
+}
+
+@test
+func test_completer_is_called_with_the_word() {
+    let completer = _Words(_FRUIT)
+    let term = readline.MemoryTerminal("x b\x1b[Dc\x1b[C\t\r")
+    let editor = readline.Editor(term)
+    editor.set_completer(completer)
+    editor.parse_and_bind("tab: complete")
+    editor.readline()
+    // "x cb": the word before the cursor is "cb"
+    ut.assert_eq(completer.texts.len(), 1)
+    ut.assert_eq(completer.texts[0], "cb")
+    ut.assert_eq(editor.get_begidx(), 2)
+    ut.assert_eq(editor.get_endidx(), 4)
+}
+
+@test
+func test_completion_type() {
+    let (editor, term) = _completing(_FRUIT, "ban\t\r")
+    ut.assert_eq(editor.get_completion_type(), 0)
+    editor.readline()
+    ut.assert_eq(editor.get_completion_type(), 9)
+    let (listing, _) = _completing(_FRUIT, "ban\t\t\r")
+    listing.readline()
+    ut.assert_eq(listing.get_completion_type(), 63)
+}
+
+@test
+func test_undo_completion() {
+    let (editor, term) = _completing(_FRUIT, "ch\t\x1f\r")
+    ut.assert_eq(editor.readline()!, "ch")
+}
+
+@test
+func test_get_set_delims() {
+    let (editor, term) = _completing(_FRUIT, "")
+    ut.assert_eq(editor.get_completer_delims(), " \t\n`~!@#$%^&*()-=+[{]}\\|;:'\",<>/?")
+    editor.set_completer_delims(" ")
+    ut.assert_eq(editor.get_completer_delims(), " ")
+}
+
+@test
+func test_get_completer() {
+    let (editor, term) = _completing(_FRUIT, "")
+    ut.assert_true(editor.get_completer() != nil)
+    editor.set_completer()
+    ut.assert_true(editor.get_completer() == nil)
+}
+
+// The question and the pager, as GNU readline asks them. (Python's input()
+// runs readline in callback mode, where they do not wait for a key.)
+
+@test
+func test_query_no() {
+    let (editor, term) = _completing(_w(120), "w\t\tnx\r")
+    ut.assert_eq(editor.readline("> ")!, "wx")
+    let out = term.output()
+    ut.assert_true("\r\nDisplay all 120 possibilities? (y or n)\r\n\r> w" in out)
+    ut.assert_false("w000" in out)
+}
+
+@test
+func test_query_waits_for_y_or_n() {
+    // another key beeps and the question waits
+    let (editor, term) = _completing(_w(100), "w0\t\tzy\r")
+    ut.assert_eq(editor.readline("> ")!, "w0")
+    ut.assert_true("(y or n)\x07\r\nw000  w017  w034  w051  w068  w085\r\n" in term.output())
+}
+
+@test
+func test_pager() {
+    // 10 rows: 9 rows of matches, then --More--; Space shows the next screen
+    let (editor, term) = _completing(_w(120), "w\t\ty q\r", height=10)
+    ut.assert_eq(editor.readline("> ")!, "w")
+    let out = term.output()
+    ut.assert_true("w008  w028  w048  w068  w088  w108\r\n--More--" in out)
+    ut.assert_true("--More--\r\x1b[K\rw009  w029" in out)
+    // q stops at the second --More--: the last two rows are not shown
+    ut.assert_true("w017  w037  w057  w077  w097  w117\r\n--More--" in out)
+    ut.assert_false("w018" in out)
+}
+
+@test
+func test_pager_one_line() {
+    // Enter shows one more row
+    let (editor, term) = _completing(_w(120), "w\t\ty\rq\r", height=10)
+    editor.readline("> ")
+    let out = term.output()
+    ut.assert_true("--More--\r\x1b[K\rw009  w029  w049  w069  w089  w109\r\n--More--" in out)
+    ut.assert_false("w010" in out)
+}
+
+// The display hook takes the place of the listing.
+
+class _Hook : readline.DisplayMatchesHook {
+    // what it was called with
+    pub var text str = ""
+    pub var found list[str]
+    pub var longest int = 0
+
+    func __init__() {
+        found = list[str]()
+    }
+
+    func display(substitution str, matches list[str], longest_match_length int) {
+        text = substitution
+        found = matches
+        longest = longest_match_length
+    }
+}
+
+@test
+func test_display_hook() {
+    let hook = _Hook()
+    let (editor, term) = _completing(_FRUIT, "ban\t\t\r")
+    editor.set_completion_display_matches_hook(hook)
+    ut.assert_eq(editor.readline("> ")!, "ban")
+    ut.assert_eq(hook.text, "ban")
+    ut.assert_eq(hook.found.len(), 3)
+    ut.assert_eq(hook.found[2], "bandana")
+    ut.assert_eq(hook.longest, 7)
+    ut.assert_false("banana   band" in term.output())
+}
+
+// Without a completer Tab completes file names.
+
+func _files() str {
+    let dir = "/tmp/koala_readline_test_files"
+    fs.mkdir(dir)
+    fs.mkdir(dir + "/subdir")
+    fs.write_str(dir + "/file_one.txt", "")
+    fs.write_str(dir + "/file_two.txt", "")
+    return dir
+}
+
+func _file_editor(keys str) (readline.Editor, readline.MemoryTerminal) {
+    let term = readline.MemoryTerminal(keys, width=40)
+    let editor = readline.Editor(term)
+    editor.parse_and_bind("tab: complete")
+    // a path is one word
+    editor.set_completer_delims(" ")
+    return (editor, term)
+}
+
+@test
+func test_file_names() {
+    let dir = _files()
+    let (editor, _) = _file_editor("cat " + dir + "/file_o\t\r")
+    ut.assert_eq(editor.readline()!, "cat " + dir + "/file_one.txt")
+}
+
+@test
+func test_file_common_start() {
+    let dir = _files()
+    let (editor, _) = _file_editor(dir + "/fi\t\r")
+    ut.assert_eq(editor.readline()!, dir + "/file_")
+}
+
+@test
+func test_directory_gets_a_slash() {
+    let dir = _files()
+    let (editor, _) = _file_editor(dir + "/su\t\r")
+    ut.assert_eq(editor.readline()!, dir + "/subdir/")
+}
+
+@test
+func test_file_listing() {
+    // names without their directory, a directory with a slash
+    let dir = _files()
+    let (editor, term) = _file_editor(dir + "/\t\t\r")
+    editor.readline("> ")
+    ut.assert_true("file_one.txt  subdir/\r\nfile_two.txt  \r\n" in term.output())
+}
+
+@test
+func test_module_completion_api() {
+    readline.set_completer(_Words(_FRUIT))
+    ut.assert_true(readline.get_completer() != nil)
+    readline.set_completer()
+    ut.assert_true(readline.get_completer() == nil)
+    readline.set_completer_delims(" ;")
+    ut.assert_eq(readline.get_completer_delims(), " ;")
+    readline.set_completer_delims(" \t\n`~!@#$%^&*()-=+[{]}\\|;:'\",<>/?")
+    ut.assert_eq(readline.get_line_buffer(), "")
+}

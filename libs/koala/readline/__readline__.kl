@@ -1,0 +1,183 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Line editing, history and completion for interactive programs, a port of
+/// CPython's `readline` module.
+///
+/// The editor is written in Koala; native code only switches the terminal
+/// to raw mode. `Editor` and `Terminal` are Koala's own: an `Editor` reads
+/// one line from a `Terminal`, the real one or a `MemoryTerminal` in tests.
+
+import "std/os"
+
+/// Native symbols for this package live in `libkoala_readline.so`.
+link "koala_readline"
+
+// The editor of `input`, on the process's terminal.
+let _editor = Editor()
+
+/// Read a line from the terminal, with line editing, after `prompt`, as
+/// Python's `input()` once `readline` is imported. Returns the line without
+/// its newline; nil at the end of the input (Ctrl-D on an empty line),
+/// where Python raises EOFError. Ctrl-C drops the line and returns "",
+/// where Python raises KeyboardInterrupt. On a pipe or a file it reads a
+/// plain line.
+pub func input(prompt = "") str? = _editor.readline(prompt)
+
+// The path of a history file, `~/.history` by default, as readline's.
+func _history_path(filename str?) str {
+    if let name = filename { return name }
+    if let home = os.home_dir() { return home + "/.history" }
+    return ".history"
+}
+
+// The lines of a history file, without their newlines.
+func _file_lines(text str) list[str] {
+    let lines = list[str]()
+    if text.len() == 0 { return lines }
+    var body = text
+    if body.ends_with("\n") { body = body.substr(0, body.len() - 1) }
+    for line in body.split("\n") { lines.append(line) }
+    return lines
+}
+
+// lines[first:] as the text of a history file, a newline after each.
+func _lines_text(lines list[str], first int) str {
+    var out = ""
+    for i in range(first, lines.len()) { out += lines[i] + "\n" }
+    return out
+}
+
+/// Append `line` to the history.
+pub func add_history(line str) {
+    _editor.add_history(line)
+}
+
+/// Remove every line of the history.
+pub func clear_history() {
+    _editor.clear_history()
+}
+
+/// The number of lines in the history.
+pub func get_current_history_length() int = _editor.get_current_history_length()
+
+/// Line `index` of the history, counted from 1; nil when there is none.
+pub func get_history_item(index int) str? = _editor.get_history_item(index)
+
+/// Remove line `pos` of the history, counted from 0. Panics when there is
+/// none, as Python raises ValueError.
+pub func remove_history_item(pos int) {
+    _editor.remove_history_item(pos)
+}
+
+/// Replace line `pos` of the history, counted from 0, with `line`. Panics
+/// when there is none, as Python raises ValueError.
+pub func replace_history_item(pos int, line str) {
+    _editor.replace_history_item(pos, line)
+}
+
+/// The most lines a history file keeps, -1 (the default) for all.
+pub func get_history_length() int = _editor.get_history_length()
+
+/// Set the most lines a history file keeps when it is written, -1 for all.
+pub func set_history_length(length int) {
+    _editor.set_history_length(length)
+}
+
+/// Whether lines read by `input` are added to the history; true by default.
+pub func set_auto_history(enabled bool) {
+    _editor.set_auto_history(enabled)
+}
+
+/// Append the lines of `filename`, `~/.history` by default, to the history.
+/// False when it cannot be read, where Python raises OSError.
+pub func read_history_file(filename str? = nil) bool = _editor.read_history_file(filename)
+
+/// Write the history to `filename`, `~/.history` by default, keeping its last
+/// `get_history_length()` lines. False when it cannot be written.
+pub func write_history_file(filename str? = nil) bool = _editor.write_history_file(filename)
+
+/// Append the last `nelements` lines of the history to `filename`,
+/// `~/.history` by default, which must exist. False when it cannot be
+/// written.
+pub func append_history_file(nelements int, filename str? = nil) bool {
+    return _editor.append_history_file(nelements, filename)
+}
+
+/// Set what Tab completes, as Python's `set_completer`: an object whose
+/// `complete(text, state)` gives the matches; nil for file names.
+pub func set_completer(completer Completer? = nil) {
+    _editor.set_completer(completer)
+}
+
+/// What Tab completes; nil for file names.
+pub func get_completer() Completer? = _editor.get_completer()
+
+/// Why the completer was last called: '\t' (9) to complete, '?' (63) to
+/// list the matches.
+pub func get_completion_type() int = _editor.get_completion_type()
+
+/// Where the word being completed starts in the line.
+pub func get_begidx() int = _editor.get_begidx()
+
+/// Where the word being completed ends in the line.
+pub func get_endidx() int = _editor.get_endidx()
+
+/// Set the characters that end the word being completed.
+pub func set_completer_delims(string str) {
+    _editor.set_completer_delims(string)
+}
+
+/// The characters that end the word being completed.
+pub func get_completer_delims() str = _editor.get_completer_delims()
+
+/// Set how the matches are listed, as Python's
+/// `set_completion_display_matches_hook`; nil for readline's columns.
+pub func set_completion_display_matches_hook(hook DisplayMatchesHook? = nil) {
+    _editor.set_completion_display_matches_hook(hook)
+}
+
+/// The line being edited.
+pub func get_line_buffer() str = _editor.get_line_buffer()
+
+/// Run one line of a readline init file, as "tab: complete" or
+/// "set completion-ignore-case on". See `Editor.parse_and_bind`.
+pub func parse_and_bind(string str) {
+    _editor.parse_and_bind(string)
+}
+
+/// Read an init file: `filename`, else the one read last, else $INPUTRC,
+/// else `~/.inputrc`. False when it cannot be read.
+pub func read_init_file(filename str? = nil) bool = _editor.read_init_file(filename)
+
+/// Set the function called before the prompt of each line is shown, as
+/// Python's `set_startup_hook`; nil for none.
+pub func set_startup_hook(function Hook? = nil) {
+    _editor.set_startup_hook(function)
+}
+
+/// Set the function called after the prompt is shown, before the first key
+/// is read, as Python's `set_pre_input_hook`; nil for none.
+pub func set_pre_input_hook(function Hook? = nil) {
+    _editor.set_pre_input_hook(function)
+}
+
+/// Insert `string` at the cursor of the line being edited.
+pub func insert_text(string str) {
+    _editor.insert_text(string)
+}
+
+/// Draw the prompt and the line being edited again.
+pub func redisplay() {
+    _editor.redisplay()
+}
+
+// `path` with a leading `~/` as the home directory.
+func _expand_home(path str) str {
+    if path.starts_with("~/") {
+        if let home = os.home_dir() { return home + path.substr(1) }
+    }
+    return path
+}

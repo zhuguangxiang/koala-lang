@@ -1,0 +1,418 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/fs"
+import "std/sys"
+
+/// A lexical analyzer for shell-like syntaxes, as Python's `shlex.shlex`.
+///
+///     let lex = shlex.shlex("a 'b c' # note", posix=true)
+///     while let token = lex.get_token() {
+///         print(token)                          // a, then b c
+///     }
+///
+/// `instream` is a `str`, an `io.StringIO`, an `fs.File` or an
+/// `io.BufReader`; without one the lexer reads `sys.stdin`. `posix` turns
+/// on the POSIX rules: quotes are removed, `\` escapes, and the end of
+/// input is nil. `punctuation_chars` is true for "();<>|&", or the
+/// characters to return as tokens of their own.
+///
+/// Where it differs from Python:
+///
+/// - A lexing error is not raised. `get_token()` and `read_token()` return
+///   nil, and `error()` is Python's message, as "No closing quotation".
+///   Every later call returns nil.
+/// - `posix`, `infile`, `instream` and `punctuation_chars` are methods:
+///   they are also the names of the constructor parameters. The other
+///   attributes are fields with Python's names.
+/// - `sourcehook` cannot be overridden: Koala classes are final. It opens
+///   the file, as Python's default does.
+pub class shlex : Iterable[str] {
+    /// The characters that start a comment running to the end of the line.
+    pub var commenters str = "#"
+    /// The characters that make up a word.
+    pub var wordchars str = ""
+    /// The characters skipped between tokens.
+    pub var whitespace str = " \t\r\n"
+    /// Split on whitespace only: any other character is part of a word.
+    pub var whitespace_split bool = false
+    /// The quote characters.
+    pub var quotes str = "'\""
+    /// The escape characters, POSIX mode only.
+    pub var escape str = "\\"
+    /// The quotes inside which `escape` escapes, POSIX mode only.
+    pub var escapedquotes str = "\""
+    /// The lexer state: " " between tokens, "a" in a word, "c" in
+    /// punctuation, a quote or an escape character; nil at the end.
+    pub var state str? = " "
+    /// The tokens `get_token` returns before reading more, the next first.
+    pub let pushback list[str]
+    /// The current line number.
+    pub var lineno int = 1
+    /// 1 to 3 print what the lexer does, more with a higher level.
+    pub var debug int = 0
+    /// The token being read.
+    pub var token str = ""
+    /// The token that includes a file, as "source", or nil for none.
+    pub var source str? = nil
+    /// The end of input: nil in POSIX mode, "" otherwise.
+    pub let eof str?
+
+    var _input _Input
+    var _infile str?
+    let _posix bool
+    let _punctuation_chars str
+    // Characters read ahead in punctuation mode, the next last.
+    let _pushback_chars list[str]
+    // The sources include pushed: (infile, input, lineno), the latest first.
+    let _filestack list[(str?, _Input, int)]
+    var _error str = ""
+
+    pub func __init__(instream (str | io.StringIO | fs.File | io.BufReader)? = nil,
+                      infile str? = nil, posix bool = false, punctuation_chars bool | str = false) {
+        if let given = instream {
+            _input = _Input(given)
+            _infile = infile
+        } else {
+            _input = _Input(sys.stdin)
+            _infile = nil
+        }
+
+        _posix = posix
+        if posix {
+            eof = nil
+        } else {
+            eof = ""
+        }
+
+        var chars = "abcdfeghijklmnopqrstuvwxyz" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        if posix {
+            chars += "ßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ" + "ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ"
+        }
+
+        var punct = ""
+        if let text = punctuation_chars as str {
+            punct = text
+        } else if let on = punctuation_chars as bool {
+            if on { punct = "();<>|&" }
+        }
+        _punctuation_chars = punct
+
+        if punct.len() > 0 {
+            // allowed in file names, arguments and wildcards
+            chars += "~-./*?="
+            chars = _without(chars, punct)
+        }
+        wordchars = chars
+
+        pushback = list[str]()
+        _pushback_chars = list[str]()
+        _filestack = list[(str?, _Input, int)]()
+    }
+
+    /// Whether the lexer follows the POSIX rules.
+    pub func posix() bool = _posix
+
+    /// The name of the file being read, nil when it is not a file.
+    pub func infile() str? = _infile
+
+    /// The stream being read; an `io.StringIO` for a `str`.
+    pub func instream() io.Reader = _input.stream
+
+    /// The characters returned as tokens of their own, "" for none.
+    pub func punctuation_chars() str = _punctuation_chars
+
+    /// The message of the lexing error, "" when there is none.
+    pub func error() str = _error
+
+    /// Push `tok` back: the next `get_token` returns it.
+    pub func push_token(tok str) {
+        if debug >= 1 { print("shlex: pushing token " + _repr(tok)) }
+        pushback.insert(0, tok)
+    }
+
+    /// Read `newstream` before the rest of the current input, `newfile`
+    /// being its name. Its end returns to the current input.
+    pub func push_source(newstream str | io.StringIO | fs.File | io.BufReader,
+                         newfile str? = nil) {
+        _filestack.insert(0, (_infile, _input, lineno))
+        _infile = newfile
+        _input = _Input(newstream)
+        lineno = 1
+
+        if debug != 0 {
+            if let name = newfile {
+                print("shlex: pushing to file " + name)
+            } else {
+                print("shlex: pushing to stream " + _input.kind)
+            }
+        }
+    }
+
+    /// Close the current input and go back to the one before it.
+    pub func pop_source() {
+        _input.close()
+        let (file, input, line) = _filestack.pop(0)
+        _infile = file
+        _input = input
+        lineno = line
+
+        if debug != 0 {
+            print(format("shlex: popping to {}, line {}", _input.kind, lineno))
+        }
+        state = " "
+    }
+
+    /// The next token: a pushed-back one, or one read from the input,
+    /// following `source` inclusions and returning from them at their end.
+    /// `eof` at the end of input; nil on a lexing error.
+    pub func get_token() str? {
+        if _error.len() > 0 { return nil }
+
+        if pushback.len() > 0 {
+            let tok = pushback.pop(0)
+            if debug >= 1 { print("shlex: popping token " + _repr(tok)) }
+            return tok
+        }
+
+        var raw = read_token()
+        if _error.len() > 0 { return nil }
+
+        // Handle inclusions
+        if source != nil {
+            while _same(raw, source) {
+                let name = read_token()
+                if _error.len() > 0 { return nil }
+                if name == nil { return _fail("No file name after '" + source + "'") }
+
+                let spec = sourcehook(name)
+                if spec == nil { return nil }
+                let (newfile, newstream) = spec
+                push_source(newstream, newfile)
+
+                raw = get_token()
+                if _error.len() > 0 { return nil }
+            }
+        }
+
+        // Maybe we got EOF instead?
+        while _same(raw, eof) {
+            if _filestack.len() == 0 { return eof }
+            pop_source()
+            raw = get_token()
+            if _error.len() > 0 { return nil }
+        }
+
+        if debug >= 1 {
+            if _same(raw, eof) {
+                print("shlex: token=EOF")
+            } else {
+                print("shlex: token=" + _repr(raw))
+            }
+        }
+        return raw
+    }
+
+    /// Read a raw token, ignoring the pushed-back tokens and the `source`
+    /// inclusions. `eof` at the end of input; nil on a lexing error.
+    pub func read_token() str? {
+        if _error.len() > 0 { return nil }
+
+        var quoted = false
+        var escapedstate = " "
+        while true {
+            var nextchar = ""
+            if _punctuation_chars.len() > 0 && _pushback_chars.len() > 0 {
+                nextchar = _pushback_chars.pop()
+            } else {
+                nextchar = _input.read_char()
+            }
+            if nextchar == "\n" { lineno += 1 }
+            if debug >= 3 {
+                print(format("shlex: in state {} I see character: {}", _repr(state),
+                             _repr(nextchar)))
+            }
+
+            if state == nil {
+                // past end of file
+                token = ""
+                break
+            }
+            let st = state
+
+            if st == " " {
+                if nextchar.len() == 0 {
+                    // end of file
+                    state = nil
+                    break
+                } else if nextchar in whitespace {
+                    if debug >= 2 { print("shlex: I see whitespace in whitespace state") }
+                    // emit current token
+                    if token.len() > 0 || (_posix && quoted) { break }
+                } else if nextchar in commenters {
+                    _input.read_line()
+                    lineno += 1
+                } else if _posix && (nextchar in escape) {
+                    escapedstate = "a"
+                    state = nextchar
+                } else if nextchar in wordchars {
+                    token = nextchar
+                    state = "a"
+                } else if nextchar in _punctuation_chars {
+                    token = nextchar
+                    state = "c"
+                } else if nextchar in quotes {
+                    if !_posix { token = nextchar }
+                    state = nextchar
+                } else if whitespace_split {
+                    token = nextchar
+                    state = "a"
+                } else {
+                    token = nextchar
+                    // emit current token
+                    if token.len() > 0 || (_posix && quoted) { break }
+                }
+            } else if st in quotes {
+                quoted = true
+                if nextchar.len() == 0 {
+                    // end of file
+                    if debug >= 2 { print("shlex: I see EOF in quotes state") }
+                    return _fail("No closing quotation")
+                }
+                if nextchar == st {
+                    if !_posix {
+                        token += nextchar
+                        state = " "
+                        break
+                    }
+                    state = "a"
+                } else if _posix && (nextchar in escape) && (st in escapedquotes) {
+                    escapedstate = st
+                    state = nextchar
+                } else {
+                    token += nextchar
+                }
+            } else if st in escape {
+                if nextchar.len() == 0 {
+                    // end of file
+                    if debug >= 2 { print("shlex: I see EOF in escape state") }
+                    return _fail("No escaped character")
+                }
+                // In posix shells, only the quote itself or the escape
+                // character may be escaped within quotes.
+                if (escapedstate in quotes) && nextchar != st && nextchar != escapedstate {
+                    token += st
+                }
+                token += nextchar
+                state = escapedstate
+            } else if st == "a" || st == "c" {
+                if nextchar.len() == 0 {
+                    // end of file
+                    state = nil
+                    break
+                } else if nextchar in whitespace {
+                    if debug >= 2 { print("shlex: I see whitespace in word state") }
+                    state = " "
+                    // emit current token
+                    if token.len() > 0 || (_posix && quoted) { break }
+                } else if nextchar in commenters {
+                    _input.read_line()
+                    lineno += 1
+                    if _posix {
+                        state = " "
+                        // emit current token
+                        if token.len() > 0 || (_posix && quoted) { break }
+                    }
+                } else if st == "c" {
+                    if nextchar in _punctuation_chars {
+                        token += nextchar
+                    } else {
+                        if !(nextchar in whitespace) { _pushback_chars.append(nextchar) }
+                        state = " "
+                        break
+                    }
+                } else if _posix && (nextchar in quotes) {
+                    state = nextchar
+                } else if _posix && (nextchar in escape) {
+                    escapedstate = "a"
+                    state = nextchar
+                } else if (nextchar in wordchars) || (nextchar in quotes) ||
+                          (whitespace_split && !(nextchar in _punctuation_chars)) {
+                    token += nextchar
+                } else {
+                    if _punctuation_chars.len() > 0 {
+                        _pushback_chars.append(nextchar)
+                    } else {
+                        pushback.insert(0, nextchar)
+                    }
+                    if debug >= 2 { print("shlex: I see punctuation in word state") }
+                    state = " "
+                    // emit current token
+                    if token.len() > 0 || (_posix && quoted) { break }
+                }
+            }
+        }
+
+        let text = token
+        token = ""
+        var result str? = text
+        if _posix && !quoted && text.len() == 0 { result = nil }
+
+        if debug > 1 {
+            if text.len() > 0 {
+                print("shlex: raw token=" + _repr(text))
+            } else {
+                print("shlex: raw token=EOF")
+            }
+        }
+        return result
+    }
+
+    /// The file to read for `source newfile`: the name, without the double
+    /// quotes around it, relative to the directory of `infile()`, and the
+    /// opened file. Nil, with `error()` set, when it cannot be opened.
+    pub func sourcehook(newfile str) (str, fs.File)? {
+        var name = newfile
+        if name.starts_with("\"") {
+            if name.len() >= 2 {
+                name = name.substr(1, name.len() - 1)
+            } else {
+                name = ""
+            }
+        }
+        // This implements cpp-like semantics for relative-path inclusion.
+        if let file = _infile {
+            if !name.starts_with("/") { name = _join(_dirname(file), name) }
+        }
+
+        let opened = fs.open(name, "r")
+        if opened == nil {
+            _fail("[Errno 2] No such file or directory: " + _repr(name))
+            return nil
+        }
+        return (name, opened)
+    }
+
+    /// The start of an error message in the style of a C compiler, as
+    /// "\"conf.txt\", line 3: ", for `infile` and `line`, the current
+    /// file and line by default. Python names `line` `lineno`, which is a
+    /// field here.
+    pub func error_leader(infile str? = nil, line int? = nil) str {
+        let file = infile ?? _infile
+        let number = line ?? lineno
+        var name = "None"
+        if let text = file { name = text }
+        return format("\"{}\", line {}: ", name, number)
+    }
+
+    /// The tokens up to `eof`.
+    pub func iter(step = 1) Iterator[str] = _Tokens(self)
+
+    func _fail(message str) str? {
+        _error = message
+        return nil
+    }
+}

@@ -1,0 +1,441 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Generated from CPython 3.14.4's shlex: every expected value below is what
+// Python returns for the same input.
+
+import "std/ut"
+import "std/fs"
+import "std/io"
+import "koala/shlex"
+
+
+func _check(got list[str]?, want list[str]) {
+    ut.assert_true(got != nil)
+    let tokens = got!
+    ut.assert_eq(tokens.len(), want.len())
+    for i in range(want.len()) {
+        ut.assert_eq(tokens[i], want[i])
+    }
+}
+
+
+// The tokens of `lex` up to its eof; nil on a lexing error.
+func _tokens(lex shlex.shlex) list[str]? {
+    let out = list[str]()
+    for token in lex { out.append(token) }
+    if lex.error().len() > 0 { return nil }
+    return out
+}
+
+@test
+func test_lexer_1() {
+    // non-posix default
+    let text = "a+b c=d \"q x\" 's' #c\nnext -o=v 1.5 x_y é"
+    let lex = shlex.shlex(text)
+    let want = [
+        "a", "+", "b", "c", "=", "d", "\"q x\"", "'s'", "next", "-", "o", "=", "v", "1", ".", "5",
+        "x_y", "é",
+    ]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 2)
+}
+
+@test
+func test_lexer_2() {
+    // posix
+    let text = "a+b c=d \"q x\" 's' #c\nnext -o=v 1.5 x_y é"
+    let lex = shlex.shlex(text, posix=true)
+    let want = [
+        "a", "+", "b", "c", "=", "d", "q x", "s", "next", "-", "o", "=", "v", "1", ".", "5", "x_y",
+        "é",
+    ]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 2)
+}
+
+@test
+func test_lexer_3() {
+    // non-posix, whitespace_split
+    let text = "a+b c=d \"q x\" 's' #c\nnext -o=v 1.5 x_y é"
+    let lex = shlex.shlex(text)
+    lex.whitespace_split = true
+    let want = ["a+b", "c=d", "\"q x\"", "'s'", "next", "-o=v", "1.5", "x_y", "é"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 2)
+}
+
+@test
+func test_lexer_4() {
+    // posix, whitespace_split
+    let text = "a+b c=d \"q x\" 's' #c\nnext -o=v 1.5 x_y é"
+    let lex = shlex.shlex(text, posix=true)
+    lex.whitespace_split = true
+    let want = ["a+b", "c=d", "q x", "s", "next", "-o=v", "1.5", "x_y", "é"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 2)
+}
+
+@test
+func test_lexer_5() {
+    // punctuation_chars=true
+    let text = "a && b; c|d (e) >f g>>h ~/x.py *.c a=1"
+    let lex = shlex.shlex(text, punctuation_chars=true)
+    let want = [
+        "a", "&&", "b", ";", "c", "|", "d", "(", "e", ")", ">", "f", "g", ">>", "h", "~/x.py",
+        "*.c", "a=1",
+    ]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_6() {
+    // punctuation_chars=true, posix
+    let text = "a && b; c|d (e) >f g>>h ~/x.py *.c a=1"
+    let lex = shlex.shlex(text, posix=true, punctuation_chars=true)
+    let want = [
+        "a", "&&", "b", ";", "c", "|", "d", "(", "e", ")", ">", "f", "g", ">>", "h", "~/x.py",
+        "*.c", "a=1",
+    ]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_7() {
+    // punctuation_chars=true, whitespace_split
+    let text = "a && b; c|d (e) >f g>>h ~/x.py *.c a=1"
+    let lex = shlex.shlex(text, punctuation_chars=true)
+    lex.whitespace_split = true
+    let want = [
+        "a", "&&", "b", ";", "c", "|", "d", "(", "e", ")", ">", "f", "g", ">>", "h", "~/x.py",
+        "*.c", "a=1",
+    ]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_8() {
+    // punctuation_chars="|"
+    let text = "a|b||c d;e"
+    let lex = shlex.shlex(text, punctuation_chars="|")
+    let want = ["a", "|", "b", "||", "c", "d", ";", "e"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_9() {
+    // posix escapes and quotes
+    let text = "a\\ b \"c\\\"d\" 'e\\f' \"g\\h\" i\"j k\"l"
+    let lex = shlex.shlex(text, posix=true)
+    let want = ["a b", "c\"d", "e\\f", "g\\h", "ij kl"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_10() {
+    // non-posix keeps quotes
+    let text = "'a b'\"c\" d'e'"
+    let lex = shlex.shlex(text)
+    let want = ["'a b'", "\"c\"", "d'e'"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_11() {
+    // posix empty quotes
+    let text = "'' \"\" x''"
+    let lex = shlex.shlex(text, posix=true)
+    let want = ["", "", "x"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_12() {
+    // lines and comments
+    let text = "one # c1\ntwo\n\nthree # c2\n"
+    let lex = shlex.shlex(text, posix=true)
+    let want = ["one", "two", "three"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 5)
+}
+
+@test
+func test_lexer_13() {
+    // unclosed quote
+    let text = "a 'b"
+    let lex = shlex.shlex(text, posix=true)
+    ut.assert_true(_tokens(lex) == nil)
+    ut.assert_eq(lex.error(), "No closing quotation")
+}
+
+@test
+func test_lexer_14() {
+    // trailing escape
+    let text = "a b\\"
+    let lex = shlex.shlex(text, posix=true)
+    ut.assert_true(_tokens(lex) == nil)
+    ut.assert_eq(lex.error(), "No escaped character")
+}
+
+@test
+func test_lexer_15() {
+    // unclosed quote, non-posix
+    let text = "a \"b"
+    let lex = shlex.shlex(text)
+    ut.assert_true(_tokens(lex) == nil)
+    ut.assert_eq(lex.error(), "No closing quotation")
+}
+
+@test
+func test_lexer_16() {
+    // custom wordchars, commenters, quotes
+    let text = "a-b.c ;comment\n|q x| #d e+f"
+    let lex = shlex.shlex(text)
+    lex.wordchars += "-."
+    lex.commenters = ";"
+    lex.quotes = "|"
+    let want = ["a-b.c", "|q x|", "#", "d", "e", "+", "f"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 2)
+}
+
+@test
+func test_lexer_17() {
+    // posix without escapes
+    let text = "a\\b \"c\\\"d"
+    let lex = shlex.shlex(text, posix=true)
+    lex.escape = ""
+    let want = ["a", "\\", "b", "c\\d"]
+    _check(_tokens(lex), want)
+    ut.assert_eq(lex.lineno, 1)
+}
+
+@test
+func test_lexer_18() {
+    // eof, posix(), punctuation_chars(), the default attributes
+    let lex = shlex.shlex("x", posix=false, punctuation_chars=false)
+    ut.assert_eq(lex.eof!, "")
+    ut.assert_eq(lex.posix(), false)
+    ut.assert_eq(lex.punctuation_chars(), "")
+    let chars = "abcdfeghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+    ut.assert_eq(lex.wordchars, chars)
+    ut.assert_eq(lex.commenters, "#")
+    ut.assert_eq(lex.whitespace, " \t\r\n")
+    ut.assert_eq(lex.quotes, "'\"")
+    ut.assert_eq(lex.escape, "\\")
+    ut.assert_eq(lex.escapedquotes, "\"")
+    ut.assert_false(lex.whitespace_split)
+    ut.assert_true(lex.state! == " ")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_true(lex.source == nil)
+}
+
+@test
+func test_lexer_19() {
+    // eof, posix(), punctuation_chars(), the default attributes
+    let lex = shlex.shlex("x", posix=false, punctuation_chars=true)
+    ut.assert_eq(lex.eof!, "")
+    ut.assert_eq(lex.posix(), false)
+    ut.assert_eq(lex.punctuation_chars(), "();<>|&")
+    let chars = "abcdfeghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_~-./*?="
+    ut.assert_eq(lex.wordchars, chars)
+    ut.assert_eq(lex.commenters, "#")
+    ut.assert_eq(lex.whitespace, " \t\r\n")
+    ut.assert_eq(lex.quotes, "'\"")
+    ut.assert_eq(lex.escape, "\\")
+    ut.assert_eq(lex.escapedquotes, "\"")
+    ut.assert_false(lex.whitespace_split)
+    ut.assert_true(lex.state! == " ")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_true(lex.source == nil)
+}
+
+@test
+func test_lexer_20() {
+    // eof, posix(), punctuation_chars(), the default attributes
+    let lex = shlex.shlex("x", posix=false, punctuation_chars="|;")
+    ut.assert_eq(lex.eof!, "")
+    ut.assert_eq(lex.posix(), false)
+    ut.assert_eq(lex.punctuation_chars(), "|;")
+    let chars = "abcdfeghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_~-./*?="
+    ut.assert_eq(lex.wordchars, chars)
+    ut.assert_eq(lex.commenters, "#")
+    ut.assert_eq(lex.whitespace, " \t\r\n")
+    ut.assert_eq(lex.quotes, "'\"")
+    ut.assert_eq(lex.escape, "\\")
+    ut.assert_eq(lex.escapedquotes, "\"")
+    ut.assert_false(lex.whitespace_split)
+    ut.assert_true(lex.state! == " ")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_true(lex.source == nil)
+}
+
+@test
+func test_lexer_21() {
+    // eof, posix(), punctuation_chars(), the default attributes
+    let lex = shlex.shlex("x", posix=true, punctuation_chars=false)
+    ut.assert_true(lex.eof == nil)
+    ut.assert_eq(lex.posix(), true)
+    ut.assert_eq(lex.punctuation_chars(), "")
+    let chars = "abcdfeghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345" +
+                "6789_ßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔ" +
+                "ÕÖØÙÚÛÜÝÞ"
+    ut.assert_eq(lex.wordchars, chars)
+    ut.assert_eq(lex.commenters, "#")
+    ut.assert_eq(lex.whitespace, " \t\r\n")
+    ut.assert_eq(lex.quotes, "'\"")
+    ut.assert_eq(lex.escape, "\\")
+    ut.assert_eq(lex.escapedquotes, "\"")
+    ut.assert_false(lex.whitespace_split)
+    ut.assert_true(lex.state! == " ")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_true(lex.source == nil)
+}
+
+@test
+func test_lexer_22() {
+    // eof, posix(), punctuation_chars(), the default attributes
+    let lex = shlex.shlex("x", posix=true, punctuation_chars=true)
+    ut.assert_true(lex.eof == nil)
+    ut.assert_eq(lex.posix(), true)
+    ut.assert_eq(lex.punctuation_chars(), "();<>|&")
+    let chars = "abcdfeghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345" +
+                "6789_ßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔ" +
+                "ÕÖØÙÚÛÜÝÞ~-./*?="
+    ut.assert_eq(lex.wordchars, chars)
+    ut.assert_eq(lex.commenters, "#")
+    ut.assert_eq(lex.whitespace, " \t\r\n")
+    ut.assert_eq(lex.quotes, "'\"")
+    ut.assert_eq(lex.escape, "\\")
+    ut.assert_eq(lex.escapedquotes, "\"")
+    ut.assert_false(lex.whitespace_split)
+    ut.assert_true(lex.state! == " ")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_true(lex.source == nil)
+}
+
+@test
+func test_lexer_23() {
+    // eof, posix(), punctuation_chars(), the default attributes
+    let lex = shlex.shlex("x", posix=true, punctuation_chars="|;")
+    ut.assert_true(lex.eof == nil)
+    ut.assert_eq(lex.posix(), true)
+    ut.assert_eq(lex.punctuation_chars(), "|;")
+    let chars = "abcdfeghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012345" +
+                "6789_ßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔ" +
+                "ÕÖØÙÚÛÜÝÞ~-./*?="
+    ut.assert_eq(lex.wordchars, chars)
+    ut.assert_eq(lex.commenters, "#")
+    ut.assert_eq(lex.whitespace, " \t\r\n")
+    ut.assert_eq(lex.quotes, "'\"")
+    ut.assert_eq(lex.escape, "\\")
+    ut.assert_eq(lex.escapedquotes, "\"")
+    ut.assert_false(lex.whitespace_split)
+    ut.assert_true(lex.state! == " ")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_true(lex.source == nil)
+}
+
+@test
+func test_push_token() {
+    let lex = shlex.shlex("a b c", posix=true)
+    ut.assert_eq(lex.get_token()!, "a")
+    lex.push_token("x")
+    lex.push_token("y")
+    // the last pushed comes first
+    ut.assert_eq(lex.pushback.len(), 2)
+    ut.assert_eq(lex.pushback[0], "y")
+    ut.assert_eq(lex.get_token()!, "y")
+    ut.assert_eq(lex.get_token()!, "x")
+    ut.assert_eq(lex.get_token()!, "b")
+    // read_token ignores the pushed-back tokens
+    lex.push_token("z")
+    ut.assert_eq(lex.read_token()!, "c")
+    ut.assert_eq(lex.get_token()!, "z")
+    ut.assert_true(lex.get_token() == nil)
+}
+
+@test
+func test_push_source() {
+    let lex = shlex.shlex("a b", posix=true)
+    ut.assert_eq(lex.get_token()!, "a")
+    lex.push_source("x y", "inner.txt")
+    ut.assert_eq(lex.infile()!, "inner.txt")
+    ut.assert_eq(lex.lineno, 1)
+    ut.assert_eq(lex.get_token()!, "x")
+    ut.assert_eq(lex.get_token()!, "y")
+    // the end of the pushed source returns to the first one
+    ut.assert_eq(lex.get_token()!, "b")
+    ut.assert_true(lex.infile() == nil)
+    ut.assert_true(lex.get_token() == nil)
+}
+
+@test
+func test_source_inclusion() {
+    fs.mkdir("/tmp/koala_shlex_test")
+    fs.mkdir("/tmp/koala_shlex_test/sub")
+    let text0 = "one source sub/inc.txt two\nsource \"sub/q.txt\" three\n"
+    fs.write_str("/tmp/koala_shlex_test/main.txt", text0)
+    let text1 = "in1 in2\n"
+    fs.write_str("/tmp/koala_shlex_test/sub/inc.txt", text1)
+    let text2 = "quoted\n"
+    fs.write_str("/tmp/koala_shlex_test/sub/q.txt", text2)
+    let main = "/tmp/koala_shlex_test/main.txt"
+    let lex = shlex.shlex(fs.open(main)!, main, posix=true)
+    lex.source = "source"
+    lex.whitespace_split = true
+    let want = ["one", "in1", "in2", "two", "quoted", "three"]
+    _check(_tokens(lex), want)
+}
+
+@test
+func test_source_missing_file() {
+    let lex = shlex.shlex("a source nothere.txt b", posix=true)
+    lex.source = "source"
+    ut.assert_eq(lex.get_token()!, "a")
+    ut.assert_true(lex.get_token() == nil)
+    // without whitespace_split the name stops at the '.', as in Python
+    ut.assert_eq(lex.error(), "[Errno 2] No such file or directory: 'nothere'")
+}
+
+@test
+func test_error_leader() {
+    let lex = shlex.shlex("x\ny", "conf.txt")
+    lex.get_token()
+    lex.get_token()
+    ut.assert_eq(lex.error_leader(), "\"conf.txt\", line 2: ")
+    ut.assert_eq(lex.error_leader("other.txt", 7), "\"other.txt\", line 7: ")
+    ut.assert_eq(shlex.shlex("x").error_leader(), "\"None\", line 1: ")
+}
+
+@test
+func test_stringio_and_file() {
+    let from_io = shlex.shlex(io.StringIO("p 'q r'"), posix=true)
+    _check(_tokens(from_io), ["p", "q r"])
+
+    let path = "/tmp/koala_shlex_test_stream.txt"
+    fs.write_str(path, "f1 \"f 2\"\n# c\nf3 考拉\n")
+    let from_file = shlex.shlex(fs.open(path)!, path, posix=true)
+    // a character outside wordchars is a token of its own, as in Python
+    _check(_tokens(from_file), ["f1", "f 2", "f3", "考", "拉"])
+    ut.assert_eq(from_file.lineno, 4)
+}
+
+@test
+func test_error_is_sticky() {
+    let lex = shlex.shlex("ok 'open", posix=true)
+    ut.assert_eq(lex.get_token()!, "ok")
+    ut.assert_true(lex.get_token() == nil)
+    ut.assert_eq(lex.error(), "No closing quotation")
+    ut.assert_true(lex.get_token() == nil)
+    ut.assert_true(lex.read_token() == nil)
+}

@@ -1,0 +1,42 @@
+// RUN: koala %s | filecheck %s
+// A method with no return type whose block body is one call that returns a value: the trait
+// check reported "method 'write' does not match trait 'Out': return type expected '<NO-TYPE>',
+// but got 'int64'", as if the block were an `= expr` body. A free function with the same body
+// compiled.
+
+trait Out {
+    func write(text str)
+}
+
+func count(text str) int { return text.len() }
+
+class Plain : Out {
+    func __init__() {}
+
+    func write(text str) {
+        count(text)
+    }
+}
+
+class Logged : Out {
+    var calls int = 0
+
+    func __init__() {}
+
+    func write(text str) {
+        calls += 1
+        count(text)
+    }
+}
+
+func main() {
+    let plain Out = Plain()
+    plain.write("x")
+    let logged = Logged()
+    let out Out = logged
+    out.write("y")
+    out.write("z")
+    print("ok", logged.calls)
+}
+
+// CHECK: ok 2

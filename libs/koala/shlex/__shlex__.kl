@@ -1,0 +1,139 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Shell-like lexical analysis, a port of CPython's `shlex`.
+///
+///     shlex.split("add 'buy milk' -p 1")    // ["add", "buy milk", "-p", "1"]
+///     shlex.quote("it's")                   // 'it'"'"'s'
+///     shlex.join(["echo", "a b"])           // echo 'a b'
+///
+/// The names, the parameters, the defaults and the results are Python's.
+/// Where Python raises ValueError, `split` returns nil and a `shlex`
+/// lexer reports the message with `error()`. See `shlex` for the lexer.
+
+/// Split `s` as a POSIX shell splits a command line: on whitespace, with
+/// quotes and backslash escapes. `comments` treats `#` as the start of a
+/// comment; `posix=false` keeps the quotes and does not escape. Returns nil
+/// on an unclosed quote or a trailing backslash, where Python raises
+/// ValueError.
+pub func split(s str, comments = false, posix = true) list[str]? {
+    let lex = shlex(s, posix=posix)
+    lex.whitespace_split = true
+    if !comments { lex.commenters = "" }
+
+    let out = list[str]()
+    while true {
+        let token = lex.get_token()
+        if lex.error().len() > 0 { return nil }
+        if token == nil || _same(token, lex.eof) { break }
+        out.append(token!)
+    }
+    return out
+}
+
+/// The arguments of `split_command` quoted and joined with spaces: the
+/// inverse of `split`.
+pub func join(split_command list[str]) str {
+    let quoted = list[str]()
+    for arg in split_command { quoted.append(quote(arg)) }
+    return " ".join(quoted)
+}
+
+/// `s` quoted to be one word of a shell command line: as it is when it
+/// holds only safe characters, else in single quotes, a single quote
+/// written as '"'"'.
+pub func quote(s str) str {
+    if s.len() == 0 { return "''" }
+
+    // No quoting is needed if `s` is an ASCII string of only safe characters.
+    var safe = true
+    for c in s {
+        if !(c in _SAFE_CHARS) {
+            safe = false
+            break
+        }
+    }
+    if safe { return s }
+
+    // use single quotes, and put single quotes into double quotes
+    // the string $'b is then quoted as '$'"'"'b'
+    return "'" + s.replace("'", "'\"'\"'") + "'"
+}
+
+// The characters `quote` leaves unquoted, as CPython's.
+const _SAFE_CHARS = "%+,-./0123456789:=@ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
+
+// Whether two optional strings are equal, nil equal to nil only.
+func _same(a str?, b str?) bool {
+    if let x = a {
+        if let y = b { return x == y }
+        return false
+    }
+    return b == nil
+}
+
+// `s` without the characters of `drop`.
+func _without(s str, drop str) str {
+    var out = ""
+    for c in s {
+        if !(c in drop) { out += c }
+    }
+    return out
+}
+
+// `s` as Python's repr() writes a str, nil as None, for the debug output.
+func _repr(s str?) str {
+    if s == nil { return "None" }
+    let text = s
+
+    var mark = "'"
+    if ("'" in text) && !("\"" in text) { mark = "\"" }
+
+    var out = mark
+    for c in text {
+        if c == mark || c == "\\" {
+            out += "\\" + c
+        } else if c == "\n" {
+            out += "\\n"
+        } else if c == "\r" {
+            out += "\\r"
+        } else if c == "\t" {
+            out += "\\t"
+        } else {
+            let code = int(c.to_bytes()[0])
+            if c.to_bytes().len() == 1 && (code < 0x20 || code == 0x7f) {
+                out += "\\x" + _hex2(code)
+            } else {
+                out += c
+            }
+        }
+    }
+    return out + mark
+}
+
+// `n`, 0 to 255, as two lower-case hex digits.
+func _hex2(n int) str {
+    let digits = "0123456789abcdef"
+    return digits[n / 16] + digits[n % 16]
+}
+
+// The directory part of `path`, as Python's os.path.dirname.
+func _dirname(path str) str {
+    let i = path.rindex("/")
+    if i < 0 { return "" }
+    // the head keeps its slashes only when it is nothing else, as "/"
+    let head = path.substr(0, i + 1)
+    var end = head.len()
+    while end > 0 && head[end - 1] == "/" { end -= 1 }
+    if end == 0 { return head }
+    return head.substr(0, end)
+}
+
+// `name` joined to the directory `dir`, as Python's os.path.join.
+func _join(dir str, name str) str {
+    if name.starts_with("/") || dir.len() == 0 { return name }
+    if dir.ends_with("/") { return dir + name }
+    return dir + "/" + name
+}

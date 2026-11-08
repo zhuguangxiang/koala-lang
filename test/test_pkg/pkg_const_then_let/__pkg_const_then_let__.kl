@@ -1,0 +1,4 @@
+// A package whose `const` is in one file and whose `let` is in a later one, for
+// test-run/test_pkg_const_then_let.kl.
+
+pub func limit() int = _LIMIT

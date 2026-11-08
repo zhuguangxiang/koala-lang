@@ -13,7 +13,7 @@ link "koala_re"
 /// the pattern is compiled. `\d`, `\w`, `\s` and `\b` are Unicode unless
 /// `ASCII` is given, as in Python.
 ///
-/// Text is read as UTF-8 and offsets are byte offsets into the `str`.
+/// Text is read as UTF-8 and offsets are character indexes into the `str`, as `s[i]`.
 ///
 /// The types are `Pattern` (a compiled pattern), `Match` (one match, with its
 /// groups) and `MatchIter` (the matches of a text, one at a time). The

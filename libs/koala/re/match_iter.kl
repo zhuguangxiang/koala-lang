@@ -19,7 +19,7 @@ pub class MatchIter : Iterator[Match] {
     let _stop int
     var _raw list[int]
 
-    /// Start a search of `src[0:stop]` with `re` at byte offset `start`;
+    /// Start a search of `src[0:stop]` with `re` at character `start`;
     /// both are cut to `0..src.len()`, as `Pattern.finditer` does.
     pub func __init__(re Pattern, src str, start int = 0, stop int = INT64_MAX) {
         _re = re

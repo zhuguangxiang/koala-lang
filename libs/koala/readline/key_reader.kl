@@ -1,0 +1,53 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The bytes of the keys: from the terminal, after any text pushed back (the
+// text of a macro, read as if typed). It keeps the bytes of the key being
+// read, for key bindings.
+class _KeyReader {
+    let _term Terminal
+    let _pushed Buffer
+    var _next int = 0
+    let _seq Buffer
+
+    func __init__(term Terminal) {
+        _term = term
+        _pushed = Buffer()
+        _seq = Buffer()
+    }
+
+    func read_byte() int {
+        var b = -1
+        if _next < _pushed.len() {
+            b = int(_pushed[_next])
+            _next += 1
+            if _next == _pushed.len() {
+                _pushed.clear()
+                _next = 0
+            }
+        } else {
+            b = _term.read_byte()
+        }
+        if b >= 0 { _seq.write_byte(uint8(b)) }
+        return b
+    }
+
+    // Read `text` before the terminal.
+    func push(text str) {
+        let rest = Buffer()
+        rest.write(text.to_bytes())
+        for i in range(_next, _pushed.len()) { rest.write_byte(_pushed[i]) }
+        _pushed.clear()
+        _pushed.write(rest.to_bytes())
+        _next = 0
+    }
+
+    // The bytes read since the last call.
+    func take_seq() str {
+        let text = _seq.to_str()
+        _seq.clear()
+        return text
+    }
+}

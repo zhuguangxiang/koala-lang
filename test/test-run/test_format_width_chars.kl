@@ -1,0 +1,15 @@
+// RUN: koala %s | filecheck %s
+// A format width counts characters, as Python: format("{:>4}", "中文") is "  中文".
+// It counted bytes, so a non-ASCII value got too little padding.
+
+func main() {
+    print(format("[{:>4}]", "中文"))
+    print(format("[{:<4}]", "中文"))
+    print(format("[{:^5}]", "é"))
+    print(format("[{:*^6}]", "日本"))
+}
+
+// CHECK: [  中文]
+// CHECK-NEXT: [中文  ]
+// CHECK-NEXT: [  é  ]
+// CHECK-NEXT: [**日本**]

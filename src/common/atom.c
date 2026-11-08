@@ -35,7 +35,9 @@ char *atom_nstr(char *s, int len)
     hashmap_entry_init(atom, hash);
     atom->len = len;
     atom->str = (char *)(atom + 1);
-    strncpy(atom->str, s, len);
+    // a str constant may hold a NUL
+    memcpy(atom->str, s, len);
+    atom->str[len] = '\0';
     hashmap_put_only(&atom_tbl, atom);
     return atom->str;
 }
@@ -66,7 +68,7 @@ static int _atom_equal_(void *e1, void *e2)
     Atom *a1 = e1;
     Atom *a2 = e2;
     if (a1->len != a2->len) return 0;
-    return !strncmp(a1->str, a2->str, a1->len);
+    return !memcmp(a1->str, a2->str, a1->len);
 }
 
 static void _atom_free_(void *entry, void *data)

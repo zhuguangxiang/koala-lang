@@ -1,0 +1,23 @@
+// RUN: koala %s | filecheck %s
+// A NUL escape in a str literal is a character of the str, as Python: len("a\x00b") is 3.
+// The literal was cut at the NUL, so it held only "a"; two literals that differ only after a
+// NUL were one constant, and comparing them folded to equal.
+
+const NUL = "x\x00yz"
+
+func main() {
+    let s = "a\x00b"
+    print(s.len(), s.to_bytes().len())
+    print(NUL.len())
+    let items = ["p\x00q", "r"]
+    print(items[0].len())
+    let t = "a\x00c"
+    print(t.len(), s == t, s != t)
+    print("a\x00b" == "a\x00c", "a\x00b" != "a\x00c")
+}
+
+// CHECK: 3 3
+// CHECK-NEXT: 4
+// CHECK-NEXT: 3
+// CHECK-NEXT: 3 false true
+// CHECK-NEXT: false true

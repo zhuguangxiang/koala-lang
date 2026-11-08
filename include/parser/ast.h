@@ -564,6 +564,9 @@ typedef struct _FuncDeclStmt {
     Vector *args;
     TypeSpec *ret;
     Vector *body;
+    // the body is `= expr`: its value is returned, and gives the return type when none is
+    // declared. A block body is plain statements, even a block of one expression.
+    int is_expr_body;
     void *data;
 } FuncDeclStmt;
 

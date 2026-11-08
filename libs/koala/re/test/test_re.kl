@@ -47,9 +47,9 @@ func test_flags() {
 }
 
 @test
-func test_utf8_offsets_are_bytes() {
+func test_utf8_offsets_are_characters() {
     let r = re.Pattern("你+", 0)
-    assert_spans(r.exec("x你你y", 0, 8, re.SEARCH), [1, 7])
+    assert_spans(r.exec("x你你y", 0, 4, re.SEARCH), [1, 3])
 }
 
 @test

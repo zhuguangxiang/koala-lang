@@ -1,0 +1,56 @@
+// RUN: koala %s --test
+// Offsets are character indexes into the str, as str's own s[i] and slices, and as Python.
+
+import "koala/re"
+import "std/ut"
+
+func test_search_span_counts_characters() {
+    let m = re.search("世界", "你好世界!")!
+    ut.assert_eq(m.start(), 2)
+    ut.assert_eq(m.end(), 4)
+    ut.assert_eq(m.group(), "世界")
+}
+
+func test_pos_is_a_character_index() {
+    let m = re.compile("a").search("éaéa", 2)!
+    ut.assert_eq(m.start(), 3)
+}
+
+func test_endpos_is_a_character_index() {
+    let p = re.compile("文")
+    ut.assert_true(p.search("中文字", 0, 1) == nil)
+    let m = p.search("中文字", 0, 2)!
+    ut.assert_eq(m.start(), 1)
+    ut.assert_eq(m.end(), 2)
+}
+
+func test_finditer_empty_matches_step_by_character() {
+    let out = list[int]()
+    for m in re.finditer("", "é中") {
+        out.append(m.start())
+    }
+    ut.assert_eq(out.len(), 3)
+    ut.assert_eq(out[0], 0)
+    ut.assert_eq(out[1], 1)
+    ut.assert_eq(out[2], 2)
+}
+
+func test_findall_non_ascii() {
+    let got = re.findall("中.", "a中b中c")
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], "中b")
+    ut.assert_eq(got[1], "中c")
+}
+
+func test_sub_with_group_reference() {
+    ut.assert_eq(re.sub("(中)", "[\\1]", "a中b中"), "a[中]b[中]")
+    ut.assert_eq(re.sub("é", "e", "café é"), "cafe e")
+}
+
+func test_split_non_ascii() {
+    let parts = re.split(",", "中,文,字")
+    ut.assert_eq(parts.len(), 3)
+    ut.assert_eq(parts[0], "中")
+    ut.assert_eq(parts[1], "文")
+    ut.assert_eq(parts[2], "字")
+}

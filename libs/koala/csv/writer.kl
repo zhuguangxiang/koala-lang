@@ -39,14 +39,14 @@ func _quote_field(s str, delimiter int) str {
     var j = 0
     while j < n {
         if int(b[j]) == 34 {
-            out = out + s[seg:j] + "\"\""
+            out = out + _text(b, seg, j) + "\"\""
             j += 1
             seg = j
         } else {
             j += 1
         }
     }
-    return out + s[seg:n] + "\""
+    return out + _text(b, seg, n) + "\""
 }
 
 /// Serialize records to a CSV document.

@@ -1,0 +1,14 @@
+// RUN: koala %s | filecheck %s
+// BytesIO.from_str holds the UTF-8 bytes of the str. It sized its buffer with len(), which counts
+// characters, so a non-ASCII str did not fit and the write panicked.
+
+import "std/io"
+
+func main() {
+    let bio = io.BytesIO.from_str("a你好")
+    let out = bytes(16)
+    let n = bio.read(out)
+    print(n, out[0:n].to_str())
+}
+
+// CHECK: 7 a你好

@@ -1925,13 +1925,11 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     int need_parse_block = 1;
 
     /* parse body */
-    if (vector_size(fn->body) == 1) {
-        // single statement body
+    if (fn->is_expr_body) {
+        // `= expr`: the value is returned
         Stmt *s = vector_at(fn->body, 0);
-        if (s->kind == STMT_EXPR_KIND) {
-            parse_single_expr_stmt(ps, s, sym);
-            need_parse_block = 0;
-        }
+        parse_single_expr_stmt(ps, s, sym);
+        need_parse_block = 0;
     }
 
     if (need_parse_block) parse_block(ps, fn->body, NULL);

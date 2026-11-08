@@ -156,9 +156,10 @@ static void format_float(Buffer *out, double v, const FormatSpec *spec)
     }
 }
 
-static void format_str(Buffer *out, const char *s, int len, const FormatSpec *spec)
+/* Write s[0:len], `nchars` characters, padded to the width of `spec`, which counts characters. */
+static void format_str(Buffer *out, const char *s, int len, int nchars, const FormatSpec *spec)
 {
-    int pad = spec->width > len ? spec->width - len : 0;
+    int pad = spec->width > nchars ? spec->width - nchars : 0;
 
     if (spec->align == '<') {
         buf_write_nstr(out, s, len);
@@ -212,7 +213,7 @@ void __kl_format__(Formatter *fmt_obj, const char *fmt, int len, Object *args)
             kl_call_fmt(&a, fmt_tmp);
             Object *s = kl_fmt_result(fmt_tmp);
             FormatSpec spec = { 0 };
-            format_str(out, STR_BUF(s), STR_LEN(s), &spec);
+            format_str(out, STR_BUF(s), STR_LEN(s), STR_NCHARS(s), &spec);
             i += 2;
             continue;
         }
@@ -239,7 +240,7 @@ void __kl_format__(Formatter *fmt_obj, const char *fmt, int len, Object *args)
                 kl_fmt_clear(fmt_tmp);
                 kl_call_fmt(&a, fmt_tmp);
                 Object *s = kl_fmt_result(fmt_tmp);
-                format_str(out, STR_BUF(s), STR_LEN(s), &spec);
+                format_str(out, STR_BUF(s), STR_LEN(s), STR_NCHARS(s), &spec);
             }
 
             continue;

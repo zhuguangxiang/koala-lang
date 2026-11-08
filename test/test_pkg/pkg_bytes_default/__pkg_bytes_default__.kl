@@ -1,0 +1,6 @@
+// A package function whose parameters have a bytes and a str default, for
+// test-run/test_pkg_bytes_default.kl.
+
+pub func sizes(data = b"a\x00b", text = "x\x00yz") {
+    print(data, data.len(), text.len())
+}

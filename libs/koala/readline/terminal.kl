@@ -1,0 +1,50 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Where an `Editor` reads keys and draws the line being edited.
+///
+/// The real terminal is used by default; a `MemoryTerminal` replays keys
+/// from a string and keeps what is drawn, for tests and for driving an
+/// editor without a terminal.
+pub trait Terminal {
+    /// The next input byte, 0 to 255, or -1 at the end of the input.
+    func read_byte() int
+
+    /// Write `text` to the screen.
+    func write(text str)
+
+    /// Make what was written visible.
+    func flush()
+
+    /// The width of the screen, in columns.
+    func columns() int
+
+    /// The height of the screen, in rows.
+    func rows() int
+
+    /// Switch raw mode on or off: keys arrive one byte at a time and are
+    /// not echoed. False when the terminal cannot.
+    func set_raw(on bool) bool
+
+    /// Whether this is an interactive terminal that can be edited on.
+    /// When it is not, the editor reads plain lines, as from a pipe.
+    func is_interactive() bool
+
+    /// The byte of the key that suspends the program, Ctrl-Z (26) by
+    /// default; -1 for none.
+    func suspend_key() int
+
+    /// The byte of the key that quits the program, Ctrl-\ (28) by
+    /// default; -1 for none.
+    func quit_key() int
+
+    /// Suspend the program, as Ctrl-Z in a shell does, and return once it
+    /// is continued. The editor calls it out of raw mode.
+    func suspend()
+
+    /// Quit the program, as Ctrl-\ in a shell does. It returns when the
+    /// program does not quit. The editor calls it out of raw mode.
+    func quit()
+}

@@ -42,10 +42,11 @@ pub func encode(id str, args list[str]) bytes {
 
 /// Append one bulk-string frame to `buf`.
 func _write_bulk(buf Buffer, s str) {
+    let data = s.to_bytes()
     buf.write_byte('$')
-    buf.write_str(str(s.len()))
+    buf.write_str(str(data.len()))
     buf.write_str("\r\n")
-    buf.write_str(s)
+    buf.write(data)
     buf.write_str("\r\n")
 }
 

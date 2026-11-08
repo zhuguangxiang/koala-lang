@@ -213,12 +213,12 @@ Expr *expr_from_literal(Literal *lit)
     } else if (lit->which == LIT_STR) {
         exp->which = LIT_EXPR_STR;
         exp->len = lit->len;
-        exp->sval = str_dup(lit->sval);
+        exp->sval = str_ndup(lit->sval, lit->len);
         exp->ts = str_type_spec();
     } else if (lit->which == LIT_BYTES) {
         exp->which = LIT_EXPR_BYTES;
         exp->len = lit->len;
-        exp->sval = str_dup(lit->sval);
+        exp->sval = str_ndup(lit->sval, lit->len);
         exp->ts = bytes_type_spec();
     } else if (lit->which == LIT_NONE) {
         exp->which = LIT_EXPR_NONE;

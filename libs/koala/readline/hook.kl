@@ -1,0 +1,17 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A function with no arguments, as the startup and pre-input hooks of
+/// Python's `readline.set_startup_hook` / `set_pre_input_hook` take.
+///
+///     class Default : readline.Hook {
+///         func __init__() {}
+///         func call() { readline.insert_text("yes") }
+///     }
+///     readline.set_startup_hook(Default())
+///     let answer = readline.input("Continue? ")     // the line starts as "yes"
+pub trait Hook {
+    func call()
+}

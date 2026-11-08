@@ -1,0 +1,365 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The editor driven through a MemoryTerminal: the keys typed, the line it
+// returns and what it draws.
+
+import "std/ut"
+import "koala/readline"
+
+func _line(keys str, width int = 80) str? {
+    let term = readline.MemoryTerminal(keys, width=width)
+    return readline.Editor(term).readline("> ")
+}
+
+@test
+func test_typing() {
+    // plain typing
+    ut.assert_eq(_line("abc\r")!, "abc")
+}
+
+@test
+func test_line_feed_ends_too() {
+    // LF ends the line too
+    ut.assert_eq(_line("abc\n")!, "abc")
+}
+
+@test
+func test_left_and_insert() {
+    // Left twice, then insert
+    ut.assert_eq(_line("ab\x1b[D\x1b[DX\r")!, "Xab")
+}
+
+@test
+func test_ctrl_b_ctrl_f() {
+    // Ctrl-B, Ctrl-F
+    ut.assert_eq(_line("ab\x02\x02\x06X\r")!, "aXb")
+}
+
+@test
+func test_ss3_arrows() {
+    // ESC O D / ESC O C
+    ut.assert_eq(_line("ab\x1bOD\x1bOD\x1bOCX\r")!, "aXb")
+}
+
+@test
+func test_home_0() {
+    // Home as '\x1b[H'
+    ut.assert_eq(_line("bc\x1b[Ha\r")!, "abc")
+}
+
+@test
+func test_home_1() {
+    // Home as '\x1bOH'
+    ut.assert_eq(_line("bc\x1bOHa\r")!, "abc")
+}
+
+@test
+func test_home_2() {
+    // Home as '\x1b[1~'
+    ut.assert_eq(_line("bc\x1b[1~a\r")!, "abc")
+}
+
+@test
+func test_home_3() {
+    // Home as '\x1b[7~'
+    ut.assert_eq(_line("bc\x1b[7~a\r")!, "abc")
+}
+
+@test
+func test_home_4() {
+    // Home as '\x01'
+    ut.assert_eq(_line("bc\x01a\r")!, "abc")
+}
+
+@test
+func test_end_0() {
+    // End as '\x1b[F'
+    ut.assert_eq(_line("ab\x01\x1b[Fc\r")!, "abc")
+}
+
+@test
+func test_end_1() {
+    // End as '\x1bOF'
+    ut.assert_eq(_line("ab\x01\x1bOFc\r")!, "abc")
+}
+
+@test
+func test_end_2() {
+    // End as '\x1b[4~'
+    ut.assert_eq(_line("ab\x01\x1b[4~c\r")!, "abc")
+}
+
+@test
+func test_end_3() {
+    // End as '\x1b[8~'
+    ut.assert_eq(_line("ab\x01\x1b[8~c\r")!, "abc")
+}
+
+@test
+func test_end_4() {
+    // End as '\x05'
+    ut.assert_eq(_line("ab\x01\x05c\r")!, "abc")
+}
+
+@test
+func test_backspace_del() {
+    // Backspace as DEL (127)
+    ut.assert_eq(_line("abc\x7f\r")!, "ab")
+}
+
+@test
+func test_backspace_ctrl_h() {
+    // Backspace as Ctrl-H (8)
+    ut.assert_eq(_line("abc\x08\x08\r")!, "a")
+}
+
+@test
+func test_backspace_at_start() {
+    // Backspace at the start does nothing
+    ut.assert_eq(_line("ab\x01\x7f\r")!, "ab")
+}
+
+@test
+func test_delete_key() {
+    // Delete: ESC [ 3 ~
+    ut.assert_eq(_line("abc\x01\x1b[3~\r")!, "bc")
+}
+
+@test
+func test_ctrl_d_deletes() {
+    // Ctrl-D on a non-empty line deletes at the cursor
+    ut.assert_eq(_line("abc\x01\x04\r")!, "bc")
+}
+
+@test
+func test_delete_at_end() {
+    // Delete at the end does nothing
+    ut.assert_eq(_line("ab\x1b[3~\r")!, "ab")
+}
+
+@test
+func test_cjk() {
+    // CJK characters
+    ut.assert_eq(_line("考拉\r")!, "考拉")
+}
+
+@test
+func test_cjk_edit() {
+    // editing between CJK characters
+    ut.assert_eq(_line("考拉\x1b[D中\r")!, "考中拉")
+}
+
+@test
+func test_combining() {
+    // Backspace removes a letter with its combining mark
+    ut.assert_eq(_line("aé\x7f\r")!, "a")
+}
+
+@test
+func test_combining_left() {
+    // Left skips a letter with its combining mark
+    ut.assert_eq(_line("é\x1b[Dx\r")!, "xé")
+}
+
+@test
+func test_zwj_backspace() {
+    // Backspace removes a whole ZWJ family emoji
+    ut.assert_eq(_line("a👨‍👩‍👧\x7f\r")!, "a")
+}
+
+@test
+func test_zwj_left() {
+    // Left skips a whole ZWJ family emoji
+    ut.assert_eq(_line("👨‍👩‍👧\x1b[Dx\r")!, "x👨‍👩‍👧")
+}
+
+@test
+func test_flag_left() {
+    // Left skips both regional indicators of a flag
+    ut.assert_eq(_line("🇨🇳\x1b[Dx\r")!, "x🇨🇳")
+}
+
+@test
+func test_skin_tone() {
+    // Backspace removes an emoji with its skin tone
+    ut.assert_eq(_line("a👍🏽\x7f\r")!, "a")
+}
+
+@test
+func test_paste() {
+    // bracketed paste
+    ut.assert_eq(_line("\x1b[200~hello world\x1b[201~\r")!, "hello world")
+}
+
+@test
+func test_paste_with_escape() {
+    // an ESC inside pasted text is kept
+    ut.assert_eq(_line("\x1b[200~a\x1bb\x1b[201~\r")!, "a\x1bb")
+}
+
+@test
+func test_unknown_keys_ignored() {
+    // Page Up, Insert, Ctrl-G and Ctrl-\ are ignored
+    ut.assert_eq(_line("a\x1b[5~\x1b[2~\x07\x1cb\r")!, "ab")
+}
+
+@test
+func test_raw_mode_is_restored() {
+    let term = readline.MemoryTerminal("x\r")
+    readline.Editor(term).readline()
+    ut.assert_false(term.raw())
+}
+
+@test
+func test_ctrl_d_on_empty_line() {
+    let term = readline.MemoryTerminal("\x04")
+    ut.assert_true(readline.Editor(term).readline("> ") == nil)
+    ut.assert_true(term.output().ends_with("\r\n"))
+}
+
+@test
+func test_ctrl_c_drops_the_line() {
+    let term = readline.MemoryTerminal("abc\x03def\r")
+    let editor = readline.Editor(term)
+    ut.assert_eq(editor.readline("> ")!, "")
+    ut.assert_true("^C\r\n" in term.output())
+    // the next line starts empty
+    ut.assert_eq(editor.readline("> ")!, "def")
+}
+
+@test
+func test_end_of_input() {
+    ut.assert_eq(_line("abc")!, "abc")
+    ut.assert_true(_line("") == nil)
+}
+
+@test
+func test_several_lines() {
+    let editor = readline.Editor(readline.MemoryTerminal("one\rtwo\r"))
+    ut.assert_eq(editor.readline()!, "one")
+    ut.assert_eq(editor.readline()!, "two")
+    ut.assert_true(editor.readline() == nil)
+}
+
+// What the editor draws: the cursor to the left edge, the prompt and the
+// visible part of the line, erase to the right, the cursor to its column.
+func _frame(visible str, col int) str {
+    var out = "\r> " + visible + "\x1b[0K\r"
+    if col > 0 { out += format("\x1b[{}C", col) }
+    return out
+}
+
+@test
+func test_drawing() {
+    let term = readline.MemoryTerminal("ab\x1b[D\r")
+    readline.Editor(term).readline("> ")
+    // Enter draws the whole line with the cursor at its end, then leaves the row
+    let want = _frame("", 2) + _frame("a", 3) + _frame("ab", 4) + _frame("ab", 3) +
+               _frame("ab", 4) + "\r\n"
+    ut.assert_eq(term.output(), want)
+}
+
+@test
+func test_drawing_wide_characters() {
+    let term = readline.MemoryTerminal("考拉\x1b[D\r")
+    readline.Editor(term).readline("> ")
+    // each character takes two columns
+    let end = _frame("考拉", 6) + _frame("考拉", 4) + _frame("考拉", 6) + "\r\n"
+    ut.assert_true(term.output().ends_with(end))
+}
+
+@test
+func test_scrolling() {
+    // 10 columns: the prompt takes 2, so 7 characters fit before the cursor
+    let term = readline.MemoryTerminal("abcdefghijkl\x01\r", width=10)
+    readline.Editor(term).readline("> ")
+    let out = term.output()
+    let end = _frame("fghijkl", 9) + _frame("abcdefgh", 2) + _frame("fghijkl", 9) + "\r\n"
+    ut.assert_true(out.ends_with(end))
+}
+
+@test
+func test_scrolling_wide_characters() {
+    // 7 columns: the cursor at the end needs the last two characters only
+    let term = readline.MemoryTerminal("考拉中文\r", width=7)
+    readline.Editor(term).readline("> ")
+    ut.assert_true(term.output().ends_with(_frame("中文", 6) + _frame("中文", 6) + "\r\n"))
+}
+
+@test
+func test_colored_prompt() {
+    // the escape sequences of a colored prompt take no columns
+    let term = readline.MemoryTerminal("a\r")
+    readline.Editor(term).readline("\x1b[32m>\x1b[0m ")
+    ut.assert_true(term.output().ends_with("\r\x1b[32m>\x1b[0m a\x1b[0K\r\x1b[3C\r\n"))
+}
+
+@test
+func test_not_interactive() {
+    // a pipe: the prompt is printed and plain lines are read
+    let term = readline.MemoryTerminal("one\ntwo", interactive=false)
+    let editor = readline.Editor(term)
+    ut.assert_eq(editor.readline("p> ")!, "one")
+    ut.assert_eq(editor.readline("p> ")!, "two")
+    ut.assert_true(editor.readline("p> ") == nil)
+    ut.assert_eq(term.output(), "p> p> p> ")
+    ut.assert_false(term.raw())
+}
+
+@test
+func test_not_interactive_keeps_keys_as_text() {
+    let term = readline.MemoryTerminal("a\x7fb\n", interactive=false)
+    ut.assert_eq(readline.Editor(term).readline()!, "a\x7fb")
+}
+
+@test
+func test_suspend_key_suspends_out_of_raw_mode() {
+    // Ctrl-Z suspends, out of raw mode; the line is edited on when the program is continued
+    let term = readline.MemoryTerminal("ab\x1ac\r")
+    ut.assert_eq(readline.Editor(term).readline("> ")!, "abc")
+    let calls = term.signals()
+    ut.assert_eq(calls.len(), 1)
+    ut.assert_eq(calls[0], "suspend")
+}
+
+@test
+func test_suspend_draws_nothing() {
+    // nothing is drawn for it, as with GNU readline
+    let plain = readline.MemoryTerminal("abc\r")
+    readline.Editor(plain).readline("> ")
+    let suspended = readline.MemoryTerminal("ab\x1ac\r")
+    readline.Editor(suspended).readline("> ")
+    let expected = plain.output().replace("\x1b[?2004", "")
+    ut.assert_eq(suspended.output().replace("\x1b[?2004", ""), expected)
+}
+
+@test
+func test_quit_key_quits_out_of_raw_mode() {
+    // Ctrl-\ quits, out of raw mode; when the program goes on, so does the line
+    let term = readline.MemoryTerminal("ab\x1cc\r")
+    ut.assert_eq(readline.Editor(term).readline("> ")!, "abc")
+    let calls = term.signals()
+    ut.assert_eq(calls.len(), 1)
+    ut.assert_eq(calls[0], "quit")
+}
+
+@test
+func test_signal_keys_are_the_terminals() {
+    // the terminal's keys, as stty sets them: here Ctrl-X suspends and Ctrl-Z is a key again
+    let term = readline.MemoryTerminal("a\x18b\x1a\r", suspend=24, quit=-1)
+    ut.assert_eq(readline.Editor(term).readline("> ")!, "ab")
+    let calls = term.signals()
+    ut.assert_eq(calls.len(), 1)
+    ut.assert_eq(calls[0], "suspend")
+}
+
+@test
+func test_no_signal_keys() {
+    // with none, as after stty -isig, Ctrl-Z and Ctrl-\ are keys
+    let term = readline.MemoryTerminal("a\x1a\x1cb\r", suspend=-1, quit=-1)
+    ut.assert_eq(readline.Editor(term).readline("> ")!, "ab")
+    ut.assert_eq(term.signals().len(), 0)
+}

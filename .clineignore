@@ -1,0 +1,33 @@
+# --- 1. 编译和打包输出目录（绝对要拦截） ---
+build/
+dist/
+out/
+.next/
+.nuxt/
+target/
+
+# --- 2. 依赖包目录（体积巨大，AI 没必要看本地源码） ---
+node_modules/
+bower_components/
+.venv/
+venv/
+env/
+pkg/
+
+# --- 3. 缓存、日志和系统文件 ---
+.git/
+.idea/
+.vscode/
+*.log
+.eslintcache
+.cache/
+.DS_Store
+Thumbs.db
+
+# --- 4. 大型多媒体与本地数据库（免得 AI 误读导致卡死） ---
+*.mp4
+*.mp3
+*.zip
+*.tar.gz
+*.sqlite
+*.db

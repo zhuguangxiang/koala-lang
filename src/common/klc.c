@@ -56,7 +56,7 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
         case KLC_CONST_SHORT_ASCII: {
             if (k1->sval == k2->sval) return 1;
             if (k1->len != k2->len) return 0;
-            return !strncmp(k1->sval, k2->sval, k1->len);
+            return !memcmp(k1->sval, k2->sval, k1->len);
         }
 
         case KLC_CONST_RANGE:
@@ -214,7 +214,7 @@ static uint16_t __add_float(KlcFile *klc, double val, int width, int type)
 static uint16_t __add_str(KlcFile *klc, char *s, int len, int type)
 {
     int _type = STR_TYPE(len);
-    char *_s = len <= 0 ? "" : atom(s);
+    char *_s = len <= 0 ? "" : atom_nstr(s, len);
     KlcConst k = { .type = _type, .len = len, .sval = _s };
     uint16_t idx = __index(klc, type, &k);
     if (idx == 0) {
@@ -259,7 +259,7 @@ uint16_t klc_add_str(KlcFile *klc, char *s, int len) { return __add_str(klc, s, 
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
 {
     int type = UTF8_TYPE(len);
-    char *_s = len <= 0 ? "" : atom(s);
+    char *_s = len <= 0 ? "" : atom_nstr(s, len);
     KlcConst k = { .type = type, .len = len, .sval = _s };
     uint16_t idx = __index(klc, ITEM_CONST, &k);
     if (idx == 0) {

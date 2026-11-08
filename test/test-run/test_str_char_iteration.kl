@@ -1,0 +1,39 @@
+// RUN: koala %s | filecheck %s
+// Iterating a non-ASCII str by character, forward, backward and with a stride, and reading it at
+// indexes that jump back and forth: each read is checked against the character built in.
+
+func main() {
+    let parts = list[str]()
+    for i in range(200) { parts.append(format("{}考é", i % 10)) }
+    let s = "".join(parts)
+
+    var forward = ""
+    for c in s { forward += c }
+    print(s.len(), forward == s)
+
+    var backward = list[str]()
+    let rit = s.reversed()
+    while let c = rit.next() { backward.append(c) }
+    backward.reverse()
+    print(backward.len(), "".join(backward) == s)
+
+    var strided = ""
+    let it = s.iter(3)
+    while let c = it.next() { strided += c }
+    print(strided.len(), strided.substr(0, 6))
+
+    // back and forth: near the cached position, then far from it
+    var ok = true
+    for i in [599, 598, 2, 300, 299, 301, 0, 597, 63, 64, 65, 128, 127] {
+        var want = format("{}", (i / 3) % 10)
+        if i % 3 == 1 { want = "考" }
+        if i % 3 == 2 { want = "é" }
+        if s[i] != want { ok = false }
+    }
+    print(ok)
+}
+
+// CHECK: 600 true
+// CHECK-NEXT: 600 true
+// CHECK-NEXT: 200 012345
+// CHECK-NEXT: true

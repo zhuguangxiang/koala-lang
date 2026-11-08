@@ -1,0 +1,92 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/fs"
+
+// One input source of a lexer: the stream it was given and a reader over
+// it, read one character at a time as Python's `instream.read(1)`. A `str`
+// is read through an `io.StringIO`, as in Python.
+class _Input {
+    // The stream, as `instream()` returns it.
+    let stream io.Reader
+    // How the debug output names the stream.
+    let kind str
+    let _reader io.BufReader
+    // The stream to close at its end; nil for a BufReader such as sys.stdin.
+    let _closer io.Closable?
+
+    func __init__(source str | io.StringIO | fs.File | io.BufReader) {
+        var reader io.BufReader? = nil
+        var closer io.Closable? = nil
+        var name = ""
+        var given io.Reader? = nil
+
+        if let text = source as str {
+            let s = io.StringIO(text)
+            given = s
+            closer = s
+            reader = io.BufReader(s)
+            name = "<io.StringIO object>"
+        } else if let s = source as io.StringIO {
+            given = s
+            closer = s
+            reader = io.BufReader(s)
+            name = "<io.StringIO object>"
+        } else if let f = source as fs.File {
+            given = f
+            closer = f
+            reader = io.BufReader(f)
+            name = "<fs.File object>"
+        } else if let b = source as io.BufReader {
+            // read as it is, so nothing it has buffered is lost
+            given = b
+            reader = b
+            name = "<io.BufReader object>"
+        }
+
+        stream = given!
+        kind = name
+        _reader = reader!
+        _closer = closer
+    }
+
+    // The next character, "" at the end. A UTF-8 sequence is one
+    // character, as Python reads a text stream.
+    func read_char() str {
+        let first = _reader.read_byte()
+        if first < 0 { return "" }
+
+        var size = 1
+        if first >= 0xF0 {
+            size = 4
+        } else if first >= 0xE0 {
+            size = 3
+        } else if first >= 0xC0 {
+            size = 2
+        }
+
+        let buf = Buffer()
+        buf.write_byte(uint8(first))
+        for _ in range(size - 1) {
+            let next = _reader.read_byte()
+            if next < 0 { break }
+            buf.write_byte(uint8(next))
+        }
+        return buf.to_str()
+    }
+
+    // Skip the rest of the line, its '\n' included, as Python's
+    // `instream.readline()`.
+    func read_line() {
+        let buf = Buffer()
+        _reader.read_until(buf, '\n')
+    }
+
+    // Close the stream, as Python's `instream.close()`.
+    func close() {
+        if let c = _closer { c.close() }
+    }
+}

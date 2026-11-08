@@ -1,0 +1,64 @@
+// SKIP: ! koalac %s 2>&1 | filecheck %s
+// Syntax errors in enum declarations.
+
+enum A { }
+// CHECK: enum 'A' needs at least one member.
+
+enum B { Foo, bar, X1, _Y, A_B }
+// CHECK-NEXT: enum member 'Foo' must be upper case: 'A'-'Z', '0'-'9' and '_', starting with a letter.
+// CHECK-NEXT: enum member 'bar' must be upper case: 'A'-'Z', '0'-'9' and '_', starting with a letter.
+// CHECK-NEXT: enum member '_Y' must be upper case: 'A'-'Z', '0'-'9' and '_', starting with a letter.
+
+// a value must be an integer literal
+enum C { X = 1 + 2, Y = Z, W = "a", V = 1.5, U = nil }
+// CHECK-NEXT: enum value must be an integer literal.
+// CHECK-NEXT: enum value must be an integer literal.
+// CHECK-NEXT: enum value must be an integer literal.
+// CHECK-NEXT: enum value must be an integer literal.
+// CHECK-NEXT: enum value must be an integer literal.
+
+enum D { X = 18446744073709551615, Y = 9223372036854775808 }
+// CHECK-NEXT: enum value 18446744073709551615 does not fit in int64.
+// CHECK-NEXT: enum value 9223372036854775808 does not fit in int64.
+
+// members need ','
+enum E { X Y, Z }
+// CHECK-NEXT: expected ',' before enum member 'Y'.
+enum F {
+    X
+    Y
+}
+// CHECK-NEXT: expected ',' before enum member 'Y'.
+
+enum G : Comparable { X }
+// CHECK-NEXT: an enum cannot declare traits.
+
+enum H[T] { X }
+// CHECK-NEXT: an enum cannot have type parameters.
+
+// the body holds members only
+enum I { X, func f() int = 1 }
+// CHECK-NEXT: an enum cannot have methods.
+enum J { static func f() {} }
+// CHECK-NEXT: an enum cannot have methods.
+enum K { X, var y = 1 }
+// CHECK-NEXT: an enum cannot have fields.
+enum L { let y = 1 }
+// CHECK-NEXT: an enum cannot have fields.
+enum M { X, const Y = 1 }
+// CHECK-NEXT: an enum cannot have fields.
+enum N { 1 }
+// CHECK-NEXT: expected enum members: 'NAME' or 'NAME = <integer literal>', separated by ','.
+
+func main() {
+    enum Local { A, B }
+    // CHECK-NEXT: an enum must be declared at the top level.
+}
+
+// the declarations that still parsed: B, C, D, E, F
+// CHECK-NEXT: enum is not supported yet.
+// CHECK-NEXT: enum is not supported yet.
+// CHECK-NEXT: enum is not supported yet.
+// CHECK-NEXT: enum is not supported yet.
+// CHECK-NEXT: enum is not supported yet.
+// CHECK-NOT: enum is not supported yet.

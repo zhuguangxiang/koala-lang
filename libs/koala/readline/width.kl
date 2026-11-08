@@ -1,0 +1,216 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Display widths and grapheme clusters, ported from linenoise's UTF-8
+// support. The editor moves the cursor and deletes by cluster - a base
+// character with its combining marks, variation selectors, skin tones and
+// ZWJ-joined emoji, or a flag's two regional indicators - and draws CJK,
+// fullwidth forms and emoji two columns wide.
+
+// The code point of the one-character string `c`.
+func _codepoint(c str) int {
+    let bs = c.to_bytes()
+    let n = bs.len()
+    if n == 0 { return 0 }
+
+    let b0 = int(bs[0])
+    if b0 < 0x80 || n == 1 { return b0 }
+    if b0 < 0xE0 { return ((b0 & 0x1F) << 6) | (int(bs[1]) & 0x3F) }
+    if b0 < 0xF0 || n == 2 {
+        return ((b0 & 0x0F) << 12) | ((int(bs[1]) & 0x3F) << 6) | (int(bs[2]) & 0x3F)
+    }
+    let high = ((b0 & 0x07) << 18) | ((int(bs[1]) & 0x3F) << 12)
+    return high | ((int(bs[2]) & 0x3F) << 6) | (int(bs[3]) & 0x3F)
+}
+
+func _is_variation_selector(cp int) bool = cp == 0xFE0E || cp == 0xFE0F
+
+func _is_skin_tone(cp int) bool = cp >= 0x1F3FB && cp <= 0x1F3FF
+
+func _is_zwj(cp int) bool = cp == 0x200D
+
+func _is_regional_indicator(cp int) bool = cp >= 0x1F1E6 && cp <= 0x1F1FF
+
+func _is_combining_mark(cp int) bool {
+    if cp >= 0x0300 && cp <= 0x036F { return true }    // Combining Diacriticals
+    if cp >= 0x1AB0 && cp <= 0x1AFF { return true }    // Extended
+    if cp >= 0x1DC0 && cp <= 0x1DFF { return true }    // Supplement
+    if cp >= 0x20D0 && cp <= 0x20FF { return true }    // for Symbols
+    return cp >= 0xFE20 && cp <= 0xFE2F                // Half Marks
+}
+
+// A code point that extends the character before it.
+func _is_extend(cp int) bool {
+    if _is_variation_selector(cp) || _is_skin_tone(cp) { return true }
+    return _is_zwj(cp) || _is_combining_mark(cp)
+}
+
+// The columns code point `cp` takes: 0 for control and extending ones, 2
+// for wide ones, else 1.
+func _char_width(cp int) int {
+    if cp < 32 || (cp >= 0x7F && cp < 0xA0) { return 0 }
+    if _is_extend(cp) { return 0 }
+    if cp >= 0x1100 && _is_wide(cp) { return 2 }
+    return 1
+}
+
+func _is_wide(cp int) bool {
+    if cp <= 0x115F { return true }                        // Hangul Jamo
+    if cp == 0x2329 || cp == 0x232A { return true }        // Angle brackets
+    if cp >= 0x231A && cp <= 0x231B { return true }        // Watch, Hourglass
+    if cp >= 0x23E9 && cp <= 0x23F3 { return true }
+    if cp >= 0x23F8 && cp <= 0x23FA { return true }
+    if cp >= 0x25AA && cp <= 0x25AB { return true }        // Small squares
+    if cp >= 0x25B6 && cp <= 0x25C0 { return true }        // Play buttons
+    if cp >= 0x25FB && cp <= 0x25FE { return true }
+    if cp >= 0x2600 && cp <= 0x27BF { return true }        // Misc Symbols, Dingbats
+    if cp >= 0x2934 && cp <= 0x2935 { return true }
+    if cp >= 0x2B05 && cp <= 0x2B07 { return true }
+    if cp >= 0x2B1B && cp <= 0x2B1C { return true }
+    if cp == 0x2B50 || cp == 0x2B55 { return true }
+    if cp >= 0x2E80 && cp <= 0xA4CF && cp != 0x303F { return true }    // CJK ... Yi
+    if cp >= 0xAC00 && cp <= 0xD7A3 { return true }        // Hangul Syllables
+    if cp >= 0xF900 && cp <= 0xFAFF { return true }        // CJK Compatibility
+    if cp >= 0xFE10 && cp <= 0xFE1F { return true }        // Vertical forms
+    if cp >= 0xFE30 && cp <= 0xFE6F { return true }        // CJK Compatibility Forms
+    if cp >= 0xFF00 && cp <= 0xFF60 { return true }        // Fullwidth Forms
+    if cp >= 0xFFE0 && cp <= 0xFFE6 { return true }        // Fullwidth Signs
+    if cp >= 0x1F1E6 && cp <= 0x1F1FF { return true }      // Regional Indicators
+    if cp >= 0x1F300 && cp <= 0x1F64F { return true }      // Symbols and Emoticons
+    if cp >= 0x1F680 && cp <= 0x1F6FF { return true }      // Transport and Map
+    if cp >= 0x1F900 && cp <= 0x1FAFF { return true }      // Supplemental Symbols
+    return cp >= 0x20000 && cp <= 0x2FFFF                  // CJK Extension B and beyond
+}
+
+// The end of the cluster that starts at `start`.
+func _cluster_end(chars list[str], start int) int {
+    let n = chars.len()
+    if start >= n { return n }
+
+    var i = start + 1
+    var regional = _is_regional_indicator(_codepoint(chars[start]))
+    while i < n {
+        let cp = _codepoint(chars[i])
+        if _is_zwj(cp) && i + 1 < n {
+            // ZWJ: include it and the character it joins
+            i += 2
+        } else if _is_extend(cp) {
+            i += 1
+        } else if regional && _is_regional_indicator(cp) {
+            // the second regional indicator of a flag
+            i += 1
+            regional = false
+        } else {
+            break
+        }
+    }
+    return i
+}
+
+// The start of the cluster that ends at `end`.
+func _cluster_start(chars list[str], end int) int {
+    if end <= 0 { return 0 }
+
+    var i = end - 1
+    var cp = _codepoint(chars[i])
+    while i > 0 {
+        let prev = _codepoint(chars[i - 1])
+        if _is_zwj(prev) {
+            // the ZWJ and the character before it
+            if i - 2 < 0 { break }
+            i -= 2
+            cp = _codepoint(chars[i])
+        } else if _is_extend(cp) {
+            i -= 1
+            cp = prev
+        } else if _is_regional_indicator(cp) && _is_regional_indicator(prev) {
+            i -= 1
+            break
+        } else {
+            break
+        }
+    }
+    return i
+}
+
+// The columns of the cluster chars[start:end]: those of its first code
+// point.
+func _cluster_width(chars list[str], start int, end int) int {
+    if start >= end { return 0 }
+    return _char_width(_codepoint(chars[start]))
+}
+
+// The columns of chars[start:end].
+func _range_width(chars list[str], start int, end int) int {
+    var width = 0
+    var i = start
+    while i < end {
+        let next = _cluster_end(chars, i)
+        width += _cluster_width(chars, i, next)
+        i = next
+    }
+    return width
+}
+
+// The columns `text` takes on screen. ANSI escape sequences, as colors in
+// a prompt, take none, and neither does text between "\x01" and "\x02", as
+// readline's RL_PROMPT_START_IGNORE / RL_PROMPT_END_IGNORE.
+func _text_width(text str) int {
+    let all = _chars_of(text)
+    let chars = list[str]()
+    var i = 0
+    let n = all.len()
+    while i < n {
+        let c = all[i]
+        if c == "\x01" {
+            while i < n && all[i] != "\x02" { i += 1 }
+            i += 1
+            continue
+        }
+        if c == "\x1b" && i + 1 < n && all[i + 1] == "[" {
+            // ESC [ <parameters> <final byte 0x40..0x7E>
+            i += 2
+            while i < n && !_is_csi_final(all[i]) { i += 1 }
+            i += 1
+            continue
+        }
+        chars.append(c)
+        i += 1
+    }
+    return _range_width(chars, 0, chars.len())
+}
+
+func _is_csi_final(c str) bool {
+    let cp = _codepoint(c)
+    return cp >= 0x40 && cp <= 0x7E
+}
+
+// The characters of `text`, one string each.
+func _chars_of(text str) list[str] {
+    let chars = list[str]()
+    for c in text { chars.append(c) }
+    return chars
+}
+
+// `prompt` as it is written: without readline's "\x01" / "\x02" markers.
+func _prompt_text(prompt str) str {
+    if !("\x01" in prompt) && !("\x02" in prompt) { return prompt }
+    return prompt.replace("\x01", "").replace("\x02", "")
+}
+
+// A C0 control character or DEL, shown as `^X`.
+func _is_control(c str) bool {
+    let cp = _codepoint(c)
+    return cp < 32 || cp == 0x7F
+}
+
+// How character `c` of the line is drawn: a control character as `^X`, as
+// readline does.
+func _shown(c str) str {
+    if !_is_control(c) { return c }
+    let cp = _codepoint(c)
+    if cp == 0x7F { return "^?" }
+    return "^" + "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"[cp]
+}

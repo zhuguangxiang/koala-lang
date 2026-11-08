@@ -10,7 +10,7 @@
 /// lookaround), plus RE2's `\p{..}` classes. A search takes time proportional
 /// to the length of the pattern times the length of the text, however the
 /// pattern is written. Text is read as UTF-8; an invalid byte matches as
-/// U+FFFD. Offsets are byte offsets.
+/// U+FFFD. Offsets are character indexes.
 ///
 /// A `Pattern` never changes, so it can be kept and used over and over;
 /// compile once and reuse it rather than calling the package functions in
@@ -52,7 +52,7 @@ pub class Pattern {
     @native
     func group_name(i int) str? {}
 
-    /// Run the matcher over `s[0:end]` from byte offset `start`; the
+    /// Run the matcher over `s[0:end]` from character `start`; the
     /// primitive under `search`, `match` and `fullmatch`. The text after
     /// `end` is not seen at all, so `$` matches at `end`.
     ///
@@ -102,7 +102,7 @@ pub class Pattern {
         f.write_str(")")
     }
 
-    /// The leftmost match in `s` at or after byte offset `pos`, or nil.
+    /// The leftmost match in `s` at or after character `pos`, or nil.
     ///
     /// `pos` and `endpos` are Python's: the search looks at `s[0:endpos]`
     /// only, as if the text ended there, and starts at `pos`; `^` and `\b`
@@ -113,14 +113,14 @@ pub class Pattern {
         return _find(s, pos, endpos, SEARCH)
     }
 
-    /// The match that begins exactly at byte offset `pos` of `s`, or nil.
+    /// The match that begins exactly at character `pos` of `s`, or nil.
     ///
     /// The match need not reach the end of `s`; see `fullmatch`.
     pub func match(s str, pos int = 0, endpos int = INT64_MAX) Match? {
         return _find(s, pos, endpos, MATCH)
     }
 
-    /// The match that begins at byte offset `pos` of `s` and runs to the
+    /// The match that begins at character `pos` of `s` and runs to the
     /// end of `s` (or to `endpos`), or nil.
     ///
     /// Among the ways to match up to the end, the one a search would prefer

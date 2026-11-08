@@ -1,0 +1,9 @@
+// RUN: koala %s | filecheck %s
+// zfill with a sign keeps the sign first and pads after it, as Python: "-42".zfill(5) is "-0042".
+// It wrote one zero too many, "-0004", and the extra byte ran past its buffer.
+
+func main() {
+    print("-42".zfill(5), "+7".zfill(4), "42".zfill(5), "-42".zfill(2))
+}
+
+// CHECK: -0042 +007 00042 -42

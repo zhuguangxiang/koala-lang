@@ -1,0 +1,270 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The emacs editing commands of GNU readline: kill and yank, words,
+// transpose, case, undo, clear screen; control characters, paste and the
+// prompt markers.
+
+import "std/ut"
+import "koala/readline"
+
+func _line(keys str) str? {
+    let term = readline.MemoryTerminal(keys)
+    return readline.Editor(term).readline("> ")
+}
+
+@test
+func test_ctrl_k() {
+    // C-k kills to the end
+    ut.assert_eq(_line("hello world\x01\x1bf\x0b\r")!, "hello")
+}
+
+@test
+func test_ctrl_u() {
+    // C-u kills to the start
+    ut.assert_eq(_line("hello world\x1bb\x15\r")!, "world")
+}
+
+@test
+func test_ctrl_u_at_start() {
+    // C-u at the start kills nothing
+    ut.assert_eq(_line("abc\x01\x15\r")!, "abc")
+}
+
+@test
+func test_ctrl_w() {
+    // C-w kills the whitespace-delimited word before the cursor
+    ut.assert_eq(_line("foo bar-baz  \x17\r")!, "foo ")
+}
+
+@test
+func test_alt_backspace() {
+    // M-Backspace kills the alphanumeric word before the cursor
+    ut.assert_eq(_line("foo bar-baz\x1b\x7f\r")!, "foo bar-")
+}
+
+@test
+func test_alt_d() {
+    // M-d kills the word after the cursor
+    ut.assert_eq(_line("foo bar\x01\x1bd\r")!, " bar")
+}
+
+@test
+func test_yank() {
+    // C-y yanks the last kill
+    ut.assert_eq(_line("foo bar\x17\x01\x19\r")!, "barfoo ")
+}
+
+@test
+func test_kills_join() {
+    // consecutive kills join into one entry
+    ut.assert_eq(_line("a b c\x17\x17\x19\r")!, "a b c")
+}
+
+@test
+func test_meta_kill_starts_an_entry() {
+    // a Meta kill starts a new entry, as in GNU readline: the yank is the second kill only
+    ut.assert_eq(_line("one two three\x01\x1bd\x1bd\x05\x19\r")!, " three two")
+}
+
+@test
+func test_yank_pop() {
+    // M-y replaces the yank with the older kill
+    ut.assert_eq(_line("one\x15two\x15\x19\x1by\r")!, "one")
+}
+
+@test
+func test_yank_pop_wraps() {
+    // M-y cycles back to the latest kill
+    ut.assert_eq(_line("one\x15two\x15\x19\x1by\x1by\r")!, "two")
+}
+
+@test
+func test_yank_pop_needs_yank() {
+    // M-y right after other keys does nothing
+    ut.assert_eq(_line("one\x15x\x1by\r")!, "x")
+}
+
+@test
+func test_transpose() {
+    // C-t swaps the characters around the cursor and moves on
+    ut.assert_eq(_line("abc\x1b[DX\x1b[D\x1b[D\x14\r")!, "baXc")
+}
+
+@test
+func test_transpose_middle() {
+    // C-t in the middle
+    ut.assert_eq(_line("abc\x1b[D\x14X\r")!, "acbX")
+}
+
+@test
+func test_transpose_end() {
+    // C-t at the end swaps the last two
+    ut.assert_eq(_line("abc\x14\r")!, "acb")
+}
+
+@test
+func test_transpose_start() {
+    // C-t at the start does nothing
+    ut.assert_eq(_line("abc\x01\x14\r")!, "abc")
+}
+
+@test
+func test_transpose_cjk() {
+    // C-t swaps whole characters
+    ut.assert_eq(_line("考拉\x14\r")!, "拉考")
+}
+
+@test
+func test_upcase_capitalize() {
+    // M-u then M-c
+    ut.assert_eq(_line("hello world\x01\x1bu\x1bc\r")!, "HELLO World")
+}
+
+@test
+func test_downcase() {
+    // M-l
+    ut.assert_eq(_line("ABC DEF\x01\x1bl\r")!, "abc DEF")
+}
+
+@test
+func test_case_after_cursor_word() {
+    // M-u skips to the next word
+    ut.assert_eq(_line("a  bc\x01\x1bf\x1bu\r")!, "a  BC")
+}
+
+@test
+func test_undo_typing() {
+    // C-_ undoes a run of typing at once
+    ut.assert_eq(_line("abc\x1f\r")!, "")
+}
+
+@test
+func test_undo_steps() {
+    // C-_ goes back one change at a time
+    ut.assert_eq(_line("abc\x17x\x1f\x1f\r")!, "abc")
+}
+
+@test
+func test_undo_nothing() {
+    // C-_ with nothing to undo
+    ut.assert_eq(_line("\x1fa\r")!, "a")
+}
+
+@test
+func test_alt_b_alt_b() {
+    // M-b twice
+    ut.assert_eq(_line("one two three\x1bb\x1bbX\r")!, "one Xtwo three")
+}
+
+@test
+func test_ctrl_left() {
+    // Ctrl-Left is M-b
+    ut.assert_eq(_line("one two three\x1b[1;5D\x1b[1;5DX\r")!, "one Xtwo three")
+}
+
+@test
+func test_alt_f() {
+    // M-f moves to the end of the word
+    ut.assert_eq(_line("one two\x01\x1bfX\r")!, "oneX two")
+}
+
+@test
+func test_ctrl_right() {
+    // Ctrl-Right is M-f
+    ut.assert_eq(_line("one two\x01\x1b[1;5CX\r")!, "oneX two")
+}
+
+@test
+func test_word_moves_punctuation() {
+    // words are alphanumeric
+    ut.assert_eq(_line("a.b,c\x1bb\x1bbX\r")!, "a.Xb,c")
+}
+
+@test
+func test_word_moves_cjk() {
+    // a non-ASCII letter is part of a word
+    ut.assert_eq(_line("ab 考拉\x1bbX\r")!, "ab X考拉")
+}
+
+// What the editor draws for the line `visible` with the cursor at `col`.
+func _frame(visible str, col int) str {
+    var out = "\r> " + visible + "\x1b[0K\r"
+    if col > 0 { out += format("\x1b[{}C", col) }
+    return out
+}
+
+@test
+func test_ctrl_l_clears_the_screen() {
+    let term = readline.MemoryTerminal("ab\x0c\r")
+    ut.assert_eq(readline.Editor(term).readline("> ")!, "ab")
+    ut.assert_true(term.output().ends_with("\x1b[H\x1b[2J" + _frame("ab", 4) + _frame("ab", 4) +
+                                           "\r\n"))
+}
+
+@test
+func test_control_characters_show_as_caret() {
+    // a pasted tab is kept in the line and drawn as ^I, two columns
+    let term = readline.MemoryTerminal("\x1b[200~a\tb\x1b[201~\r")
+    ut.assert_eq(readline.Editor(term).readline("> ")!, "a\tb")
+    ut.assert_true(term.output().ends_with(_frame("a^Ib", 6) + "\r\n"))
+}
+
+@test
+func test_paste_of_several_lines() {
+    // each pasted line is a line read; the last one goes on being edited
+    let keys = "\x1b[200~one\ntwo\nthr\x1b[201~ee\r"
+    let editor = readline.Editor(readline.MemoryTerminal(keys))
+    ut.assert_eq(editor.readline("> ")!, "one")
+    ut.assert_eq(editor.readline("> ")!, "two")
+    ut.assert_eq(editor.readline("> ")!, "three")
+    ut.assert_true(editor.readline("> ") == nil)
+}
+
+@test
+func test_paste_with_crlf() {
+    let editor = readline.Editor(readline.MemoryTerminal("\x1b[200~a\r\nb\x1b[201~\r"))
+    ut.assert_eq(editor.readline()!, "a")
+    ut.assert_eq(editor.readline()!, "b")
+}
+
+@test
+func test_paste_after_typed_text() {
+    let editor = readline.Editor(readline.MemoryTerminal("x\x1b[200~y\nz\x1b[201~\r"))
+    ut.assert_eq(editor.readline()!, "xy")
+    ut.assert_eq(editor.readline()!, "z")
+}
+
+@test
+func test_undo_paste() {
+    ut.assert_eq(_line("a\x1b[200~bcd\x1b[201~\x1f\r")!, "a")
+}
+
+@test
+func test_prompt_ignore_markers() {
+    // as readline, text between \x01 and \x02 takes no columns and the markers are not written
+    let term = readline.MemoryTerminal("a\r")
+    readline.Editor(term).readline("\x01\x1b[1m\x02>\x01\x1b[0m\x02 ")
+    ut.assert_true(term.output().ends_with("\r\x1b[1m>\x1b[0m a\x1b[0K\r\x1b[3C\r\n"))
+}
+
+@test
+func test_kill_ring_is_kept_between_lines() {
+    let editor = readline.Editor(readline.MemoryTerminal("gone\x15\r\x19\r"))
+    ut.assert_eq(editor.readline()!, "")
+    ut.assert_eq(editor.readline()!, "gone")
+}
+
+@test
+func test_ctrl_kill_joins_a_meta_kill() {
+    // C-k right after M-d joins it, as in GNU readline
+    ut.assert_eq(_line("one two\x01\x1bd\x0b\x19\r")!, "one two")
+}
+
+@test
+func test_meta_kill_after_ctrl_kill() {
+    // M-Backspace right after C-w starts a new entry
+    ut.assert_eq(_line("aa bb cc\x17\x1b\x7f\x19\r")!, "aa bb ")
+}

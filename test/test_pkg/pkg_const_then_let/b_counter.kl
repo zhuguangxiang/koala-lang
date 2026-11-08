@@ -1,0 +1,9 @@
+let _START = 5
+
+pub class Counter {
+    pub var value int
+
+    pub func __init__() {
+        value = _START
+    }
+}

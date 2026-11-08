@@ -1,0 +1,58 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+
+// readline's default completion, with no completer set: the names of the
+// files that start with `text`, in its directory, as
+// rl_filename_completion_function. "." and ".." only when `text` starts
+// with ".".
+class _FileCompleter : Completer {
+    var _text str = ""
+    var _matches list[str]
+
+    func __init__() {
+        _matches = list[str]()
+    }
+
+    func complete(text str, state int) str? {
+        if state == 0 || text != _text {
+            _text = text
+            _matches = _file_matches(text)
+        }
+        if state < _matches.len() { return _matches[state] }
+        return nil
+    }
+}
+
+// The files that complete `text`: its directory part followed by each name
+// in that directory that starts with the rest.
+func _file_matches(text str) list[str] {
+    let out = list[str]()
+    var dir = ""
+    var prefix = text
+    let slash = text.rindex("/")
+    if slash >= 0 {
+        dir = text.substr(0, slash + 1)
+        prefix = text.substr(slash + 1)
+    }
+
+    var where = dir
+    if where.len() == 0 { where = "." }
+    if !fs.is_dir(where) { return out }
+
+    let names = list[str]()
+    for path in fs.list_dir(where) {
+        let name = path.name()
+        if name.starts_with(prefix) { names.append(name) }
+    }
+    if prefix.starts_with(".") {
+        for name in [".", ".."] {
+            if name.starts_with(prefix) { names.append(name) }
+        }
+    }
+    for name in names { out.append(dir + name) }
+    return out
+}

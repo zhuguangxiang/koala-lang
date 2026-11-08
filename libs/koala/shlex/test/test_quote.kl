@@ -1,0 +1,126 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Generated from CPython 3.14.4's shlex: every expected value below is what
+// Python returns for the same input.
+
+import "std/ut"
+import "koala/shlex"
+
+@test
+func test_quote_0() {
+    ut.assert_eq(shlex.quote(""), "''")
+}
+
+@test
+func test_quote_1() {
+    ut.assert_eq(shlex.quote("abc"), "abc")
+}
+
+@test
+func test_quote_2() {
+    ut.assert_eq(shlex.quote("a b"), "'a b'")
+}
+
+@test
+func test_quote_3() {
+    ut.assert_eq(shlex.quote("it's"), "'it'\"'\"'s'")
+}
+
+@test
+func test_quote_4() {
+    ut.assert_eq(shlex.quote("$HOME"), "'$HOME'")
+}
+
+@test
+func test_quote_5() {
+    ut.assert_eq(shlex.quote("é"), "'é'")
+}
+
+@test
+func test_quote_6() {
+    ut.assert_eq(shlex.quote("a-b.c/d:e=f@g%h+i,j_K"), "a-b.c/d:e=f@g%h+i,j_K")
+}
+
+@test
+func test_quote_7() {
+    ut.assert_eq(shlex.quote("*"), "'*'")
+}
+
+@test
+func test_quote_8() {
+    ut.assert_eq(shlex.quote("\n"), "'\n'")
+}
+
+@test
+func test_quote_9() {
+    ut.assert_eq(shlex.quote("'"), "''\"'\"''")
+}
+
+@test
+func test_quote_10() {
+    ut.assert_eq(shlex.quote("\""), "'\"'")
+}
+
+@test
+func test_quote_11() {
+    ut.assert_eq(shlex.quote("a'b\"c"), "'a'\"'\"'b\"c'")
+}
+
+@test
+func test_quote_12() {
+    ut.assert_eq(shlex.quote("~user"), "'~user'")
+}
+
+@test
+func test_quote_13() {
+    ut.assert_eq(shlex.quote("="), "=")
+}
+
+@test
+func test_quote_14() {
+    ut.assert_eq(shlex.quote("考拉"), "'考拉'")
+}
+
+@test
+func test_quote_15() {
+    ut.assert_eq(shlex.quote("tab\there"), "'tab\there'")
+}
+
+@test
+func test_join_0() {
+    ut.assert_eq(shlex.join(["echo", "a b"]), "echo 'a b'")
+}
+
+@test
+func test_join_1() {
+    ut.assert_eq(shlex.join(list[str]()), "")
+}
+
+@test
+func test_join_2() {
+    ut.assert_eq(shlex.join(["it's", "", "x"]), "'it'\"'\"'s' '' x")
+}
+
+@test
+func test_join_3() {
+    ut.assert_eq(shlex.join(["a", "$b", "c d e"]), "a '$b' 'c d e'")
+}
+
+@test
+func test_join_round_trip() {
+    {
+        let parts = ["a b", "it's", "$x", "", "考拉"]
+        let back = shlex.split(shlex.join(parts))!
+        ut.assert_eq(back.len(), parts.len())
+        for i in range(parts.len()) { ut.assert_eq(back[i], parts[i]) }
+    }
+    {
+        let parts = ["--opt=\"q\"", "\\"]
+        let back = shlex.split(shlex.join(parts))!
+        ut.assert_eq(back.len(), parts.len())
+        for i in range(parts.len()) { ut.assert_eq(back[i], parts[i]) }
+    }
+}

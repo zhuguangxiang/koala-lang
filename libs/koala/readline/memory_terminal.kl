@@ -1,0 +1,101 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A terminal in memory: it replays the bytes of `keys` as typed input and
+/// keeps everything written to it.
+///
+///     let term = readline.MemoryTerminal("ab\x1b[DX\r", width=40)
+///     let line = readline.Editor(term).readline("> ")    // "aXb"
+///     print(term.output())
+///
+/// `width` and `height` are its columns and rows. `interactive=false` makes
+/// it behave as a pipe: the editor then reads plain lines from it.
+/// `suspend` and `quit` are the bytes of its suspend and quit keys, -1 for
+/// none; suspending and quitting do nothing but are kept in `signals()`.
+pub class MemoryTerminal : Terminal {
+    let _keys bytes
+    var _next int = 0
+    let _width int
+    let _height int
+    let _interactive bool
+    let _out Buffer
+    var _raw bool = false
+    let _suspend_byte int
+    let _quit_byte int
+    let _signals list[str]
+
+    pub func __init__(keys str, width = 80, height = 24, interactive = true, suspend = 26,
+                      quit = 28) {
+        _keys = keys.to_bytes()
+        _width = width
+        _height = height
+        _interactive = interactive
+        _out = Buffer()
+        _suspend_byte = suspend
+        _quit_byte = quit
+        _signals = list[str]()
+    }
+
+    pub func read_byte() int {
+        if _next >= _keys.len() { return -1 }
+        let b = int(_keys[_next])
+        _next += 1
+        return b
+    }
+
+    pub func write(text str) {
+        _out.write(text.to_bytes())
+    }
+
+    pub func flush() {}
+
+    pub func columns() int = _width
+
+    pub func rows() int = _height
+
+    pub func set_raw(on bool) bool {
+        _raw = on
+        return true
+    }
+
+    pub func is_interactive() bool = _interactive
+
+    pub func suspend_key() int = _suspend_byte
+
+    pub func quit_key() int = _quit_byte
+
+    pub func suspend() {
+        _signal("suspend")
+    }
+
+    pub func quit() {
+        _signal("quit")
+    }
+
+    // Keep `name`, marked when it came in raw mode, where a real terminal
+    // would be left unusable.
+    func _signal(name str) {
+        if _raw {
+            _signals.append(name + " in raw mode")
+        } else {
+            _signals.append(name)
+        }
+    }
+
+    /// The calls of `suspend` and `quit` so far, in order: "suspend" or
+    /// "quit", with " in raw mode" when raw mode was on.
+    pub func signals() list[str] = _signals
+
+    /// Everything written so far.
+    pub func output() str = _out.to_str()
+
+    /// Whether raw mode is on.
+    pub func raw() bool = _raw
+
+    /// Forget what was written so far.
+    pub func clear_output() {
+        _out.clear()
+    }
+}

@@ -694,7 +694,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                 } else if (lval->which == CONST_STR && rval->which == CONST_STR) {
                     log_info("fold binary cmp_eq(str) insn to const bool:");
                     log_insn(insn);
-                    int res = !strcmp(lval->sval, rval->sval);
+                    int res = lval->len == rval->len && !memcmp(lval->sval, rval->sval, lval->len);
                     KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 } else if (lval->which == CONST_NONE && rval->which == CONST_NONE) {
@@ -741,7 +741,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                 } else if (lval->which == CONST_STR && rval->which == CONST_STR) {
                     log_info("fold binary cmp_ne(str) insn to const bool:");
                     log_insn(insn);
-                    int res = strcmp(lval->sval, rval->sval);
+                    int res = lval->len != rval->len || memcmp(lval->sval, rval->sval, lval->len);
                     KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 } else if (lval->which == CONST_NONE && rval->which == CONST_NONE) {

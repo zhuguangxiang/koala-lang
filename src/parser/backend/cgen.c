@@ -204,7 +204,7 @@ static int __mach_const_eq__(void *a, void *b)
         case KL_MACH_CONST_FLOAT:
             return (ka->len == kb->len) && (ka->f64 == kb->f64);
         case KL_MACH_CONST_STR:
-            return (ka->len == kb->len) && (strcmp(ka->str, kb->str) == 0);
+            return (ka->len == kb->len) && (memcmp(ka->str, kb->str, ka->len) == 0);
         case KL_MACH_CONST_BYTES:
             return (ka->len == kb->len) && (memcmp(ka->str, kb->str, ka->len) == 0);
         case KL_MACH_CONST_BOOL:
@@ -254,7 +254,7 @@ static unsigned int mach_const_hash(void *key)
         case KL_MACH_CONST_BOOL:
             return mem_hash(&kc->bval, sizeof(kc->bval));
         case KL_MACH_CONST_STR:
-            return str_hash(kc->str);
+            return mem_hash(kc->str, kc->len);
         case KL_MACH_CONST_BYTES:
             return mem_hash(kc->str, kc->len);
         case KL_MACH_CONST_RANGE:
@@ -396,9 +396,8 @@ static KlMachConst *kl_mach_add_bool(KlMachModule *m, int val)
     return new_entry;
 }
 
-static KlMachConst *kl_mach_add_str(KlMachModule *m, char *v)
+static KlMachConst *kl_mach_add_str(KlMachModule *m, char *v, int len)
 {
-    int len = strlen(v);
     KlMachConst key = { .tag = KL_MACH_CONST_STR, .len = len, .str = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
 
@@ -619,7 +618,7 @@ KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
             return kl_mach_add_bool(m, kc->bval);
         }
         case CONST_STR: {
-            return kl_mach_add_str(m, kc->sval);
+            return kl_mach_add_str(m, kc->sval, kc->len);
         }
         case CONST_BYTES: {
             return kl_mach_add_bytes(m, kc->sval, kc->len);

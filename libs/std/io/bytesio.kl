@@ -88,10 +88,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     /// Returns
     /// A new BytesIO containing the UTF-8 bytes of `s`, positioned at 0.
     pub static func from_str(s str) BytesIO {
-        let bio = BytesIO(s.len())
-        bio.write_str(s)
-        bio.seek(0, 0)
-        return bio
+        return BytesIO.from_bytes(s.to_bytes())
     }
 
     /// Read up to _bs.len() bytes from the current position into `_bs`.

@@ -659,7 +659,7 @@ top_stmt
     | prefix func_decl
     {
         $$ = $2;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
     }
     | class_decl
     {
@@ -668,7 +668,7 @@ top_stmt
     | prefix class_decl
     {
         $$ = $2;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
     }
     | trait_decl
     {
@@ -677,7 +677,7 @@ top_stmt
     | access trait_decl
     {
         $$ = $2;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
     }
     | semi
     {
@@ -1891,6 +1891,7 @@ func_decl
         stmt_set_loc(s, loc(@3));
         vector_push_back(block, &s);
         ((FuncDeclStmt *)$$)->body = block;
+        ((FuncDeclStmt *)$$)->is_expr_body = 1;
     }
     ;
 
@@ -2446,7 +2447,7 @@ prefix_field_decl
     | access field_decl
     {
         $$ = $2;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
     }
     ;
 
@@ -2491,7 +2492,7 @@ method_decl
     | prefix func_decl
     {
         $$ = $2;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
     }
     | STATIC func_decl
     {
@@ -2502,7 +2503,7 @@ method_decl
     | prefix STATIC func_decl
     {
         $$ = $3;
-        stmt_set_prefix($$, $1);
+        if ($$) stmt_set_prefix($$, $1);
         SimpleFlag flg = { 1, loc(@2) };
          $$->flags.st = flg;
     }

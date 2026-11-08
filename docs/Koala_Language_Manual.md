@@ -607,6 +607,18 @@ print(s[0])              // first character
 print(s.find("world"))   // position of a substring
 ```
 
+A `str` counts, indexes and slices by character (Unicode code point), as Python does:
+`"你好".len()` is 2, `s[i]` is the i-th character as a one-character `str`, `for c in s` yields one
+character per step, and `s[a:b]`, the positions taken and returned by `index`, `rindex` and
+`count`, the offsets of `koala/re` and the widths of `format` are all in characters. The text is
+stored as UTF-8: `s.to_bytes()` gives the bytes, and its `len()` is the size in bytes. A `str`
+made from invalid UTF-8, as by `bytes.to_str()` on data read from a file or a socket, has U+FFFD
+in place of each invalid byte, so every `str` is valid UTF-8.
+
+On an all-ASCII `str`, `s[i]` is direct. On other text it starts from the last index used, so
+walking a string forward or backward costs O(1) per step, and a random index scans at most 64
+characters from a checkpoint.
+
 Strings are values of the `str` class declared in the standard library itself — like every builtin
 type, it has no hidden compiler magic and its full API is visible in `libs/std/builtin/str.kl`.
 
@@ -810,6 +822,28 @@ func add(a int, b int) int {
 func greet(name str) {
     print("hello", name)
 }
+```
+
+A function whose body is one expression may be written `= expr`. The value is returned, and when
+no return type is declared it is the expression's type. Only `= expr` does this: a block body is
+statements, even a block of one expression, so it returns a value only with `return`, and without
+a declared return type it returns nothing:
+
+```kl
+func double(n int) = n * 2          // returns int
+func area(w int, h int) int = w * h
+
+func log(msg str) { write(msg) }    // returns nothing, even if write() returns a value
+func triple(n int) int { return n * 3 }
+```
+
+A function with a return type must not reach the end of its body: every path ends in `return`,
+`panic()` / `unreachable()`, or a loop that never exits. Otherwise it is an error:
+
+```kl
+func half(n int) int {
+    if n > 0 { return n / 2 }
+}       // error: missing return in function 'half', which returns 'int64'.
 ```
 
 Parameters with default values omit the type annotation — the default pins the type:

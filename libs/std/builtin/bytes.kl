@@ -255,7 +255,8 @@ pub class bytes : Sequence[uint8] {
 
     /// Decode the bytes as UTF-8 and return a new `str`.
     ///
-    /// Panic if the bytes are not valid UTF-8.
+    /// An invalid byte becomes U+FFFD. The str stops at the first NUL byte,
+    /// as a C string does: use `view(0, n).to_str()` for the filled part of a buffer.
     @native
     pub func to_str() str {}
 

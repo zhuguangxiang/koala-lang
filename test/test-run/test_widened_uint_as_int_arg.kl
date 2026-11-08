@@ -1,0 +1,30 @@
+// RUN: koala %s | filecheck %s
+// A widened value keeps its type at run time (Manual: "Widening is implicit ..."): `int(b)` of a
+// `uint8` is a `uint8`. A native taking an `int` asserted a signed tag on it:
+// `strobj.c:1301: _str_getitem: Assertion '(((args + 0)->tag) & ~0b11) == 0b1000' failed`, for a
+// str index and for every native reading an `int` argument with kl_arg_int. kl_arg_int64 asserted
+// an exact int64 tag, so a widened `int8` failed as a `bytes` index too.
+
+func first(s str) int {
+    let bs = s.to_bytes()
+    return int(bs[0])
+}
+
+func main() {
+    let i = first("\x01")
+    print(typeof(i).name())
+    print("abc"[i])
+    let items = ["x", "y", "z"]
+    print(items[i])
+    print("hello".substr(i, i + 3))
+
+    let small int8 = 2
+    let bs = b"xyz"
+    print(bs[small], "abc"[small])
+}
+
+// CHECK: uint8
+// CHECK-NEXT: b
+// CHECK-NEXT: y
+// CHECK-NEXT: ell
+// CHECK-NEXT: 122 c

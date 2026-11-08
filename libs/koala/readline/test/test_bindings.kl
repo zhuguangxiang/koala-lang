@@ -1,0 +1,338 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// parse_and_bind and init files, the hooks, insert_text and the commands
+// bound by default since stage 5. The cases marked GNU were also typed into
+// GNU readline 8.3 (Python's input()), which gave the same lines.
+
+import "std/fs"
+import "std/ut"
+import "koala/readline"
+
+func _editor(keys str) readline.Editor {
+    return readline.Editor(readline.MemoryTerminal(keys, width=40))
+}
+
+func _bound(binding str, keys str) str {
+    let editor = _editor(keys)
+    editor.parse_and_bind(binding)
+    return editor.readline("> ")!
+}
+
+class _Words : readline.Completer {
+    let _words list[str]
+
+    func __init__(source list[str]) {
+        _words = source
+    }
+
+    func complete(text str, state int) str? {
+        var n = 0
+        for w in _words {
+            if w.lower().starts_with(text.lower()) {
+                if n == state { return w }
+                n += 1
+            }
+        }
+        return nil
+    }
+}
+
+// ---- bindings (GNU) ----
+
+@test
+func test_bind_key_sequence() {
+    ut.assert_eq(_bound("\"\\C-x\": kill-line", "abc\x01\x18\r"), "")
+}
+
+@test
+func test_bind_key_name() {
+    ut.assert_eq(_bound("Control-x: beginning-of-line", "abc\x18Z\r"), "Zabc")
+}
+
+@test
+func test_bind_escape_sequence() {
+    ut.assert_eq(_bound("\"\\eq\": upcase-word", "abc\x01\x1bq\r"), "ABC")
+}
+
+@test
+func test_macro() {
+    ut.assert_eq(_bound("\"\\C-x\": \"hello\"", "\x18!\r"), "hello!")
+}
+
+@test
+func test_macro_of_two_keys() {
+    ut.assert_eq(_bound("\"\\C-xa\": \"AA\"", "x\x18ay\r"), "xAAy")
+}
+
+@test
+func test_macro_runs_its_keys() {
+    // the macro's C-a moves the cursor before its Z is inserted
+    ut.assert_eq(_bound("\"\\C-xm\": \"\\C-aZ\"", "abc\x18m\r"), "Zabc")
+}
+
+@test
+func test_unfinished_prefix_beeps() {
+    // C-x z is bound to nothing: a beep, and the z is dropped
+    let term = readline.MemoryTerminal("ab\x18zc\r")
+    ut.assert_eq(readline.Editor(term).readline()!, "abc")
+    ut.assert_true("\x07" in term.output())
+}
+
+@test
+func test_comment_and_blank_lines() {
+    let editor = _editor("a\r")
+    editor.parse_and_bind("# a comment")
+    editor.parse_and_bind("   ")
+    ut.assert_eq(editor.readline()!, "a")
+}
+
+@test
+func test_if_else() {
+    let editor = _editor("\x18q\r")
+    editor.parse_and_bind("$if mode=vi")
+    editor.parse_and_bind("\"\\C-xq\": \"VI\"")
+    editor.parse_and_bind("$else")
+    editor.parse_and_bind("\"\\C-xq\": \"EM\"")
+    editor.parse_and_bind("$endif")
+    ut.assert_eq(editor.readline()!, "EM")
+}
+
+@test
+func test_if_application_name() {
+    let editor = _editor("\x18q\r")
+    editor.parse_and_bind("$if koala")
+    editor.parse_and_bind("\"\\C-xq\": \"KOALA\"")
+    editor.parse_and_bind("$endif")
+    ut.assert_eq(editor.readline()!, "KOALA")
+}
+
+// ---- variables (GNU) ----
+
+@test
+func test_show_all_if_ambiguous() {
+    let term = readline.MemoryTerminal("ba\t\r", width=40)
+    let editor = readline.Editor(term)
+    editor.set_completer(_Words(["banana", "band"]))
+    editor.parse_and_bind("tab: complete")
+    editor.parse_and_bind("set show-all-if-ambiguous on")
+    ut.assert_eq(editor.readline("> ")!, "ban")
+    ut.assert_true("\r\nbanana  band    \r\n" in term.output())
+    ut.assert_false("\x07" in term.output())
+}
+
+@test
+func test_completion_ignore_case() {
+    let editor = _editor("ba\t\r")
+    editor.set_completer(_Words(["Banana", "band"]))
+    editor.parse_and_bind("tab: complete")
+    editor.parse_and_bind("set completion-ignore-case on")
+    ut.assert_eq(editor.readline()!, "ban")
+}
+
+@test
+func test_completion_case_matters_by_default() {
+    let editor = _editor("ba\t\r")
+    editor.set_completer(_Words(["Banana", "band"]))
+    editor.parse_and_bind("tab: complete")
+    ut.assert_eq(editor.readline()!, "ba")
+}
+
+@test
+func test_bell_style_none() {
+    let term = readline.MemoryTerminal("zz\t\r")
+    let editor = readline.Editor(term)
+    editor.parse_and_bind("tab: complete")
+    editor.parse_and_bind("set bell-style none")
+    editor.set_completer(_Words(["a"]))
+    editor.readline()
+    ut.assert_false("\x07" in term.output())
+}
+
+@test
+func test_completion_query_items() {
+    let term = readline.MemoryTerminal("b\t\t\tn\r", width=40)
+    let editor = readline.Editor(term)
+    editor.set_completer(_Words(["banana", "band"]))
+    editor.parse_and_bind("tab: complete")
+    editor.parse_and_bind("set completion-query-items 2")
+    editor.readline("> ")
+    ut.assert_true("Display all 2 possibilities? (y or n)" in term.output())
+}
+
+@test
+func test_mark_directories_off() {
+    let dir = "/tmp/koala_readline_test_marks"
+    fs.mkdir(dir)
+    fs.mkdir(dir + "/subdir")
+    let editor = _editor(dir + "/su\t\r")
+    editor.parse_and_bind("tab: complete")
+    editor.parse_and_bind("set mark-directories off")
+    editor.set_completer_delims(" ")
+    ut.assert_eq(editor.readline()!, dir + "/subdir")
+}
+
+// ---- init files (GNU) ----
+
+@test
+func test_read_init_file() {
+    let path = "/tmp/koala_readline_test_inputrc"
+    fs.write_str(path, "# test\n$if mode=emacs\n\"\\C-xq\": \"QQ\"\n$else\n\"\\C-xq\": \"VI\"\n" +
+                       "$endif\nset bell-style none\n")
+    let editor = _editor("\x18q\r")
+    ut.assert_true(editor.read_init_file(path))
+    ut.assert_eq(editor.readline()!, "QQ")
+}
+
+@test
+func test_include() {
+    let inner = "/tmp/koala_readline_test_inputrc_inner"
+    let outer = "/tmp/koala_readline_test_inputrc_outer"
+    fs.write_str(inner, "\"\\C-xi\": \"INNER\"\n")
+    fs.write_str(outer, "$include " + inner + "\n")
+    let editor = _editor("\x18i\r")
+    ut.assert_true(editor.read_init_file(outer))
+    ut.assert_eq(editor.readline()!, "INNER")
+}
+
+@test
+func test_read_init_file_missing() {
+    ut.assert_false(_editor("").read_init_file("/no/such/inputrc"))
+}
+
+@test
+func test_re_read_init_file() {
+    // C-x C-r reads the init file read last again
+    let path = "/tmp/koala_readline_test_inputrc_reread"
+    fs.write_str(path, "\"\\C-xq\": \"ONE\"\n")
+    let editor = _editor("\x18\x12\x18q\r")
+    editor.read_init_file(path)
+    fs.write_str(path, "\"\\C-xq\": \"TWO\"\n")
+    ut.assert_eq(editor.readline()!, "TWO")
+}
+
+// ---- commands bound by default (GNU) ----
+
+@test
+func test_quoted_insert() {
+    ut.assert_eq(_editor("a\x16\x01b\r").readline()!, "a\x01b")
+}
+
+@test
+func test_abort_beeps() {
+    let term = readline.MemoryTerminal("ab\x07c\r")
+    ut.assert_eq(readline.Editor(term).readline()!, "abc")
+    ut.assert_true("\x07" in term.output())
+}
+
+@test
+func test_revert_line() {
+    ut.assert_eq(_editor("abc\x1br\r").readline()!, "")
+}
+
+@test
+func test_transpose_words() {
+    ut.assert_eq(_editor("one two\x1bt\r").readline()!, "two one")
+}
+
+@test
+func test_delete_horizontal_space() {
+    ut.assert_eq(_editor("a   b\x1b[D\x1b[D\x1b\\\r").readline()!, "ab")
+}
+
+@test
+func test_ctrl_x_ctrl_u_undoes() {
+    ut.assert_eq(_editor("abc\x18\x15\r").readline()!, "")
+}
+
+@test
+func test_yank_last_arg() {
+    let editor = _editor("x \x1b.\rx \x1b.\x1b.\rx \x1b_\r")
+    editor.set_auto_history(false)
+    editor.add_history("ls -l /tmp")
+    editor.add_history("git log")
+    ut.assert_eq(editor.readline()!, "x log")
+    // again: the last word of the line before
+    ut.assert_eq(editor.readline()!, "x /tmp")
+    ut.assert_eq(editor.readline()!, "x log")
+}
+
+@test
+func test_possible_completions() {
+    let term = readline.MemoryTerminal("ba\x1b?\r", width=40)
+    let editor = readline.Editor(term)
+    editor.set_completer(_Words(["banana", "band"]))
+    ut.assert_eq(editor.readline("> ")!, "ba")
+    ut.assert_true("\r\nbanana  band    \r\n" in term.output())
+}
+
+@test
+func test_insert_completions() {
+    let editor = _editor("ba\x1b*\r")
+    editor.set_completer(_Words(["banana", "band"]))
+    ut.assert_eq(editor.readline()!, "banana band ")
+}
+
+// ---- hooks, insert_text, redisplay (GNU) ----
+
+@test
+func test_startup_hook() {
+    let editor = _editor("X\r")
+    let hook = _EditorInsert(editor, "dflt")
+    editor.set_startup_hook(hook)
+    ut.assert_eq(editor.readline()!, "dfltX")
+    ut.assert_eq(hook.calls, 1)
+}
+
+@test
+func test_pre_input_hook() {
+    let term = readline.MemoryTerminal("X\r")
+    let editor = readline.Editor(term)
+    editor.set_pre_input_hook(_EditorInsert(editor, "dflt"))
+    ut.assert_eq(editor.readline("> ")!, "dfltX")
+    // drawn again after the hook
+    ut.assert_true("\r> dflt\x1b[0K" in term.output())
+}
+
+@test
+func test_hook_off() {
+    let editor = _editor("X\r")
+    editor.set_startup_hook(_EditorInsert(editor, "dflt"))
+    editor.set_startup_hook()
+    ut.assert_eq(editor.readline()!, "X")
+}
+
+@test
+func test_insert_text_cjk() {
+    let editor = _editor("\r")
+    editor.set_startup_hook(_EditorInsert(editor, "考拉"))
+    ut.assert_eq(editor.readline()!, "考拉")
+}
+
+@test
+func test_redisplay() {
+    let term = readline.MemoryTerminal("")
+    let editor = readline.Editor(term)
+    editor.insert_text("ab")
+    editor.redisplay()
+    ut.assert_true(term.output().ends_with("\rab\x1b[0K\r\x1b[2C"))
+}
+
+// Inserts its text into an editor, as `lambda: readline.insert_text(text)`.
+class _EditorInsert : readline.Hook {
+    let _editor readline.Editor
+    let _text str
+    pub var calls int = 0
+
+    func __init__(editor readline.Editor, text str) {
+        _editor = editor
+        _text = text
+    }
+
+    func call() {
+        calls += 1
+        _editor.insert_text(_text)
+    }
+}

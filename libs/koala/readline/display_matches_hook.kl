@@ -1,0 +1,14 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Shows the matches of a completion in place of readline's listing, as the
+/// function Python's `readline.set_completion_display_matches_hook` takes.
+/// `substitution` is the text the matches have in common, `matches` are the
+/// matches, sorted, and `longest_match_length` the length of the longest
+/// one. It is called with the terminal out of raw mode, so `print` works
+/// as usual; the prompt and the line are drawn again after it.
+pub trait DisplayMatchesHook {
+    func display(substitution str, matches list[str], longest_match_length int)
+}

@@ -2309,7 +2309,7 @@ pub class list[T] : MutableSequence[T] {
     pub func __iadd__(seq Iterable[T]) list[T]
     pub func reversed(step = 1) Iterator[T]
     pub func fmt(f Formatter)
-    pub func sort()
+    pub func sort(reverse = false)
 }
 ```
 **Bases:** [`MutableSequence[T]`](#mutablesequence)
@@ -2485,9 +2485,21 @@ Format the list for display.
 
 <a id="list.sort"></a>
 
-**`sort()`** — *`@native`*
+**`sort(reverse = false)`** — *`@native`*
 
 Sort the elements of the list in place.
+
+The sort is stable: items that compare equal keep their relative order,
+and `reverse = true` sorts from the largest to the smallest, also
+stably. Numbers of any width compare numerically with each other, and
+two items of one class order through its `__lt__`. Items that are not
+comparable panic.
+
+```kl
+let values = [3, 1, 2]
+values.sort()
+print(values[0])
+```
 
 <a id="listiter"></a>
 

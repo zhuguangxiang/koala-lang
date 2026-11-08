@@ -151,10 +151,32 @@ static TValue _pattern_group_index(TValue *self, TValue *args, int nargs)
     return int64_value(kl_re_group_index(re, STR_BUF(name), STR_LEN(name)));
 }
 
-/* Check 0 <= end <= len(s): the text is s[0, end). */
+/*
+ * The engine works on bytes; the Koala side counts characters, as str does. Offsets are converted
+ * at this boundary: _byte_at on the way in, _char_at on the way out.
+ */
+
+/* The byte offset of character `ci` of `so`; past the end, as `end + 1` after an empty match
+   there, one byte per character. */
+static size_t _byte_at(Object *so, int64_t ci)
+{
+    int64_t nchars = (int64_t)STR_NCHARS(so);
+    if (ci > nchars) return STR_LEN(so) + (size_t)(ci - nchars);
+    return kl_str_byte_offset(so, ci);
+}
+
+/* The character index of byte offset `off` of `so`; -1 stays -1. */
+static int64_t _char_at(Object *so, ptrdiff_t off)
+{
+    if (off < 0) return (int64_t)off;
+    if ((size_t)off > STR_LEN(so)) return (int64_t)STR_NCHARS(so) + (int64_t)(off - STR_LEN(so));
+    return kl_str_char_index(so, (size_t)off);
+}
+
+/* Check 0 <= end <= len(s): the text is s[0, end), in characters. */
 static int _check_end(Object *so, int64_t end)
 {
-    if (end < 0 || (uint64_t)end > STR_LEN(so)) {
+    if (end < 0 || (uint64_t)end > STR_NCHARS(so)) {
         raise_exc_fmt("re: end %lld out of range", (long long)end);
         return -1;
     }
@@ -195,7 +217,7 @@ static TValue _pattern_exec(TValue *self, TValue *args, int nargs)
         return error_value;
     }
 
-    rc = kl_re_exec(re, STR_BUF(so), (size_t)end, (size_t)start, (int)mode, caps);
+    rc = kl_re_exec(re, STR_BUF(so), _byte_at(so, end), _byte_at(so, start), (int)mode, caps);
     if (rc < 0) {
         free(caps);
         raise_exc_str("re: out of memory");
@@ -204,7 +226,7 @@ static TValue _pattern_exec(TValue *self, TValue *args, int nargs)
 
     list = kl_new_list();
     if (rc == RE_MATCH) {
-        for (int i = 0; i < ncap; i++) kl_list_append(list, int64_value(caps[i]));
+        for (int i = 0; i < ncap; i++) kl_list_append(list, int64_value(_char_at(so, caps[i])));
     }
     free(caps);
     return obj_value(list);
@@ -212,9 +234,10 @@ static TValue _pattern_exec(TValue *self, TValue *args, int nargs)
 
 static void _no_mem(void) { raise_exc_str("re: out of memory"); }
 
-static void _push_caps(Object *list, const ptrdiff_t *caps, int ncap)
+/* Append the offsets `caps` of a match in `so`, as character indexes. */
+static void _push_caps(Object *list, Object *so, const ptrdiff_t *caps, int ncap)
 {
-    for (int i = 0; i < ncap; i++) kl_list_append(list, int64_value(caps[i]));
+    for (int i = 0; i < ncap; i++) kl_list_append(list, int64_value(_char_at(so, caps[i])));
 }
 
 // func all_matches(s str, pos int, end int, n int) list[int] {}
@@ -244,7 +267,7 @@ static TValue _pattern_all_matches(TValue *self, TValue *args, int nargs)
         raise_exc_fmt("re: start %lld out of range", (long long)pos);
         return error_value;
     }
-    it.pos = (size_t)pos;
+    it.pos = _byte_at(so, pos);
     ncap = 2 * (kl_re_ngroups(re) + 1);
 
     caps = malloc((size_t)ncap * sizeof(ptrdiff_t));
@@ -255,8 +278,8 @@ static TValue _pattern_all_matches(TValue *self, TValue *args, int nargs)
 
     list = kl_new_list();
     while ((limit < 0 || count < limit) &&
-           (rc = kl_re_iter_next(re, STR_BUF(so), (size_t)end, &it, caps)) == RE_MATCH) {
-        _push_caps(list, caps, ncap);
+           (rc = kl_re_iter_next(re, STR_BUF(so), _byte_at(so, end), &it, caps)) == RE_MATCH) {
+        _push_caps(list, so, caps, ncap);
         count++;
     }
     free(caps);
@@ -304,9 +327,9 @@ static TValue _pattern_next_match(TValue *self, TValue *args, int nargs)
         return error_value;
     }
 
-    it.pos = (size_t)pos;
+    it.pos = _byte_at(so, pos);
     it.must_advance = adv != 0;
-    rc = kl_re_iter_next(re, STR_BUF(so), (size_t)end, &it, caps);
+    rc = kl_re_iter_next(re, STR_BUF(so), _byte_at(so, end), &it, caps);
     if (rc < 0) {
         free(caps);
         _no_mem();
@@ -315,8 +338,8 @@ static TValue _pattern_next_match(TValue *self, TValue *args, int nargs)
 
     list = kl_new_list();
     if (rc == RE_MATCH) {
-        _push_caps(list, caps, ncap);
-        kl_list_append(list, int64_value(it.pos));
+        _push_caps(list, so, caps, ncap);
+        kl_list_append(list, int64_value(_char_at(so, (ptrdiff_t)it.pos)));
         kl_list_append(list, int64_value(it.must_advance));
     }
     free(caps);
@@ -580,12 +603,17 @@ static TValue _pattern_expand(TValue *self, TValue *args, int nargs)
         int64_t v = kl_list_get(list, i)->ival;
 
         /* an offset outside the text would make the copy read past it */
-        if (v < -1 || v > (int64_t)STR_LEN(src)) {
+        if (v < -1 || v > (int64_t)STR_NCHARS(src)) {
             free(caps);
             raise_exc_fmt("re: offset %lld out of range", (long long)v);
             return error_value;
         }
-        caps[i] = (ptrdiff_t)v;
+        // the engine copies bytes
+        if (v < 0) {
+            caps[i] = (ptrdiff_t)v;
+        } else {
+            caps[i] = (ptrdiff_t)_byte_at(src, v);
+        }
     }
     for (int g = 0; g < ncap; g += 2) {
         if ((caps[g] < 0) != (caps[g + 1] < 0) || caps[g] > caps[g + 1]) {

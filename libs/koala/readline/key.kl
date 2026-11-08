@@ -1,0 +1,171 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// One key pressed. `name` says which:
+//
+//   "char"          a character, in `text`
+//   "paste"         bracketed-paste text, in `text`
+//   "enter", "tab", "backspace", "delete", "escape"
+//   "left", "right", "up", "down", "home", "end"
+//   "word-left", "word-right"     Ctrl or Alt with Left / Right
+//   "ctrl-a" .. "ctrl-z", "ctrl-_"   the other control bytes
+//   "alt-<c>", "alt-backspace"    Escape followed by a key
+//   "eof"           the end of the input
+//   "unknown"       a sequence the editor does not use
+//
+// `seq` is the bytes the key arrived as, for key bindings.
+class _Key {
+    let name str
+    let text str
+    var seq str = ""
+
+    func __init__(key_name str, key_text str = "") {
+        name = key_name
+        text = key_text
+    }
+}
+
+const _ESC = 27
+const _BRACKET = 91     // '['
+const _LETTER_O = 79    // 'O'
+const _TILDE = 126      // '~'
+
+// The letters of Ctrl-A (1) to Ctrl-Z (26).
+const _CTRL_LETTERS = "abcdefghijklmnopqrstuvwxyz"
+
+// The next key of `term`.
+func _read_key(term _KeyReader) _Key {
+    let b = term.read_byte()
+    if b < 0 { return _Key("eof") }
+    if b == 13 || b == 10 { return _Key("enter") }
+    if b == 9 { return _Key("tab") }
+    if b == 127 || b == 8 { return _Key("backspace") }
+    if b == _ESC { return _read_escape(term) }
+    if b >= 1 && b <= 26 { return _Key("ctrl-" + _CTRL_LETTERS[b - 1]) }
+    if b == 31 { return _Key("ctrl-_") }
+    if b < 32 { return _Key("unknown") }
+    return _Key("char", _read_char(term, b))
+}
+
+// The character whose UTF-8 encoding starts with `first`.
+func _read_char(term _KeyReader, first int) str {
+    var size = 1
+    if first >= 0xF0 {
+        size = 4
+    } else if first >= 0xE0 {
+        size = 3
+    } else if first >= 0xC0 {
+        size = 2
+    }
+
+    let buf = Buffer()
+    buf.write_byte(uint8(first))
+    for _ in range(size - 1) {
+        let next = term.read_byte()
+        if next < 0 { break }
+        buf.write_byte(uint8(next))
+    }
+    return buf.to_str()
+}
+
+// The key of an escape sequence, ESC already read.
+func _read_escape(term _KeyReader) _Key {
+    let b = term.read_byte()
+    if b < 0 { return _Key("escape") }
+    if b == _BRACKET { return _read_csi(term) }
+    if b == _LETTER_O { return _read_ss3(term) }
+    if b == 127 || b == 8 { return _Key("alt-backspace") }
+    if b == _ESC { return _Key("escape") }
+    if b < 32 { return _Key("unknown") }
+    return _Key("alt-" + _read_char(term, b))
+}
+
+// ESC [ <parameters> <final>: the cursor keys, Home / End / Delete and
+// the start of a bracketed paste.
+func _read_csi(term _KeyReader) _Key {
+    var params = ""
+    var final = -1
+    while true {
+        let b = term.read_byte()
+        if b < 0 { return _Key("unknown") }
+        // a parameter: a digit or ';'
+        if (b >= 48 && b <= 57) || b == 59 {
+            params += _ascii(b)
+            continue
+        }
+        final = b
+        break
+    }
+
+    // Ctrl (5) or Alt (3) with an arrow moves by word: ESC [ 1 ; 5 C
+    let modified = params.ends_with(";5") || params.ends_with(";3")
+    let letter = _ascii(final)
+    if letter == "A" { return _Key("up") }
+    if letter == "B" { return _Key("down") }
+    if letter == "C" {
+        if modified { return _Key("word-right") }
+        return _Key("right")
+    }
+    if letter == "D" {
+        if modified { return _Key("word-left") }
+        return _Key("left")
+    }
+    if letter == "H" { return _Key("home") }
+    if letter == "F" { return _Key("end") }
+
+    if final == _TILDE {
+        if params == "1" || params == "7" { return _Key("home") }
+        if params == "4" || params == "8" { return _Key("end") }
+        if params == "3" { return _Key("delete") }
+        if params == "200" { return _Key("paste", _read_paste(term)) }
+    }
+    return _Key("unknown")
+}
+
+// ESC O <letter>: the cursor keys of a terminal in application mode.
+func _read_ss3(term _KeyReader) _Key {
+    let b = term.read_byte()
+    if b < 0 { return _Key("unknown") }
+    let letter = _ascii(b)
+    if letter == "A" { return _Key("up") }
+    if letter == "B" { return _Key("down") }
+    if letter == "C" { return _Key("right") }
+    if letter == "D" { return _Key("left") }
+    if letter == "H" { return _Key("home") }
+    if letter == "F" { return _Key("end") }
+    return _Key("unknown")
+}
+
+// The pasted text, up to ESC [ 201 ~.
+func _read_paste(term _KeyReader) str {
+    let end = "\x1b[201~".to_bytes()
+    let buf = Buffer()
+    var matched = 0
+    while true {
+        let b = term.read_byte()
+        if b < 0 { break }
+        if b == int(end[matched]) {
+            matched += 1
+            if matched == end.len() { break }
+            continue
+        }
+        // a partial match was text after all
+        for i in range(matched) { buf.write_byte(end[i]) }
+        matched = 0
+        if b == int(end[0]) {
+            matched = 1
+            continue
+        }
+        buf.write_byte(uint8(b))
+    }
+    return buf.to_str()
+}
+
+// The ASCII character of byte `b`.
+func _ascii(b int) str {
+    let buf = Buffer()
+    buf.write_byte(uint8(b))
+    return buf.to_str()
+}

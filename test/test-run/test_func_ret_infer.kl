@@ -1,6 +1,7 @@
 // RUN: koala %s | filecheck %s
-// A function without a declared return type takes it from a one-expression body, written
-// `= expr` or `{ expr }`.
+// A function without a declared return type takes it from an `= expr` body. A block body is
+// statements only: `{ expr }` returns nothing, its value is dropped (test-kl/
+// test_block_body_errors.kl).
 
 func eq_nil(v str?) = if v == nil { 0 } else { v.len() }
 func inc(a int) = a + 1
@@ -11,7 +12,7 @@ func maybe(c bool) = if c { 1 } else { nil }
 func none() = nil
 func or_none(v str?) = v ?? "none"
 func positive(a int) = a > 0
-func block_body(a int) { a * 3 }
+func block_body(a int) { print(a * 3) }
 func id[T](x T) = x
 
 // a call of a function defined later, as a statement, keeps working
@@ -35,7 +36,7 @@ func main() {
     print(inc(1), hello(), size("ab"), pair(2))
     print(maybe(true), maybe(false), none(), or_none(nil))
     if positive(1) { print("pos") }
-    print(block_body(2))
+    block_body(2)
     print(id(5), id("s"))
     run()
     print(fact(5), first())

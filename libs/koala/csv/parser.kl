@@ -56,6 +56,13 @@ func _is_special(c int, delimiter int) bool {
     return false
 }
 
+// The str of bytes `b[start:end]`, NULs included: bytes.to_str() would stop at the first one.
+func _text(b bytes, start int, end int) str {
+    let buf = Buffer()
+    buf.write(b[start:end])
+    return buf.to_str()
+}
+
 /// Parse a CSV document into records.
 ///
 /// Follows RFC 4180 with a few lenient extensions that match the common
@@ -75,8 +82,8 @@ pub func parse(text str, delimiter int = COMMA) CsvResult {
     // Byte view for the character-code checks. `text[i]` is a
     // one-character str, and `int(...)` on it parses the character as
     // a number rather than yielding its code; `b[i]` is a uint8, so
-    // `int(b[i])` is the ASCII code. Slicing still uses `text` so the
-    // pieces keep their original encoding.
+    // `int(b[i])` is the ASCII code. The fields are cut from `b` too,
+    // through `_text`, since `i` counts bytes.
     let b = text.to_bytes()
     let n = b.len()
     let records = list[list[str]]()
@@ -118,11 +125,11 @@ pub func parse(text str, delimiter int = COMMA) CsvResult {
                     if cj == 34 {
                         let nx = j + 1
                         if nx < n && int(b[nx]) == 34 {
-                            field = field + text[seg:j] + "\""
+                            field = field + _text(b, seg, j) + "\""
                             j += 2
                             seg = j
                         } else {
-                            field = field + text[seg:j]
+                            field = field + _text(b, seg, j)
                             j += 1
                             closed = true
                             break
@@ -146,7 +153,7 @@ pub func parse(text str, delimiter int = COMMA) CsvResult {
                     }
                     j += 1
                 }
-                field = text[i:j]
+                field = _text(b, i, j)
                 i = j
             }
 

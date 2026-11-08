@@ -1,0 +1,1513 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+import "std/os"
+
+/// A line editor over a `Terminal`: it reads one line with the emacs
+/// editing keys of GNU readline, drawing it on one row that scrolls sideways
+/// when it is wider than the screen.
+///
+///     let editor = readline.Editor()                 // the real terminal
+///     while let line = editor.readline("> ") {
+///         print("got", line)
+///     }
+///
+/// The keys, as GNU readline binds them:
+///
+///     Left Right  C-b C-f    move by character
+///     M-b M-f  C-Left C-Right    move by word
+///     Home End  C-a C-e      start / end of the line
+///     Backspace  C-h         delete the character before the cursor
+///     Delete  C-d            delete the character at the cursor
+///     C-k                    kill to the end of the line
+///     C-u                    kill to the start of the line
+///     C-w                    kill the whitespace-delimited word before the cursor
+///     M-d  M-Backspace       kill the word after / before the cursor
+///     C-y  M-y               yank the last kill, then cycle through older ones
+///     C-t                    transpose the characters around the cursor
+///     M-u M-l M-c            upcase / downcase / capitalize the next word
+///     C-_                    undo
+///     Up Down  C-p C-n       the previous / next line of the history
+///     M-<  M->               the first line of the history / the line being edited
+///     C-r  C-s               search the history backward / forward, as you type
+///     Tab                    complete the word before the cursor, once
+///                            `parse_and_bind("tab: complete")` binds it; else a tab
+///     C-l                    clear the screen
+///     Enter                  accept the line
+///     C-d                    on an empty line: the end of input, nil
+///     C-c                    drop the line: ""
+///
+/// Consecutive kills go into one entry of the kill ring, as in readline; a
+/// Meta kill (M-d, M-Backspace) starts a new one, as readline does. A
+/// paste of several lines accepts the first one; the others are the
+/// following lines read. A control character in the line shows as `^X`.
+/// In the prompt, text between "\x01" and "\x02" takes no columns, as in
+/// readline; ANSI color sequences never do.
+///
+/// A line accepted on the terminal goes into the history unless it is empty
+/// or the same as the last one, as Python's `set_auto_history(true)`.
+/// Editing a line of the history changes it for this edit only.
+///
+/// In a search the line shows the latest match of what is typed; C-r / C-s
+/// go to the next older / newer one, Backspace drops a character, C-g goes
+/// back to the line before the search, Enter accepts the match, and any
+/// other key ends the search on the match and then does its usual job.
+///
+/// Completion is GNU readline's. The word is the text before the cursor up
+/// to a delimiter of `get_completer_delims()`. With one match the word is
+/// replaced by it; with several, by their common start, and the terminal
+/// beeps. A second Tab that changes nothing lists the matches in columns,
+/// asking first when there are 100 or more, and pausing at `--More--` when
+/// they fill the screen: Space shows the next screen, Enter the next line,
+/// q stops. Without a completer, Tab completes file names; a directory gets
+/// a `/`.
+///
+/// On a terminal that is not interactive - a pipe, a file, TERM=dumb - it
+/// prints the prompt and reads a plain line.
+pub class Editor {
+    let _term Terminal
+    // The line, one string per code point, and the cursor in it.
+    var _chars list[str]
+    var _pos int = 0
+    var _prompt str = ""
+    // The kill ring, the latest kill last, and the entry the last yank used.
+    let _kill_ring list[str]
+    var _yank_index int = -1
+    // Where the last yank put its text, for M-y.
+    var _yank_start int = 0
+    var _yank_end int = 0
+    // The kind of the previous command: "kill-forward", "kill-backward",
+    // "yank", "insert" or "".
+    var _last str = ""
+    // The states to go back to with C-_, the latest last.
+    let _undo list[(list[str], int)]
+    // Pasted text after a newline: the start of the next lines.
+    var _pending str = ""
+    // The history, the oldest line first.
+    let _history list[str]
+    // The most lines the history files keep, -1 for all.
+    var _history_length int = -1
+    var _auto_history bool = true
+    // While editing: the history with the line being edited after it, each
+    // line as it was last shown, and the one shown now.
+    var _scratch list[str]
+    var _shown_index int = 0
+    // Where `_find` found its match: a line of `_scratch` and a position.
+    var _found (int, int) = (0, 0)
+    // Completion: the completer (nil for file names), the delimiters, the
+    // word of the last completion, why it was called ('\t' or '?') and the
+    // listing hook.
+    var _completer Completer? = nil
+    var _delims str = " \t\n`~!@#$%^&*()-=+[{]}\\|;:'\",<>/?"
+    var _begidx int = 0
+    var _endidx int = 0
+    var _completion_type int = 0
+    var _display_hook DisplayMatchesHook? = nil
+    // The keys, read through the macro text pushed back.
+    let _keys _KeyReader
+    // Key bindings by the bytes of the key sequence: a command, or a macro
+    // whose text is read as if typed. Tab inserts itself, as Python binds it.
+    let _bindings dict[str, str]
+    let _macros dict[str, str]
+    // The variables of the init file.
+    var _query_items int = 100
+    var _page_completions bool = true
+    var _show_all_if_ambiguous bool = false
+    var _ignore_case bool = false
+    var _mark_directories bool = true
+    var _bell_style str = "audible"
+    // The init file read last, and whether the default one was read: an
+    // editor on the terminal reads it before its first line, as readline.
+    var _init_file str? = nil
+    var _init_read bool = false
+    let _reads_init bool
+    // $if blocks of the init file: whether each one is taking lines.
+    let _conditions list[bool]
+    // The startup and pre-input hooks.
+    var _startup_hook Hook? = nil
+    var _pre_input_hook Hook? = nil
+    // For yank-last-arg: how many lines back the last one went.
+    var _last_arg_index int = 0
+
+    pub func __init__(term Terminal? = nil) {
+        if let t = term {
+            _term = t
+            _reads_init = false
+        } else {
+            _term = _TtyTerminal()
+            _reads_init = true
+        }
+        _keys = _KeyReader(_term)
+        _bindings = dict[str, str]()
+        _bindings["\t"] = "self-insert"
+        _bindings["\x18\x15"] = "undo"
+        _bindings["\x18\x12"] = "re-read-init-file"
+        _bindings["\x18\x07"] = "abort"
+        _macros = dict[str, str]()
+        _conditions = list[bool]()
+        _chars = list[str]()
+        _kill_ring = list[str]()
+        _undo = list[(list[str], int)]()
+        _history = list[str]()
+        _scratch = list[str]()
+    }
+
+    /// Read a line after `prompt`, without its newline. Nil at the end of
+    /// the input: Ctrl-D on an empty line, or no more input. Ctrl-C drops
+    /// the line and returns "".
+    pub func readline(prompt = "") str? {
+        if !_term.is_interactive() { return _read_plain(prompt) }
+        if !_term.set_raw(true) { return _read_plain(prompt) }
+        if _reads_init && !_init_read {
+            _init_read = true
+            read_init_file()
+        }
+        let line = _edit(prompt)
+        _term.set_raw(false)
+
+        if let text = line {
+            let last = _history.len() - 1
+            let repeated = last >= 0 && _history[last] == text
+            if _auto_history && text.len() > 0 && !repeated { _history.append(text) }
+        }
+        return line
+    }
+
+    // Edit a line in raw mode.
+    func _edit(prompt str) str? {
+        _chars = list[str]()
+        _pos = 0
+        _prompt = prompt
+        _last = ""
+        _undo.clear()
+        _scratch = _history.copy()
+        _scratch.append("")
+        _shown_index = _scratch.len() - 1
+        if let hook = _startup_hook { hook.call() }
+        _refresh()
+        if let hook = _pre_input_hook {
+            hook.call()
+            _refresh()
+        }
+
+        // the rest of a paste of several lines
+        if _pending.len() > 0 {
+            let text = _pending
+            _pending = ""
+            if _paste(text) { return _accept() }
+            _refresh()
+        }
+
+        // the key that ended a search, to be handled next
+        var waiting _Key? = nil
+        while true {
+            var key = _Key("none")
+            if let k = waiting {
+                key = k
+                waiting = nil
+            } else {
+                key = _next_key()
+            }
+            let name = key.name
+
+            // not commands: they end the line whatever is bound
+            if name == "eof" {
+                _finish_line()
+                if _chars.len() == 0 { return nil }
+                return _text()
+            }
+            if name == "ctrl-c" {
+                _term.write("^C\r\n")
+                _term.flush()
+                return ""
+            }
+            // the terminal's signal keys, which raw mode turns off: they do
+            // what they would do with signal keys on, as with GNU readline
+            if _is_byte(key, _term.suspend_key()) {
+                _signal(true)
+                continue
+            }
+            if _is_byte(key, _term.quit_key()) {
+                _signal(false)
+                continue
+            }
+            if name == "ctrl-d" && _chars.len() == 0 {
+                _finish_line()
+                return nil
+            }
+            if name == "paste" {
+                _save_undo()
+                if _paste(key.text) { return _accept() }
+                _last = ""
+                _refresh()
+                continue
+            }
+
+            let command = _command(key)
+            if command == "accept-line" { return _accept() }
+            if command == "reverse-search-history" || command == "forward-search-history" {
+                // the key that ends the search does its usual job
+                waiting = _search(command == "reverse-search-history")
+                _last = ""
+                _refresh()
+                continue
+            }
+            if command.starts_with("\"") {
+                // a macro: its text is read as if typed
+                _keys.push(command.substr(1))
+                continue
+            }
+            _run(command, key)
+            _refresh()
+        }
+        return nil
+    }
+
+    // Whether `key` came as the one byte `code`; false when `code` is -1.
+    func _is_byte(key _Key, code int) bool {
+        if code < 0 { return false }
+        let bs = key.seq.to_bytes()
+        return bs.len() == 1 && int(bs[0]) == code
+    }
+
+    // Suspend the program (`suspend`), else quit it, out of raw mode. The
+    // line is kept and edited on once the program is continued, or when it
+    // did not quit; nothing is drawn, as with GNU readline.
+    func _signal(suspend bool) {
+        _term.set_raw(false)
+        if suspend {
+            _term.suspend()
+        } else {
+            _term.quit()
+        }
+        _term.set_raw(true)
+    }
+
+    // The next key, with the bytes it came as.
+    func _next_key() _Key {
+        let key = _read_key(_keys)
+        key.seq = _keys.take_seq()
+        return key
+    }
+
+    // The command of `key`: the one bound to its bytes, or to them and the
+    // keys after them, else the emacs one. A macro is returned as `"` and
+    // its text; "" for a key that runs nothing.
+    func _command(key _Key) str {
+        // a search ended by C-g: nothing to run
+        if key.seq.len() == 0 { return _default_command(key.name) }
+
+        var seq = key.seq
+        while true {
+            if seq in _macros { return "\"" + _macros[seq] }
+            if seq in _bindings { return _bindings[seq] }
+            if !_is_bound_prefix(seq) { break }
+            seq += _next_key().seq
+        }
+        // a prefix that the keys after it did not complete
+        if seq != key.seq {
+            _bell()
+            return ""
+        }
+        return _default_command(key.name)
+    }
+
+    func _is_bound_prefix(seq str) bool {
+        for bound in _bindings.keys() {
+            if bound.len() > seq.len() && bound.starts_with(seq) { return true }
+        }
+        for bound in _macros.keys() {
+            if bound.len() > seq.len() && bound.starts_with(seq) { return true }
+        }
+        return false
+    }
+
+    // Run the readline command `command`, `key` being the key that called
+    // it.
+    func _run(command str, key _Key) {
+        var kind = ""
+
+        if command == "self-insert" {
+            // a run of typed characters is undone at once
+            if _last != "insert" { _save_undo() }
+            var text = key.text
+            if key.name != "char" { text = key.seq }
+            for c in text { _insert(c) }
+            kind = "insert"
+        } else if command == "tab-insert" {
+            if _last != "insert" { _save_undo() }
+            _insert("\t")
+            kind = "insert"
+        } else if command == "quoted-insert" {
+            // the next byte as it is
+            _save_undo()
+            let b = _keys.read_byte()
+            _keys.take_seq()
+            if b >= 0 { _insert(_ascii(b)) }
+        } else if command == "backward-delete-char" {
+            _save_undo()
+            _delete_before()
+        } else if command == "delete-char" {
+            _save_undo()
+            _delete_at()
+        } else if command == "backward-char" {
+            _pos = _cluster_start(_chars, _pos)
+        } else if command == "forward-char" {
+            _pos = _cluster_end(_chars, _pos)
+        } else if command == "beginning-of-line" {
+            _pos = 0
+        } else if command == "end-of-line" {
+            _pos = _chars.len()
+        } else if command == "backward-word" {
+            _pos = _word_start(_pos)
+        } else if command == "forward-word" {
+            _pos = _word_end(_pos)
+        } else if command == "kill-line" {
+            _kill(_pos, _chars.len(), true, !key.seq.starts_with("\x1b"))
+            kind = "kill-forward"
+        } else if command == "unix-line-discard" || command == "backward-kill-line" {
+            _kill(0, _pos, false, !key.seq.starts_with("\x1b"))
+            kind = "kill-backward"
+        } else if command == "kill-whole-line" {
+            _kill(0, _chars.len(), true, !key.seq.starts_with("\x1b"))
+            kind = "kill-forward"
+        } else if command == "unix-word-rubout" {
+            _kill(_space_word_start(_pos), _pos, false, !key.seq.starts_with("\x1b"))
+            kind = "kill-backward"
+        } else if command == "backward-kill-word" {
+            _kill(_word_start(_pos), _pos, false, !key.seq.starts_with("\x1b"))
+            kind = "kill-backward"
+        } else if command == "kill-word" {
+            _kill(_pos, _word_end(_pos), true, !key.seq.starts_with("\x1b"))
+            kind = "kill-forward"
+        } else if command == "yank" {
+            _yank()
+            kind = "yank"
+        } else if command == "yank-pop" {
+            if _last == "yank" {
+                _yank_pop()
+                kind = "yank"
+            }
+        } else if command == "yank-last-arg" {
+            _yank_last_arg(_last == "yank-last-arg")
+            kind = "yank-last-arg"
+        } else if command == "transpose-chars" {
+            _transpose()
+        } else if command == "transpose-words" {
+            _transpose_words()
+        } else if command == "upcase-word" {
+            _change_word_case("upper")
+        } else if command == "downcase-word" {
+            _change_word_case("lower")
+        } else if command == "capitalize-word" {
+            _change_word_case("capitalize")
+        } else if command == "delete-horizontal-space" {
+            _delete_spaces()
+        } else if command == "undo" {
+            _undo_last()
+        } else if command == "revert-line" {
+            // every change of the line undone
+            if _undo.len() > 0 {
+                let (chars, pos) = _undo[0]
+                _chars = chars
+                _pos = pos
+                _undo.clear()
+            }
+        } else if command == "previous-history" {
+            _show_history(_shown_index - 1)
+        } else if command == "next-history" {
+            _show_history(_shown_index + 1)
+        } else if command == "beginning-of-history" {
+            _show_history(0)
+        } else if command == "end-of-history" {
+            _show_history(_scratch.len() - 1)
+        } else if command == "complete" {
+            kind = _complete(_last == "complete", false)
+        } else if command == "possible-completions" {
+            _complete(true, false)
+        } else if command == "insert-completions" {
+            _complete(false, true)
+        } else if command == "clear-screen" {
+            // the cursor home, clear the screen
+            _term.write("\x1b[H\x1b[2J")
+        } else if command == "re-read-init-file" {
+            read_init_file()
+        } else if command == "abort" {
+            _bell()
+        }
+        _last = kind
+    }
+
+    // Swap the word before the cursor with the one after it, as readline's
+    // transpose-words; at the end of the line, the last two.
+    func _transpose_words() {
+        let w2_end = _word_end(_pos)
+        let w2_start = _word_start(w2_end)
+        let w1_start = _word_start(w2_start)
+        let w1_end = _word_end(w1_start)
+        if w1_start == w2_start || w2_start < w1_end {
+            _bell()
+            return
+        }
+        _save_undo()
+        let first = _chars.copy(w1_start, w1_end)
+        let middle = _chars.copy(w1_end, w2_start)
+        let second = _chars.copy(w2_start, w2_end)
+        _chars.delete(w1_start, w2_end)
+        var at = w1_start
+        for part in [second, middle, first] {
+            for c in part {
+                _chars.insert(at, c)
+                at += 1
+            }
+        }
+        _pos = w2_end
+    }
+
+    // Delete the spaces and tabs around the cursor.
+    func _delete_spaces() {
+        var start = _pos
+        while start > 0 && _is_space(start - 1) { start -= 1 }
+        var end = _pos
+        while end < _chars.len() && _is_space(end) { end += 1 }
+        if start == end { return }
+        _save_undo()
+        _chars.delete(start, end)
+        _pos = start
+    }
+
+    // Insert the last word of the previous line of the history; again, the
+    // one of the line before, in place of it.
+    func _yank_last_arg(again bool) {
+        if again {
+            _chars.delete(_yank_start, _yank_end)
+            _pos = _yank_start
+            _last_arg_index += 1
+        } else {
+            _last_arg_index = 1
+        }
+        let line_index = _history.len() - _last_arg_index
+        if line_index < 0 {
+            _bell()
+            return
+        }
+        let words = _history[line_index].split()
+        var word = ""
+        for w in words {
+            if w.len() > 0 { word = w }
+        }
+        if !again { _save_undo() }
+        _put_yank(word)
+    }
+
+    // ---- completion ----
+
+    // Complete the word before the cursor; `again` when the last key was a
+    // Tab that changed nothing, or to list the matches. `insert_all`
+    // replaces the word with every match. Returns "complete" when the line
+    // did not change, so that the next Tab lists the matches.
+    func _complete(again bool, insert_all bool) str {
+        var start = _pos
+        while start > 0 && !(_chars[start - 1] in _delims) { start -= 1 }
+        _begidx = start
+        _endidx = _pos
+        var text = ""
+        for i in range(start, _pos) { text += _chars[i] }
+
+        _completion_type = 9
+        if again { _completion_type = 63 }
+        let files = _completer == nil
+        let matches = _matches(text)
+
+        if matches.len() == 0 {
+            _bell()
+            return "complete"
+        }
+
+        if insert_all {
+            // each match and a space, as readline
+            _replace_word(start, " ".join(matches) + " ")
+            return ""
+        }
+
+        if again {
+            _list(text, matches, files)
+            return "complete"
+        }
+
+        if matches.len() == 1 {
+            var word = matches[0]
+            if files && _mark_directories && fs.is_dir(word) && !word.ends_with("/") {
+                word += "/"
+            }
+            if word == text { return "complete" }
+            _replace_word(start, word)
+            return ""
+        }
+
+        let common = _common_start(text, matches)
+        var changed = false
+        if common.len() > text.len() || (common.len() == text.len() && common != text) {
+            _replace_word(start, common)
+            changed = true
+        }
+        if _show_all_if_ambiguous {
+            _list(common, matches, files)
+            return ""
+        }
+        _bell()
+        if changed { return "" }
+        return "complete"
+    }
+
+    // The start the matches have in common, with completion-ignore-case
+    // compared without case and written as the first match that starts
+    // with `text` as typed.
+    func _common_start(text str, matches list[str]) str {
+        if !_ignore_case { return _common_prefix(matches) }
+
+        let lowered = list[str]()
+        for m in matches { lowered.append(m.lower()) }
+        let n = _common_prefix(lowered).len()
+        var source = matches[0]
+        for m in matches {
+            if m.starts_with(text) {
+                source = m
+                break
+            }
+        }
+        return source[0:n]
+    }
+
+    // The matches of `text`, sorted, each once.
+    func _matches(text str) list[str] {
+        var completer Completer = _FileCompleter()
+        if let c = _completer { completer = c }
+
+        let found = list[str]()
+        var state = 0
+        while let word = completer.complete(text, state) {
+            if !(word in found) { found.append(word) }
+            state += 1
+        }
+        found.sort()
+        return found
+    }
+
+    // The characters all of `words` start with.
+    func _common_prefix(words list[str]) str {
+        var common = words[0]
+        for w in words {
+            var n = 0
+            while n < common.len() && n < w.len() && common[n] == w[n] { n += 1 }
+            common = common[0:n]
+        }
+        return common
+    }
+
+    // Replace the word from `start` to the cursor with `word`.
+    func _replace_word(start int, word str) {
+        _save_undo()
+        _chars.delete(start, _pos)
+        _pos = start
+        for c in word { _insert(c) }
+    }
+
+    func _bell() {
+        if _bell_style != "audible" { return }
+        _term.write("\x07")
+        _term.flush()
+    }
+
+    // Show the matches under the line, as readline's rl_display_match_list,
+    // or through the display hook; then draw the line again.
+    func _list(text str, matches list[str], files bool) {
+        let shown = list[str]()
+        var longest = 0
+        for m in matches {
+            var name = m
+            // a file is shown by its name, a directory with a slash
+            if files {
+                let slash = name.rindex("/")
+                if slash >= 0 && slash < name.len() - 1 { name = name.substr(slash + 1) }
+                if fs.is_dir(m) && !name.ends_with("/") { name += "/" }
+            }
+            shown.append(name)
+            if _text_width(name) > longest { longest = _text_width(name) }
+        }
+
+        if let hook = _display_hook {
+            _term.write("\r\n")
+            _term.set_raw(false)
+            hook.display(_common_prefix(matches), matches, longest)
+            _term.set_raw(true)
+            return
+        }
+
+        _term.write("\r\n")
+        if matches.len() >= _query_items {
+            _term.write(format("Display all {} possibilities? (y or n)", matches.len()))
+            _term.flush()
+            let yes = _yes_or_no()
+            _term.write("\r\n")
+            if !yes { return }
+        }
+
+        // as many columns as fit, filled down then across
+        let width = longest + 2
+        let cols = _term.columns()
+        var limit = cols / width
+        if limit != 1 && limit * width == cols { limit -= 1 }
+        if limit == 0 { limit = 1 }
+        let count = (shown.len() + limit - 1) / limit
+
+        var lines = 0
+        for row in range(count) {
+            if _page_completions && lines >= _term.rows() - 1 && lines > 0 {
+                let more = _more()
+                if more == 0 { return }
+                if more == 1 { lines = 0 }
+                if more == 2 { lines -= 1 }
+            }
+            var out = ""
+            for col in range(limit) {
+                let i = col * count + row
+                if i >= shown.len() { break }
+                out += shown[i]
+                if col < limit - 1 { out += " " * (width - _text_width(shown[i])) }
+            }
+            _term.write(out + "\r\n")
+            lines += 1
+        }
+    }
+
+    // Wait for y or n, as readline's get_y_or_n: y, Y or Space is yes; n,
+    // N, Backspace or C-g is no; any other key beeps.
+    func _yes_or_no() bool {
+        while true {
+            let key = _next_key()
+            if key.name == "char" && (key.text == "y" || key.text == "Y" || key.text == " ") {
+                return true
+            }
+            if key.name == "char" && (key.text == "n" || key.text == "N") { return false }
+            if key.name == "backspace" || key.name == "ctrl-g" || key.name == "eof" { return false }
+            _bell()
+        }
+        return false
+    }
+
+    // The pager of a long listing, as readline's: 1 for the next screen
+    // (Space, y), 2 for one more line (Enter), 0 to stop (q, n, Backspace,
+    // C-g).
+    func _more() int {
+        _term.write("--More--")
+        _term.flush()
+        var answer = -1
+        while answer < 0 {
+            let key = _next_key()
+            let name = key.name
+            if name == "char" && (key.text == " " || key.text == "y" || key.text == "Y") {
+                answer = 1
+            } else if name == "enter" {
+                answer = 2
+            } else if name == "char" && (key.text == "q" || key.text == "Q" || key.text == "n") {
+                answer = 0
+            } else if name == "backspace" || name == "ctrl-g" || name == "eof" {
+                answer = 0
+            } else {
+                _bell()
+            }
+        }
+        // erase the prompt
+        _term.write("\r\x1b[K\r")
+        return answer
+    }
+
+    /// Set what Tab completes; nil for file names.
+    pub func set_completer(completer Completer? = nil) {
+        _completer = completer
+    }
+
+    /// What Tab completes; nil for file names.
+    pub func get_completer() Completer? = _completer
+
+    /// Why the completer was last called: '\t' (9) to complete, '?' (63) to
+    /// list the matches; 0 before any completion.
+    pub func get_completion_type() int = _completion_type
+
+    /// Where the word being completed starts in the line.
+    pub func get_begidx() int = _begidx
+
+    /// Where the word being completed ends in the line: the cursor.
+    pub func get_endidx() int = _endidx
+
+    /// Set the characters that end the word being completed.
+    pub func set_completer_delims(delims str) {
+        _delims = delims
+    }
+
+    /// The characters that end the word being completed.
+    pub func get_completer_delims() str = _delims
+
+    /// Set how the matches are listed; nil for readline's columns.
+    pub func set_completion_display_matches_hook(hook DisplayMatchesHook? = nil) {
+        _display_hook = hook
+    }
+
+    /// The line being edited, as the completer sees it.
+    pub func get_line_buffer() str = _text()
+
+    /// Run one line of a readline init file (inputrc), as Python's
+    /// `parse_and_bind`:
+    ///
+    ///     tab: complete                   a key name bound to a command
+    ///     "\C-x\C-k": kill-whole-line     a key sequence bound to a command
+    ///     "\eh": "hello"                  a key sequence bound to a macro
+    ///     set completion-ignore-case on   a variable
+    ///     $if mode=emacs ... $else ... $endif
+    ///
+    /// The variables understood are bell-style, completion-ignore-case,
+    /// completion-query-items, mark-directories, page-completions and
+    /// show-all-if-ambiguous; others, and editing-mode vi, are ignored. In
+    /// `$if`, `mode=emacs` holds, `term=NAME` compares with $TERM, and an
+    /// application name holds for "koala". `\M-x` means Escape and x.
+    pub func parse_and_bind(line str) {
+        let text = line.strip()
+        if text.len() == 0 || text.starts_with("#") { return }
+        if text.starts_with("$") {
+            _directive(text)
+            return
+        }
+        // lines inside a $if that does not hold
+        for taking in _conditions {
+            if !taking { return }
+        }
+
+        if text.starts_with("set ") || text.starts_with("set\t") {
+            let parts = text.substr(4).strip().split(" ", 1)
+            var value = ""
+            if parts.len() > 1 { value = parts[1].strip() }
+            _set_variable(parts[0].lower(), value)
+            return
+        }
+
+        // the key: a quoted key sequence or a key name, up to the colon
+        var seq str? = nil
+        var rest = ""
+        if text.starts_with("\"") {
+            var i = 1
+            while i < text.len() && text[i] != "\"" {
+                if text[i] == "\\" { i += 1 }
+                i += 1
+            }
+            if i >= text.len() { return }
+            seq = _unescape(text.substr(1, i))
+            rest = text.substr(i + 1).strip()
+            if !rest.starts_with(":") { return }
+            rest = rest.substr(1).strip()
+        } else {
+            let colon = text.index(":")
+            if colon <= 0 { return }
+            seq = _key_name(text.substr(0, colon).strip())
+            rest = text.substr(colon + 1).strip()
+        }
+        if seq == nil { return }
+        let keys = seq
+
+        if rest.starts_with("\"") {
+            // a macro, up to its closing quote
+            var i = 1
+            while i < rest.len() && rest[i] != "\"" {
+                if rest[i] == "\\" { i += 1 }
+                i += 1
+            }
+            _macros[keys] = _unescape(rest.substr(1, i))
+            if keys in _bindings { _bindings.remove(keys) }
+            return
+        }
+        var command = rest
+        let space = command.index(" ")
+        if space > 0 { command = command.substr(0, space) }
+        _bindings[keys] = command.lower()
+        if keys in _macros { _macros.remove(keys) }
+    }
+
+    // A $if / $else / $endif / $include line.
+    func _directive(text str) {
+        let parts = text.split(" ", 1)
+        let word = parts[0].lower()
+        var arg = ""
+        if parts.len() > 1 { arg = parts[1].strip() }
+
+        if word == "$if" {
+            _conditions.append(_holds(arg))
+        } else if word == "$else" {
+            if _conditions.len() > 0 {
+                let last = _conditions.len() - 1
+                _conditions[last] = !_conditions[last]
+            }
+        } else if word == "$endif" {
+            if _conditions.len() > 0 { _conditions.pop() }
+        } else if word == "$include" {
+            for taking in _conditions {
+                if !taking { return }
+            }
+            _read_file(_expand_home(arg))
+        }
+    }
+
+    // Whether the test of a $if holds.
+    func _holds(test str) bool {
+        let lower = test.lower()
+        if lower.starts_with("mode=") { return lower.substr(5) == "emacs" }
+        if lower.starts_with("term=") {
+            let name = lower.substr(5)
+            if let term = os.getenv("TERM") {
+                let t = term.lower()
+                if t == name { return true }
+                let dash = t.index("-")
+                return dash > 0 && t.substr(0, dash) == name
+            }
+            return false
+        }
+        if lower.starts_with("version") { return false }
+        return lower == "koala"
+    }
+
+    func _set_variable(name str, value str) {
+        let on = value.lower() == "on" || value == "1"
+        if name == "bell-style" {
+            _bell_style = value.lower()
+        } else if name == "completion-ignore-case" {
+            _ignore_case = on
+        } else if name == "completion-query-items" {
+            _query_items = value.to_int_or(100)
+        } else if name == "mark-directories" {
+            _mark_directories = on
+        } else if name == "page-completions" {
+            _page_completions = on
+        } else if name == "show-all-if-ambiguous" {
+            _show_all_if_ambiguous = on
+        }
+    }
+
+    /// Read an init file, as Python's `read_init_file`: `filename`, else
+    /// the one read last, else $INPUTRC, else `~/.inputrc`. False when it
+    /// cannot be read, where Python raises OSError.
+    pub func read_init_file(filename str? = nil) bool {
+        var path = ""
+        if let name = filename {
+            path = name
+        } else if let last = _init_file {
+            path = last
+        } else if let env = os.getenv("INPUTRC") {
+            path = env
+        } else {
+            path = _expand_home("~/.inputrc")
+        }
+        _init_file = path
+        return _read_file(path)
+    }
+
+    func _read_file(path str) bool {
+        if !fs.is_file(path) { return false }
+        for line in fs.read_str(path, -1).split("\n") { parse_and_bind(line) }
+        return true
+    }
+
+    /// Set the function called before the prompt of each line is shown;
+    /// nil for none.
+    pub func set_startup_hook(hook Hook? = nil) {
+        _startup_hook = hook
+    }
+
+    /// Set the function called after the prompt is shown, before the first
+    /// key is read; nil for none.
+    pub func set_pre_input_hook(hook Hook? = nil) {
+        _pre_input_hook = hook
+    }
+
+    /// Insert `text` at the cursor, as from a hook or a completer.
+    pub func insert_text(text str) {
+        for c in text { _insert(c) }
+    }
+
+    /// Draw the prompt and the line again.
+    pub func redisplay() {
+        _refresh()
+    }
+
+    // ---- the history ----
+
+    // Show line `index` of the history, keeping the edits of the line left.
+    func _show_history(index int) {
+        if index < 0 || index >= _scratch.len() || index == _shown_index { return }
+        _scratch[_shown_index] = _text()
+        _shown_index = index
+        _chars = _chars_of(_scratch[index])
+        _pos = _chars.len()
+        _undo.clear()
+    }
+
+    // Search the history as GNU readline's incremental search, backward from
+    // the line shown when `backward`. Returns the key that ended the search.
+    //
+    // As in readline, a search that fails keeps showing the last match, but
+    // its place in that line is used up: the next search, after Backspace or
+    // C-r, goes on in the lines further on. Backspace does not search again
+    // from the start.
+    func _search(backward bool) _Key {
+        let start_chars = _chars.copy()
+        let start_pos = _pos
+        let start_index = _shown_index
+        _scratch[_shown_index] = _text()
+
+        var query = ""
+        var back = backward
+        var failed = false
+        // where the next search starts: a line of the history and a position
+        var index = _shown_index
+        var at = _pos
+        // the match shown
+        var match_index = index
+        var match_at = at
+
+        while true {
+            _draw_search(query, back, failed, match_index, match_at)
+            let key = _next_key()
+            let name = key.name
+
+            var search = false
+            var here = true
+            if name == "char" {
+                query += key.text
+                // the match stays where it is while it still matches
+                search = true
+            } else if name == "backspace" {
+                let chars = _chars_of(query)
+                if chars.len() > 0 { query = "".join(chars.copy(0, chars.len() - 1)) }
+                failed = false
+                search = query.len() > 0
+            } else if name == "ctrl-r" || name == "ctrl-s" {
+                back = name == "ctrl-r"
+                search = query.len() > 0
+                here = false
+            } else if name == "ctrl-g" {
+                // back to the line before the search
+                _chars = start_chars
+                _pos = start_pos
+                _shown_index = start_index
+                return _Key("none")
+            } else {
+                // end the search on the match
+                if match_index != _shown_index {
+                    _shown_index = match_index
+                    _chars = _chars_of(_scratch[match_index])
+                    _undo.clear()
+                }
+                _pos = match_at
+                return key
+            }
+
+            if search {
+                if _find(query, back, index, at, here) {
+                    let (i, p) = _found
+                    index = i
+                    at = p
+                    match_index = i
+                    match_at = p
+                    failed = false
+                } else {
+                    failed = true
+                    // the rest of the match's line is used up
+                    index = match_index
+                    if back {
+                        at = -1
+                    } else {
+                        at = _scratch[index].len() + 1
+                    }
+                }
+            }
+        }
+        return _Key("none")
+    }
+
+    // Find `query` in the history from line `index`, position `at`: on that
+    // line at `at` itself when `here`, else before it (backward) or after it
+    // (forward), then on the lines further on. Sets `_found`.
+    func _find(query str, backward bool, index int, at int, here bool) bool {
+        var i = index
+        while i >= 0 && i < _scratch.len() {
+            let line = _scratch[i]
+            var pos = -1
+            if i == index {
+                pos = _find_in(line, query, backward, at, here)
+            } else if backward {
+                pos = _find_in(line, query, true, line.len(), true)
+            } else {
+                pos = _find_in(line, query, false, 0, true)
+            }
+            if pos >= 0 {
+                _found = (i, pos)
+                return true
+            }
+            if backward {
+                i -= 1
+            } else {
+                i += 1
+            }
+        }
+        return false
+    }
+
+    // The position of `query` in `line`, in characters: the last one at or
+    // before `at` (backward), or the first at or after it, `at` excluded
+    // unless `here`.
+    func _find_in(line str, query str, backward bool, at int, here bool) int {
+        let chars = _chars_of(line)
+        let wanted = _chars_of(query)
+        let n = chars.len()
+        let m = wanted.len()
+        if backward {
+            var p = at
+            if !here { p -= 1 }
+            if p > n - m { p = n - m }
+            while p >= 0 {
+                if _matches_at(chars, wanted, p) { return p }
+                p -= 1
+            }
+            return -1
+        }
+        var p = at
+        if !here { p += 1 }
+        while p >= 0 && p + m <= n {
+            if _matches_at(chars, wanted, p) { return p }
+            p += 1
+        }
+        return -1
+    }
+
+    // Whether chars[at:] starts with `wanted`.
+    func _matches_at(chars list[str], wanted list[str], at int) bool {
+        for i in range(wanted.len()) {
+            if chars[at + i] != wanted[i] { return false }
+        }
+        return true
+    }
+
+    // Draw a search: its prompt, then the match with the cursor on it.
+    func _draw_search(query str, backward bool, failed bool, index int, at int) {
+        var label = "i-search"
+        if backward { label = "reverse-i-search" }
+        if failed { label = "failed " + label }
+
+        let saved_chars = _chars
+        let saved_pos = _pos
+        let saved_prompt = _prompt
+        _chars = _chars_of(_scratch[index])
+        _pos = at
+        _prompt = "(" + label + ")`" + query + "': "
+        _refresh()
+        _chars = saved_chars
+        _pos = saved_pos
+        _prompt = saved_prompt
+    }
+
+    /// Append `line` to the history.
+    pub func add_history(line str) {
+        _history.append(line)
+    }
+
+    /// Remove every line of the history.
+    pub func clear_history() {
+        _history.clear()
+    }
+
+    /// The number of lines in the history.
+    pub func get_current_history_length() int = _history.len()
+
+    /// Line `index` of the history, counted from 1 as in readline; nil when
+    /// there is none.
+    pub func get_history_item(index int) str? {
+        if index < 1 || index > _history.len() { return nil }
+        return _history[index - 1]
+    }
+
+    /// Remove line `pos` of the history, counted from 0. Panics when there
+    /// is none, as Python raises ValueError.
+    pub func remove_history_item(pos int) {
+        _check_history_pos(pos)
+        _history.pop(pos)
+    }
+
+    /// Replace line `pos` of the history, counted from 0, with `line`.
+    /// Panics when there is none, as Python raises ValueError.
+    pub func replace_history_item(pos int, line str) {
+        _check_history_pos(pos)
+        _history[pos] = line
+    }
+
+    func _check_history_pos(pos int) {
+        if pos < 0 { panic("readline: History index cannot be negative") }
+        if pos >= _history.len() { panic(format("readline: No history item at position {}", pos)) }
+    }
+
+    /// The most lines a history file keeps, -1 for all.
+    pub func get_history_length() int = _history_length
+
+    /// Set the most lines a history file keeps when it is written, -1 for
+    /// all. The history itself keeps every line.
+    pub func set_history_length(length int) {
+        _history_length = length
+    }
+
+    /// Whether lines accepted on the terminal are added to the history.
+    pub func set_auto_history(enabled bool) {
+        _auto_history = enabled
+    }
+
+    /// Append the lines of the history file `filename`, `~/.history` by
+    /// default, to the history. False when it cannot be read, where Python
+    /// raises OSError.
+    pub func read_history_file(filename str? = nil) bool {
+        let path = _history_path(filename)
+        if !fs.is_file(path) { return false }
+        for line in _file_lines(fs.read_str(path, -1)) { _history.append(line) }
+        return true
+    }
+
+    /// Write the history to `filename`, `~/.history` by default, one line
+    /// each, keeping the last `get_history_length()` lines. False when it
+    /// cannot be written.
+    pub func write_history_file(filename str? = nil) bool {
+        let path = _history_path(filename)
+        if !fs.write_str(path, _lines_text(_history, 0)) { return false }
+        return _truncate_file(path)
+    }
+
+    /// Append the last `nelements` lines of the history to `filename`,
+    /// `~/.history` by default, which must exist, then keep its last
+    /// `get_history_length()` lines. False when it cannot be written.
+    pub func append_history_file(nelements int, filename str? = nil) bool {
+        let path = _history_path(filename)
+        if !fs.is_file(path) { return false }
+
+        var first = _history.len() - nelements
+        if first < 0 { first = 0 }
+        let f = fs.open(path, "a")
+        if f == nil { return false }
+        let file = f
+        file.write(_lines_text(_history, first).to_bytes())
+        file.close()
+        return _truncate_file(path)
+    }
+
+    // Keep the last `_history_length` lines of the file `path`.
+    func _truncate_file(path str) bool {
+        if _history_length < 0 { return true }
+        let lines = _file_lines(fs.read_str(path, -1))
+        var first = lines.len() - _history_length
+        if first <= 0 { return true }
+        return fs.write_str(path, _lines_text(lines, first))
+    }
+
+    func _insert(c str) {
+        _chars.insert(_pos, c)
+        _pos += 1
+    }
+
+    // Delete the cluster before the cursor.
+    func _delete_before() {
+        if _pos == 0 { return }
+        let start = _cluster_start(_chars, _pos)
+        _chars.delete(start, _pos)
+        _pos = start
+    }
+
+    // Delete the cluster at the cursor.
+    func _delete_at() {
+        if _pos >= _chars.len() { return }
+        _chars.delete(_pos, _cluster_end(_chars, _pos))
+    }
+
+    // ---- words ----
+
+    // Part of a word: a letter or a digit, as readline's alphanumeric
+    // characters; any non-ASCII character counts as a letter.
+    func _is_word_char(i int) bool {
+        let c = _chars[i]
+        if _codepoint(c) > 0x7F { return true }
+        return c.isalnum()
+    }
+
+    func _is_space(i int) bool {
+        let c = _chars[i]
+        return c == " " || c == "\t"
+    }
+
+    // The start of the word before `start`: back over non-word characters,
+    // then over the word.
+    func _word_start(start int) int {
+        var i = start
+        while i > 0 && !_is_word_char(i - 1) { i -= 1 }
+        while i > 0 && _is_word_char(i - 1) { i -= 1 }
+        return i
+    }
+
+    // The end of the word after `start`: over non-word characters, then over
+    // the word.
+    func _word_end(start int) int {
+        let n = _chars.len()
+        var i = start
+        while i < n && !_is_word_char(i) { i += 1 }
+        while i < n && _is_word_char(i) { i += 1 }
+        return i
+    }
+
+    // The start of the whitespace-delimited word before `start`, for C-w.
+    func _space_word_start(start int) int {
+        var i = start
+        while i > 0 && _is_space(i - 1) { i -= 1 }
+        while i > 0 && !_is_space(i - 1) { i -= 1 }
+        return i
+    }
+
+    // Upcase, downcase or capitalize the word after the cursor, and move to
+    // its end.
+    func _change_word_case(how str) {
+        let n = _chars.len()
+        var i = _pos
+        while i < n && !_is_word_char(i) { i += 1 }
+        if i >= n { return }
+
+        _save_undo()
+        var first = true
+        while i < n && _is_word_char(i) {
+            let c = _chars[i]
+            if how == "upper" || (how == "capitalize" && first) {
+                _chars[i] = c.upper()
+            } else {
+                _chars[i] = c.lower()
+            }
+            first = false
+            i += 1
+        }
+        _pos = i
+    }
+
+    // ---- kill and yank ----
+
+    // Kill chars[start:end]. When `may_join` and right after another kill,
+    // the text joins the latest entry of the kill ring: after it for a
+    // forward kill, before it for a backward one. A Meta kill never joins:
+    // in GNU readline the ESC of M-d is a command of its own, which ends
+    // the run of kills.
+    func _kill(start int, end int, forward bool, may_join bool) {
+        if start >= end { return }
+        _save_undo()
+
+        var text = ""
+        for i in range(start, end) { text += _chars[i] }
+        _chars.delete(start, end)
+        _pos = start
+
+        let joining = may_join && (_last == "kill-forward" || _last == "kill-backward")
+        if joining && _kill_ring.len() > 0 {
+            let top = _kill_ring.len() - 1
+            if forward {
+                _kill_ring[top] = _kill_ring[top] + text
+            } else {
+                _kill_ring[top] = text + _kill_ring[top]
+            }
+        } else {
+            _kill_ring.append(text)
+        }
+    }
+
+    // Insert the latest kill at the cursor.
+    func _yank() {
+        if _kill_ring.len() == 0 { return }
+        _save_undo()
+        _yank_index = _kill_ring.len() - 1
+        _put_yank(_kill_ring[_yank_index])
+    }
+
+    // Replace the text the last yank put with the kill before it.
+    func _yank_pop() {
+        if _kill_ring.len() == 0 { return }
+        _chars.delete(_yank_start, _yank_end)
+        _pos = _yank_start
+        _yank_index -= 1
+        if _yank_index < 0 { _yank_index = _kill_ring.len() - 1 }
+        _put_yank(_kill_ring[_yank_index])
+    }
+
+    func _put_yank(text str) {
+        _yank_start = _pos
+        for c in text { _insert(c) }
+        _yank_end = _pos
+    }
+
+    // ---- transpose and undo ----
+
+    // Swap the character before the cursor with the one at it, and move
+    // forward; at the end of the line, swap the last two.
+    func _transpose() {
+        let n = _chars.len()
+        if _pos == 0 || n < 2 { return }
+        _save_undo()
+
+        var mid = _pos
+        if mid == n { mid = _cluster_start(_chars, n) }
+        let start = _cluster_start(_chars, mid)
+        let end = _cluster_end(_chars, mid)
+
+        let left = _chars.copy(start, mid)
+        let right = _chars.copy(mid, end)
+        _chars.delete(start, end)
+        var at = start
+        for c in right {
+            _chars.insert(at, c)
+            at += 1
+        }
+        for c in left {
+            _chars.insert(at, c)
+            at += 1
+        }
+        _pos = end
+    }
+
+    // Remember the line, to go back to it with C-_.
+    func _save_undo() {
+        _undo.append((_chars.copy(), _pos))
+    }
+
+    func _undo_last() {
+        if _undo.len() == 0 { return }
+        let (chars, pos) = _undo.pop()
+        _chars = chars
+        _pos = pos
+    }
+
+    // ---- paste and accept ----
+
+    // Insert pasted text up to its first newline. True when there was one:
+    // the line is complete, and the text after it is the start of the next
+    // lines.
+    func _paste(text str) bool {
+        let chars = _chars_of(text)
+        var i = 0
+        let n = chars.len()
+        while i < n {
+            let c = chars[i]
+            if c == "\r" || c == "\n" {
+                var rest = i + 1
+                if c == "\r" && rest < n && chars[rest] == "\n" { rest += 1 }
+                _pending = "".join(chars.copy(rest))
+                return true
+            }
+            _insert(c)
+            i += 1
+        }
+        return false
+    }
+
+    // The line is done: show it whole, leave its row and return it.
+    func _accept() str {
+        _pos = _chars.len()
+        _refresh()
+        _finish_line()
+        return _text()
+    }
+
+    func _text() str = "".join(_chars)
+
+    // Leave the edited row: the program's output goes on the next one.
+    func _finish_line() {
+        _term.write("\r\n")
+        _term.flush()
+    }
+
+    // ---- drawing ----
+
+    // Draw the prompt and the line, scrolled so that the cursor is on the
+    // screen, as linenoise's refreshSingleLine.
+    func _refresh() {
+        let cols = _term.columns()
+        let prompt_width = _text_width(_prompt)
+
+        var start = 0
+        var end = _chars.len()
+        var cursor_col = _shown_width(0, _pos)
+        var line_width = _shown_width(0, end)
+
+        // Scroll right until the cursor fits.
+        while prompt_width + cursor_col >= cols && start < _pos {
+            let next = _cluster_end(_chars, start)
+            let w = _shown_width(start, next)
+            start = next
+            cursor_col -= w
+            line_width -= w
+        }
+
+        // Cut the right end that does not fit.
+        while prompt_width + line_width > cols && end > _pos {
+            let prev = _cluster_start(_chars, end)
+            line_width -= _shown_width(prev, end)
+            end = prev
+        }
+
+        var visible = ""
+        for i in range(start, end) { visible += _shown(_chars[i]) }
+
+        // cursor to the left edge, the prompt and the line, erase to the right
+        var out = "\r" + _prompt_text(_prompt) + visible + "\x1b[0K"
+        // the cursor back to its column
+        let col = prompt_width + cursor_col
+        out += "\r"
+        if col > 0 { out += format("\x1b[{}C", col) }
+        _term.write(out)
+        _term.flush()
+    }
+
+    // The columns chars[start:end] take on screen, a control character
+    // two as `^X`.
+    func _shown_width(start int, end int) int {
+        var width = 0
+        var i = start
+        while i < end {
+            let next = _cluster_end(_chars, i)
+            if _is_control(_chars[i]) {
+                width += 2
+            } else {
+                width += _cluster_width(_chars, i, next)
+            }
+            i = next
+        }
+        return width
+    }
+
+    // ---- without a terminal ----
+
+    // Print the prompt and read a line as it is, for a terminal that cannot
+    // be edited on.
+    func _read_plain(prompt str) str? {
+        _term.write(_prompt_text(prompt))
+        _term.flush()
+
+        let buf = Buffer()
+        var got = false
+        while true {
+            let b = _term.read_byte()
+            if b < 0 { break }
+            got = true
+            if b == 10 { break }
+            buf.write_byte(uint8(b))
+        }
+        if !got { return nil }
+        return buf.to_str()
+    }
+}

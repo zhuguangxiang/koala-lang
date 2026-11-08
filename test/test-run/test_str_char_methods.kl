@@ -1,0 +1,29 @@
+// RUN: koala %s | filecheck %s
+// The position-based methods of str count characters: indexes, slices, substr, view, index,
+// rindex, count, and the widths of center / ljust / rjust / zfill. A long non-ASCII string goes
+// through the offset table of every 64th character.
+
+func main() {
+    let s = "a考b拉c"
+    print(s.len(), s[1], s[-1], s[-2], s[1:4], s[::2], s[::-1])
+    print(s.substr(1, 3), s.index("b"), s.index("拉"), s.rindex("考"), s.count("考"))
+    print(s.index("c", 2, 5), s.index("考", 2), s.view(2, -1))
+    print("考".center(5, "*"), "考".ljust(3, "拉"), "[" + "考".rjust(3) + "]", "考".zfill(3))
+
+    var n = 0
+    for c in "考拉 é👍" { n += 1 }
+    print(n)
+
+    var long = ""
+    for i in range(300) { long += "考" + format("{}", i % 10) }
+    print(long.len(), long[455], long[599], long.index("考9", 500), long[200:203])
+    print(long.rindex("考0"), long.count("考5"), long.substr(590))
+}
+
+// CHECK: 5 考 c 拉 考b拉 abc c拉b考a
+// CHECK-NEXT: 考b 2 3 1 1
+// CHECK-NEXT: 4 -1 b拉c
+// CHECK-NEXT: **考** 考拉拉 [  考] 00考
+// CHECK-NEXT: 5
+// CHECK-NEXT: 600 7 9 518 考0考
+// CHECK-NEXT: 580 30 考5考6考7考8考9

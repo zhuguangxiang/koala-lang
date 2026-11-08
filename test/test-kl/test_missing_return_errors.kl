@@ -1,0 +1,82 @@
+// RUN: ! koala %s 2>&1 | filecheck %s
+
+// A function with a return type must not reach its end: every path ends in `return`, panic() or
+// unreachable(), or a loop that never exits. The check follows the IR's control flow, so both
+// branches of an `if` returning end the function, and so do `if let` / `let-else`.
+
+func triple(a int) int { a * 3 }
+// CHECK: test_missing_return_errors.kl:7:6: {{.*}}missing return in function 'triple', which returns 'int64'.
+
+func noisy() int {
+    print("x")
+}
+// CHECK-NEXT: test_missing_return_errors.kl:10:6: {{.*}}missing return in function 'noisy'
+
+func half(a int) int {
+    if a > 0 { return a / 2 }
+}
+// CHECK-NEXT: test_missing_return_errors.kl:15:6: {{.*}}missing return in function 'half'
+
+func stop_early(a int) int {
+    while true {
+        if a > 0 { break }
+    }
+}
+// CHECK-NEXT: test_missing_return_errors.kl:20:6: {{.*}}missing return in function 'stop_early'
+
+// the list may be empty
+func first(xs list[int]) int {
+    for x in xs { return x }
+}
+// CHECK-NEXT: test_missing_return_errors.kl:28:6: {{.*}}missing return in function 'first'
+
+class Box {
+    func __init__() {}
+
+    func size() int {
+        print("size")
+    }
+    // CHECK-NEXT: test_missing_return_errors.kl:36:10: {{.*}}missing return in function 'size'
+}
+
+// these return on every path
+func sign(a int) int {
+    if a > 0 {
+        return 1
+    } else if a < 0 {
+        return -1
+    } else {
+        panic("zero")
+    }
+}
+
+func fail() int { panic("no") }
+
+func never() int { unreachable() }
+
+func spin() int {
+    while true { }
+}
+
+func once() int {
+    loop {
+        return 1
+    }
+}
+
+func unwrap(a int?) int {
+    if let v = a { return v }
+    return 0
+}
+
+func unwrap_early(a int?) int {
+    let v = a else { return 0 }
+    return v
+}
+
+func doubled(a int) = a * 2
+
+func main() {}
+
+// CHECK-NEXT: koala: compilation failed
+// CHECK-NOT: {{.}}

@@ -121,8 +121,20 @@ pub class list[T] : MutableSequence[T] {
     pub func fmt(f Formatter) {}
 
     /// Sort the elements of the list in place.
+    ///
+    /// The sort is stable: items that compare equal keep their relative order,
+    /// and `reverse = true` sorts from the largest to the smallest, also
+    /// stably. Numbers of any width compare numerically with each other, and
+    /// two items of one class order through its `__lt__`. Items that are not
+    /// comparable panic.
+    ///
+    /// ```kl
+    /// let values = [3, 1, 2]
+    /// values.sort()
+    /// print(values[0])
+    /// ```
     @native
-    pub func sort() {}
+    pub func sort(reverse = false) {}
 }
 
 /// A forward iterator over a `list`, advancing by `step` elements each turn.

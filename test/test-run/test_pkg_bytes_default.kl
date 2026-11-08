@@ -1,0 +1,11 @@
+// RUN: koala %s | filecheck %s
+// A default argument of another package's function is read back from its .klc, and a bytes
+// default had no case there: the compiler stopped in read_klc.c's NYI().
+
+import "test_pkg/pkg_bytes_default" as pkg
+
+func main() {
+    pkg.sizes()
+}
+
+// CHECK: b"a\x00b" 3 4

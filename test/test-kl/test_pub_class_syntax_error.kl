@@ -1,0 +1,17 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// A syntax error inside a class declared with a prefix (`pub`) crashed the parser with a
+// segfault: error recovery leaves the class NULL, and the `prefix class_decl` rule called
+// stmt_set_prefix() on it. Without `pub` the error was reported. `from` is a keyword, so it is not
+// a parameter name.
+
+pub class Words {
+    func __init__() {}
+
+    func start(from int) int {
+        return 0
+    }
+}
+// CHECK: test_pub_class_syntax_error.kl:11:{{.*}}
+
+func main() {}

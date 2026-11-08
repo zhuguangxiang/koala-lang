@@ -1,0 +1,349 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The history: browsing it, incremental search, the history API and history
+// files. The keys and lines of the browsing and search tests were also typed
+// into GNU readline 8.3 (Python's input()), which gave the same lines.
+
+import "std/fs"
+import "std/ut"
+import "koala/readline"
+
+// An editor whose history is `history`, typing `keys`.
+func _editor(history list[str], keys str) readline.Editor {
+    let editor = readline.Editor(readline.MemoryTerminal(keys))
+    for line in history { editor.add_history(line) }
+    return editor
+}
+
+// The lines read from `keys`, after a history of `history`.
+func _lines(history list[str], keys str, count int) list[str] {
+    let editor = _editor(history, keys)
+    let out = list[str]()
+    for _ in range(count) { out.append(editor.readline("> ")!) }
+    return out
+}
+
+func _check(got list[str], want list[str]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) { ut.assert_eq(got[i], want[i]) }
+}
+
+@test
+func test_up() {
+    // Up shows the last line
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b[A\r", 1), ["make test"])
+}
+
+@test
+func test_up_up() {
+    // Up twice
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b[A\x1b[A\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_ctrl_p_ctrl_n() {
+    // C-p C-p C-n
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x10\x10\x0e\r", 1), ["make test"])
+}
+
+@test
+func test_up_past_first() {
+    // Up stops at the first line
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\r", 1), ["git status"])
+}
+
+@test
+func test_down_at_end() {
+    // Down on the line being edited does nothing
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "abc\x1b[B\r", 1), ["abc"])
+}
+
+@test
+func test_edit_kept() {
+    // the line being edited comes back
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "new\x1b[A\x1b[A\x1b[B\x1b[B\r", 1), ["new"])
+}
+
+@test
+func test_history_edit_kept() {
+    // an edited history line stays while browsing
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b[AX\x1b[A\x1b[B\r", 1), ["make testX"])
+}
+
+@test
+func test_first_line() {
+    // M-< shows the first line
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b<\r", 1), ["git status"])
+}
+
+@test
+func test_back_to_edit() {
+    // M-> goes back to the line being edited
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "ab\x1b<\x1b>\r", 1), ["ab"])
+}
+
+@test
+func test_search() {
+    // C-r finds the latest match
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12git\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_search_again() {
+    // C-r again finds an older match
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12git\x12\r", 1), ["git status"])
+}
+
+@test
+func test_search_no_more() {
+    // no older match keeps the last one
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12git\x12\x12\r", 1), ["git status"])
+}
+
+@test
+func test_search_abort() {
+    // C-g goes back to the line before the search
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "ab\x12ls\x07\r", 1), ["ab"])
+}
+
+@test
+func test_search_then_end() {
+    // a key ends the search and does its job
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12make\x05!\r", 1), ["make test!"])
+}
+
+@test
+func test_search_then_home() {
+    // C-a ends the search on the match
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12commit\x01X\r", 1), ["Xgit commit -m x"])
+}
+
+@test
+func test_search_backspace() {
+    // Backspace after a failed search goes on in older lines
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12tx\x7f\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_search_backspace_empty() {
+    // Backspace to an empty search keeps the match
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12tx\x7f\x7f\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_search_backspace_retype() {
+    // a search typed again after Backspace
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12t\x7fm\r", 1), ["make test"])
+}
+
+@test
+func test_search_backspace_then_again() {
+    // C-r after Backspace
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12te\x7f\x12\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_search_forward_again() {
+    // C-s twice
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b<\x13git\x13\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_search_reverse_then_forward() {
+    // C-r then C-s
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12git\x13\r", 1), ["git commit -m x"])
+}
+
+@test
+func test_search_fails_at_once() {
+    // a failed search keeps the line
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "abc\x12zz\r", 1), ["abc"])
+}
+
+@test
+func test_search_cursor() {
+    // the cursor is left on the match
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x12commit\x06X\r", 1), ["git cXommit -m x"])
+}
+
+@test
+func test_search_forward() {
+    // C-s searches forward
+    let history = ["git status", "ls -l", "git commit -m x", "make test"]
+    _check(_lines(history, "\x1b<\x13ma\r", 1), ["make test"])
+}
+
+@test
+func test_auto_history() {
+    // an accepted line goes into the history
+    _check(_lines(list[str](), "one\r\x1b[A\r", 2), ["one", "one"])
+}
+
+@test
+func test_no_repeats() {
+    // the same line twice is one entry
+    _check(_lines(list[str](), "a\ra\r\x1b[A\x1b[A\r", 3), ["a", "a", "a"])
+}
+
+@test
+func test_no_empty() {
+    // an empty line is not added
+    _check(_lines(list[str](), "x\r\r\x1b[A\r", 3), ["x", "", "x"])
+}
+
+@test
+func test_auto_history_off() {
+    let editor = readline.Editor(readline.MemoryTerminal("one\r"))
+    editor.set_auto_history(false)
+    ut.assert_eq(editor.readline()!, "one")
+    ut.assert_eq(editor.get_current_history_length(), 0)
+}
+
+@test
+func test_ctrl_c_is_not_added() {
+    let editor = readline.Editor(readline.MemoryTerminal("abc\x03"))
+    ut.assert_eq(editor.readline()!, "")
+    ut.assert_eq(editor.get_current_history_length(), 0)
+}
+
+@test
+func test_not_interactive_is_not_added() {
+    // as Python, lines read without a terminal do not go into the history
+    let editor = readline.Editor(readline.MemoryTerminal("one\n", interactive=false))
+    ut.assert_eq(editor.readline()!, "one")
+    ut.assert_eq(editor.get_current_history_length(), 0)
+}
+
+@test
+func test_search_prompt() {
+    let term = readline.MemoryTerminal("\x12gi\x12\x12x\x07\r")
+    let editor = readline.Editor(term)
+    editor.add_history("git status")
+    editor.readline("> ")
+    let out = term.output()
+    ut.assert_true("(reverse-i-search)`gi': git status" in out)
+    ut.assert_true("(failed reverse-i-search)`gi': git status" in out)
+    ut.assert_true("(failed reverse-i-search)`gix': git status" in out)
+}
+
+@test
+func test_search_forward_prompt() {
+    let term = readline.MemoryTerminal("\x13a\x07\r")
+    readline.Editor(term).readline("> ")
+    ut.assert_true("(i-search)`': " in term.output())
+    ut.assert_true("(failed i-search)`a': " in term.output())
+}
+
+// The history API, as Python's readline returns it.
+
+func _items(editor readline.Editor) list[str] {
+    let out = list[str]()
+    for i in range(1, editor.get_current_history_length() + 1) {
+        out.append(editor.get_history_item(i)!)
+    }
+    return out
+}
+
+@test
+func test_history_api() {
+    let editor = readline.Editor(readline.MemoryTerminal(""))
+    for line in ["a", "b", "c"] { editor.add_history(line) }
+    ut.assert_eq(editor.get_current_history_length(), 3)
+    // counted from 1
+    ut.assert_eq(editor.get_history_item(1)!, "a")
+    ut.assert_true(editor.get_history_item(0) == nil)
+    ut.assert_true(editor.get_history_item(4) == nil)
+    ut.assert_eq(editor.get_history_length(), -1)
+
+    // counted from 0
+    editor.replace_history_item(0, "A")
+    editor.remove_history_item(1)
+    _check(_items(editor), ["A", "c"])
+
+    // an empty line can be added by hand
+    editor.add_history("")
+    ut.assert_eq(editor.get_current_history_length(), 3)
+    editor.clear_history()
+    ut.assert_eq(editor.get_current_history_length(), 0)
+}
+
+@test
+func test_history_files() {
+    let path = "/tmp/koala_readline_test_history.txt"
+    let editor = readline.Editor(readline.MemoryTerminal(""))
+    for line in ["A", "c", "multi word line"] { editor.add_history(line) }
+
+    ut.assert_true(editor.write_history_file(path))
+    ut.assert_eq(fs.read_str(path), "A\nc\nmulti word line\n")
+
+    // the files keep the last get_history_length() lines
+    editor.set_history_length(2)
+    ut.assert_true(editor.write_history_file(path))
+    ut.assert_eq(fs.read_str(path), "c\nmulti word line\n")
+
+    editor.set_history_length(-1)
+    ut.assert_true(editor.append_history_file(1, path))
+    ut.assert_eq(fs.read_str(path), "c\nmulti word line\nmulti word line\n")
+
+    // reading appends to the history
+    editor.clear_history()
+    ut.assert_true(editor.read_history_file(path))
+    _check(_items(editor), ["c", "multi word line", "multi word line"])
+}
+
+@test
+func test_history_file_errors() {
+    let editor = readline.Editor(readline.MemoryTerminal(""))
+    ut.assert_false(editor.read_history_file("/no/such/file"))
+    // append needs an existing file
+    ut.assert_false(editor.append_history_file(1, "/tmp/koala_readline_test_none.txt"))
+    ut.assert_false(editor.write_history_file("/no/such/dir/history"))
+}
+
+@test
+func test_history_file_browsing() {
+    let path = "/tmp/koala_readline_test_history2.txt"
+    fs.write_str(path, "first\nsecond\n")
+    let editor = readline.Editor(readline.MemoryTerminal("\x1b[A\x1b[A\r"))
+    editor.read_history_file(path)
+    ut.assert_eq(editor.readline()!, "first")
+}
+
+@test
+func test_module_history_api() {
+    readline.clear_history()
+    readline.add_history("x")
+    readline.add_history("y")
+    ut.assert_eq(readline.get_current_history_length(), 2)
+    ut.assert_eq(readline.get_history_item(2)!, "y")
+    readline.set_history_length(5)
+    ut.assert_eq(readline.get_history_length(), 5)
+    readline.set_history_length(-1)
+    readline.clear_history()
+}

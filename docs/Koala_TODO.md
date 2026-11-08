@@ -16,7 +16,7 @@
 > 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（§34，待修，用例已留档为
 > `test/test-run/test_intf_generic_bounds.kl.disabled`）、
 > mutable literals and the const pool: leftovers (§37, open), compiler issues found while adding
-> fs/os APIs (§38, open), signal handlers in std/os (§39, waits for the concurrency API),
+> fs/os APIs (§38, open; its `list.sort()` item is fixed 2026-11-08), signal handlers in std/os (§39, waits for the concurrency API),
 > open items of the `@specialized` IR specialization (§40, to fix later), `koala/re` vs Python's
 > `re`: what is not aligned (§41, to do / to discuss), indexing an instance of a user class aborts the
 > compiler (§42, to fix), `<<=` / `>>=` abort the compiler (§43, fixed), an empty list of tuples
@@ -48,11 +48,12 @@
 > inferred through a `Box[T?]` parameter (§77, to fix), `enum` as sugar for a final class (§78,
 > planned), native handles of `koala/http`, `koala/tls` and `koala/sqlite3` have no finalizer (§79, waits for a
 > free path), `koala/http` leftovers (§80, to do), `koala/tls` leftovers (§81, to do), `as!`: a forced cast for a
-> value known to have the type (§82, to discuss), `koala/sqlite3` leftovers (§85, to do).
+> value known to have the type (§82, to discuss), `koala/sqlite3` leftovers (§85, to do), a function with a return type can end
+> without `return` (§86, fixed), `koala/readline` leftovers (§87, to do).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-11-08 (added §85: `koala/sqlite3` leftovers; §79: `koala/sqlite3` handles; §25.4: the database row)；2026-11-08 (added §82: `as!`, a forced cast; §62: the TLS items fixed; §25.4: the network and command-line rows
+> 更新日期：2026-11-08 (§87: the signal keys outside the line)；2026-11-08 (§87: Ctrl-Z / Ctrl-\ fixed)；2026-11-08 (added §87: `koala/readline` leftovers; §25.4: the interactive-input row)；2026-11-08 (§86 fixed: missing returns are reported)；2026-11-08 (added §86: no missing-return check)；2026-11-08 (§25.4: `koala/shlex` in the command-line row)；2026-11-08 (added §85: `koala/sqlite3` leftovers; §79: `koala/sqlite3` handles; §25.4: the database row)；2026-11-08 (added §82: `as!`, a forced cast; §62: the TLS items fixed; §25.4: the network and command-line rows
 > updated; added §79: native handles without a finalizer; added §80: `koala/http` leftovers; added
 > §81: `koala/tls` leftovers)；2026-11-07 (added §78: the plan for `enum`; added §77: `T` is not inferred through `Box[T?]`; §72 fixed; added §75: unary operators still promote; added §73: comparing narrow float constants; added §74: `bfloat16` constructor; §66, §67 fixed; §57: returns are invariant, covariant returns removed; added §71: repeated explicit type arguments; added §72: `int.hash()` through a trait; added §68: a tuple type argument in a constructor call; added §69: an external class without a public `__init__`; added §66: narrow number types and `T: Comparable`; added §67: a generic bound with no symbol; corrected the rules of §56 and §57; §34, §56, §58-§61 fixed)；2026-11-06 (§43 fixed; §1 / §7: `OP_NUM_*` bitwise handlers complete; added §64: shift semantics; added §65: small issues; §19: a test depends on exit code 0; added §63: operators on a trait value, shifts and unary operators; added §62: `koala/redis` tests that wait for a mock annotation, and TLS)；2026-11-04 (added §55: `sealed trait`; added §56: a value converted to `any` has no `make_intf`; added §57: no check that a class method matches its trait; added §58-§61: correct code that fails to compile)；2026-11-03 (added §54: a type name used as a value crashes the backend; fixed alongside: a
 > keyword trait type `list[any]()` no longer asserts in `parse_type`)；2026-11-03 (added §53: no definite-assignment check, an uninitialized local reads garbage)；
@@ -959,7 +960,8 @@ print("done")             // 打印 done 后抛 Error: list index out of range
 - **Go `slices` 包**：Append / Insert / Delete / Contains / Index / **Sort** / Reverse / Clone / Equal。
 
 **缺少（建议补）**：
-1. `sort()` / `sort_by(cmp)`——三语言全都有，koala 只声明了 `reverse`（且未实现），最显眼的缺失；
+1. `sort_by(cmp)` / `key=`——`sort()`（含 `reverse = true`）已实现（2026-11-08，稳定归并排序，
+   见 §38 第 7 条），但比较键（`sort_by` / `key=`）仍缺；
 2. `append` 与 `push` 的统一（见 18.2 第 1 条）；
 3. `first()` / `last()`——Rust 风格便捷访问，可选；
 4. `truncate` / `resize` / `retain` / `dedup` / `position`——Rust 风格，可用推导式替代，优先级低。
@@ -980,13 +982,15 @@ reverse / reversed / len / 切片 / `+` / `+=`——方向与主流一致，前�
   3. 实现 `__contains__`，解锁 `in` 运算符（链路已通，只缺 list 方法实体）。
 - **P1（trait 契约兑现）**：实现 18.1 的 11 个 not_impl 方法；`__setslice__`（随 §12
   OP_SEQ_SET_SLICE 一并落地）；`__iadd__`；append/push 定案统一；`iter(step)` 签名修正。
-- **P2（能力补齐）**：`sort` / `sort_by`；`copy()` 语义收敛；`empty` → `is_empty`；`first` / `last`。
+- **P2（能力补齐）**：`sort` ✅（`sort(reverse = false)`，2026-11-08）/ `sort_by` 待做；
+  `copy()` 语义收敛；`empty` → `is_empty`；`first` / `last`。
 
 ### 18.6 测试现状与挂点
 
 - 现有用例只覆盖可用面：`test/test-run/test_list*.kl`（5 个文件）+ `test/test-kl/test_list.kl`
-  仅使用 `push`（21 处）/ `len`（6 处）/ 下标赋值 / 切片；**test-ut 无 list 用例**。
-- 每实现一个欠账方法，应在 `test/test-ut/test_list.kl`（待新建）补用例，
+  仅使用 `push`（21 处）/ `len`（6 处）/ 下标赋值 / 切片。test-ut 侧已有
+  `test/test-ut/test_list_sort.kl`（10 个用例：`sort` 的空/单元素/升降序/稳定性/前部 pop 后排序/不可比 panic）。
+- 每实现一个欠账方法，应在 `test/test-ut/test_list*.kl` 补用例，
   参照 `test/test-ut/test_bytes.kl` 模式（`@test` + `ut.assert_*`，含范围语义与视图/切片交互）。
 
 ---
@@ -1335,7 +1339,8 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 |---|---|---|---|
 | 网络 | socket, http, urllib, ssl | `std/socket`（TCP / UDP / raw）、`koala/tls`（基于 OpenSSL 的 TLS 客户端）、`koala/http`（HTTP/1.1 客户端，报文解析用 vendor 的 llhttp，URL 解析只有它的 `Url`） | 2026-11-08 更新：无服务端 TLS / HTTP，遗留见 §80、§81 |
 | 加密/编码/压缩 | hashlib, hmac, base64, zlib, gzip, codecs | **无**（`.hash()` 是 FNV-1a 内部哈希，非加密） | base64/zlib 实用但非语言核心 |
-| 命令行解析 | argparse, getopt, shlex | `koala/cli`：argparse 的 API（`ArgumentParser` / `add_argument` / `add_subparsers` / `add_parser` / `parse_args`，Python 的帮助与报错格式），取值 `(args.get("x")! as str)!`；`type_="int"`（`type` 是关键字），无 `store_const`、无 shlex | 2026-11-08 更新，取值的易用性见 §82 |
+| 命令行解析 | argparse, getopt, shlex | `koala/cli`：argparse 的 API（`ArgumentParser` / `add_argument` / `add_subparsers` / `add_parser` / `parse_args`，Python 的帮助与报错格式），取值 `(args.get("x")! as str)!`；`type_="int"`（`type` 是关键字），无 `store_const`；`koala/shlex`：shlex 的 `split` / `join` / `quote` 与 `shlex` 词法器，结果与 CPython 3.14 一致，出错返回 nil | 2026-11-08 更新，取值的易用性见 §82 |
+| Interactive input | readline, getpass, curses | `koala/readline`: the API of Python's `readline` (`input`, the history and its files, `set_completer` with a `Completer` object, `parse_and_bind` / inputrc, the hooks), written in Koala over a raw-mode shim, checked against GNU readline 8.3; `input` returns nil at the end of the input and `""` on Ctrl-C instead of raising; no vi mode, no getpass, no curses | added 2026-11-08, leftovers in §87 |
 | 数据库 | sqlite3, dbm | `koala/sqlite3`：sqlite3 的 API（`connect` / `Connection` / `Cursor` / `Row`，`?` 与命名参数、`executemany` / `executescript`、隐式 `BEGIN`、语句缓存），vendor 的 SQLite 3.54.1；出错返回 nil + `sqlite_errorcode()` 而非异常，行是 `Row`；无 dbm、无 MySQL 等服务端驱动 | 2026-11-08 新增，遗留见 §85 |
 | 结构化配置 | enum, dataclasses | 无 | 范式差异 |
 
@@ -2154,9 +2159,14 @@ instance symbols; a fix at the root (one instance per type spec) is still to be 
    `os.run` / `os.system` get the default action back (`init_spawn_attr`, §28).
 6. **§25.4 is out of date**: it says the network area is empty, but `std/socket` exists.
 
-7. **`list.sort()` is declared but not implemented**: calling it panics with "func 'list::sort' is
-   not implemented!" (found 2026-11-01 in `fs.glob`). `glob` with `**` therefore returns its
-   paths in `walk` order instead of sorted.
+7. **~~`list.sort()` is declared but not implemented~~ — fixed 2026-11-08.** It panicked with
+   "func 'list::sort' is not implemented!" (found 2026-11-01 in `fs.glob`). The runtime now has
+   `_list_sort` in `src/objects/listobj.c`: a stable bottom-up merge sort over the list's
+   `TValue`s, a `sort(reverse = false)` signature, and ordering through `SLOT_LT` (`__lt__`) so
+   user classes sort. `fs.glob` itself still returns `**` matches in `walk` order (that is now
+   documented as its contract, not a symptom of the missing `sort`); callers who want a strict
+   order call `sort()` on the result. Tests: `test/test-run/test_list_sort.kl`,
+   `test/test-ut/test_list_sort.kl`. Still missing: `sort_by(cmp)` and `key=`.
 
 ---
 
@@ -3911,3 +3921,64 @@ panic; a row is always a `Row`; `named=` carries the dict of named parameters; `
   concurrency API.
 - **`fetchmany` / `fetchall` on an error** return nil, so the rows read before the error are lost.
   Python raises and loses them too; to decide whether to keep them.
+
+---
+
+## 86. A function with a return type can end without `return` (2026-11-08, fixed)
+
+Nothing checked that every path of a function with a return type ends in `return`: the body
+compiled and the missing value was nil, so an `int` function could return nil.
+
+```kl
+func noisy() int {
+    print("x")
+}           // error: missing return in function 'noisy', which returns 'int64'.
+```
+
+Since only `= expr` returns its value (decided 2026-11-08), a block of one expression,
+`func triple(a int) int { a * 3 }`, is such a body too; before, it returned `a * 3`.
+
+Fixed 2026-11-08 in `emit_ir_func_decl()`: when the function's last block has no terminator, the
+error is reported if that block can be reached from the entry. `block_is_reachable()` walks the
+CFG edges, follows only the taken edge of a branch on a constant (so `while true { }` and
+`loop { }` do not reach their end unless they `break`), and stops at a block that calls
+std/builtin's `panic()` / `unreachable()`. Both branches of an `if` returning, `if let`,
+`let-else` and a `for` that may run zero times are all handled by the walk itself; `parse_block`'s
+`has_terminal` was not enough. `koalac` now stops after irgen when it reported errors (before, it
+went on to codegen). No library, demo or tool code had a missing return. Cases:
+`test/test-kl/test_missing_return_errors.kl`.
+
+---
+
+## 87. `koala/readline` leftovers (2026-11-08, to do)
+
+`koala/readline` follows CPython's `readline` module, and the editor follows GNU readline 8.3's
+emacs keymap; `docs/koala_readline_api.md` lists where it differs on purpose (`input` returns nil
+or `""` instead of raising, the callbacks are trait objects, the file functions return false).
+
+Fixed 2026-11-08: Ctrl-Z and Ctrl-\ did nothing, because raw mode clears `ISIG` and the editor
+dropped the bytes. The editor now handles the terminal's own suspend and quit keys (read from its
+termios, so `stty susp` and `stty -isig` are followed): out of raw mode it sends SIGTSTP or
+SIGQUIT to the process group through `Terminal.suspend()` / `quit()`, then goes back to raw mode
+and edits on, drawing nothing, as GNU readline does. Ctrl-C stays a key, so that `input` can
+return `""`. Cases: `test_editor.kl` on a `MemoryTerminal`.
+
+Not done yet:
+
+- **The suspend and quit keys outside the line**: they are caught only while the line is edited.
+  During an incremental search, a quoted-insert, the completion `y or n` query and the `--More--`
+  pager, Ctrl-Z and Ctrl-\ are read as other keys are; with GNU readline the terminal driver
+  sends the signal there too.
+- **vi mode**: `editing-mode vi` and the vi keymap; the line is accepted and ignored.
+- **Numeric arguments and the region**: `digit-argument` (M-0 ... M-9, M--), `universal-argument`,
+  `set-mark`, `exchange-point-and-mark`, `kill-region`, `copy-region-as-kill`.
+- **Other GNU commands**: `menu-complete`, `history-search-backward` / `-forward`,
+  `non-incremental-*-search-history`, `character-search`, `overwrite-mode`, keyboard macros
+  (C-x ( / C-x ) / C-x e), `dump-functions` / `dump-variables`, `tilde-expand`.
+- **Long lines**: a line wider than the screen scrolls sideways on one row, as linenoise does; GNU
+  readline wraps it over several rows.
+- **`bell-style visible`** is silent; GNU readline flashes the screen.
+- **`readline.backend`** (Python 3.13) is not provided.
+- **Blocking**: reading a key blocks the thread; it would stall a scheduler once Koala has a
+  concurrency API.
+- **Platforms**: the shim uses POSIX termios; there is no Windows console support.

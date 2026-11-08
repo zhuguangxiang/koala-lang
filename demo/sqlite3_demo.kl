@@ -1,19 +1,21 @@
 #!/usr/bin/env koala
 /*
- * todo_demo.kl — a to-do list on the command line: koala/cli parses the
- * commands, koala/sqlite3 keeps the items in a database file.
+ * sqlite3_demo.kl — a to-do list on the command line: koala/cli parses the
+ * commands, koala/sqlite3 keeps the items in a database file, and the shell
+ * command reads them interactively with koala/readline and koala/shlex.
  *
  * Running it
  *
- *   It needs an installed koala with koala/cli and koala/sqlite3, which
+ *   It needs an installed koala with koala/cli, koala/sqlite3,
+ *   koala/readline and koala/shlex, which
  *   `./build-debug-test.sh` at the repository root installs. Then either
  *
- *       koala demo/todo_demo.kl <command> ...
+ *       koala demo/sqlite3_demo.kl <command> ...
  *
  *   or make it executable and run it through its `#!` line:
  *
- *       chmod +x demo/todo_demo.kl
- *       demo/todo_demo.kl <command> ...
+ *       chmod +x demo/sqlite3_demo.kl
+ *       demo/sqlite3_demo.kl <command> ...
  *
  * Commands
  *
@@ -27,40 +29,64 @@
  *   done ID                      mark item ID as done.
  *   rm ID                        remove item ID.
  *   stats                        count the items, done and open.
+ *   shell                        read commands at a `todo> ` prompt until
+ *                                Ctrl-D or `quit`, as in the session below.
  *
  *   With no command it prints the help; `-h` after a command prints that
- *   command's options, e.g. `todo_demo.kl add -h`.
+ *   command's options, e.g. `sqlite3_demo.kl add -h`.
  *
  * The database
  *
  *   The items live in todo.db in the current directory, created on the
  *   first run. --db picks another file and goes before the command, as
- *   every option of the main parser does: `todo_demo.kl --db work.db list`.
+ *   every option of the main parser does: `sqlite3_demo.kl --db work.db list`.
  *   `--db :memory:` keeps nothing.
  *
  * A session
  *
- *     $ koala todo_demo.kl add buy milk --priority 1
+ *     $ koala sqlite3_demo.kl add buy milk --priority 1
  *     added #1: buy milk
- *     $ koala todo_demo.kl add write the report
+ *     $ koala sqlite3_demo.kl add write the report
  *     added #2: write the report
- *     $ koala todo_demo.kl done 1
+ *     $ koala sqlite3_demo.kl done 1
  *     done #1
- *     $ koala todo_demo.kl list --all --sort priority
+ *     $ koala sqlite3_demo.kl list --all --sort priority
  *     [x] #1 p1 buy milk
  *     [ ] #2 p3 write the report
- *     $ koala todo_demo.kl stats
+ *     $ koala sqlite3_demo.kl stats
  *     2 items, 1 done, 1 open
  *     most urgent open priority: p3
- *     $ koala todo_demo.kl add learn chess -p 9
+ *     $ koala sqlite3_demo.kl add learn chess -p 9
  *     todo: priority must be 1 to 5, got 9
- *     $ koala todo_demo.kl done x
+ *     $ koala sqlite3_demo.kl done x
  *     usage: todo done [-h] id
  *     todo done: error: argument id: invalid int value: 'x'
+ *
+ * The shell
+ *
+ *   A line is split as a shell splits a command line, so quotes keep words
+ *   together, then parsed as the arguments of one command. The line is
+ *   edited with the emacs keys of GNU readline; Up / Down and C-r recall
+ *   earlier lines, which are kept in .todo_history in the current directory;
+ *   Tab completes the command names, their options and the values of --sort.
+ *
+ *     $ koala sqlite3_demo.kl shell
+ *     todo shell: Tab completes, Up/Down recall, Ctrl-D or quit leaves
+ *     todo> add "call the bank" -p 2
+ *     added #3: call the bank
+ *     todo> list --sort priority
+ *     [ ] #3 p2 call the bank
+ *     [ ] #2 p3 write the report
+ *     todo> quit
  */
 
 import "koala/cli"
+import "koala/readline"
+import "koala/shlex"
 import "koala/sqlite3"
+
+// The lines typed in the shell, kept between runs.
+const HISTORY = ".todo_history"
 
 func main() {
     // ---- koala/cli: declare the command line, as Python's argparse ----
@@ -99,6 +125,9 @@ func main() {
     // stats: a command with no arguments of its own.
     sub.add_parser("stats", help="Count the items")
 
+    // shell: the commands above, read one line at a time.
+    sub.add_parser("shell", help="Read commands interactively")
+
     // Parse sys.args(). On -h it prints the help and exits 0; on a bad
     // command line it prints the usage and the error and exits 2, so the
     // code below only sees a valid one.
@@ -128,8 +157,21 @@ func main() {
         return
     }
 
+    if (command as str)! == "shell" {
+        _shell(db, parser)
+    } else {
+        _run(db, args)
+    }
+
+    // An INSERT, UPDATE or DELETE opened a transaction: keep its changes.
+    db.commit()
+    db.close()
+}
+
+// Run the command of `args`.
+func _run(db sqlite3.Connection, args cli.Namespace) {
     // Each command's values are in the same Namespace as the main parser's.
-    let name = (command as str)!
+    let name = (args.get("command")! as str)!
     if name == "add" {
         _add(db, (args.get("text")! as list[str])!, (args.get("priority")! as int)!)
     } else if name == "list" {
@@ -141,10 +183,85 @@ func main() {
     } else {
         _stats(db)
     }
+}
 
-    // An INSERT, UPDATE or DELETE opened a transaction: keep its changes.
-    db.commit()
-    db.close()
+// ---- koala/readline + koala/shlex: an interactive loop ----
+
+// Read commands until Ctrl-D (input returns nil) or `quit`. shlex.split
+// splits a line as a shell would, and try_parse_args parses the words with
+// the same parser as the command line, returning nil instead of exiting on
+// -h or an error.
+func _shell(db sqlite3.Connection, parser cli.ArgumentParser) {
+    // Tab inserts a tab until it is bound to complete, as in Python. The
+    // words are split at spaces only, so "--sort" is one word to complete.
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(_Completer())
+    readline.set_completer_delims(" \t\n")
+    // False on the first run, when there is no history file yet.
+    readline.read_history_file(HISTORY)
+
+    print("todo shell: Tab completes, Up/Down recall, Ctrl-D or quit leaves")
+    while let line = readline.input("todo> ") {
+        if let words = shlex.split(line) {
+            if words.len() == 0 { continue }
+            let first = words[0]
+            if first == "quit" || first == "exit" { break }
+            if first == "shell" {
+                print("todo: already in the shell")
+                continue
+            }
+            if let args = parser.try_parse_args(words) {
+                if args.get("command") == nil {
+                    parser.print_help()
+                } else {
+                    _run(db, args)
+                    db.commit()
+                }
+            } else {
+                // the help after -h, or the usage and the error
+                print(parser.exit_message().rstrip())
+            }
+        } else {
+            print("todo: no closing quotation")
+        }
+    }
+    readline.write_history_file(HISTORY)
+}
+
+// What Tab offers: complete(text, 0), complete(text, 1), ... are the
+// candidates that start with `text`, then nil. Each ends with a space, so
+// the next word can be typed at once: Python's readline adds none itself.
+class _Completer : readline.Completer {
+    func __init__() {}
+
+    func complete(text str, state int) str? {
+        // the line before the word being completed
+        let before = readline.get_line_buffer().substr(0, readline.get_begidx())
+        var n = 0
+        for word in _candidates(before) {
+            if word.starts_with(text) {
+                if n == state { return word + " " }
+                n += 1
+            }
+        }
+        return nil
+    }
+}
+
+// The words that can follow `before`: a command name first, then the
+// options of that command.
+func _candidates(before str) list[str] {
+    var words = list[str]()
+    if let w = shlex.split(before) { words = w }
+    if words.len() == 0 { return ["add", "list", "done", "rm", "stats", "quit"] }
+
+    let last = words[words.len() - 1]
+    if words[0] == "add" { return ["-p", "--priority"] }
+    if words[0] == "list" {
+        if last == "--sort" { return ["id", "priority"] }
+        return ["-a", "--all", "--sort"]
+    }
+    return list[str]()
 }
 
 // The table, created on the first run. The CHECK lets SQLite refuse a bad

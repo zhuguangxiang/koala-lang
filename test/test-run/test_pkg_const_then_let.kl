@@ -1,0 +1,13 @@
+// RUN: koala %s | filecheck %s
+// A package with a `const` in one file and a module-level `let` in a file that sorts after it:
+// loading it failed `vm_ops.h:2413: _eval_frame: Assertion 'obj && ((obj)->_type ==
+// &global_type)'`, before main ran. With the `let` in the entry file, or no `const` before it,
+// it loaded.
+
+import "test_pkg/pkg_const_then_let" as pkg
+
+func main() {
+    print(pkg.limit(), pkg.Counter().value)
+}
+
+// CHECK: 3 5

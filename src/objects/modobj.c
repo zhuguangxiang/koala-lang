@@ -147,10 +147,10 @@ int kl_mo_add_none(Object *_m)
     return kl_mo_add_const(_m, &val);
 }
 
-int kl_mo_add_str(Object *_m, char *s)
+int kl_mo_add_str(Object *_m, char *s, int len)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    Object *sobj = kl_new_str(s);
+    Object *sobj = kl_new_nstr(s, len);
     TValue val = obj_value(sobj);
     return kl_mo_add_const(_m, &val);
 }
@@ -207,7 +207,7 @@ static Object *__new_const_tuple(Object *_m, Vector *list)
             case KLC_CONST_SHORT_UTF8:
             case KLC_CONST_ASCII:
             case KLC_CONST_UTF8: {
-                Object *sobj = kl_new_str(item->sval);
+                Object *sobj = kl_new_nstr(item->sval, item->len);
                 TValue val = obj_value(sobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -379,7 +379,7 @@ static Object *__new_const_list(Object *_m, Vector *list)
             case KLC_CONST_SHORT_UTF8:
             case KLC_CONST_ASCII:
             case KLC_CONST_UTF8: {
-                Object *sobj = kl_new_str(item->sval);
+                Object *sobj = kl_new_nstr(item->sval, item->len);
                 TValue val = obj_value(sobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -478,7 +478,7 @@ static TValue __const_to_tvalue(Object *_m, KlcConst *item)
         case KLC_CONST_SHORT_UTF8:
         case KLC_CONST_ASCII:
         case KLC_CONST_UTF8: {
-            Object *sobj = kl_new_str(item->sval);
+            Object *sobj = kl_new_nstr(item->sval, item->len);
             return obj_value(sobj);
         }
 

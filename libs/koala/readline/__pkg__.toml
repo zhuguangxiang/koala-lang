@@ -1,0 +1,16 @@
+[package]
+name = "koala/readline"
+version = "0.1.0"
+description = "Line editing, history and completion, a port of Python's readline"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_readline"
+sources = [
+    "native/readline_shim.c",
+]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

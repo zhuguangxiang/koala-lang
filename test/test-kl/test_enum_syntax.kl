@@ -1,0 +1,38 @@
+// SKIP: ! koalac %s 2>&1 | filecheck %s
+// The enum forms the grammar accepts. The semantics are not implemented yet, so
+// each declaration reports "enum is not supported yet." instead of being dropped.
+
+enum Signal { HUP = 1, INT = 2, QUIT = 3, KILL = 9 }
+// CHECK: enum is not supported yet.
+
+// trailing ','
+enum Color { RED, GREEN, BLUE, }
+// CHECK-NEXT: enum is not supported yet.
+
+// one member per line, no trailing ','
+enum Level {
+    TRACE,
+    DEBUG,
+    INFO = 10,
+    OFF
+}
+// CHECK-NEXT: enum is not supported yet.
+
+// hex / binary literals, trailing ','
+enum Mode {
+    READ = 0x1,
+    WRITE = 0b10,
+}
+// CHECK-NEXT: enum is not supported yet.
+
+// negative values and the int64 limits
+pub enum Bound { LOW = -1, ZERO, MAX = 9223372036854775807, MIN = -9223372036854775808 }
+// CHECK-NEXT: enum is not supported yet.
+
+// digits and '_' after the first letter, a single member
+enum Proto { HTTP2, TLS_1_3 }
+// CHECK-NEXT: enum is not supported yet.
+enum One { ONLY }
+// CHECK-NEXT: enum is not supported yet.
+
+func main() {}

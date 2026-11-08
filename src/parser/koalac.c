@@ -540,6 +540,16 @@ static int compile(ParserModule *pm)
 
     if (genir_enabled()) {
         kl_gen_ir(pm);
+
+        // irgen reports errors too, as a missing return
+        vector_foreach(ps, &pm->pss) {
+            if (!ps) continue;
+            errors += ps->errors;
+        }
+        if (errors > 0) {
+            errno = -1;
+            return -1;
+        }
     }
 
     KlrModule *m = pm->m;

@@ -664,6 +664,118 @@ static TValue _list_reverse(TValue *self, TValue *args, int nargs)
     return no_value;
 }
 
+/* Is this value a number - any int/uint width, any float width, or a bool? */
+static bool is_number(TValue *v) { return is_int(v) || is_uint(v) || is_float(v) || is_bool(v); }
+
+/* A number as a double; only meaningful for int/uint/float/bool values. */
+static double num_as_float(TValue *v)
+{
+    if (is_float(v)) return v->fval;
+    if (is_uint(v)) return (double)(uint64_t)v->ival;
+    return (double)v->ival; /* int of any width, or a bool */
+}
+
+/* Numeric `<` across widths and signedness, the way CPython compares numbers. */
+static bool number_less(TValue *a, TValue *b)
+{
+    if (is_float(a) || is_float(b)) return num_as_float(a) < num_as_float(b);
+    if (is_uint(a) && is_uint(b)) return (uint64_t)a->ival < (uint64_t)b->ival;
+    if (!is_uint(a) && !is_uint(b)) return a->ival < b->ival;
+
+    /* one signed, one unsigned: an unsigned above INT64_MAX is the larger one */
+    TValue *u = is_uint(a) ? a : b;
+    TValue *s = is_uint(a) ? b : a;
+    int64_t uv = (int64_t)(uint64_t)u->ival; /* negative when it exceeds INT64_MAX */
+    bool u_lt_s = uv < 0 ? false : (uv < s->ival);
+    bool s_lt_u = uv < 0 ? true : (s->ival < uv);
+    return (u == a) ? u_lt_s : s_lt_u;
+}
+
+/* General-purpose TValue ordering, mirroring list_item_equal's layering up to a
+ * point: numbers compare by payload, two objects of one type dispatch __lt__.
+ */
+static TValue list_item_less(TValue *a, TValue *b)
+{
+    if (is_number(a) && is_number(b)) return bool_value(number_less(a, b));
+
+    TypeObject *ta = kl_typeof(a);
+    TypeObject *tb = kl_typeof(b);
+
+    /* Two objects of one type order through __lt__. Anything else is what
+     * CPython rejects with a TypeError, and the native __lt__ of e.g. str
+     * asserts on a foreign argument, so the slot is not dispatched. */
+    if (ta != tb || !ta->slots[SLOT_LT]) {
+        raise_exc_fmt("'<' not supported between instances of '%s' and '%s'", ta->name, tb->name);
+        return error_value;
+    }
+
+    return kl_call_cmp(a, b, SLOT_LT); /* a user __lt__ may raise here */
+}
+
+/* Merge the two adjacent sorted runs base[0..n1) and base[n1..n1+n2) into dst.
+ * An element is taken from the right-hand run only when it must come first,
+ * which keeps the merge stable; `reverse` flips which pair is compared.
+ */
+static TValue merge_runs(TValue *base, size_t n1, size_t n2, TValue *dst, bool reverse)
+{
+    size_t i = 0, j = n1, k = 0;
+
+    while (i < n1 && j < n1 + n2) {
+        TValue *lhs = reverse ? base + i : base + j;
+        TValue *rhs = reverse ? base + j : base + i;
+        TValue lt = list_item_less(lhs, rhs);
+        if (is_error(&lt)) return error_value;
+        if (to_bool(&lt)) {
+            dst[k++] = base[j++];
+        } else {
+            dst[k++] = base[i++];
+        }
+    }
+
+    while (i < n1) dst[k++] = base[i++];
+    while (j < n1 + n2) dst[k++] = base[j++];
+    return no_value;
+}
+
+/* pub func sort(reverse = false) */
+static TValue _list_sort(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 1);
+
+    size_t n = list->end - list->start;
+    if (n < 2) return no_value; /* empty / single: already sorted */
+
+    /* mm_alloc() takes an int, so this is the hard cap on the scratch buffer */
+    if (n > (size_t)INT_MAX / sizeof(TValue)) {
+        raise_exc_str("list is too large to sort");
+        return error_value;
+    }
+
+    bool reverse = kl_arg_bool(0);
+    TValue *base = list->array + list->start;
+    TValue *tmp = mm_alloc((int)(n * sizeof(TValue)));
+    TValue ret = no_value;
+
+    /* Bottom-up merge sort: O(n log n), stable, and no recursion to overflow. */
+    for (size_t width = 1; width < n; width *= 2) {
+        for (size_t i = 0; i < n; i += 2 * width) {
+            size_t n1 = (n - i) < width ? (n - i) : width;
+            size_t n2 = (n - i - n1) < width ? (n - i - n1) : width;
+            ret = merge_runs(base + i, n1, n2, tmp + i, reverse);
+            if (is_error(&ret)) {
+                /* a user __lt__ raised: the list is left partly reordered */
+                mm_free(tmp);
+                return ret;
+            }
+        }
+        memcpy(base, tmp, n * sizeof(TValue));
+    }
+
+    mm_free(tmp);
+    return no_value;
+}
+
 /* pub func __add__(seq list[T]) list[T] */
 static TValue _list_add(TValue *self, TValue *args, int nargs)
 {
@@ -705,6 +817,7 @@ static MethodDef list_methods[] = {
     { "delete", _list_delete },
     { "clear", _list_clear },
     { "reverse", _list_reverse },
+    { "sort", _list_sort },
     { "__add__", _list_add },
     { "__iadd__", _list_iadd },
     { NULL },

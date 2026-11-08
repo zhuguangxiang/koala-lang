@@ -1,0 +1,19 @@
+// RUN: koala %s | filecheck %s
+// A default argument holding a NUL keeps it: the default is rebuilt from its literal at each call
+// that leaves it out, and the copy stopped at the NUL: b"a\x00b" kept its length but came back
+// as b"a\x00\x00", read past the end of the copy.
+
+func sizes(data = b"a\x00b", text = "x\x00yz") {
+    print(data.len(), text.len())
+    print(data, int(data[2]), text[2:])
+}
+
+func main() {
+    sizes()
+    sizes(b"\x00\x00\x00", "\x00\x00yz")
+}
+
+// CHECK: 3 4
+// CHECK-NEXT: b"a\x00b" 98 yz
+// CHECK-NEXT: 3 4
+// CHECK-NEXT: b"\x00\x00\x00" 0 yz

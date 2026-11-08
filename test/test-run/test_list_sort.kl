@@ -1,0 +1,97 @@
+// RUN: koala %s | filecheck %s
+
+// `list.sort()` is a stable ascending in-place sort and `sort(reverse = true)`
+// is the descending form. `Item` orders by `key` alone, so its `tag` shows
+// whether items with equal keys kept their insertion order.
+
+class Item {
+    var key int
+    var tag int
+
+    func __init__(_key int, _tag int) {
+        key = _key
+        tag = _tag
+    }
+
+    func __lt__(rhs Item) bool { return key < rhs.key }
+}
+
+func main() {
+    // reversed input holding a duplicate
+    let ints = [3, 1, 4, 1, 5, 9, 2, 6]
+    ints.sort()
+    print(ints)
+    // CHECK: [1, 1, 2, 3, 4, 5, 6, 9]
+
+    // descending, still stable: the two 1s keep their sorted order
+    ints.sort(reverse = true)
+    print(ints)
+    // CHECK-NEXT: [9, 6, 5, 4, 3, 2, 1, 1]
+
+    // empty and one-element lists are no-ops in either direction
+    let none = list[int]()
+    none.sort()
+    none.sort(reverse = true)
+    print(none)
+    // CHECK-NEXT: []
+
+    let one = [42]
+    one.sort()
+    print(one)
+    // CHECK-NEXT: [42]
+
+    // already sorted: nothing moves
+    let sorted_ints = [1, 2, 3]
+    sorted_ints.sort()
+    print(sorted_ints)
+    // CHECK-NEXT: [1, 2, 3]
+
+    // strings compare by code point, so uppercase letters come first
+    let names = ["pear", "Apple", "banana", "Zebra"]
+    names.sort()
+    print(names)
+    // CHECK-NEXT: [Apple, Zebra, banana, pear]
+
+    // floats
+    let reals = [1.5, -2.25, 0.0, 3.5]
+    reals.sort()
+    print(reals)
+    // CHECK-NEXT: [-2.25, 0, 1.5, 3.5]
+
+    // numbers of different widths compare numerically with each other
+    let mixed = list[any]()
+    mixed.append(3)
+    mixed.append(1.5)
+    mixed.append(2)
+    mixed.append(0)
+    mixed.sort()
+    print(mixed)
+    // CHECK-NEXT: [0, 1.5, 2, 3]
+
+    // signed and unsigned values order numerically: 2**63 exceeds INT64_MAX
+    let widths = list[any]()
+    widths.append(uint64(1) << 63)
+    widths.append(5)
+    widths.sort()
+    print(widths)
+    // CHECK-NEXT: [5, 9223372036854775808]
+
+    // stability: keys 2, 1, 2, 1 must come out as 1, 3, 0, 2
+    let items = list[Item](Item(2, 0), Item(1, 1), Item(2, 2), Item(1, 3))
+    items.sort()
+    let order = list[int]()
+    for it in items {
+        order.append(it.tag)
+    }
+    print(order)
+    // CHECK-NEXT: [1, 3, 0, 2]
+
+    // and the tags of the descending form reverse those runs: 0, 2, 1, 3
+    items.sort(reverse = true)
+    let rev_order = list[int]()
+    for it in items {
+        rev_order.append(it.tag)
+    }
+    print(rev_order)
+    // CHECK-NEXT: [0, 2, 1, 3]
+}

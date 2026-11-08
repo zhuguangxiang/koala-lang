@@ -1,0 +1,30 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// What Tab completes, as the function Python's `readline.set_completer`
+/// takes: `complete(text, 0)`, `complete(text, 1)`, ... return the matches
+/// of `text`, the word before the cursor, then nil.
+///
+///     class Commands : readline.Completer {
+///         let words list[str]
+///         func __init__() { words = ["add", "list", "done"] }
+///         func complete(text str, state int) str? {
+///             var n = 0
+///             for w in words {
+///                 if w.starts_with(text) {
+///                     if n == state { return w }
+///                     n += 1
+///                 }
+///             }
+///             return nil
+///         }
+///     }
+///     readline.set_completer(Commands())
+///
+/// While it runs, `get_begidx()` / `get_endidx()` say where the word is in
+/// `get_line_buffer()`, and `get_completion_type()` why it is called.
+pub trait Completer {
+    func complete(text str, state int) str?
+}

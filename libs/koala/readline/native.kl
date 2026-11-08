@@ -1,0 +1,31 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The @native declarations below mirror native/readline_shim.c. They are
+// not part of the package's public API.
+
+/// Put the terminal on `fd` in raw mode. False when `fd` is not a terminal.
+@native
+func tty_raw_on(fd int) bool {}
+
+/// Restore the mode the terminal had before `tty_raw_on`.
+@native
+func tty_raw_off(fd int) bool {}
+
+/// The terminal's suspend key before raw mode, -1 for none.
+@native
+func tty_suspend_key() int {}
+
+/// The terminal's quit key before raw mode, -1 for none.
+@native
+func tty_quit_key() int {}
+
+/// Stop the process group with SIGTSTP; returns once it is continued.
+@native
+func tty_suspend() {}
+
+/// Send SIGQUIT to the process group.
+@native
+func tty_quit() {}

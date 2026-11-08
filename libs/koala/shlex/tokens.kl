@@ -1,0 +1,47 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The tokens of a lexer, up to its `eof`, as iterating a Python shlex. A
+// lexing error ends them too.
+class _Tokens : Iterator[str] {
+    let _lexer shlex
+    var _next str = ""
+    var _ready bool = false
+    var _done bool = false
+
+    func __init__(lexer shlex) {
+        _lexer = lexer
+    }
+
+    pub func has_next() bool {
+        _fetch()
+        return _ready
+    }
+
+    pub func next_strict() str {
+        _fetch()
+        if !_ready { panic("shlex: no more tokens") }
+        _ready = false
+        return _next
+    }
+
+    pub func next() str? {
+        _fetch()
+        if !_ready { return nil }
+        _ready = false
+        return _next
+    }
+
+    func _fetch() {
+        if _ready || _done { return }
+        let token = _lexer.get_token()
+        if token == nil || _same(token, _lexer.eof) {
+            _done = true
+            return
+        }
+        _next = token!
+        _ready = true
+    }
+}

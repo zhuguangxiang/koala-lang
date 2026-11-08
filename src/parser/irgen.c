@@ -2558,6 +2558,88 @@ static void build_return(ParserState *ps, KlrValue *exp_val)
     klr_build_ret(&bldr, ret_ir_val);
 }
 
+/* A call of std/builtin's panic() or unreachable(): it never returns. */
+static int is_noreturn_insn(KlrInsn *insn)
+{
+    if (insn->code == OP_UNREACHABLE) return 1;
+    if (insn->code != OP_CALL && insn->code != OP_IR_CALL) return 0;
+
+    // a call through a value, as a trait method or a function variable, has no name
+    KlrValue *callee = insn_oper_value(insn, 0);
+    if (!callee || !callee->name) return 0;
+    if (!str_equal(callee->name, "panic") && !str_equal(callee->name, "unreachable")) return 0;
+
+    if (callee->kind == KLR_VALUE_EXT_FUNC) {
+        KlrExtFunc *f = (KlrExtFunc *)callee;
+        return !f->klass && str_equal(f->module->name, "std/builtin");
+    }
+    // the calls inside std/builtin itself
+    return callee->kind == KLR_VALUE_FUNC && !((KlrFunc *)callee)->klass;
+}
+
+/* Whether `bb` calls panic() or unreachable(): its path ends there. */
+static int block_never_ends(KlrBasicBlock *bb)
+{
+    KlrInsn *insn;
+    insn_foreach(insn, bb) {
+        if (is_noreturn_insn(insn)) return 1;
+    }
+    return 0;
+}
+
+/*
+ * Whether `target` can be reached from the entry of `fn`. A branch on a constant follows its taken
+ * edge only, so the end of `while true { ... }` is reached only through a `break`; a block that
+ * calls panic() or unreachable() goes nowhere.
+ */
+static int block_is_reachable(KlrFunc *fn, KlrBasicBlock *target)
+{
+    Vector seen = VECTOR_INIT_PTR;
+    Vector todo = VECTOR_INIT_PTR;
+    vector_push_back(&todo, &fn->sbb);
+
+    int found = 0;
+    while (!vector_empty(&todo)) {
+        KlrBasicBlock *bb;
+        vector_pop_back(&todo, &bb);
+
+        int visited = 0;
+        KlrBasicBlock *old;
+        vector_foreach(old, &seen) {
+            if (old == bb) visited = 1;
+        }
+        if (visited) continue;
+        vector_push_back(&seen, &bb);
+
+        if (bb == target) {
+            found = 1;
+            break;
+        }
+        if (block_never_ends(bb)) continue;
+
+        KlrInsn *last = insn_last(bb);
+        if (last && last->code == OP_IR_JMP_COND) {
+            // the condition, then the reserved fused operand, then the two targets
+            KlrValue *cond = insn_oper_value(last, 0);
+            if (klr_is_const(cond) && ((KlrConst *)cond)->which == CONST_BOOL) {
+                int taken = ((KlrConst *)cond)->ival ? 2 : 3;
+                KlrBasicBlock *next = (KlrBasicBlock *)insn_oper_value(last, taken);
+                vector_push_back(&todo, &next);
+                continue;
+            }
+        }
+
+        KlrEdge *edge;
+        edge_out_foreach(edge, bb) {
+            vector_push_back(&todo, &edge->dst);
+        }
+    }
+
+    vector_fini(&seen);
+    vector_fini(&todo);
+    return found;
+}
+
 static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
@@ -2572,16 +2654,15 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     int need_emit_body = 1;
-    if (vector_size(fn->body) == 1) {
+    if (fn->is_expr_body) {
+        // `= expr`: the value is returned
         Stmt *s = vector_at(fn->body, 0);
-        if (s->kind == STMT_EXPR_KIND) {
-            emit_ir_stmt(ps, s);
-            Expr *exp = ((ExprStmt *)s)->exp;
-            if (exp && !type_is_no_type(exp->ts) && exp->ir_val) {
-                build_return(ps, exp->ir_val);
-            }
-            need_emit_body = 0;
+        emit_ir_stmt(ps, s);
+        Expr *exp = ((ExprStmt *)s)->exp;
+        if (exp && !type_is_no_type(exp->ts) && exp->ir_val) {
+            build_return(ps, exp->ir_val);
         }
+        need_emit_body = 0;
     }
 
     if (need_emit_body) {
@@ -2602,6 +2683,14 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
         KlrValue *op = klr_build_unreachable(&bldr);
         klr_set_loc(op, ps->filename, fn->id.loc);
     } else {
+        if (!block_has_terminator(last) && !type_is_no_type(((FuncSymbol *)sym)->ret) &&
+            block_is_reachable((KlrFunc *)sym->ir_val, last) && !block_never_ends(last)) {
+            BUF(buf);
+            type_spec_print(((FuncSymbol *)sym)->ret, &buf);
+            kl_error(fn->id.loc, "missing return in function '%s', which returns '%s'.",
+                     fn->id.name, BUF_STR(buf));
+            FINI_BUF(buf);
+        }
         klr_add_last_return(last);
     }
 
@@ -4165,8 +4254,12 @@ void kl_gen_ir(ParserModule *pm)
                 // do nothing
             }
         }
+    }
 
-        // add const globals
+    // add const globals after the variables of every file: a variable's index must be below
+    // num_globals, which counts the variables only
+    vector_foreach(ps, &pm->pss) {
+        Stmt *s;
         vector_foreach(s, &ps->const_globals) {
             if (!s) continue;
             ASSERT(s->kind == STMT_VAR_KIND);

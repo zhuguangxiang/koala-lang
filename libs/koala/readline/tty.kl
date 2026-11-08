@@ -1,0 +1,75 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/sys"
+
+// The process's terminal: keys from sys.stdin, drawing on sys.stdout.
+class _TtyTerminal : Terminal {
+    func __init__() {}
+
+    func read_byte() int = sys.stdin.read_byte()
+
+    func write(text str) {
+        sys.stdout.write_str(text)
+    }
+
+    func flush() {
+        sys.stdout.flush()
+    }
+
+    // The width of stdout, 80 when it is unknown.
+    func columns() int {
+        if let size = os.terminal_size(1) {
+            let (cols, _) = size
+            if cols > 0 { return cols }
+        }
+        return 80
+    }
+
+    // The height of stdout, 24 when it is unknown.
+    func rows() int {
+        if let size = os.terminal_size(1) {
+            let (_, lines) = size
+            if lines > 0 { return lines }
+        }
+        return 24
+    }
+
+    // Raw mode on stdin, with bracketed paste: the terminal wraps pasted
+    // text in ESC [ 200 ~ ... ESC [ 201 ~.
+    func set_raw(on bool) bool {
+        if on {
+            if !tty_raw_on(0) { return false }
+            write("\x1b[?2004h")
+            flush()
+            return true
+        }
+        write("\x1b[?2004l")
+        flush()
+        return tty_raw_off(0)
+    }
+
+    func suspend_key() int = tty_suspend_key()
+
+    func quit_key() int = tty_quit_key()
+
+    func suspend() {
+        tty_suspend()
+    }
+
+    func quit() {
+        tty_quit()
+    }
+
+    func is_interactive() bool {
+        if !os.isatty(0) || !os.isatty(1) { return false }
+        // terminals linenoise does not edit on: they cannot move the cursor
+        if let term = os.getenv("TERM") {
+            if term == "dumb" || term == "cons25" || term == "emacs" { return false }
+        }
+        return true
+    }
+}

@@ -1,0 +1,139 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+/// Orders by `key` only; `tag` records the insertion position, which is what
+/// the stability checks read.
+class Key {
+    var key int
+    var tag int
+
+    func __init__(_key int, _tag int) {
+        key = _key
+        tag = _tag
+    }
+
+    func __lt__(rhs Key) bool { return key < rhs.key }
+}
+
+@test
+func test_empty_and_single() {
+    let empty = list[int]()
+    empty.sort()
+    ut.assert_int_eq(empty.len(), 0)
+    empty.sort(reverse = true)
+    ut.assert_int_eq(empty.len(), 0)
+
+    let one = [7]
+    one.sort()
+    ut.assert_int_eq(one[0], 7)
+    one.sort(reverse = true)
+    ut.assert_int_eq(one[0], 7)
+}
+
+@test
+func test_ascending() {
+    let v = [3, 1, 4, 1, 5, 9, 2, 6]
+    v.sort()
+    let want = [1, 1, 2, 3, 4, 5, 6, 9]
+    for i in range(v.len()) {
+        ut.assert_int_eq(v[i], want[i])
+    }
+}
+
+@test
+func test_descending() {
+    let v = [3, 1, 4, 1, 5, 9, 2, 6]
+    v.sort(reverse = true)
+    let want = [9, 6, 5, 4, 3, 2, 1, 1]
+    for i in range(v.len()) {
+        ut.assert_int_eq(v[i], want[i])
+    }
+}
+
+@test
+func test_already_sorted_and_reversed() {
+    // 5 elements: the merge passes cover widths 1, 2 and a short final run
+    let v = [1, 2, 3, 4, 5]
+    v.sort()
+    ut.assert_int_eq(v[4], 5)
+
+    let r = [5, 4, 3, 2, 1]
+    r.sort()
+    ut.assert_int_eq(r[0], 1)
+    ut.assert_int_eq(r[4], 5)
+}
+
+@test
+func test_many_elements() {
+    // a deterministic shuffle: values 0..99 in a scrambled order
+    let v = list[int]()
+    for i in range(100) {
+        v.append((i * 37) % 100)
+    }
+    v.sort()
+    for i in range(100) {
+        ut.assert_int_eq(v[i], i)
+    }
+}
+
+@test
+func test_strings_by_code_point() {
+    let v = ["b", "a", "A", "ab", "á"]
+    v.sort()
+    ut.assert_eq(v[0], "A")
+    ut.assert_eq(v[1], "a")
+    ut.assert_eq(v[2], "ab")
+    ut.assert_eq(v[3], "b")
+    ut.assert_eq(v[4], "á")
+}
+
+@test
+func test_floats() {
+    let v = [2.5, -1.0, 0.5]
+    v.sort()
+    ut.assert_float_eq(v[0], -1.0)
+    ut.assert_float_eq(v[1], 0.5)
+    ut.assert_float_eq(v[2], 2.5)
+}
+
+@test
+func test_sort_after_front_pop() {
+    // popping the head advances the list's logical window: the sort has to work
+    // inside `[start, end)` and leave the popped slot alone
+    let v = [9, 5, 7, 3, 1]
+    ut.assert_int_eq(v.pop(0), 9)
+    v.sort()
+    ut.assert_int_eq(v.len(), 4)
+    ut.assert_int_eq(v[0], 1)
+    ut.assert_int_eq(v[1], 3)
+    ut.assert_int_eq(v[2], 5)
+    ut.assert_int_eq(v[3], 7)
+}
+
+@test
+func test_stable() {
+    let v = list[Key](Key(2, 0), Key(1, 1), Key(2, 2), Key(1, 3))
+    v.sort()
+    ut.assert_int_eq(v[0].tag, 1)
+    ut.assert_int_eq(v[1].tag, 3)
+    ut.assert_int_eq(v[2].tag, 0)
+    ut.assert_int_eq(v[3].tag, 2)
+
+    // descending is stable as well
+    v.sort(reverse = true)
+    ut.assert_int_eq(v[0].key, 2)
+    ut.assert_int_eq(v[1].key, 2)
+    ut.assert_int_eq(v[2].key, 1)
+    ut.assert_int_eq(v[3].key, 1)
+    ut.assert_int_eq(v[0].tag, 0)
+    ut.assert_int_eq(v[1].tag, 2)
+}
+
+@should_panic
+func test_uncomparable_panics() {
+    let v = list[any]()
+    v.append(1)
+    v.append("two")
+    v.sort()
+}

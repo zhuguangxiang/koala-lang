@@ -109,7 +109,10 @@ pub class Parser {
 
             // A '#' outside of a string starts a comment
             if !in_string && c == '#' {
-                return line.substr(0, i)
+                // `i` counts bytes
+                let head = Buffer()
+                head.write(b[0:i])
+                return head.to_str()
             }
 
             i += 1

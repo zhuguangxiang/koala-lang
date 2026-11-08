@@ -1,0 +1,203 @@
+#!/usr/bin/env koala
+/*
+ * readline_demo.kl — an interactive prompt with koala/readline: line
+ * editing, a history kept between runs, Tab completion and a line that
+ * starts with text already in it. koala/shlex splits each line as a shell
+ * would.
+ *
+ * Running it
+ *
+ *   It needs an installed koala with koala/readline and koala/shlex, which
+ *   `./build-debug-test.sh` at the repository root installs. Then
+ *
+ *       koala demo/readline_demo.kl
+ *
+ *   On a pipe it reads plain lines, with no editing and no history, so it
+ *   can also be scripted:
+ *
+ *       printf 'echo "a b" c\nquit\n' | koala demo/readline_demo.kl
+ *
+ * Commands
+ *
+ *   echo WORDS...     print the words, one per line, as shlex split them
+ *   count TEXT...     count the characters and the UTF-8 bytes of TEXT
+ *   history           list the lines typed so far, numbered from 1
+ *   edit N            edit line N of the history again: the next prompt
+ *                     starts with it
+ *   help              list the commands
+ *   quit              leave; Ctrl-D on an empty line does too
+ *
+ * Keys to try
+ *
+ *   Left / Right, C-a / C-e, M-b / M-f    move
+ *   C-k, C-u, C-w, then C-y               kill and yank
+ *   Up / Down, C-r                        recall and search the history
+ *   Tab                                   complete a command, or a history
+ *                                         number after `edit`; Tab twice
+ *                                         lists the choices
+ *   C-z                                   suspend; `fg` in the shell resumes
+ *
+ *   The history is kept in .readline_demo_history in the current directory.
+ *   ~/.inputrc is read, as GNU readline reads it, so its bindings apply.
+ *
+ * A session
+ *
+ *     $ koala demo/readline_demo.kl
+ *     Type `help` for the commands, Ctrl-D to leave.
+ *     demo> echo "hello world" 你好
+ *     hello world
+ *     你好
+ *     demo> count 你好, world
+ *     characters: 9, bytes: 13
+ *     demo> history
+ *       1  echo "hello world" 你好
+ *       2  count 你好, world
+ *     demo> edit 1
+ *     demo> echo "hello world" 你好        <- the line starts as line 1
+ */
+
+import "koala/readline"
+import "koala/shlex"
+import "std/os"
+
+// The lines typed, kept between runs.
+const HISTORY = ".readline_demo_history"
+
+// The most lines the history file keeps.
+const HISTORY_LINES = 200
+
+// The commands, for `help` and for Tab.
+const COMMANDS = "echo count history edit help quit"
+
+func main() {
+    // ---- set up: the bindings, the completer, the hooks, the history ----
+
+    // Tab inserts a tab until it is bound to complete, as in Python. A line
+    // of an init file can be run directly; ~/.inputrc is read on the first
+    // line anyway.
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(_Completer())
+    // Words are split at spaces only, so a number is one word to complete.
+    readline.set_completer_delims(" \t\n")
+
+    // The startup hook runs before each prompt; this one fills the line
+    // with the text `edit` asked for.
+    let prefill = _Prefill()
+    readline.set_startup_hook(prefill)
+
+    // False on the first run, when there is no history file yet.
+    readline.read_history_file(HISTORY)
+    readline.set_history_length(HISTORY_LINES)
+
+    // The prompt in bold green on a terminal. The color codes are between
+    // "\x01" and "\x02", so the editor knows they take no columns on the
+    // screen. On a pipe the prompt is printed as it is, as Python's input()
+    // prints it, so it stays plain there.
+    var prompt = "demo> "
+    if os.isatty(1) { prompt = "\x01\x1b[1;32m\x02demo>\x01\x1b[0m\x02 " }
+
+    // ---- the loop: input returns nil at the end of the input ----
+
+    print("Type `help` for the commands, Ctrl-D to leave.")
+    while let line = readline.input(prompt) {
+        // nil for an unclosed quote, as a shell would refuse the line
+        if let words = shlex.split(line) {
+            if !_run(words, prefill) { break }
+        } else {
+            print("no closing quotation")
+        }
+    }
+
+    // Keep the last HISTORY_LINES lines for the next run.
+    readline.write_history_file(HISTORY)
+}
+
+// Run the command of `words`. False for `quit`.
+func _run(words list[str], prefill _Prefill) bool {
+    if words.len() == 0 { return true }
+    let name = words[0]
+
+    if name == "quit" { return false }
+    if name == "help" {
+        print("commands: " + COMMANDS)
+    } else if name == "echo" {
+        for i in range(1, words.len()) { print(words[i]) }
+    } else if name == "count" {
+        // a str counts characters; its bytes are its UTF-8 encoding
+        let text = " ".join(words.copy(1))
+        printf("characters: {}, bytes: {}\n", text.len(), text.to_bytes().len())
+    } else if name == "history" {
+        // the history is numbered from 1, as in Python
+        for i in range(1, readline.get_current_history_length() + 1) {
+            printf("{:>3}  {}\n", i, readline.get_history_item(i)!)
+        }
+    } else if name == "edit" {
+        _edit(words, prefill)
+    } else {
+        printf("unknown command '{}'; try help\n", name)
+    }
+    return true
+}
+
+// `edit N`: the next line starts as line N of the history.
+func _edit(words list[str], prefill _Prefill) {
+    if words.len() != 2 {
+        print("usage: edit N")
+        return
+    }
+    let n = words[1].to_int_or(0)
+    if let text = readline.get_history_item(n) {
+        prefill.text = text
+    } else {
+        printf("no history line {}\n", words[1])
+    }
+}
+
+// The startup hook: insert_text puts `text` in the line before the first
+// key is read, once.
+class _Prefill : readline.Hook {
+    var text str = ""
+
+    func __init__() {}
+
+    func call() {
+        if text.len() == 0 { return }
+        readline.insert_text(text)
+        text = ""
+    }
+}
+
+// What Tab offers: complete(text, 0), complete(text, 1), ... are the
+// candidates that start with `text`, then nil. get_line_buffer() and
+// get_begidx() tell which word of the line is being completed.
+class _Completer : readline.Completer {
+    func __init__() {}
+
+    func complete(text str, state int) str? {
+        let before = readline.get_line_buffer().substr(0, readline.get_begidx())
+        var n = 0
+        for word in _candidates(before) {
+            if word.starts_with(text) {
+                // a space after it, so the next word can be typed at once:
+                // Python's readline adds none itself
+                if n == state { return word + " " }
+                n += 1
+            }
+        }
+        return nil
+    }
+}
+
+// The words that can follow `before`: a command first, then for `edit` the
+// numbers of the history lines.
+func _candidates(before str) list[str] {
+    var words = list[str]()
+    if let w = shlex.split(before) { words = w }
+    if words.len() == 0 { return COMMANDS.split() }
+
+    let out = list[str]()
+    if words[0] == "edit" && words.len() == 1 {
+        for i in range(1, readline.get_current_history_length() + 1) { out.append(str(i)) }
+    }
+    return out
+}

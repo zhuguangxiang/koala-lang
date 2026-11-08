@@ -1,0 +1,33 @@
+# CLINE AGENT BEHAVIOR & COST OPTIMIZATION GUIDELINES
+
+## 1. STRICT GIT RESTRICTIONS (READ-ONLY ALLOWED)
+- You are strictly FORBIDDEN from executing any destructive, modifying, or committing 'git' commands (e.g., git add, git commit, git push, git checkout, git stash, git reset, git rm, etc.).
+- You are ONLY allowed to execute [Read-Only] Git commands to perceive the project context and status (e.g., git status, git diff, git branch, git log).
+- Never attempt to manage version control or repository states automatically. If a task requires writing, committing, or switching branches, you must explicitly instruct the user in the chat to perform it manually.
+
+## 2. CODE MODIFICATION & EXPLICIT APPROVAL WORKFLOW
+- You must NEVER silently overwrite or automatically modify any local files without the user's granular, explicit step-by-step confirmation.
+- Before preparing or executing any code changes, you must first explain your exact "modification intent", "core logic", and "affected files" to the user in the text chat.
+- Only proceed to trigger the 'write_to_file' or 'apply_diff' tools AFTER the user has acknowledged and permitted the specific plan. Do not attempt to batch multi-file destructive writes without pausing for permission.
+
+## 3. TERMINAL RUNTIME RESTRAINTS (PREVENT TOKEN LEAKS)
+- You are strictly PROHIBITED from running persistent background daemons, watchdogs, or hot-reload services in the terminal that do not automatically terminate (e.g., 'npm run dev', 'nodemon', 'webpack --watch'). These commands will endlessly stream data back to OpenRouter, draining the balance instantly.
+- You are only allowed to run scripts that automatically terminate upon single execution, such as single-run unit tests ('npm run test') or single compilation checks.
+
+## 4. UI CLEANLINESS & CHAT STREAMING RULES
+- Do not output redundant, massive markdown code blocks or raw terminal logs in the chat window if they are already being executed via tools.
+- Keep your textual responses concise, structured, and bulleted. Avoid long-winded meta-explanations.
+- When proposing a file change, do not print the entire code file in the chat block; only explain the specific lines or logic shifts in short sentences to keep the layout clean and prevent rendering massive UI boxes.
+
+## 5. CODE DISPLAY MINIMALISM RULES
+- NEVER output full code blocks or repeated logic in your text chat responses if you are already presenting it via tools.
+- When explaining code changes, describe them conceptually in 1-2 short sentences. Do not use giant markdown blocks in the main chat.
+
+## 6. COMPILER BUG MELTDOWN & DIAGNOSTIC REPORTING
+- If any terminal execution or compilation check results in a compiler crash, core dump, segmentation fault, or broken assertion, you must IMMEDIATELY HALT all further automated modifications.
+- Do not attempt to guess-fix or loops-modify the code blindly after a compiler bug is encountered.
+- You must instantly pivot to diagnostic mode and output a concise report in the chat containing exactly three things:
+  1. [Root Cause Analysis]: A 1-2 sentence high-level deduction of why the compiler/VM broke.
+  2. [Minimal Reproducible Example]: A tiny, standalone `.kl` (Koala) source code snippet that triggers this exact bug.
+  3. [Proposed Fix Action]: A clear, localized architectural strategy to fix the issue.
+- Wait for the user's explicit manual guidance before resuming any tool executions or file writes.

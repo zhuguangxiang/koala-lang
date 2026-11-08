@@ -7,7 +7,7 @@
 ///
 /// A `Match` records where the whole match and each capture group were
 /// found; it holds the text it came from, so the groups can be read out as
-/// strings. It never changes. Offsets are byte offsets into the text.
+/// strings. It never changes. Offsets are character indexes into the text.
 ///
 /// Groups are numbered from 1 in the order of their opening parenthesis,
 /// and group 0 is the whole match. A group that did not take part in the
@@ -35,12 +35,12 @@ pub class Match {
 
     let _caps list[int]
 
-    /// The byte offset the search started from: the `pos` given to
+    /// The character index the search started from: the `pos` given to
     /// `search`, `match`, `fullmatch` or `finditer`, otherwise 0. Python's
     /// `Match.pos`.
     pub let pos int
 
-    /// The byte offset the search stopped at: the `endpos` given to the
+    /// The character index the search stopped at: the `endpos` given to the
     /// search, otherwise the length of the text. Python's `Match.endpos`.
     pub let endpos int
 
@@ -62,14 +62,14 @@ pub class Match {
 
     /// Write `<re.Match object; span=(1, 3), match='bb'>`, as Python's `repr`
     /// does; the matched text is cut after 50 characters. The span is in
-    /// bytes.
+    /// characters.
     pub func fmt(f Formatter) {
         f.write_fmt("<re.Match object; span=({}, {}), match=", _caps[0], _caps[1])
         f.write_str(_repr(group(0), 50))
         f.write_str(">")
     }
 
-    /// Offset of the first byte of group `group`, or -1 if it took no part.
+    /// Index of the first character of group `group`, or -1 if it took no part.
     /// `group` is a number or a name, here and in `end`, `span` and `group`;
     /// for a name that several groups share, the first group that took part
     /// is used, else the leftmost one.
@@ -79,7 +79,7 @@ pub class Match {
         return _caps[2 * _index(group)]
     }
 
-    /// Offset just past the last byte of group `group`, or -1 if it took no part.
+    /// Index just past the last character of group `group`, or -1 if it took no part.
     ///
     /// Panic if there is no such group.
     pub func end(group int | str = 0) int {
