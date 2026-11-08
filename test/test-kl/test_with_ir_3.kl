@@ -1,0 +1,237 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,ir,lir | filecheck %s
+// `with let v = expr { } else { }`: nil skips __enter__ / __exit__ and runs the else block;
+// jumps out of the else block call no __exit__
+
+class Res : Withable {
+    pub func __enter__() {}
+    pub func __exit__() {}
+    pub func get() int { return 1 }
+}
+
+func opt(o Res?) int {
+    with let r = o {
+        return r.get()
+    } else {
+        return 0
+    }
+}
+
+func no_else(o Res?) {
+    with let r = o {
+        r.get()
+    }
+}
+
+func loop_let(o Res?, k int) {
+    while k > 0 {
+        with let r = o {
+            break
+        } else {
+            continue
+        }
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @opt(%o test_with_ir_3.Res?) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %0 = cmpne %o test_with_ir_3.Res?, nil
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-then):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir_3.Res
+// CHECK-NEXT: %1 = call @Res:get, %r test_with_ir_3.Res
+// CHECK-NEXT: %with.ret = local [immutable] int64
+// CHECK-NEXT: move %with.ret int64, %1 int64
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir_3.Res
+// CHECK-NEXT: ret %with.ret int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(with-else):
+// CHECK-NEXT: ret 0 int64
+// CHECK-NEXT: }
+//
+// CHECK: func @no_else(%o test_with_ir_3.Res?) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %0 = cmpne %o test_with_ir_3.Res?, nil
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-then):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir_3.Res
+// CHECK-NEXT: %1 = call @Res:get, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir_3.Res
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(with-else):
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK: func @loop_let(%o test_with_ir_3.Res?, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-cond):
+// CHECK-NEXT: %0 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-body):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %1 = cmpne %o test_with_ir_3.Res?, nil
+// CHECK-NEXT: branch %1 bool, label %bb5, label %bb6
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(while-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(with-end):
+// CHECK-NEXT: %2 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %2 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(with-then):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir_3.Res
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb6(with-else):
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@opt] ---
+// CHECK-NEXT: func @opt(%o test_with_ir_3.Res?) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %0 = cmpne %o test_with_ir_3.Res?, nil
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-then):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir_3.Res
+// CHECK-NEXT: %1 = call @Res:get, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir_3.Res
+// CHECK-NEXT: ret %1 int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-else):
+// CHECK-NEXT: ret 0 int64
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@no_else] ---
+// CHECK-NEXT: func @no_else(%o test_with_ir_3.Res?) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %0 = cmpne %o test_with_ir_3.Res?, nil
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-then):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir_3.Res
+// CHECK-NEXT: %1 = call @Res:get, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir_3.Res
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@loop_let] ---
+// CHECK-NEXT: func @loop_let(%o test_with_ir_3.Res?, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(while-cond):
+// CHECK-NEXT: %0 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-body):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %1 = cmpne %o test_with_ir_3.Res?, nil
+// CHECK-NEXT: branch %1 bool, label %bb3, label %bb0
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(with-then):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir_3.Res
+// CHECK-NEXT: jmp label %bb2
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@opt] ---
+// CHECK-NEXT: func @opt(%o test_with_ir_3.Res?) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %0 = ref.ne_null %o test_with_ir_3.Res?
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-then):
+// CHECK-NEXT: %1 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %2 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: %3 = call @Res:get, nargs=1
+// CHECK-NEXT: %4 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: ret %3 int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-else):
+// CHECK-NEXT: ret_int_imm 0 int64
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@no_else] ---
+// CHECK-NEXT: func @no_else(%o test_with_ir_3.Res?) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %0 = ref.ne_null %o test_with_ir_3.Res?
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-then):
+// CHECK-NEXT: %1 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %2 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: %3 = call @Res:get, nargs=1
+// CHECK-NEXT: %4 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@loop_let] ---
+// CHECK-NEXT: func @loop_let(%o test_with_ir_3.Res?, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(while-cond):
+// CHECK-NEXT: %0 = int.gt_imm %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-body):
+// CHECK-NEXT: %r = local [immutable] test_with_ir_3.Res
+// CHECK-NEXT: move %r test_with_ir_3.Res, %o test_with_ir_3.Res?
+// CHECK-NEXT: %1 = ref.ne_null %o test_with_ir_3.Res?
+// CHECK-NEXT: branch %1 bool, label %bb3, label %bb0
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(with-then):
+// CHECK-NEXT: %2 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %3 = local test_with_ir_3.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %3 test_with_ir_3.Res, %r test_with_ir_3.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: jmp label %bb2
+// CHECK-NEXT: }
+//

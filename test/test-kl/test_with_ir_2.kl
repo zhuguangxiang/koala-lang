@@ -1,0 +1,376 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,ir,lir | filecheck %s
+// `with v = expr { }`: v is bound to the resource, __exit__ before `return`, `break` and `continue`
+
+class Lock : Withable {
+    pub var n int
+    pub func __init__() { n = 7 }
+    pub func __enter__() {}
+    pub func __exit__() {}
+}
+
+func bind() int {
+    with v = Lock() {
+        return v.n
+    }
+}
+
+func loops(k int) {
+    for i in range(0, k) {
+        with v = Lock() {
+            if i == v.n {
+                break
+            }
+            continue
+        }
+    }
+}
+
+// nested 'with' blocks: 'break' / 'continue' call the inner __exit__, then the outer one
+func nested(a Lock, b Lock, k int) {
+    while k > 0 {
+        with a {
+            with b {
+                if k == 1 {
+                    break
+                }
+                continue
+            }
+        }
+    }
+}
+
+// a 'with' block around a loop: 'break' of that loop does not call its __exit__
+func around(a Lock, k int) {
+    with a {
+        while k > 0 {
+            break
+        }
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @bind() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__init__, %0 test_with_ir_2.Lock
+// CHECK-NEXT: %v = local [immutable] test_with_ir_2.Lock
+// CHECK-NEXT: move %v test_with_ir_2.Lock, %0 test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, %v test_with_ir_2.Lock
+// CHECK-NEXT: %1 = get_field %v test_with_ir_2.Lock, n(index=0)
+// CHECK-NEXT: %with.ret = local [immutable] int64
+// CHECK-NEXT: move %with.ret int64, %1 int64
+// CHECK-NEXT: call @Lock:__exit__, %v test_with_ir_2.Lock
+// CHECK-NEXT: ret %with.ret int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end):
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK: func @loops(%k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(loop-header):
+// CHECK-NEXT: %i = local int64
+// CHECK-NEXT: move %i int64, 0 int64
+// CHECK-NEXT: jmp label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(loop-cond):
+// CHECK-NEXT: %0 = cmpgt 1 int64, 0 int64
+// CHECK-NEXT: %1 = cmplt %i int64, %k int64
+// CHECK-NEXT: %2 = cmpgt %i int64, %k int64
+// CHECK-NEXT: %3 = select %0 bool, %1 bool, %2 bool
+// CHECK-NEXT: branch %3 bool, label %bb3, label %bb5
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(loop-body):
+// CHECK-NEXT: %4 = new @test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__init__, %4 test_with_ir_2.Lock
+// CHECK-NEXT: %v = local [immutable] test_with_ir_2.Lock
+// CHECK-NEXT: move %v test_with_ir_2.Lock, %4 test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, %v test_with_ir_2.Lock
+// CHECK-NEXT: %5 = get_field %v test_with_ir_2.Lock, n(index=0)
+// CHECK-NEXT: %6 = cmpeq %i int64, %5 int64
+// CHECK-NEXT: branch %6 bool, label %bb7, label %bb8
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(loop-cond-incr):
+// CHECK-NEXT: %7 = add %i int64, 1 int64
+// CHECK-NEXT: move %i int64, %7 int64
+// CHECK-NEXT: jmp label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(loop-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb6(with-end):
+// CHECK-NEXT: jmp label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb7(if-then):
+// CHECK-NEXT: call @Lock:__exit__, %v test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb5
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb8(if-else):
+// CHECK-NEXT: jmp label %bb9
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb9(if-end):
+// CHECK-NEXT: call @Lock:__exit__, %v test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb4
+// CHECK-NEXT: }
+//
+// CHECK: func @nested(%a test_with_ir_2.Lock, %b test_with_ir_2.Lock, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-cond):
+// CHECK-NEXT: %0 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-body):
+// CHECK-NEXT: call @Lock:__enter__, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, %b test_with_ir_2.Lock
+// CHECK-NEXT: %1 = cmpeq %k int64, 1 int64
+// CHECK-NEXT: branch %1 bool, label %bb6, label %bb7
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(while-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(with-end):
+// CHECK-NEXT: %2 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %2 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(with-end):
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb6(if-then):
+// CHECK-NEXT: call @Lock:__exit__, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb7(if-else):
+// CHECK-NEXT: jmp label %bb8
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb8(if-end):
+// CHECK-NEXT: call @Lock:__exit__, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK: func @around(%a test_with_ir_2.Lock, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @Lock:__enter__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-cond):
+// CHECK-NEXT: %0 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb3, label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(while-body):
+// CHECK-NEXT: jmp label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(while-end):
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@bind] ---
+// CHECK-NEXT: func @bind() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__init__, %0 test_with_ir_2.Lock
+// CHECK-NEXT: %v = local [immutable] test_with_ir_2.Lock
+// CHECK-NEXT: move %v test_with_ir_2.Lock, %0 test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, %v test_with_ir_2.Lock
+// CHECK-NEXT: %1 = get_field %v test_with_ir_2.Lock, n(index=0)
+// CHECK-NEXT: call @Lock:__exit__, %v test_with_ir_2.Lock
+// CHECK-NEXT: ret %1 int64
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@loops] ---
+// CHECK-NEXT: func @loops(%k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(loop-header):
+// CHECK-NEXT: %i = local int64
+// CHECK-NEXT: move %i int64, 0 int64
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(loop-cond):
+// CHECK-NEXT: %0 = cmplt %i int64, %k int64
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(loop-body):
+// CHECK-NEXT: %1 = new @test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__init__, %1 test_with_ir_2.Lock
+// CHECK-NEXT: %v = local [immutable] test_with_ir_2.Lock
+// CHECK-NEXT: move %v test_with_ir_2.Lock, %1 test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, %v test_with_ir_2.Lock
+// CHECK-NEXT: %2 = get_field %v test_with_ir_2.Lock, n(index=0)
+// CHECK-NEXT: %3 = cmpeq %i int64, %2 int64
+// CHECK-NEXT: branch %3 bool, label %bb4, label %bb5
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(loop-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(if-then):
+// CHECK-NEXT: call @Lock:__exit__, %v test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(if-end):
+// CHECK-NEXT: call @Lock:__exit__, %v test_with_ir_2.Lock
+// CHECK-NEXT: %4 = add %i int64, 1 int64
+// CHECK-NEXT: move %i int64, %4 int64
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@nested] ---
+// CHECK-NEXT: func @nested(%a test_with_ir_2.Lock, %b test_with_ir_2.Lock, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(while-cond):
+// CHECK-NEXT: %0 = cmpgt %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-body):
+// CHECK-NEXT: call @Lock:__enter__, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, %b test_with_ir_2.Lock
+// CHECK-NEXT: %1 = cmpeq %k int64, 1 int64
+// CHECK-NEXT: branch %1 bool, label %bb3, label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(if-then):
+// CHECK-NEXT: call @Lock:__exit__, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(if-end):
+// CHECK-NEXT: call @Lock:__exit__, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb0
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@around] ---
+// CHECK-NEXT: func @around(%a test_with_ir_2.Lock, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @Lock:__enter__, %a test_with_ir_2.Lock
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-end):
+// CHECK-NEXT: call @Lock:__exit__, %a test_with_ir_2.Lock
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@bind] ---
+// CHECK-NEXT: func @bind() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_with_ir_2.Lock
+// CHECK-NEXT: %1 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir_2.Lock, %0 test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__init__, nargs=1
+// CHECK-NEXT: %v = local [immutable] test_with_ir_2.Lock
+// CHECK-NEXT: move %v test_with_ir_2.Lock, %0 test_with_ir_2.Lock
+// CHECK-NEXT: %2 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir_2.Lock, %v test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, nargs=1
+// CHECK-NEXT: %3 = get_field %v test_with_ir_2.Lock, n(index=0)
+// CHECK-NEXT: %4 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir_2.Lock, %v test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: ret %3 int64
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@loops] ---
+// CHECK-NEXT: func @loops(%k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(loop-header):
+// CHECK-NEXT: %i = local int64
+// CHECK-NEXT: load_int_imm %i int64, 0 int64
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(loop-cond):
+// CHECK-NEXT: %0 = int.lt %i int64, %k int64
+// CHECK-NEXT: branch %0 bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(loop-body):
+// CHECK-NEXT: %1 = new @test_with_ir_2.Lock
+// CHECK-NEXT: %2 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir_2.Lock, %1 test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__init__, nargs=1
+// CHECK-NEXT: %v = local [immutable] test_with_ir_2.Lock
+// CHECK-NEXT: move %v test_with_ir_2.Lock, %1 test_with_ir_2.Lock
+// CHECK-NEXT: %3 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %3 test_with_ir_2.Lock, %v test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, nargs=1
+// CHECK-NEXT: %4 = get_field %v test_with_ir_2.Lock, n(index=0)
+// CHECK-NEXT: %5 = int.eq %i int64, %4 int64
+// CHECK-NEXT: branch %5 bool, label %bb4, label %bb5
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(loop-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(if-then):
+// CHECK-NEXT: %6 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %6 test_with_ir_2.Lock, %v test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(if-end):
+// CHECK-NEXT: %7 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %7 test_with_ir_2.Lock, %v test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: %8 = int.add_imm %i int64, 1 int64
+// CHECK-NEXT: move %i int64, %8 int64
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@nested] ---
+// CHECK-NEXT: func @nested(%a test_with_ir_2.Lock, %b test_with_ir_2.Lock, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(while-cond):
+// CHECK-NEXT: %0 = int.gt_imm %k int64, 0 int64
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-body):
+// CHECK-NEXT: %1 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir_2.Lock, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, nargs=1
+// CHECK-NEXT: %2 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir_2.Lock, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, nargs=1
+// CHECK-NEXT: %3 = int.eq_imm %k int64, 1 int64
+// CHECK-NEXT: branch %3 bool, label %bb3, label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(while-end):
+// CHECK-NEXT: ret void
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(if-then):
+// CHECK-NEXT: %4 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir_2.Lock, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: %5 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %5 test_with_ir_2.Lock, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: jmp label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(if-end):
+// CHECK-NEXT: %6 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %6 test_with_ir_2.Lock, %b test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: %7 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %7 test_with_ir_2.Lock, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: jmp label %bb0
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@around] ---
+// CHECK-NEXT: func @around(%a test_with_ir_2.Lock, %k int64) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %0 test_with_ir_2.Lock, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__enter__, nargs=1
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(while-end):
+// CHECK-NEXT: %1 = local test_with_ir_2.Lock [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir_2.Lock, %a test_with_ir_2.Lock
+// CHECK-NEXT: call @Lock:__exit__, nargs=1
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//

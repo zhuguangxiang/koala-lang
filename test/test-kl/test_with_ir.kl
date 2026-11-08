@@ -1,0 +1,283 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,ir,lir | filecheck %s
+// `with r { }`: __enter__ and __exit__ are called on the param / local directly,
+// __exit__ on the end of the block and before `return`
+
+class Res : Withable {
+    pub func __enter__() {}
+    pub func __exit__() {}
+    pub func get() int { return 1 }
+}
+
+func plain(r Res) {
+    with r {
+        r.get()
+    }
+}
+
+func early(r Res, flag bool) int {
+    with r {
+        if flag {
+            return r.get()
+        }
+    }
+    return 0
+}
+
+// 'with v = a' binds a new immutable 'v', assigning 'a' in the block leaves 'v' alone;
+// 'with b' on a 'var' local shadows it, it cannot change in the block
+func locals() {
+    var a = Res()
+    with v = a {
+        a = Res()
+    }
+    var b = Res()
+    with b {
+        b.get()
+    }
+}
+
+// a global is read once into a hidden local
+let g = Res()
+
+func global() {
+    with g {
+        g.get()
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @plain(%r test_with_ir.Res) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir.Res
+// CHECK-NEXT: %0 = call @Res:get, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir.Res
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end): ;; preds = %bb0
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK: func @early(%r test_with_ir.Res, %flag bool) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir.Res
+// CHECK-NEXT: branch %flag bool, label %bb2, label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end): ;; preds = %bb4
+// CHECK-NEXT: ret 0 int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(if-then): ;; preds = %bb0
+// CHECK-NEXT: %0 = call @Res:get, %r test_with_ir.Res
+// CHECK-NEXT: %with.ret = local [immutable] int64
+// CHECK-NEXT: move %with.ret int64, %0 int64
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir.Res
+// CHECK-NEXT: ret %with.ret int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(if-else): ;; preds = %bb0
+// CHECK-NEXT: jmp label %bb4
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(if-end): ;; preds = %bb3
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir.Res
+// CHECK-NEXT: jmp label %bb1
+// CHECK-NEXT: }
+//
+// CHECK: func @locals() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, %0 test_with_ir.Res
+// CHECK-NEXT: %a = local test_with_ir.Res
+// CHECK-NEXT: move %a test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: %v = local [immutable] test_with_ir.Res
+// CHECK-NEXT: move %v test_with_ir.Res, %a test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, %v test_with_ir.Res
+// CHECK-NEXT: %1 = new @test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, %1 test_with_ir.Res
+// CHECK-NEXT: move %a test_with_ir.Res, %1 test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %v test_with_ir.Res
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end): ;; preds = %bb0
+// CHECK-NEXT: %2 = new @test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, %2 test_with_ir.Res
+// CHECK-NEXT: %b = local test_with_ir.Res
+// CHECK-NEXT: move %b test_with_ir.Res, %2 test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, %b test_with_ir.Res
+// CHECK-NEXT: %3 = call @Res:get, %b test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %b test_with_ir.Res
+// CHECK-NEXT: jmp label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(with-end): ;; preds = %bb1
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK: func @global() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = global_get @g test_with_ir.Res
+// CHECK-NEXT: %with.res = local [immutable] test_with_ir.Res
+// CHECK-NEXT: move %with.res test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, %with.res test_with_ir.Res
+// CHECK-NEXT: %1 = call @Res:get, %with.res test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %with.res test_with_ir.Res
+// CHECK-NEXT: jmp label %bb1
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(with-end): ;; preds = %bb0
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@plain] ---
+// CHECK-NEXT: func @plain(%r test_with_ir.Res) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir.Res
+// CHECK-NEXT: %0 = call @Res:get, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir.Res
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@early] ---
+// CHECK-NEXT: func @early(%r test_with_ir.Res, %flag bool) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @Res:__enter__, %r test_with_ir.Res
+// CHECK-NEXT: branch %flag bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(if-then): ;; preds = %bb0
+// CHECK-NEXT: %0 = call @Res:get, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir.Res
+// CHECK-NEXT: ret %0 int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(if-end): ;; preds = %bb0
+// CHECK-NEXT: call @Res:__exit__, %r test_with_ir.Res
+// CHECK-NEXT: ret 0 int64
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@locals] ---
+// CHECK-NEXT: func @locals() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, %0 test_with_ir.Res
+// CHECK-NEXT: %a = local test_with_ir.Res
+// CHECK-NEXT: move %a test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: %v = local [immutable] test_with_ir.Res
+// CHECK-NEXT: move %v test_with_ir.Res, %a test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, %v test_with_ir.Res
+// CHECK-NEXT: %1 = new @test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, %1 test_with_ir.Res
+// CHECK-NEXT: move %a test_with_ir.Res, %1 test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %v test_with_ir.Res
+// CHECK-NEXT: %2 = new @test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, %2 test_with_ir.Res
+// CHECK-NEXT: %b = local test_with_ir.Res
+// CHECK-NEXT: move %b test_with_ir.Res, %2 test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, %b test_with_ir.Res
+// CHECK-NEXT: %3 = call @Res:get, %b test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %b test_with_ir.Res
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@global] ---
+// CHECK-NEXT: func @global() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = global_get @g test_with_ir.Res
+// CHECK-NEXT: %with.res = local [immutable] test_with_ir.Res
+// CHECK-NEXT: move %with.res test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, %with.res test_with_ir.Res
+// CHECK-NEXT: %1 = call @Res:get, %with.res test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, %with.res test_with_ir.Res
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@plain] ---
+// CHECK-NEXT: func @plain(%r test_with_ir.Res) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %0 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %1 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: %2 = call @Res:get, nargs=1
+// CHECK-NEXT: %3 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %3 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@early] ---
+// CHECK-NEXT: func @early(%r test_with_ir.Res, %flag bool) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %0 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: branch %flag bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(if-then): ;; preds = %bb0
+// CHECK-NEXT: %1 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: %2 = call @Res:get, nargs=1
+// CHECK-NEXT: %3 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %3 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: ret %2 int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(if-end): ;; preds = %bb0
+// CHECK-NEXT: %4 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir.Res, %r test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: ret_int_imm 0 int64
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@locals] ---
+// CHECK-NEXT: func @locals() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_with_ir.Res
+// CHECK-NEXT: %1 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, nargs=1
+// CHECK-NEXT: %a = local test_with_ir.Res
+// CHECK-NEXT: move %a test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: %v = local [immutable] test_with_ir.Res
+// CHECK-NEXT: move %v test_with_ir.Res, %a test_with_ir.Res
+// CHECK-NEXT: %2 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir.Res, %v test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %3 = new @test_with_ir.Res
+// CHECK-NEXT: %4 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir.Res, %3 test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, nargs=1
+// CHECK-NEXT: move %a test_with_ir.Res, %3 test_with_ir.Res
+// CHECK-NEXT: %5 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %5 test_with_ir.Res, %v test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: %6 = new @test_with_ir.Res
+// CHECK-NEXT: %7 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %7 test_with_ir.Res, %6 test_with_ir.Res
+// CHECK-NEXT: call @Res:__init__, nargs=1
+// CHECK-NEXT: %b = local test_with_ir.Res
+// CHECK-NEXT: move %b test_with_ir.Res, %6 test_with_ir.Res
+// CHECK-NEXT: %8 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %8 test_with_ir.Res, %b test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %9 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %9 test_with_ir.Res, %b test_with_ir.Res
+// CHECK-NEXT: %10 = call @Res:get, nargs=1
+// CHECK-NEXT: %11 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %11 test_with_ir.Res, %b test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//
+// CHECK-LABEL: --- IR Dump After isel [@global] ---
+// CHECK-NEXT: func @global() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = global_get @g test_with_ir.Res
+// CHECK-NEXT: %with.res = local [immutable] test_with_ir.Res
+// CHECK-NEXT: move %with.res test_with_ir.Res, %0 test_with_ir.Res
+// CHECK-NEXT: %1 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %1 test_with_ir.Res, %with.res test_with_ir.Res
+// CHECK-NEXT: call @Res:__enter__, nargs=1
+// CHECK-NEXT: %2 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %2 test_with_ir.Res, %with.res test_with_ir.Res
+// CHECK-NEXT: %3 = call @Res:get, nargs=1
+// CHECK-NEXT: %4 = local test_with_ir.Res [fixedslot = 0(next)]
+// CHECK-NEXT: move %4 test_with_ir.Res, %with.res test_with_ir.Res
+// CHECK-NEXT: call @Res:__exit__, nargs=1
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+//

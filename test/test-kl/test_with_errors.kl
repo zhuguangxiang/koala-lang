@@ -1,0 +1,106 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// compile errors of `with r { }` and `with v = expr { }`
+
+import "test_pkg/pkg_with" as pw
+
+class Res : Withable {
+    pub func __enter__() {}
+    pub func __exit__() {}
+}
+
+// a trait with the same methods is not std/builtin's Withable
+trait MyWithable {
+    func __enter__()
+    func __exit__()
+}
+
+class Fake : MyWithable {
+    pub func __enter__() {}
+    pub func __exit__() {}
+}
+
+class Plain {}
+
+func get_res() Res? { return nil }
+
+func get_plain() Plain? { return nil }
+
+func pw_find() pw.Res? { return nil }
+
+func main() {
+    let p = Plain()
+    with p {}
+    // CHECK: error: {{.*}}type '{{.*}}Plain' does not implement Withable
+
+    with v = 1 {}
+    // CHECK: error: {{.*}}type 'int64' does not implement Withable
+
+    let o = get_res()
+    with o {}
+    // CHECK: error: {{.*}}'with' resource cannot be optional type '{{.*}}Res?', use 'with let' instead.
+
+    with v = get_res() {}
+    // CHECK: error: {{.*}}'with' resource cannot be optional type '{{.*}}Res?', use 'with let' instead.
+
+    with v = Fake() {}
+    // CHECK: error: {{.*}}type '{{.*}}Fake' does not implement Withable
+
+    with r = Res() {
+        r = Res()
+    }
+    // CHECK: error: {{.*}}cannot assign to immutable variable 'r'
+
+    with nothing {}
+    // CHECK: error: {{.*}}'nothing' is not found
+
+    // with let: the resource must be optional
+    with let v = Res() {}
+    // CHECK: error: {{.*}}'with let' resource must be optional type, but got '{{.*}}Res', use 'with v = expr' instead.
+
+    // with let: the unwrapped type must conform to Withable
+    let op = get_plain()
+    with let v = op {}
+    // CHECK: error: {{.*}}type '{{.*}}Plain' does not implement Withable
+
+    // with let: 'v' is immutable in the block and not visible in the else block
+    with let v = get_res() {
+        v = Res()
+    } else {
+        print(v)
+    }
+    // CHECK: error: {{.*}}cannot assign to immutable variable 'v'
+    // CHECK: error: {{.*}}'v' is not found
+
+    // 'with expr': the errors of the expression come first, then Withable and optional
+    with p.x {}
+    // CHECK: error: {{.*}}'x' is not found in class '{{.*}}Plain'
+    with Plain() {}
+    // CHECK: error: {{.*}}type '{{.*}}Plain' does not implement Withable
+    with get_res() {}
+    // CHECK: error: {{.*}}'with' resource cannot be optional type '{{.*}}Res?', use 'with let' instead.
+
+    // the resource from an external package
+    with pw.nothing {}
+    // CHECK: error: {{.*}}'nothing' is not found in package 'test_pkg/pkg_with'
+    with pw.res.nothing {}
+    // CHECK: error: {{.*}}'nothing' is not found in class 'Res'
+    with pw.res.name {}
+    // CHECK: error: {{.*}}type 'str' does not implement Withable
+    with pw_find() {}
+    // CHECK: error: {{.*}}'with' resource cannot be optional type 'test_pkg/pkg_with.Res?', use 'with let' instead.
+    with let v = pw.res {}
+    // CHECK: error: {{.*}}'with let' resource must be optional type, but got 'test_pkg/pkg_with.Res', use 'with v = expr' instead.
+    with v = pw.make("x") {
+        v = pw.res
+    }
+    // CHECK: error: {{.*}}cannot assign to immutable variable 'v'
+    pw.res.__enter__()
+    // CHECK: error: {{.*}}'__enter__' cannot be called explicitly, use the 'with' statement instead.
+
+    let x = Res()
+    x.__enter__()
+    // CHECK: error: {{.*}}'__enter__' cannot be called explicitly, use the 'with' statement instead.
+    x.__exit__()
+    // CHECK: error: {{.*}}'__exit__' cannot be called explicitly, use the 'with' statement instead.
+}

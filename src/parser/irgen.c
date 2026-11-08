@@ -2742,11 +2742,45 @@ static void emit_ir_class(ParserState *ps, Stmt *stmt)
 
 static void emit_ir_trait(ParserState *ps, Stmt *stmt) {}
 
+// call '__exit__' of the resource of a 'with' scope
+static void build_with_exit(ParserState *ps, ParserScope *with_sc)
+{
+    ASSERT(with_sc->block_type == WITH_BLOCK);
+    ASSERT(with_sc->with_res && with_sc->with_exit);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *args[1] = { with_sc->with_res };
+    KlrValue *callable = get_callable(ps, with_sc->with_exit);
+    klr_build_call(&bldr, callable, no_type_spec(), args, 1, "");
+}
+
+// before leaving the scopes up to 'stop' (exclusive, NULL for the function),
+// call '__exit__' of every 'with' scope in between, innermost first
+static void build_with_exits(ParserState *ps, ParserScope *stop)
+{
+    ParserScope *sc = ps->scope;
+    while (sc && sc != stop && sc->kind == SCOPE_BLOCK) {
+        if (sc->block_type == WITH_BLOCK) build_with_exit(ps, sc);
+        sc = sc->next;
+    }
+}
+
+static int has_with_scope(ParserState *ps, ParserScope *stop)
+{
+    ParserScope *sc = ps->scope;
+    while (sc && sc != stop && sc->kind == SCOPE_BLOCK) {
+        if (sc->block_type == WITH_BLOCK) return 1;
+        sc = sc->next;
+    }
+    return 0;
+}
+
 static void emit_ir_return(ParserState *ps, Stmt *stmt)
 {
     RetStmt *ret = (RetStmt *)stmt;
     Expr *exp = ret->exp;
     if (!exp) {
+        build_with_exits(ps, NULL);
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
         klr_build_ret_void(&bldr);
@@ -2756,6 +2790,17 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     exp->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
+
+    // the value is computed before '__exit__' is called
+    if (has_with_scope(ps, NULL)) {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        KlrValue *tmp = klr_build_local(&bldr, exp->ir_val->ts, "with.ret");
+        klr_build_move(&bldr, tmp, exp->ir_val);
+        build_with_exits(ps, NULL);
+        build_return(ps, tmp);
+        return;
+    }
 
     build_return(ps, exp->ir_val);
 
@@ -3731,6 +3776,7 @@ static void emit_ir_break(ParserState *ps, Stmt *stmt)
     // loop, so sc should never be NULL here.
     ASSERT(sc);
     ASSERT(sc->break_bb);
+    build_with_exits(ps, sc);
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     klr_build_jmp(&bldr, sc->break_bb);
@@ -3753,6 +3799,7 @@ static void emit_ir_continue(ParserState *ps, Stmt *stmt)
     // loop, so sc should never be NULL here.
     ASSERT(sc);
     ASSERT(sc->continue_bb);
+    build_with_exits(ps, sc);
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     klr_build_jmp(&bldr, sc->continue_bb);
@@ -3767,6 +3814,103 @@ static void emit_ir_continue(ParserState *ps, Stmt *stmt)
     // front-end allows code after continue statement in the future, we can
     // uncomment the above line to append a new block for unreachable code
     // ps->scope->bb = NULL;
+}
+
+/*
+with r { body }             with v = expr { body }
+-->                         -->
+call __enter__(%r)          %v = local [immutable]
+body                        move %v, expr
+call __exit__(%r)           call __enter__(%v)
+                            body
+                            call __exit__(%v)
+
+with let v = expr { body } else { other }
+-->
+%v = local [immutable] R
+move %v, expr
+branch (expr != nil), with-then, with-else
+with-then: call __enter__(%v); body; call __exit__(%v)
+with-else: other                (no __enter__ / __exit__)
+
+Any other expression of 'with expr' is read once into the hidden local '%with.res'.
+'with r' calls the methods on a param or a local directly: 'r' is shadowed by an immutable
+name in the block, it cannot change there. A global is read once into a hidden local, a
+function called in the block may assign another object to it.
+'return', 'break' and 'continue' in body call '__exit__' before they jump.
+*/
+static void emit_ir_with_stmt(ParserState *ps, Stmt *stmt)
+{
+    KlrValue *fn = CURRENT_FUNC;
+    WithStmt *s = (WithStmt *)stmt;
+    Expr *exp = s->exp;
+    Symbol *sym = s->sym;
+
+    exp->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, exp);
+    if (!exp->ir_val) return;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+
+    KlrValue *val = exp->ir_val;
+    KlrValue *res = val;
+    if (s->is_ref && (klr_is_param(val) || klr_is_local(val))) {
+        // with r: the variable itself
+    } else {
+        // with v = expr, with let v = expr: 'v' is typed as the unwrapped resource
+        char *name = s->is_ref ? "with.res" : sym->name;
+        res = klr_build_local(&bldr, sym->ts, name);
+        klr_build_move(&bldr, res, val);
+    }
+    sym->ir_val = res;
+
+    KlrBasicBlock *with_end = klr_append_block(fn, "with-end");
+
+    // with let: nil skips the block, '__enter__' and '__exit__', and runs the else block
+    KlrBasicBlock *with_else = NULL;
+    if (s->is_let) {
+        KlrBasicBlock *with_then = klr_append_block(fn, "with-then");
+        with_else = klr_append_block(fn, "with-else");
+        KlrValue *cond = klr_build_cmpne(&bldr, val, klr_const_none(MOD), "");
+        klr_build_jmp_cond(&bldr, cond, with_then, with_else);
+        klr_builder_end(&bldr, with_then);
+    }
+
+    KlrValue *args[1] = { res };
+    KlrValue *enter = get_callable(ps, s->enter);
+    klr_build_call(&bldr, enter, no_type_spec(), args, 1, "");
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, WITH_BLOCK, "with-block");
+    sc->bb = bldr.bb;
+    sc->with_res = res;
+    sc->with_exit = s->exit;
+
+    emit_ir_visit_block(ps, s->block);
+
+    if (!block_has_terminator(sc->bb)) {
+        build_with_exit(ps, sc);
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, sc->bb);
+        klr_build_jmp(&_bldr, with_end);
+    }
+
+    exit_scope(ps);
+
+    if (with_else) {
+        // the else block is not a 'with' block: its jumps call no '__exit__'
+        ParserScope *_sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "with-else-block");
+        _sc->bb = with_else;
+        if (s->else_block) emit_ir_visit_block(ps, s->else_block);
+        if (!block_has_terminator(_sc->bb)) {
+            KlrBuilder _bldr;
+            klr_builder_end(&_bldr, _sc->bb);
+            klr_build_jmp(&_bldr, with_end);
+        }
+        exit_scope(ps);
+    }
+
+    ps->scope->bb = with_end;
 }
 
 /*
@@ -3935,6 +4079,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_FOR_KIND]       = emit_ir_for_stmt,
         [STMT_IF_LET_KIND]    = emit_ir_if_let_stmt,
         [STMT_WHILE_LET_KIND] = emit_ir_while_let_stmt,
+        [STMT_WITH_KIND]      = emit_ir_with_stmt,
         [STMT_TUPLE_DECL_KIND] = emit_ir_tuple_decl,
         [STMT_TUPLE_ASSIGN_KIND] = emit_ir_tuple_assign,
     };

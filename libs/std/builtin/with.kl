@@ -1,0 +1,21 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Withable is the protocol of the `with` statement.
+///
+/// `with r { ... }` calls `r.__enter__()`, runs the block, then calls
+/// `r.__exit__()`. `with v = expr { ... }` binds the resource `expr` to the
+/// new immutable variable `v` for the block.
+///
+/// `__exit__()` is called on every exit of the block: its end, `return`,
+/// `break` and `continue`. The resource must not be optional for these two forms.
+pub trait Withable {
+
+    /// Enter the block.
+    func __enter__()
+
+    /// Leave the block.
+    func __exit__()
+}

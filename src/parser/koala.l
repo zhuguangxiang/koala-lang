@@ -267,6 +267,7 @@ ELSE_NEXT   {ELSE_SKIP}*"else"[^A-Za-z0-9_]
 "while"     { YY_RETURN(WHILE);     }
 "loop"      { YY_RETURN(LOOP);      }
 "for"       { YY_RETURN(FOR);       }
+"with"      { YY_RETURN(WITH);      }
 "switch"    { YY_RETURN(MATCH);     }
 "case"      { YY_RETURN(CASE);      }
 "break"     { YY_RETURN(BREAK);     }

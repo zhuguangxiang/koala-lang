@@ -267,7 +267,7 @@ static const char *scopes[] = {
 static const char *blocks[] = {
     "UNK",          "BLOCK",       "IF-BLOCK",        "ELSE-BLOCK",
     "IF-LET-BLOCK", "WHILE-BLOCK", "WHILE-LET-BLOCK", "FOR-BLOCK",
-    "MATCH-BLOCK",  "MATCH-CASE",  "MATCH-CLAUSE",
+    "MATCH-BLOCK",  "MATCH-CASE",  "WITH-BLOCK",      "MATCH-CLAUSE",
 };
 #endif
 
@@ -2638,6 +2638,122 @@ static void parse_while_let(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 }
 
+// The type conforms to std/builtin's Withable: the trait itself, or a class / trait having it
+// in its linear order. A user trait of the same name is not the builtin one.
+static int conforms_withable(ParserState *ps, TypeSpec *ts)
+{
+    Symbol *withable = stbl_get(ps->pm->builtin, "Withable");
+    if (!withable || withable->kind != SYM_TRAIT) return 0;
+
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) return 0;
+    // an instance of a generic class conforms as its origin does
+    if (sym->kind == SYM_INSTANCE) sym = ((InstanceSymbol *)sym)->origin;
+    if (sym == withable) return 1;
+    if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) return 0;
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, &((KlassSymbol *)sym)->lro) {
+        if (!base_ts) continue;
+        Symbol *base = get_symbol_by_id(base_ts->sym_id);
+        if (base && base->kind == SYM_INSTANCE) base = ((InstanceSymbol *)base)->origin;
+        if (base == withable) return 1;
+    }
+    return 0;
+}
+
+/*
+with expr { ... }: 'expr' has type R, a variable 'r' is shadowed by itself in the block, any
+other expression is bound to a hidden name
+with v = expr { ... }: 'expr' has type R, 'v' is a new variable of type R bound to it
+
+R conforms to Withable and must not be optional, use 'with let v = expr { ... }' for an
+optional resource. Inside the block the name is immutable, '__exit__' is called on every exit.
+
+with let v = expr { ... } else { ... }: 'expr' has type R?, 'v' has type R. For nil the else
+block (if any) runs, '__enter__' and '__exit__' are not called and 'v' is not visible there.
+*/
+static void parse_with(ParserState *ps, Stmt *stmt)
+{
+    WithStmt *s = (WithStmt *)stmt;
+    Ident *id = &s->id;
+    int is_ref = s->is_ref;
+    Expr *exp = s->exp;
+
+    exp->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, exp);
+    if (!exp->ts) return;
+
+    // with expr { ... }: a variable name is shadowed by itself in the block, any other
+    // expression, e.g. 'a.b' or 'f()', is bound to a hidden name no code can refer to
+    char *name = id->name;
+    if (is_ref && (exp->kind != EXPR_ID_KIND || !exp->sym || exp->sym->kind != SYM_VAR)) {
+        name = "with.res";
+    }
+
+    TypeSpec *res_ts = exp->ts;
+    if (s->is_let) {
+        // with let v = expr: the resource is optional, 'v' is the unwrapped one, as in 'if let'
+        if (!type_is_optional(res_ts)) {
+            BUF(buf);
+            type_spec_print(res_ts, &buf);
+            kl_error(exp->loc,
+                     "'with let' resource must be optional type, but got '%s', use 'with v = expr' "
+                     "instead.",
+                     BUF_STR(buf));
+            FINI_BUF(buf);
+            return;
+        }
+        res_ts = res_ts->opt.src;
+    } else if (type_is_optional(res_ts)) {
+        BUF(buf);
+        type_spec_print(res_ts, &buf);
+        kl_error(exp->loc, "'with' resource cannot be optional type '%s', use 'with let' instead.",
+                 BUF_STR(buf));
+        FINI_BUF(buf);
+        return;
+    }
+
+    if (!conforms_withable(ps, res_ts)) {
+        BUF(buf);
+        type_spec_print(res_ts, &buf);
+        kl_error(exp->loc, "type '%s' does not implement Withable", BUF_STR(buf));
+        FINI_BUF(buf);
+        return;
+    }
+
+    FuncSymbol *enter = resolve_method(ps, res_ts, "__enter__", exp->loc);
+    if (!enter) return;
+    FuncSymbol *exit = resolve_method(ps, res_ts, "__exit__", exp->loc);
+    if (!exit) return;
+
+    s->enter = (Symbol *)enter;
+    s->exit = (Symbol *)exit;
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, WITH_BLOCK, "with-block");
+
+    // the name is the resource itself and immutable in the block: 'with r' shadows 'r',
+    // 'with v = expr' binds a new variable
+    Symbol *sym = stbl_add_var(sc->stbl, name, res_ts, 0);
+    ASSERT(sym);
+    ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
+    sym->status = SYM_RESOLVED;
+    s->sym = sym;
+
+    parse_block(ps, s->block, NULL);
+    ASSERT(vector_empty(&ps->shadows));
+
+    exit_scope(ps);
+
+    // with let: the else block runs for nil, it has no 'v' and no resource to exit
+    if (s->else_block) {
+        enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "with-else-block");
+        parse_block(ps, s->else_block, NULL);
+        ASSERT(vector_empty(&ps->shadows));
+        exit_scope(ps);
+    }
+}
+
 static TypeSpec *_get_class_self_type(KlassDeclStmt *kls)
 {
     Vector *args = NULL;
@@ -3825,6 +3941,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_FOR_KIND]       = parse_for,
         [STMT_IF_LET_KIND]    = parse_if_let,
         [STMT_WHILE_LET_KIND] = parse_while_let,
+        [STMT_WITH_KIND]      = parse_with,
         [STMT_TUPLE_DECL_KIND] = parse_tuple_decl,
     };
     /* clang-format on */

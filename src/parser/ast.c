@@ -792,6 +792,35 @@ Stmt *stmt_from_while_let(Ident *id, Expr *exp, Vector *block)
     return (Stmt *)s;
 }
 
+/*
+ * with expr { ... }: 'id' is NULL, 'exp' is the resource, a plain name 'r' binds 'r' in the block.
+ * with v = expr { ... }: 'id' is the new variable 'v' bound to the resource 'exp'.
+ */
+Stmt *stmt_from_with(Ident *id, Expr *exp, Vector *block)
+{
+    WithStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_WITH_KIND;
+    s->exp = exp;
+    s->block = block;
+    if (id) {
+        s->id = *id;
+    } else {
+        s->is_ref = 1;
+        if (exp->kind == EXPR_ID_KIND) s->id = ((IdentExpr *)exp)->id;
+    }
+    return (Stmt *)s;
+}
+
+/* with let v = expr { ... } else { ... }: 'else_block' may be NULL */
+Stmt *stmt_from_with_let(Ident *id, Expr *exp, Vector *block, Vector *else_block)
+{
+    Stmt *s = stmt_from_with(id, exp, block);
+    WithStmt *ws = (WithStmt *)s;
+    ws->is_let = 1;
+    ws->else_block = else_block;
+    return s;
+}
+
 Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block)
 {
     ForStmt *s = mm_alloc_obj(s);
@@ -1063,6 +1092,26 @@ static void while_stmt_free(Stmt *stmt)
     mm_free(s);
 }
 
+static void with_stmt_free(Stmt *stmt)
+{
+    WithStmt *s = (WithStmt *)stmt;
+    expr_free(s->exp);
+    Stmt *st;
+    vector_foreach(st, s->block) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->block);
+    if (s->else_block) {
+        vector_foreach(st, s->else_block) {
+            if (!st) continue;
+            stmt_free(st);
+        }
+        vector_destroy(s->else_block);
+    }
+    mm_free(s);
+}
+
 static void while_let_stmt_free(Stmt *stmt)
 {
     WhileLetStmt *s = (WhileLetStmt *)stmt;
@@ -1098,6 +1147,7 @@ void stmt_free(Stmt *stmt)
         [STMT_WHILE_KIND] = while_stmt_free,
         [STMT_IF_LET_KIND] = if_let_stmt_free,
         [STMT_WHILE_LET_KIND] = while_let_stmt_free,
+        [STMT_WITH_KIND] = with_stmt_free,
         [STMT_TUPLE_DECL_KIND] = tuple_decl_stmt_free,
         [STMT_TUPLE_ASSIGN_KIND] = tuple_assign_stmt_free,
     };

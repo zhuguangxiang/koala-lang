@@ -809,6 +809,58 @@ always come from the iterable, as in Python, Go and Rust.
 
 Top-level iteration combinators `enumerate` and `zip` are available.
 
+### The `with` Statement
+
+`with` runs a block between a resource's `__enter__()` and `__exit__()`. The resource type conforms
+to the builtin trait `Withable`:
+
+```kl
+pub trait Withable {
+    func __enter__()
+    func __exit__()
+}
+```
+
+Three forms are available:
+
+```kl
+// with expr { ... }: 'expr' is any resource, a variable 'r' is used by its name in the block
+let f = open("a.txt")
+with f {
+    print(f.read())
+}
+
+// with v = expr { ... }: 'v' is a new variable bound to the resource 'expr'
+with conn = pool.acquire() {
+    conn.query("...")
+}
+
+// with let v = expr { ... } else { ... }: 'expr' is optional, unwrapped as with `if let`
+with let conn = pool.try_acquire() {
+    conn.query("...")
+} else {
+    print("no connection")
+}
+```
+
+`with let` requires an optional resource `R?`; `v` has type `R`. When the value is `nil`, the
+block is skipped, neither `__enter__()` nor `__exit__()` is called, and the `else` block (which may
+be omitted) runs. `v` is not visible in the `else` block, and jumps out of the `else` block call no
+`__exit__()`.
+
+- The resource is evaluated once; `__enter__()` and `__exit__()` are called on that same object.
+- The name is the resource itself, immutable in the block and visible only there; it shadows an
+  outer name.
+- `__exit__()` is called on every exit of the block, innermost first: the end of the block,
+  `return` (its value is computed first), `break` and `continue` (only the `with` blocks inside the
+  target loop are left).
+- `with expr` takes any expression of a `Withable` type, e.g. `with f`, `with pkg.res`,
+  `with open("a.txt")`; bind it with `with v = expr` to use it in the block.
+- For `with r` and `with v = expr` the resource must not be optional: an optional resource is
+  unwrapped with `with let`, which conversely requires an optional one.
+- Only one resource per `with`; nest `with` statements for more.
+- `__enter__` and `__exit__` can only be invoked by `with`, never called by name.
+
 ## Functions
 
 Functions are declared with `func`. The return type may be omitted when the function returns

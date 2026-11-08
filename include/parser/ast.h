@@ -448,6 +448,8 @@ typedef enum _StmtKind {
     STMT_TUPLE_ASSIGN_KIND,
     /* enum */
     STMT_ENUM_KIND,
+    /* with r {}, with v = expr {} */
+    STMT_WITH_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -668,6 +670,31 @@ typedef struct _WhileLetStmt {
 } WhileLetStmt;
 
 Stmt *stmt_from_while_let(Ident *id, Expr *cond, Vector *block);
+
+/*
+ * with expr { ... }: 'is_ref' is set, 'exp' is the resource, any expression of a Withable type.
+ * with v = expr { ... }: 'exp' is the resource, 'id' is a new variable bound to it.
+ * with let v = expr { ... } else { ... }: 'is_let' is set, 'exp' is an optional resource,
+ * 'id' is bound to it when it is not nil, otherwise 'else_block' (may be NULL) runs.
+ * stmt_from_with() takes a NULL 'id' for 'with r'.
+ */
+typedef struct _WithStmt {
+    STMT_HEAD
+    int is_ref;
+    int is_let;
+    Ident id;
+    Expr *exp;
+    Vector *block;
+    Vector *else_block;
+    /* the immutable variable of the resource in the block: 'r' or 'v' */
+    Symbol *sym;
+    /* resolved __enter__ and __exit__ of the resource type */
+    Symbol *enter;
+    Symbol *exit;
+} WithStmt;
+
+Stmt *stmt_from_with(Ident *id, Expr *exp, Vector *block);
+Stmt *stmt_from_with_let(Ident *id, Expr *exp, Vector *block, Vector *else_block);
 
 typedef struct _ForStmt {
     STMT_HEAD

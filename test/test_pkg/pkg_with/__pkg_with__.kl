@@ -1,0 +1,48 @@
+// A package whose classes conform to Withable: an importer uses its objects with
+// `with`, whether they are its globals, objects it creates, or results of its funcs.
+
+pub class Res : Withable {
+    pub let name str
+
+    pub func __init__(_name str) {
+        name = _name
+    }
+
+    pub func __enter__() {
+        print("pkg enter", name)
+    }
+
+    pub func __exit__() {
+        print("pkg exit", name)
+    }
+
+    pub func use() {
+        print("pkg use", name)
+    }
+}
+
+// the state lives in the object across 'with' statements
+pub class Counter : Withable {
+    pub var count int
+
+    pub func __init__() {
+        count = 0
+    }
+
+    pub func __enter__() {
+        count += 1
+        print("pkg count", count)
+    }
+
+    pub func __exit__() {
+        print("pkg uncount", count)
+    }
+}
+
+pub let res = Res("global")
+
+pub let counter = Counter()
+
+pub func make(name str) Res {
+    return Res(name)
+}

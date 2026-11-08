@@ -225,6 +225,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %token WHILE
 %token LOOP
 %token FOR
+%token WITH
 %token MATCH
 %token CASE
 %token BREAK
@@ -314,6 +315,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<stmt> elseif_stmt
 %type<stmt> while_stmt
 %type<stmt> for_stmt
+%type<stmt> with_stmt
 %type<stmt> local
 %type<stmt> func_decl
 %type<stmt> field_decl
@@ -720,6 +722,10 @@ top_stmt
         $$ = $1;
     }
     | for_stmt
+    {
+        $$ = $1;
+    }
+    | with_stmt
     {
         $$ = $1;
     }
@@ -2738,6 +2744,10 @@ local
     {
         $$ = $1;
     }
+    | with_stmt
+    {
+        $$ = $1;
+    }
     | match_stmt
     {
         $$ = NULL;
@@ -2979,6 +2989,37 @@ while_stmt
     {
         $$ = stmt_from_while(NULL, $2);
         stmt_set_loc($$, lloc(@1, @2));
+    }
+    ;
+
+/*
+ * with r { ... }: 'r' is an existing variable
+ * with v = expr { ... }: 'v' is a new variable bound to 'expr.__enter__()'
+ */
+with_stmt
+    : WITH expr block
+    {
+        $$ = stmt_from_with(NULL, $2, $3);
+        stmt_set_loc($$, lloc(@1, @3));
+    }
+    | WITH ID '=' expr block
+    {
+        IDENT(id, $2, loc(@2));
+        $$ = stmt_from_with(&id, $4, $5);
+        stmt_set_loc($$, lloc(@1, @5));
+    }
+    /* with let v = expr { ... } else { ... }: 'expr' is optional, unwrapped as in 'if let' */
+    | WITH LET ID '=' expr block
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = stmt_from_with_let(&id, $5, $6, NULL);
+        stmt_set_loc($$, lloc(@1, @6));
+    }
+    | WITH LET ID '=' expr block ELSE block
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = stmt_from_with_let(&id, $5, $6, $8);
+        stmt_set_loc($$, lloc(@1, @8));
     }
     ;
 

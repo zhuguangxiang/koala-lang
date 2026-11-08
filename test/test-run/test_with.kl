@@ -1,0 +1,668 @@
+// RUN: koala %s | filecheck %s
+// `with r { }` and `with v = expr { }`: '__enter__' runs before the block, '__exit__' runs
+// on every exit of the block (its end, return, break and continue), innermost first.
+// The resource may be a parameter, a global, a call result, or an object of another package.
+
+import "test_pkg/pkg_with" as pw
+
+class Res : Withable {
+    let name str
+
+    pub func __init__(_name str) {
+        name = _name
+    }
+
+    pub func __enter__() {
+        print("enter", name)
+    }
+
+    pub func __exit__() {
+        print("exit", name)
+    }
+
+    pub func use() {
+        print("use", name)
+    }
+}
+
+// the state lives in the object across 'with' statements
+class Lock : Withable {
+    var count int
+
+    pub func __init__() {
+        count = 0
+    }
+
+    pub func __enter__() {
+        count += 1
+        print("lock", count)
+    }
+
+    pub func __exit__() {
+        print("unlock", count)
+    }
+}
+
+func plain() {
+    let r = Res("a")
+    with r {
+        r.use()
+    }
+    print("after a")
+}
+
+func bind() {
+    with r = Res("b") {
+        r.use()
+    }
+    with n = Lock() {
+        print("n", n.count)
+    }
+}
+
+func nested() {
+    with x = Res("outer") {
+        with y = Res("inner") {
+            x.use()
+            y.use()
+        }
+    }
+}
+
+// the value is computed before '__exit__' is called
+func early(flag bool) int {
+    with r = Res("ret") {
+        if flag {
+            return value(r)
+        }
+        r.use()
+    }
+    return 0
+}
+
+func value(r Res) int {
+    print("value", r.name)
+    return 42
+}
+
+func loops() {
+    for i in range(0, 3) {
+        with r = Res(format("l{}", i)) {
+            if i == 0 {
+                continue
+            }
+            if i == 2 {
+                break
+            }
+            r.use()
+        }
+    }
+    print("loops done")
+}
+
+// 'break' in a with block inside a loop inside a with block only exits the inner one
+func loop_in_with() {
+    with o = Res("o") {
+        var i = 0
+        while i < 2 {
+            with r = Res("w") {
+                break
+            }
+        }
+        o.use()
+    }
+}
+
+// counts '__enter__' / '__exit__' calls: every enter has its exit
+class Tally : Withable {
+    let name str
+    var enters int
+    var exits int
+
+    pub func __init__(_name str) {
+        name = _name
+        enters = 0
+        exits = 0
+    }
+
+    pub func __enter__() {
+        enters += 1
+        print("enter", name, enters)
+    }
+
+    pub func __exit__() {
+        exits += 1
+        print("exit", name, exits)
+    }
+
+    pub func check() {
+        print(name, "enters", enters, "exits", exits)
+    }
+}
+
+// 'continue' in every iteration of a 'while': exit runs each time
+func while_continue() {
+    let t = Tally("wc")
+    var i = 0
+    while i < 3 {
+        i += 1
+        with t {
+            continue
+        }
+    }
+    t.check()
+}
+
+// 'break' of a 'while' and of a 'loop'
+func while_break() {
+    let t = Tally("wb")
+    while true {
+        with t {
+            break
+        }
+    }
+    loop {
+        with t {
+            break
+        }
+    }
+    t.check()
+}
+
+// 'break' / 'continue' leave nested 'with' blocks, innermost first
+func nested_with_jump() {
+    let a = Tally("a")
+    let b = Tally("b")
+    for i in range(0, 3) {
+        with a {
+            with b {
+                if i == 0 {
+                    continue
+                }
+                if i == 1 {
+                    break
+                }
+            }
+        }
+    }
+    a.check()
+    b.check()
+}
+
+// 'break' / 'continue' of an inner loop leave only the 'with' blocks inside the inner loop
+func nested_loops() {
+    let outer = Tally("outer")
+    let inner = Tally("inner")
+    for i in range(0, 2) {
+        with outer {
+            for j in range(0, 3) {
+                with inner {
+                    if j == 0 {
+                        continue
+                    }
+                    break
+                }
+            }
+            print("outer body", i)
+        }
+    }
+    outer.check()
+    inner.check()
+}
+
+// 'break' / 'continue' out of a nested 'if' / 'while' inside a 'with' block
+func deep_jump() {
+    let t = Tally("deep")
+    for i in range(0, 4) {
+        with t {
+            if i % 2 == 0 {
+                if i == 2 {
+                    break
+                }
+                continue
+            }
+            print("deep body", i)
+        }
+    }
+    t.check()
+}
+
+// a 'with' block around a loop: 'break' / 'continue' of that loop do not exit it
+func with_around_loop() {
+    let t = Tally("around")
+    with t {
+        for i in range(0, 3) {
+            if i == 0 {
+                continue
+            }
+            break
+        }
+        print("still in with")
+    }
+    t.check()
+}
+
+// 'break' / 'continue' with a bound resource and a parameter
+func jump_bound(p Tally) {
+    for i in range(0, 2) {
+        with v = p {
+            if i == 0 {
+                continue
+            }
+            break
+        }
+    }
+    p.check()
+}
+
+// with let: an optional resource is unwrapped; nil runs the else block without enter / exit
+func find(name str) Res? {
+    if name == "" {
+        return nil
+    }
+    return Res(name)
+}
+
+func with_let(name str) {
+    with let r = find(name) {
+        r.use()
+    } else {
+        print("none")
+    }
+}
+
+// without else, nil skips the block
+func with_let_no_else(name str) {
+    with let r = find(name) {
+        r.use()
+    }
+    print("after", name)
+}
+
+// a parameter of an optional type, and 'return' / 'break' / 'continue' in both blocks
+func with_let_jump(o Tally?) int {
+    for i in range(0, 3) {
+        with let t = o {
+            if i == 0 {
+                continue
+            }
+            if i == 1 {
+                break
+            }
+        } else {
+            if i == 0 {
+                continue
+            }
+            return -1
+        }
+    }
+    with let t = o {
+        t.check()
+        return 1
+    }
+    return 0
+}
+
+// an optional global and an optional of another package
+var g_opt Res? = nil
+
+func with_let_global() {
+    with let r = g_opt {
+        r.use()
+    } else {
+        print("g_opt none")
+    }
+    g_opt = Res("g_opt")
+    with let r = g_opt {
+        r.use()
+    }
+}
+
+func pw_find(ok bool) pw.Res? {
+    if ok {
+        return pw.Res("opt")
+    }
+    return nil
+}
+
+func with_let_ext() {
+    with let r = pw_find(true) {
+        r.use()
+    }
+    with let r = pw_find(false) {
+        r.use()
+    } else {
+        print("pkg none")
+    }
+}
+
+// a parameter as the resource
+func param(r Res) {
+    with r {
+        r.use()
+    }
+    with p = r {
+        p.use()
+    }
+}
+
+// a global as the resource
+let g_res = Res("g")
+let g_lock = Lock()
+
+func global() {
+    with g_res {
+        g_res.use()
+    }
+    with v = g_res {
+        v.use()
+    }
+    with n = g_lock {
+        print("n", n.count)
+    }
+    // the global lock keeps its state across 'with' statements
+    with n = g_lock {
+        print("n", n.count)
+    }
+}
+
+// the result of a call as the resource, evaluated once
+func make(name str) Res {
+    print("make", name)
+    return Res(name)
+}
+
+func call_result() {
+    with make("anon") {
+        print("anon in block")
+    }
+    with r = make("m") {
+        r.use()
+    }
+    // a parameter bound to the result of a call
+    param(make("p"))
+}
+
+// a 'with' block returns the resource it entered
+func give() Res {
+    with r = make("give") {
+        return r
+    }
+}
+
+// objects of another package
+func ext_param(r pw.Res) {
+    with r {
+        r.use()
+    }
+}
+
+func ext() {
+    // the global of another package, bound to use it in the block
+    with r = pw.res {
+        r.use()
+    }
+    with n = pw.counter {
+        print("n", n.count)
+    }
+    // an object of another package created here
+    with r = pw.Res("new") {
+        r.use()
+    }
+    // the result of another package's func
+    with r = pw.make("made") {
+        r.use()
+    }
+    // a parameter of another package's type
+    ext_param(pw.Res("arg"))
+    // 'with expr' on any expression, not only a name: evaluated once, enter / exit on it
+    with pw.res {
+        print("pkg global in block")
+    }
+    with pw.counter {
+        print("n", pw.counter.count)
+    }
+    with pw.Res("tmp") {
+        print("tmp in block")
+    }
+    with pw.make("made2") {
+        print("made2 in block")
+    }
+    // a local of another package's type
+    let local = pw.make("local")
+    with local {
+        local.use()
+    }
+}
+
+func main() {
+    plain()
+    bind()
+    nested()
+    print(early(true))
+    print(early(false))
+    loops()
+    loop_in_with()
+
+    print("-- param")
+    param(Res("arg"))
+    print("-- global")
+    global()
+    print("-- call")
+    call_result()
+    let r = give()
+    print("given", r.name)
+    print("-- ext")
+    ext()
+
+    print("-- jump")
+    while_continue()
+    while_break()
+    nested_with_jump()
+    nested_loops()
+    deep_jump()
+    with_around_loop()
+    jump_bound(Tally("bound"))
+
+    print("-- with let")
+    with_let("x")
+    with_let("")
+    with_let_no_else("y")
+    with_let_no_else("")
+    print(with_let_jump(Tally("opt")))
+    print(with_let_jump(nil))
+    with_let_global()
+    with_let_ext()
+}
+
+// CHECK: enter a
+// CHECK-NEXT: use a
+// CHECK-NEXT: exit a
+// CHECK-NEXT: after a
+// CHECK-NEXT: enter b
+// CHECK-NEXT: use b
+// CHECK-NEXT: exit b
+// CHECK-NEXT: lock 1
+// CHECK-NEXT: n 1
+// CHECK-NEXT: unlock 1
+// CHECK-NEXT: enter outer
+// CHECK-NEXT: enter inner
+// CHECK-NEXT: use outer
+// CHECK-NEXT: use inner
+// CHECK-NEXT: exit inner
+// CHECK-NEXT: exit outer
+// CHECK-NEXT: enter ret
+// CHECK-NEXT: value ret
+// CHECK-NEXT: exit ret
+// CHECK-NEXT: 42
+// CHECK-NEXT: enter ret
+// CHECK-NEXT: use ret
+// CHECK-NEXT: exit ret
+// CHECK-NEXT: 0
+// CHECK-NEXT: enter l0
+// CHECK-NEXT: exit l0
+// CHECK-NEXT: enter l1
+// CHECK-NEXT: use l1
+// CHECK-NEXT: exit l1
+// CHECK-NEXT: enter l2
+// CHECK-NEXT: exit l2
+// CHECK-NEXT: loops done
+// CHECK-NEXT: enter o
+// CHECK-NEXT: enter w
+// CHECK-NEXT: exit w
+// CHECK-NEXT: use o
+// CHECK-NEXT: exit o
+// CHECK-NEXT: -- param
+// CHECK-NEXT: enter arg
+// CHECK-NEXT: use arg
+// CHECK-NEXT: exit arg
+// CHECK-NEXT: enter arg
+// CHECK-NEXT: use arg
+// CHECK-NEXT: exit arg
+// CHECK-NEXT: -- global
+// CHECK-NEXT: enter g
+// CHECK-NEXT: use g
+// CHECK-NEXT: exit g
+// CHECK-NEXT: enter g
+// CHECK-NEXT: use g
+// CHECK-NEXT: exit g
+// CHECK-NEXT: lock 1
+// CHECK-NEXT: n 1
+// CHECK-NEXT: unlock 1
+// CHECK-NEXT: lock 2
+// CHECK-NEXT: n 2
+// CHECK-NEXT: unlock 2
+// CHECK-NEXT: -- call
+// CHECK-NEXT: make anon
+// CHECK-NEXT: enter anon
+// CHECK-NEXT: anon in block
+// CHECK-NEXT: exit anon
+// CHECK-NEXT: make m
+// CHECK-NEXT: enter m
+// CHECK-NEXT: use m
+// CHECK-NEXT: exit m
+// CHECK-NEXT: make p
+// CHECK-NEXT: enter p
+// CHECK-NEXT: use p
+// CHECK-NEXT: exit p
+// CHECK-NEXT: enter p
+// CHECK-NEXT: use p
+// CHECK-NEXT: exit p
+// CHECK-NEXT: make give
+// CHECK-NEXT: enter give
+// CHECK-NEXT: exit give
+// CHECK-NEXT: given give
+// CHECK-NEXT: -- ext
+// CHECK-NEXT: pkg enter global
+// CHECK-NEXT: pkg use global
+// CHECK-NEXT: pkg exit global
+// CHECK-NEXT: pkg count 1
+// CHECK-NEXT: n 1
+// CHECK-NEXT: pkg uncount 1
+// CHECK-NEXT: pkg enter new
+// CHECK-NEXT: pkg use new
+// CHECK-NEXT: pkg exit new
+// CHECK-NEXT: pkg enter made
+// CHECK-NEXT: pkg use made
+// CHECK-NEXT: pkg exit made
+// CHECK-NEXT: pkg enter arg
+// CHECK-NEXT: pkg use arg
+// CHECK-NEXT: pkg exit arg
+// CHECK-NEXT: pkg enter global
+// CHECK-NEXT: pkg global in block
+// CHECK-NEXT: pkg exit global
+// CHECK-NEXT: pkg count 2
+// CHECK-NEXT: n 2
+// CHECK-NEXT: pkg uncount 2
+// CHECK-NEXT: pkg enter tmp
+// CHECK-NEXT: tmp in block
+// CHECK-NEXT: pkg exit tmp
+// CHECK-NEXT: pkg enter made2
+// CHECK-NEXT: made2 in block
+// CHECK-NEXT: pkg exit made2
+// CHECK-NEXT: pkg enter local
+// CHECK-NEXT: pkg use local
+// CHECK-NEXT: pkg exit local
+// CHECK-NEXT: -- jump
+// CHECK-NEXT: enter wc 1
+// CHECK-NEXT: exit wc 1
+// CHECK-NEXT: enter wc 2
+// CHECK-NEXT: exit wc 2
+// CHECK-NEXT: enter wc 3
+// CHECK-NEXT: exit wc 3
+// CHECK-NEXT: wc enters 3 exits 3
+// CHECK-NEXT: enter wb 1
+// CHECK-NEXT: exit wb 1
+// CHECK-NEXT: enter wb 2
+// CHECK-NEXT: exit wb 2
+// CHECK-NEXT: wb enters 2 exits 2
+// CHECK-NEXT: enter a 1
+// CHECK-NEXT: enter b 1
+// CHECK-NEXT: exit b 1
+// CHECK-NEXT: exit a 1
+// CHECK-NEXT: enter a 2
+// CHECK-NEXT: enter b 2
+// CHECK-NEXT: exit b 2
+// CHECK-NEXT: exit a 2
+// CHECK-NEXT: a enters 2 exits 2
+// CHECK-NEXT: b enters 2 exits 2
+// CHECK-NEXT: enter outer 1
+// CHECK-NEXT: enter inner 1
+// CHECK-NEXT: exit inner 1
+// CHECK-NEXT: enter inner 2
+// CHECK-NEXT: exit inner 2
+// CHECK-NEXT: outer body 0
+// CHECK-NEXT: exit outer 1
+// CHECK-NEXT: enter outer 2
+// CHECK-NEXT: enter inner 3
+// CHECK-NEXT: exit inner 3
+// CHECK-NEXT: enter inner 4
+// CHECK-NEXT: exit inner 4
+// CHECK-NEXT: outer body 1
+// CHECK-NEXT: exit outer 2
+// CHECK-NEXT: outer enters 2 exits 2
+// CHECK-NEXT: inner enters 4 exits 4
+// CHECK-NEXT: enter deep 1
+// CHECK-NEXT: exit deep 1
+// CHECK-NEXT: enter deep 2
+// CHECK-NEXT: deep body 1
+// CHECK-NEXT: exit deep 2
+// CHECK-NEXT: enter deep 3
+// CHECK-NEXT: exit deep 3
+// CHECK-NEXT: deep enters 3 exits 3
+// CHECK-NEXT: enter around 1
+// CHECK-NEXT: still in with
+// CHECK-NEXT: exit around 1
+// CHECK-NEXT: around enters 1 exits 1
+// CHECK-NEXT: enter bound 1
+// CHECK-NEXT: exit bound 1
+// CHECK-NEXT: enter bound 2
+// CHECK-NEXT: exit bound 2
+// CHECK-NEXT: bound enters 2 exits 2
+// CHECK-NEXT: -- with let
+// CHECK-NEXT: enter x
+// CHECK-NEXT: use x
+// CHECK-NEXT: exit x
+// CHECK-NEXT: none
+// CHECK-NEXT: enter y
+// CHECK-NEXT: use y
+// CHECK-NEXT: exit y
+// CHECK-NEXT: after y
+// CHECK-NEXT: after
+// CHECK-NEXT: enter opt 1
+// CHECK-NEXT: exit opt 1
+// CHECK-NEXT: enter opt 2
+// CHECK-NEXT: exit opt 2
+// CHECK-NEXT: enter opt 3
+// CHECK-NEXT: opt enters 3 exits 2
+// CHECK-NEXT: exit opt 3
+// CHECK-NEXT: 1
+// CHECK-NEXT: -1
+// CHECK-NEXT: g_opt none
+// CHECK-NEXT: enter g_opt
+// CHECK-NEXT: use g_opt
+// CHECK-NEXT: exit g_opt
+// CHECK-NEXT: pkg enter opt
+// CHECK-NEXT: pkg use opt
+// CHECK-NEXT: pkg exit opt
+// CHECK-NEXT: pkg none

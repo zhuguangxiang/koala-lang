@@ -63,7 +63,8 @@ typedef enum _BlockType {
     WHILE_LET_BLOCK,
     FOR_BLOCK,
     SWITCH_BLOCK,
-    CASE_BLOCK
+    CASE_BLOCK,
+    WITH_BLOCK
 } BlockType;
 
 typedef struct _ParserScope {
@@ -87,6 +88,9 @@ typedef struct _ParserScope {
     KlrBasicBlock *continue_bb;
     /* break block for loops */
     KlrBasicBlock *break_bb;
+    /* resource and its __exit__ for 'with' blocks */
+    KlrValue *with_res;
+    Symbol *with_exit;
 } ParserScope;
 
 /* per source file */

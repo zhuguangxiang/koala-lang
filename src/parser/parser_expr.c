@@ -1993,6 +1993,9 @@ static const char *operator_dunder_sugar(const char *name)
         { "__contains__", "the 'in' operator" },
         // constructor
         { "__init__", "the constructor syntax 'Type(...)'" },
+        // resource management
+        { "__enter__", "the 'with' statement" },
+        { "__exit__", "the 'with' statement" },
     };
 
     for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
