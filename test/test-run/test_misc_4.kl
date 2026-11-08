@@ -170,7 +170,7 @@ if f2 == nil {
 // CHECK: failed to open file
 
 print(__KOALA_VERSION__)
-// CHECK: 0.13
+// CHECK: 0.20
 
 let buf3 = Buffer()
 for i in range(10) {

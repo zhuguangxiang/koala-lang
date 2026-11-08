@@ -1,10 +1,10 @@
 #!/bin/bash
-# Script to build and run tests in DebugTest configuration
+# Script to build and run tests in debug configuration
 
-mkdir -p build/DebugTest && cd build/DebugTest
+mkdir -p build/debug && cd build/debug
 
 cmake -G Ninja ../.. \
-    -DCMAKE_BUILD_TYPE=DebugTest \
+    -DCMAKE_BUILD_TYPE=debug \
     -DSKIP_TESTS=OFF
 
 cmake --build . --target clean

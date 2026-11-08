@@ -132,10 +132,10 @@ target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES
     OUTPUT_NAME koala)
 
-add_executable(koala_dump ${PROJECT_SOURCE_DIR}/tools/klc-dump.c)
-target_link_libraries(koala_dump parser)
-set_target_properties(koala_dump PROPERTIES
-    OUTPUT_NAME klc-dump)
+# add_executable(koala_dump ${PROJECT_SOURCE_DIR}/tools/klc-dump.c)
+# target_link_libraries(koala_dump parser)
+# set_target_properties(koala_dump PROPERTIES
+#     OUTPUT_NAME klc-dump)
 
 install(TARGETS koala DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
 install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
@@ -148,7 +148,7 @@ install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
     PATTERN "koala_lex.h" EXCLUDE
     PATTERN "koala_yacc.h" EXCLUDE)
 
-install(TARGETS koala_dump DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+# install(TARGETS koala_dump DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 
 # `wombat` build tool script, installed alongside koala/koalac
 install(PROGRAMS ${PROJECT_SOURCE_DIR}/tools/wombat

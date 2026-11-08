@@ -17,6 +17,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Done."
 
-cd build/DebugTest
+cd build/debug
 
 cmake --build . --target install
