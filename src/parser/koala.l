@@ -259,9 +259,11 @@ ELSE_NEXT   {ELSE_SKIP}*"else"[^A-Za-z0-9_]
 "const"     { YY_RETURN(CONST);     }
 "let"       { YY_RETURN(LET);       }
 "var"       { YY_RETURN(VAR);       }
+"func("     { YY_RETURN(FUNC_LPAREN); }
 "func"      { YY_RETURN(FUNC);      }
 "class"     { YY_RETURN(CLASS);     }
 "trait"     { YY_RETURN(TRAIT);     }
+"enum"      { YY_RETURN(ENUM);      }
 "if"        { YY_RETURN(IF);        }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }
@@ -312,8 +314,8 @@ ELSE_NEXT   {ELSE_SKIP}*"else"[^A-Za-z0-9_]
 "range"     { YY_RETURN(RANGE);     }
 "array"     { YY_RETURN(ARRAY);     }
 
-"{||"       { YY_RETURN(LAMBDA_START_OR); }
-"{|"        { YY_RETURN(LAMBDA_START);    }
+"{"[ \t]*"||" { YY_RETURN(LAMBDA_START_OR); }
+"{"[ \t]*"|"  { YY_RETURN(LAMBDA_START);    }
 
 "&&"        { YY_RETURN(AND);       }
 "||"        { YY_RETURN(OR);        }

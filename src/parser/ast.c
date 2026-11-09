@@ -874,6 +874,25 @@ Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases, 
     return (Stmt *)s;
 }
 
+EnumMember *enum_member_new(Ident id, int has_value, int64_t value, Loc value_loc)
+{
+    EnumMember *m = mm_alloc_obj(m);
+    m->id = id;
+    m->has_value = has_value;
+    m->value = value;
+    m->value_loc = value_loc;
+    return m;
+}
+
+Stmt *stmt_from_enum(Ident id, Vector *members)
+{
+    EnumDeclStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_ENUM_KIND;
+    s->id = id;
+    s->members = members;
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_return(Expr *exp)
 {
     RetStmt *s = mm_alloc_obj(s);
@@ -945,6 +964,17 @@ static void func_decl_stmt_free(Stmt *stmt)
     }
     vector_destroy(s->body);
 
+    mm_free(s);
+}
+
+static void enum_decl_stmt_free(Stmt *stmt)
+{
+    EnumDeclStmt *s = (EnumDeclStmt *)stmt;
+    EnumMember *m;
+    vector_foreach(m, s->members) {
+        mm_free(m);
+    }
+    vector_destroy(s->members);
     mm_free(s);
 }
 
@@ -1136,6 +1166,7 @@ void stmt_free(Stmt *stmt)
         [STMT_FUNC_KIND] = func_decl_stmt_free,
         [STMT_CLASS_KIND] = klass_decl_stmt_free,
         [STMT_TRAIT_KIND] = klass_decl_stmt_free,
+        [STMT_ENUM_KIND] = enum_decl_stmt_free,
         [STMT_RETURN_KIND] = ret_stmt_free,
         [STMT_ASSIGN_KIND] = assign_stmt_free,
         [STMT_BREAK_KIND] = break_stmt_free,

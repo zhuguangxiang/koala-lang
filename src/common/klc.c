@@ -721,6 +721,23 @@ KlcIntfEntry *klc_klass_add_intf_entry(KlcKlass *kls)
     return entry;
 }
 
+KlcEnum *klc_add_enum(KlcFile *klc, char *name)
+{
+    KlcEnum *enm = mm_alloc_obj(enm);
+    enm->name_index = klc_add_str(klc, name, strlen(name));
+    vector_init_ptr(&enm->mbrs);
+    vector_push_back(klc->objs + ITEM_ENUM, &enm);
+    return enm;
+}
+
+void klc_enum_add_value(KlcEnum *enm, uint16_t name_index, int64_t value)
+{
+    KlcEnumValue *member = mm_alloc_obj(member);
+    member->name_index = name_index;
+    member->value = value;
+    vector_push_back(&enm->mbrs, &member);
+}
+
 static FILE *open_klc_file(const char *path, char *mode)
 {
     FILE *fp = fopen(path, mode);
@@ -1116,6 +1133,32 @@ static void write_lineinfos(KlcFile *klc, Vector *vec)
     }
 }
 
+static void write_enum_mbrs(KlcFile *klc, Vector *vec)
+{
+    size_t size = vector_size(vec);
+    write_uint16(klc, (uint16_t)size);
+
+    KlcEnumValue *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        write_uint16(klc, item->name_index);
+        write_uint64(klc, (uint64_t)item->value);
+    }
+}
+
+static void write_enums(KlcFile *klc, Vector *vec)
+{
+    uint16_t size = (uint16_t)(vector_size(vec) - 1);
+    write_uint16(klc, size);
+
+    KlcEnum *enm;
+    vector_foreach(enm, vec) {
+        if (!enm) continue;
+        write_uint16(klc, enm->name_index);
+        write_enum_mbrs(klc, &enm->mbrs);
+    }
+}
+
 int write_klc_file(KlcFile *klc)
 {
     FILE *fp = open_klc_file(klc->path, "w");
@@ -1141,6 +1184,7 @@ int write_klc_file(KlcFile *klc)
     write_funcs(klc, klc->objs + ITEM_FUNC);
     write_classes(klc, klc->objs + ITEM_CLASS);
     write_lineinfos(klc, klc->objs + ITEM_LINEINFO);
+    write_enums(klc, klc->objs + ITEM_ENUM);
 
     fclose(fp);
     return 0;
@@ -1650,6 +1694,54 @@ static void read_lineinfos(KlcFile *klc, Vector *vec)
     }
 }
 
+static void read_enum_mbrs(KlcFile *klc, Vector *vec)
+{
+    uint16_t member_count = 0;
+    read_uint16(klc, &member_count);
+
+    for (uint16_t j = 0; j < member_count; j++) {
+        KlcEnumValue *member = mm_alloc_obj(member);
+        vector_push_back(vec, &member);
+        uint16_t name_index = 0;
+        read_uint16(klc, &name_index);
+        uint64_t value = 0;
+        read_uint64(klc, &value);
+        member->name_index = name_index;
+        member->value = (int64_t)value;
+    }
+}
+
+static void read_enums(KlcFile *klc, Vector *vec)
+{
+    uint16_t size = 0;
+    read_uint16(klc, &size);
+
+    for (uint16_t i = 0; i < size; i++) {
+        KlcEnum *enm = mm_alloc_obj(enm);
+        vector_push_back(vec, &enm);
+        read_uint16(klc, &enm->name_index);
+        vector_init_ptr(&enm->mbrs);
+        read_enum_mbrs(klc, &enm->mbrs);
+    }
+}
+
+static void skip_enums(KlcFile *klc)
+{
+    uint16_t size = 0;
+    read_uint16(klc, &size);
+    for (uint16_t i = 0; i < size; i++) {
+        uint16_t name_index, member_count;
+        read_uint16(klc, &name_index);
+        read_uint16(klc, &member_count);
+        for (uint16_t j = 0; j < member_count; j++) {
+            uint16_t member_name;
+            uint64_t value;
+            read_uint16(klc, &member_name);
+            read_uint64(klc, &value);
+        }
+    }
+}
+
 KlcFile *read_klc_file(char *path, int rt)
 {
     FILE *fp = fopen(path, "r");
@@ -1692,6 +1784,13 @@ KlcFile *read_klc_file(char *path, int rt)
         read_funcs(klc, klc->objs + ITEM_FUNC);
         read_classes(klc, klc->objs + ITEM_CLASS);
         read_lineinfos(klc, klc->objs + ITEM_LINEINFO);
+        if (klc->version >= KLC_ENUM_METADATA_VERSION) {
+            if (rt) {
+                skip_enums(klc);
+            } else {
+                read_enums(klc, klc->objs + ITEM_ENUM);
+            }
+        }
     }
 
     KlcConst *k = klc_get_const(klc, klc->pkg_path_index);
@@ -1891,6 +1990,21 @@ static void fini_lineinfo(Vector *vec)
     vector_fini(vec);
 }
 
+static void fini_enums(Vector *vec)
+{
+    KlcEnum *enm;
+    vector_foreach(enm, vec) {
+        if (!enm) continue;
+        KlcEnumValue *member;
+        vector_foreach(member, &enm->mbrs) {
+            if (member) mm_free(member);
+        }
+        vector_fini(&enm->mbrs);
+        mm_free(enm);
+    }
+    vector_fini(vec);
+}
+
 void fini_klc_file(KlcFile *klc)
 {
     hashmap_fini(&klc->map, __item_entry_free, NULL);
@@ -1907,6 +2021,7 @@ void fini_klc_file(KlcFile *klc)
     fini_funcs(klc->objs + ITEM_FUNC);
     fini_klasses(klc->objs + ITEM_CLASS);
     fini_lineinfo(klc->objs + ITEM_LINEINFO);
+    fini_enums(klc->objs + ITEM_ENUM);
 }
 
 void free_klc_file(KlcFile *klc)

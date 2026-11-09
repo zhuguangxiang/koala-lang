@@ -1,0 +1,111 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// An optional enum `A?` is an `int64?` in the IR, and a class field of an enum type is set
+// as an int64.
+
+enum A {
+    X,
+    Y = 5,
+}
+
+enum B {
+    X = 11,
+    Y = 10,
+}
+
+class Q {
+    pub var a A
+
+    pub func __init__(v A) {
+        a = v
+    }
+
+    pub func reset() {
+        a = A.X
+        a = 5
+    }
+
+    pub func get() A {
+        return a
+    }
+}
+
+func set(q Q, v A) {
+    q.a = v
+    q.a = A.Y
+    q.a = 5
+}
+
+func opt_ret(flag bool) A? {
+    if flag {
+        return A.Y
+    }
+    return nil
+}
+
+func opt_param(a A?) bool {
+    return a == nil
+}
+
+func bang(a A?) A {
+    return a!
+}
+
+func coalesce(a A?) A {
+    return a ?? A.X
+}
+
+func narrow(a A?) int {
+    if let v = a {
+        return v
+    }
+    return -1
+}
+
+func local_opt() {
+    var o A? = A.Y
+    o = nil
+    o = 5
+}
+
+// CHECK-LABEL: func @Q:__init__(%self {{.*}}Q, %v int64) <NO-TYPE> {
+// CHECK: set_field %self {{.*}}Q, a(index=0), %v int64
+
+// CHECK-LABEL: func @Q:reset(%self {{.*}}Q) <NO-TYPE> {
+// CHECK: set_field %self {{.*}}Q, a(index=0), 0 int64
+// CHECK: set_field %self {{.*}}Q, a(index=0), 5 int64
+
+// CHECK-LABEL: func @set(%q {{.*}}Q, %v int64) <NO-TYPE> {
+// CHECK: set_field %q {{.*}}Q, a(index=0), %v int64
+// CHECK: set_field %q {{.*}}Q, a(index=0), 5 int64
+// CHECK: set_field %q {{.*}}Q, a(index=0), 5 int64
+
+// CHECK-LABEL: func @opt_ret(%flag bool) int64? {
+// CHECK: ret 5 int64
+// CHECK: ret nil
+
+// CHECK-LABEL: func @opt_param(%a int64?) bool {
+// CHECK: %0 = cmpeq %a int64?, nil
+
+// unwrapping `A?` casts to an int64
+// CHECK-LABEL: func @bang(%a int64?) int64 {
+// CHECK: %0 = cast %a int64? to int64
+// CHECK: ret %0 int64
+
+// CHECK-LABEL: func @coalesce(%a int64?) int64 {
+// CHECK: %coalesce = local int64
+// CHECK: %1 = cast %a int64? to int64
+// CHECK: move %coalesce int64, 0 int64
+
+// CHECK-LABEL: func @narrow(%a int64?) int64 {
+// CHECK: %v = local [immutable] int64
+// CHECK: move %v int64, %a int64?
+
+// CHECK-LABEL: func @local_opt() <NO-TYPE> {
+// CHECK: %o = local int64?
+// CHECK: move %o int64?, 5 int64
+// CHECK: move %o int64?, nil
+// CHECK: move %o int64?, 5 int64
+
+// no enum type name leaks into the IR
+// CHECK-NOT: test_enum_ir.A
+// CHECK-NOT: test_enum_ir.B

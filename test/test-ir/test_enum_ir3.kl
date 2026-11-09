@@ -1,0 +1,84 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// An enum, or an optional enum, inside list, tuple and a generic class: the IR has no enum type,
+// so list[A] is list[int64] (signature `j`), list[A?] is list[int64?] and Foo[A] is Foo[int64].
+
+enum A {
+    X,
+    Y = 5,
+}
+
+class Foo[T] {
+    pub var v T
+
+    pub func __init__(x T) {
+        v = x
+    }
+
+    pub func get() T {
+        return v
+    }
+}
+
+func mk_list() list[A] {
+    let l list[A] = [A.X, A.Y]
+    return l
+}
+
+func mk_opt_list() list[A?] {
+    let l list[A?] = [A.X, nil]
+    return l
+}
+
+func first(l list[A]) A {
+    return l[0]
+}
+
+func first_opt(l list[A?]) A? {
+    return l[0]
+}
+
+func mk_tuple() {
+    let t (A, A?) = (A.X, A.Y)
+    print(t)
+}
+
+func foo_param(f Foo[A]) A {
+    return f.get()
+}
+
+func foo_opt_param(f Foo[A?]) A? {
+    return f.get()
+}
+
+// the container type is lowered: list[A] is list[int64], the items are int64 constants
+// CHECK-LABEL: func @mk_list() std/builtin.list<j> {
+// CHECK: %0 = build_intern @list, 0 int64, 5 int64
+// CHECK: %l = local [immutable] std/builtin.list<j>
+// CHECK: ret %l std/builtin.list<j>
+
+// CHECK-LABEL: func @mk_opt_list() std/builtin.list<j?> {
+// CHECK: %0 = build_intern @list, 0 int64, nil
+// CHECK: ret %l std/builtin.list<j?>
+
+// a value read from the list is an int64
+// CHECK-LABEL: func @first(%l std/builtin.list<j>) int64 {
+// CHECK: %0 = seq.get %l std/builtin.list<j>, 0 int64
+// CHECK: ret %0 int64
+
+// CHECK-LABEL: func @first_opt(%l std/builtin.list<j?>) int64? {
+// CHECK: %0 = seq.get %l std/builtin.list<j?>, 0 int64
+// CHECK: ret %0 int64?
+
+// (A, A?) is (int64, int64?), the tuple items are int64 constants
+// CHECK-LABEL: func @mk_tuple() <NO-TYPE> {
+// CHECK: %t = local [immutable] std/builtin.tuple<jj?>
+// CHECK: move %t std/builtin.tuple<jj?>, tuple(0, 5) std/builtin.tuple<jj?>
+
+// the generic class instance: Foo[A] is Foo[int64]
+// CHECK-LABEL: func @foo_param(%f test_enum_ir3.Foo<j>) int64 {
+// CHECK: %0 = call @Foo:get, %f test_enum_ir3.Foo<j>
+// CHECK: ret %0 int64
+
+// CHECK-LABEL: func @foo_opt_param(%f test_enum_ir3.Foo<j?>) int64? {
+// CHECK: %0 = call @Foo:get, %f test_enum_ir3.Foo<j?>
+// CHECK: ret %0 int64?

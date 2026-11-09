@@ -30,6 +30,7 @@ typedef enum _SymKind {
     SYM_SHADOW_VAR,         /* shadow var */
     SYM_IMPORTED,           /* imported symbol */
     SYM_INSTANCE_FUNC,      /* instance func */
+    SYM_ENUM,               /* enum       */
     SYM_MAX,
 } SymKind;
 
@@ -161,6 +162,17 @@ typedef struct _IntfEntry {
     Vector parents;
 } IntfEntry;
 
+typedef struct _EnumMemberSym {
+    char *name;
+    int64_t val;
+} EnumMemberSym;
+
+typedef struct _EnumSymbol {
+    SYMBOL_HEAD
+    /* EnumMemberSym */
+    Vector members;
+} EnumSymbol;
+
 typedef struct _KlassSymbol {
     SYMBOL_HEAD
     /* type params */
@@ -264,6 +276,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
 Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *owner_kls,
                                 KlassSymbol *origin_trait);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
+EnumSymbol *stbl_add_enum(HashMap *stbl, char *name, int flags);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
 Symbol *stbl_add_narrow_var(HashMap *stbl, Symbol *origin, TypeSpec *narrow_ts);

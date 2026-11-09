@@ -1,0 +1,13 @@
+pub enum Proto {
+    ICMP,
+    TCP = 9223372036854775806,
+    MAX,
+}
+
+enum Hidden {
+    SECRET,
+}
+
+pub func echo(proto Proto) Proto {
+    return proto
+}

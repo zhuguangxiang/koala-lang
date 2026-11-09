@@ -1,0 +1,12 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// An int literal assigned to an existing variable is checked against the variable's type.
+
+func literal_assign() {
+    var n int8 = 1
+    n = 5
+    n = 300
+    // CHECK: Value 300 overflows 'int8' range
+    var u uint8 = 1
+    u = 256
+    // CHECK: Value 256 overflows 'uint8' range
+}

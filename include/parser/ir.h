@@ -79,6 +79,19 @@ typedef struct _KlrValue {
     KLR_VALUE_HEAD
 } KlrValue;
 
+/*
+ * No IR value carries an enum type: an enum is an int64 at run time. klr_lower_type() lowers a type
+ * from the front-end into the type used by the IR:
+ *
+ *   A            -> int64
+ *   A?           -> int64?
+ *   list[A]      -> list[int64]     (a generic instance with an enum type argument)
+ *   Foo[A?]      -> Foo[int64?]
+ *
+ * Any other type is returned as is. Apply it where a type from the AST/symbols enters the IR.
+ */
+TypeSpec *klr_lower_type(TypeSpec *ts);
+
 #define INIT_KLR_VALUE(val, _kind, _ts, _name) \
     (val)->kind = (_kind); \
     (val)->ts = (_ts); \

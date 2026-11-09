@@ -51,6 +51,12 @@ typedef struct _LoadKlcContext {
 static inline int ts_need_fixup(TypeSpec *ts)
 {
     if (ts->kind == TYPE_OPTIONAL) return ts_need_fixup(ts->opt.src);
+
+    if (ts->kind == TYPE_ENUM) {
+        ASSERT(ts->sym_id >= 0);
+        return 0;
+    }
+
     return ts->kind == TYPE_GENERIC_REF || ts->kind == TYPE_GENERIC_VAR ||
            ts->kind == TYPE_MANGLED || ts->kind == TYPE_KLASS || ts->kind == TYPE_UNION;
 }
@@ -173,6 +179,10 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         ts->sym_id = tp_sym->id;
         ts->generic_var.index = ((TypeParamSymbol *)tp_sym)->index;
         ASSERT(ts->generic_var.index >= 0);
+    } else if (ts->kind == TYPE_ENUM) {
+        Symbol *sym = _get_symbol(ts->enum_type.pkg, ts->enum_type.name, ctx);
+        ASSERT(sym && sym->kind == SYM_ENUM);
+        ts->sym_id = sym->id;
     } else if (ts->kind == TYPE_KLASS) {
         Symbol *sym = _get_symbol(ts->klass_type.pkg, ts->klass_type.name, ctx);
         if (sym) {
@@ -632,6 +642,31 @@ static void load_funcs(LoadContext *ctx)
     }
 }
 
+static void load_enums(LoadContext *ctx)
+{
+    KlcEnum *enm;
+    vector_foreach(enm, ctx->klc->objs + ITEM_ENUM) {
+        if (!enm) continue;
+
+        KlcConst *name = klc_get_const(ctx->klc, enm->name_index);
+        EnumSymbol *sym = stbl_add_enum(ctx->stbl, name->sval, SYM_FLAGS_EXT | SYM_FLAGS_PUBLIC);
+        ASSERT(sym);
+        sym->path = ctx->path;
+        sym->parent = ctx->pkg_sym;
+        sym->status = SYM_RESOLVED;
+        sym->ts = enum_type_spec(ctx->path, name->sval);
+        sym->ts->sym_id = sym->id;
+
+        KlcEnumValue *value;
+        vector_foreach(value, &enm->mbrs) {
+            if (!value) continue;
+            KlcConst *member_name = klc_get_const(ctx->klc, value->name_index);
+            EnumMemberSym member = { member_name->sval, value->value };
+            vector_push_back(&sym->members, &member);
+        }
+    }
+}
+
 static void load_klasses(LoadContext *ctx)
 {
     KlcFile *klc = ctx->klc;
@@ -714,6 +749,7 @@ static PkgSymbol *__load(char *path, ParserModule *pm)
     vector_init(&ctx.fixups, sizeof(FixupEntry));
     vector_init(&ctx.stage_2_fixups, sizeof(FixupEntry));
 
+    load_enums(&ctx);
     load_globals(&ctx);
     load_klasses(&ctx);
     load_funcs(&ctx);

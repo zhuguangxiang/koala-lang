@@ -1,0 +1,8 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+import "test_pkg/enum_cross"
+
+func hidden_enum() enum_cross.Hidden {
+    return enum_cross.Hidden.SECRET
+    // CHECK: 'Hidden' is not found
+}

@@ -209,6 +209,8 @@ void kl_error_detail(ParserState *, Loc *);
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void parse_literal_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected);
+/* an int value goes into an enum: report it and return 1, only an int literal converts */
+int check_int_to_enum(ParserState *ps, Loc loc, TypeSpec *dst, TypeSpec *src);
 void check_shift_count(ParserState *ps, TypeSpec *lhs_ts, Expr *count);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
 

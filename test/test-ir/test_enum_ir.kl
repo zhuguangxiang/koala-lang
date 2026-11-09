@@ -1,0 +1,106 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// An enum is an int64 in the IR: no enum type shows up in params, returns, locals, globals
+// and fields.
+
+enum A {
+    X,
+    Y = 5,
+}
+
+enum B {
+    X = 11,
+    Y = 10,
+}
+
+var g_a A = A.Y
+
+class P {
+    pub var a A
+    pub let b B = B.X
+
+    pub func __init__(_a A) {
+        a = _a
+    }
+
+    pub func get_a() A {
+        return a
+    }
+
+    pub func get_b() B {
+        return b
+    }
+}
+
+func f(a A) bool {
+    return a == A.Y
+}
+
+func make() A {
+    return A.Y
+}
+
+func make_lit() A {
+    return 5
+}
+
+func get_global() A {
+    return g_a
+}
+
+func get_field(p P) A {
+    g_a = p.a
+    return p.a
+}
+
+func g() {
+    var v A = A.X
+    v = 5
+    let i int = A.Y
+    print(f(v), i)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @P:__init__(%self {{.*}}P, %_a int64) <NO-TYPE> {
+// CHECK: set_field %self {{.*}}P, b(index=1), 11 int64
+// CHECK: set_field %self {{.*}}P, a(index=0), %_a int64
+
+// The class P has no enum type in its IR: its field is an int64.
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @f(%a int64) bool {
+// CHECK: %0 = cmpeq %a int64, 5 int64
+// CHECK: ret %0 bool
+
+// the return type is an int64, A.Y is folded into a constant
+// CHECK-LABEL: func @make() int64 {
+// CHECK: ret 5 int64
+
+// an int literal converted to the enum is a constant too
+// CHECK-LABEL: func @make_lit() int64 {
+// CHECK: ret 5 int64
+
+// a global of an enum type is an int64 global
+// CHECK-LABEL: func @get_global() int64 {
+// CHECK: %0 = global_get @g_a int64
+// CHECK: ret %0 int64
+
+// a class field of an enum type is read as an int64
+// CHECK-LABEL: func @get_field(%p {{.*}}P) int64 {
+// CHECK: global_set @g_a int64, %0 int64
+// CHECK: %1 = get_field %p {{.*}}P, a(index=0)
+// CHECK: ret %1 int64
+
+// CHECK-LABEL: func @g() <NO-TYPE> {
+// CHECK: %v = local int64
+// CHECK: move %v int64, 0 int64
+// CHECK: move %v int64, 5 int64
+// CHECK: %i = local [immutable] int64
+// CHECK: move %i int64, 5 int64
+// CHECK: %0 = call @f, %v int64
+
+// the module init sets the global with an int64 constant
+// CHECK-LABEL: func @__init__() <NO-TYPE> {
+// CHECK: global_set @g_a int64, 5 int64
+
+// no enum type name leaks into the IR
+// CHECK-NOT: {{.*}}.A
+// CHECK-NOT: {{.*}}.B

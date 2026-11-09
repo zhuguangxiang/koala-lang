@@ -1,0 +1,18 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/enum_cross"
+
+func main() {
+    let proto enum_cross.Proto = enum_cross.Proto.TCP
+    let echoed enum_cross.Proto = enum_cross.echo(proto)
+    if echoed == enum_cross.Proto.TCP {
+        print("cross-package enum")
+    }
+
+    let max_value = enum_cross.Proto.MAX
+    let raw int = max_value
+    print(raw)
+}
+
+// CHECK: cross-package enum
+// CHECK: 9223372036854775807

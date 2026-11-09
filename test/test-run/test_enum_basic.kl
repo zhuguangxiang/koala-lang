@@ -1,0 +1,40 @@
+// RUN: koala %s | filecheck %s
+// Enum is a sealed int64: same-enum assign, enum -> int, '==' and '!=' only.
+// Skipped until irgen folds enum values into int64 constants.
+
+enum A {
+    ICMP,
+    TCP = 5,
+    UDP,
+}
+
+enum Color {
+    RED,
+    GREEN = 5,
+}
+
+func f(p A) A {
+    return p
+}
+
+func g(i int) int {
+    return i
+}
+
+func main() {
+    let a A = A.ICMP
+    let b A = A.TCP
+    let i int = A.TCP
+    let c A = 6
+    print(a == b, a != b, a == a, b != b)
+    // CHECK: false true true false
+    print(i, c == A.UDP, a == 0, f(b) == A.TCP, g(A.UDP))
+    // CHECK: 5 true true true 6
+    var v A = A.ICMP
+    v = 5
+    print(v == A.TCP)
+    // CHECK: true
+    // print shows the underlying int64 value, not the member name
+    print(Color.GREEN)
+    // CHECK: 5
+}

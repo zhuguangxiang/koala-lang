@@ -21,6 +21,63 @@ extern "C" {
 
 #define SET_IR_LOC(v, e) klr_set_loc(v, ps->filename, (e)->loc)
 
+// the module being generated: klr_lower_type() needs its symbol table to look up the generic
+// instances
+static ParserModule *gen_pm;
+
+/*
+ * The type of a generic instance with its enum type arguments lowered, e.g. list[A] -> list[int64].
+ * Return 'ts' itself when no type argument is an enum.
+ */
+static TypeSpec *lower_instance_type(TypeSpec *ts)
+{
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym || sym->kind != SYM_INSTANCE) return ts;
+
+    InstanceSymbol *inst = (InstanceSymbol *)sym;
+    if (!inst->tp_args || !gen_pm) return ts;
+
+    int changed = 0;
+    Vector *args = vector_create_ptr();
+    TypeSpec *arg;
+    vector_foreach(arg, inst->tp_args) {
+        TypeSpec *lowered = klr_lower_type(arg);
+        if (lowered != arg) changed = 1;
+        vector_push_back(args, &lowered);
+    }
+
+    TypeSpec *ret = ts;
+    if (changed) {
+        InstanceSymbol *lowered_inst =
+            find_or_add_instance(gen_pm->stbl, inst->origin, args, gen_pm);
+        if (lowered_inst) ret = lowered_inst->instance_ts;
+    }
+    vector_destroy(args);
+    return ret;
+}
+
+TypeSpec *klr_lower_type(TypeSpec *ts)
+{
+    if (!ts) return ts;
+
+    switch (ts->kind) {
+        case TYPE_ENUM:
+            return int64_type_spec();
+        case TYPE_OPTIONAL: {
+            // `A?` is `int64?`, `list[A]?` is `list[int64]?`
+            TypeSpec *src = ts->opt.src;
+            if (!src) return ts;
+            TypeSpec *lowered = klr_lower_type(src);
+            return lowered == src ? ts : optional_type_spec_intern(lowered);
+        }
+        case TYPE_KLASS:
+            // a closed generic instance: list[A], Foo[A?]
+            return lower_instance_type(ts);
+        default:
+            return ts;
+    }
+}
+
 static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
 {
     ASSERT(vector_size(&trait->intfs) == 0);
@@ -493,10 +550,12 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
 
     switch (lit->which) {
         case LIT_EXPR_INT: {
+            /* an enum literal is an int64 constant */
+            TypeSpec *lit_ts = type_is_enum(lit->ts) ? int64_type_spec() : lit->ts;
             if (lit->sign) {
-                exp->ir_val = klr_const_int(lit->ival, lit->ts, m);
+                exp->ir_val = klr_const_int(lit->ival, lit_ts, m);
             } else {
-                exp->ir_val = klr_const_uint(lit->ival, lit->ts, m);
+                exp->ir_val = klr_const_uint(lit->ival, lit_ts, m);
             }
             break;
         }
@@ -737,7 +796,7 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
         KlrInsn *insn = (KlrInsn *)arg;
         ASSERT(insn->code == OP_BUILD_INTERN && insn->intern_tag == INTERN_TUPLE);
         insn->intern_tag = INTERN_LIST;
-        insn->ts = ret_ts;
+        insn->ts = klr_lower_type(ret_ts);
         return arg;
     }
 }
@@ -1333,6 +1392,19 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
     int opt_or_bang = dot->opt_or_bang;
+
+    /* `A.MEMBER` is an int64 constant, the enum is gone in the IR */
+    if (exp->sym && exp->sym->kind == SYM_ENUM) {
+        EnumMemberSym *item;
+        vector_foreach_ptr(item, &((EnumSymbol *)exp->sym)->members) {
+            if (str_equal(item->name, dot->id.name)) {
+                exp->ir_val = klr_const_int((uint64_t)item->val, int64_type_spec(), MOD);
+                SET_IR_LOC(exp->ir_val, exp);
+                return;
+            }
+        }
+        UNREACHABLE();
+    }
 
     Expr *lhs = dot->lhs;
     lhs->ctx = EXPR_CTX_LOAD;
@@ -2534,7 +2606,7 @@ static void emit_ir_fields(ParserState *ps, ParserScope *scope, Vector *fields)
 static void build_return(ParserState *ps, KlrValue *exp_val)
 {
     FuncSymbol *fn_sym = get_current_function(ps);
-    TypeSpec *ret_ts = fn_sym->ret;
+    TypeSpec *ret_ts = klr_lower_type(fn_sym->ret);
 
     KlrValue *ret_ir_val = _build_obj_intf_upcast(ps, exp_val, ret_ts, "");
 
@@ -4053,6 +4125,12 @@ static void emit_ir_while_let_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = while_end;
 }
 
+// an enum emits nothing: its members are folded into int64 constants at their use
+static void emit_ir_enum_decl(ParserState *ps, Stmt *stmt)
+{
+    // nothing to do.
+}
+
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -4082,6 +4160,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_WITH_KIND]      = emit_ir_with_stmt,
         [STMT_TUPLE_DECL_KIND] = emit_ir_tuple_decl,
         [STMT_TUPLE_ASSIGN_KIND] = emit_ir_tuple_assign,
+        [STMT_ENUM_KIND]      = emit_ir_enum_decl,
     };
     /* clang-format on */
 
@@ -4137,7 +4216,8 @@ static KlrValue *resolve_specialized_call(KlrValue *callee, Vector *tp_args, voi
 {
     ParserState *ps = ctx;
 
-    // a method is never routed: the specialized funcs are top-level, see find_or_add_func_instance()
+    // a method is never routed: the specialized funcs are top-level, see
+    // find_or_add_func_instance()
     if (callee->kind == KLR_VALUE_FUNC && ((KlrFunc *)callee)->klass) return NULL;
     if (callee->kind == KLR_VALUE_EXT_FUNC && ((KlrExtFunc *)callee)->klass) return NULL;
 
@@ -4366,6 +4446,7 @@ static void _add_trait(KlrModule *m, KlassDeclStmt *kls)
 
 void kl_gen_ir(ParserModule *pm)
 {
+    gen_pm = pm;
     KlrModule *m = klr_create_module(pm->path);
     pm->m = m;
 
@@ -4478,6 +4559,8 @@ void kl_gen_ir(ParserModule *pm)
         Symbol *sym = stbl_add_func(stbl, "__init__", no_type_spec(), NULL, 0);
         sym->ir_val = (KlrValue *)m->init;
     }
+
+    gen_pm = NULL;
 }
 
 #ifdef __cplusplus

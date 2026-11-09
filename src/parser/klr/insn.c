@@ -231,7 +231,7 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 KlrValue *klr_build_local(KlrBuilder *bldr, TypeSpec *ts, char *name)
 {
     KlrInsn *insn = new_insn(OP_IR_LOCAL, 0, name);
-    insn->ts = ts;
+    insn->ts = klr_lower_type(ts);
     insn->flags |= KLR_INSN_FLAGS_CONST;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
@@ -245,7 +245,7 @@ KlrValue *klr_build_local(KlrBuilder *bldr, TypeSpec *ts, char *name)
 KlrValue *klr_build_local_var(KlrBuilder *bldr, TypeSpec *ts, char *name)
 {
     KlrInsn *insn = new_insn(OP_IR_LOCAL, 0, name);
-    insn->ts = ts;
+    insn->ts = klr_lower_type(ts);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -438,7 +438,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, TypeSpec *ret, KlrValue
     for (int j = 0; j < nargs; j++) {
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j], 0);
     }
-    insn->ts = ret ? ret : fn->ts;
+    insn->ts = klr_lower_type(ret ? ret : fn->ts);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -602,6 +602,17 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
 
     // ASSERT(!type_is_optional(val->ts));
     ASSERT(!type_is_optional(dst_ts));
+    if (type_is_enum(dst_ts)) {
+        /* An enum is an int64 in the IR, so a cast to an enum is a cast to int64:
+         *
+         *   func f(a A?) A { return a! }   // val is `int64?`, not equal to int64:
+         *                                  //   keep the cast: %0 = cast %a int64? to int64
+         *   func g() A { return A.Y }      // val is the constant `5 int64`, equal to int64:
+         *                                  //   no cast, return the value itself: ret 5 int64
+         */
+        dst_ts = int64_type_spec();
+        if (val->ts == dst_ts) return val;
+    }
     ASSERT(val->ts != dst_ts);
 
     KlrInsn *insn = new_insn(OP_IR_CAST, 1, name);
@@ -619,7 +630,7 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, TypeSpec *ts, char *n
 
     KlrInsn *insn = new_insn(OP_NEW, 1, name);
     init_oper(&insn->opers[0], insn, klass, 0);
-    insn->ts = ts ? ts : klass->ts;
+    insn->ts = klr_lower_type(ts ? ts : klass->ts);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -683,7 +694,7 @@ KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpe
         init_oper(&insn->opers[j], insn, args[j], 0);
     }
 
-    insn->ts = ts;
+    insn->ts = klr_lower_type(ts);
     insn->intern_tag = tag;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
@@ -700,7 +711,7 @@ KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
     init_oper(&insn->opers[0], insn, obj, 0);
     init_oper(&insn->opers[1], insn, field, 0);
 
-    insn->ts = ts ? ts : field->ts;
+    insn->ts = klr_lower_type(ts ? ts : field->ts);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -742,7 +753,7 @@ KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, Ty
     init_oper(&insn->opers[0], insn, obj, 0);
     init_oper(&insn->opers[1], insn, index, 0);
 
-    insn->ts = ts;
+    insn->ts = klr_lower_type(ts);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -853,7 +864,7 @@ KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, 
     init_oper(&insn->opers[0], insn, obj, 0);
     init_oper(&insn->opers[1], insn, index, 0);
 
-    insn->ts = ts;
+    insn->ts = klr_lower_type(ts);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

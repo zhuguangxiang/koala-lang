@@ -167,6 +167,18 @@ static void write_meta_field(VarSymbol *fld_sym, KlcKlass *klass)
     klc_klass_add_field(klass, fld_sym->name, fld_sym->ts->signature, flags);
 }
 
+static void write_meta_enum(EnumSymbol *enum_sym, KlcFile *klc)
+{
+    if (!(enum_sym->flags & SYM_FLAGS_PUBLIC)) return;
+
+    KlcEnum *enm = klc_add_enum(klc, enum_sym->name);
+    EnumMemberSym *member;
+    vector_foreach_ptr(member, &enum_sym->members) {
+        uint16_t name_index = klc_add_str(klc, member->name, strlen(member->name));
+        klc_enum_add_value(enm, name_index, member->val);
+    }
+}
+
 static void write_meta_intf_entry(IntfEntry *intf_entry, KlcKlass *klass)
 {
     Symbol *trait_sym = intf_entry->trait;
@@ -296,6 +308,11 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
 
             case SYM_INSTANCE_FUNC: {
                 // do nothing
+                break;
+            }
+
+            case SYM_ENUM: {
+                write_meta_enum((EnumSymbol *)sym, klc);
                 break;
             }
 

@@ -19,6 +19,7 @@ extern "C" {
 typedef enum _TypeKind {
     TYPE_NO_TYPE,
     TYPE_INT,
+    TYPE_ENUM, // sealed int64, sym_id is the enum symbol
     TYPE_FLOAT,
     TYPE_BFLOAT16,
     TYPE_BOOL,
@@ -97,6 +98,11 @@ typedef struct _TypeSpec {
             char *name;
         } klass_type;
 
+        struct {
+            char *pkg;
+            char *name;
+        } enum_type;
+
         // proto type
         struct {
             Vector *args;
@@ -147,6 +153,9 @@ Vector *type_spec_vec_copy(Vector *args);
 TypeSpec *va_list_type_spec(TypeSpec *src);
 TypeSpec *va_list_type_spec_intern(TypeSpec *src);
 TypeSpec *pkg_type_spec(char *path);
+/* enum is a sealed int64 type, its sym_id refers to the enum symbol */
+TypeSpec *enum_type_spec(char *path, char *name);
+static inline int type_is_enum(TypeSpec *ts) { return ts && ts->kind == TYPE_ENUM; }
 
 #define bytes_type_spec() klass_type_spec("std/builtin", "bytes")
 

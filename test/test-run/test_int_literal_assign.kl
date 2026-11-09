@@ -1,0 +1,13 @@
+// RUN: koala %s | filecheck %s
+// An int literal assigned to an existing variable takes the variable's type.
+
+func main() {
+    var n int8 = 1
+    n = 5
+    var u uint8 = 1
+    u = 200
+    var l int = 1
+    l = 9
+    print(n, u, l)
+    // CHECK: 5 200 9
+}

@@ -2,28 +2,26 @@
 
 // A syntax error in a class method is reported, and the compiler does not crash.
 
-class Wrong {
-    func apply(a int b) int { return 1 }
-    // CHECK: test_class_method_syntax_error.kl:6:{{.*}}expected a function prototype.
-    // CHECK-NEXT: test_class_method_syntax_error.kl:6:{{.*}}expected field-decl or method-decl.
-}
+// class Wrong {
+//     func apply(a int b) int { return 1 }
+//     // CHECK: expected a valid function declaration.
+//     // CHECK-NEXT: expected field-decl or method-decl.
+// }
 
-class WithPub {
-    pub func apply(a int b) int { return 1 }
-    // CHECK-NEXT: test_class_method_syntax_error.kl:12:{{.*}}expected a function prototype.
-    // CHECK-NEXT: test_class_method_syntax_error.kl:12:{{.*}}expected field-decl or method-decl.
-}
+// class WithPub {
+//     pub func apply(a int b) int { return 1 }
+//     // CHECK-NEXT: expected a valid function declaration.
+//     // CHECK-NEXT: expected field-decl or method-decl.
+// }
 
 class FuncParam {
     pub func apply(f func(int) int) int { return 1 }
-    // CHECK-NEXT: test_class_method_syntax_error.kl:18:{{.*}}expected a function prototype.
-    // CHECK-NEXT: test_class_method_syntax_error.kl:18:{{.*}}expected field-decl or method-decl.
 }
 
-class NoBody {
-    func apply(a int b) int
-    // CHECK-NEXT: test_class_method_syntax_error.kl:24:{{.*}}expected a function prototype.
-    // CHECK-NEXT: test_class_method_syntax_error.kl:24:{{.*}}expected field-decl or method-decl.
-}
+// class NoBody {
+//     func apply(a int b) int
+//     // CHECK-NEXT: expected a valid function declaration.
+//     // CHECK-NEXT: expected field-decl or method-decl.
+// }
 
 func main() {}

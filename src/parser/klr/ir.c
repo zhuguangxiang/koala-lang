@@ -204,7 +204,7 @@ KlrValue *klr_const_none(KlrModule *m)
 KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
 {
     KlrConst *lit = mm_alloc_obj(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, klr_lower_type(ts), "");
     lit->which = CONST_LIST;
     lit->len = size;
     Vector *list = vector_create_ptr();
@@ -345,7 +345,7 @@ KlrValue *klr_const_map(KlrValue **items, int nargs, TypeSpec *ts, KlrModule *m)
 KlrValue *klr_const_range(KlrValue **args, TypeSpec *ts, KlrModule *m)
 {
     KlrConst *lit = mm_alloc_obj(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, klr_lower_type(ts), "");
     lit->which = CONST_RANGE;
     lit->len = 3;
     Vector *list = vector_create_ptr();
@@ -359,7 +359,7 @@ KlrValue *klr_const_range(KlrValue **args, TypeSpec *ts, KlrModule *m)
 KlrValue *klr_const_slice(KlrValue **args, TypeSpec *ts, KlrModule *m)
 {
     KlrConst *lit = mm_alloc_obj(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, klr_lower_type(ts), "");
     lit->which = CONST_SLICE;
     lit->len = 3;
     Vector *list = vector_create_ptr();
@@ -765,7 +765,7 @@ void klr_destroy_module(KlrModule *m) {}
 static KlrFunc *new_func(TypeSpec *ret, char *name)
 {
     KlrFunc *fn = mm_alloc_obj(fn);
-    INIT_KLR_VALUE(fn, KLR_VALUE_FUNC, ret, name);
+    INIT_KLR_VALUE(fn, KLR_VALUE_FUNC, klr_lower_type(ret), name);
 
     init_list(&fn->bb_list);
     init_list(&fn->edge_list);
@@ -841,7 +841,7 @@ KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name)
 {
     KlrFunc *fn = (KlrFunc *)val;
     KlrParam *param = mm_alloc_obj(param);
-    INIT_KLR_VALUE(param, KLR_VALUE_PARAM, ts, name);
+    INIT_KLR_VALUE(param, KLR_VALUE_PARAM, klr_lower_type(ts), name);
     vector_push_back(&fn->params, &param);
     return (KlrValue *)param;
 }
@@ -849,7 +849,7 @@ KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name)
 static KlrGlobal *new_global(TypeSpec *ts, char *name)
 {
     KlrGlobal *global = mm_alloc_obj(global);
-    INIT_KLR_VALUE(global, KLR_VALUE_GLOBAL, ts, name);
+    INIT_KLR_VALUE(global, KLR_VALUE_GLOBAL, klr_lower_type(ts), name);
     return global;
 }
 
@@ -880,7 +880,7 @@ KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name)
 static KlrField *new_field(TypeSpec *ts, char *name)
 {
     KlrField *field = mm_alloc_obj(field);
-    INIT_KLR_VALUE(field, KLR_VALUE_FIELD, ts, name);
+    INIT_KLR_VALUE(field, KLR_VALUE_FIELD, klr_lower_type(ts), name);
     return field;
 }
 
@@ -904,7 +904,7 @@ KlrValue *klr_new_ext_field(TypeSpec *ts, char *name, int index)
 KlrValue *klr_add_intf(KlrTrait *trait, TypeSpec *ret, char *name)
 {
     KlrIntf *intf = mm_alloc_obj(intf);
-    INIT_KLR_VALUE(intf, KLR_VALUE_INTF, ret, name);
+    INIT_KLR_VALUE(intf, KLR_VALUE_INTF, klr_lower_type(ret), name);
     intf->trait = trait;
     intf->module = trait->module;
     intf->intf_index = vector_size(&trait->intfs);

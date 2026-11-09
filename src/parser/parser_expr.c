@@ -102,6 +102,11 @@ static void parse_ident(ParserState *ps, Expr *exp)
         return;
     }
 
+    if (sym->kind == SYM_ENUM) {
+        kl_error(id->loc, "enum '%s' is not a value, use '%s.MEMBER'", id->name, id->name);
+        return;
+    }
+
     if (sym->kind == SYM_VAR) {
         if (sym->status == SYM_UNRESOLVED) {
             parse_stmt(ps, sym->arg);
@@ -143,7 +148,8 @@ static void parse_ident(ParserState *ps, Expr *exp)
         }
     }
 
-    if (sym->flags & SYM_FLAGS_CONST && exp->expected) {
+    /* a constant int variable never converts to an enum */
+    if (sym->flags & SYM_FLAGS_CONST && exp->expected && !type_is_enum(exp->expected)) {
         log_info("resolving constant variable '%s' with expected type:", sym->name);
         log_type_spec(exp->expected);
         Literal *lit = ((VarSymbol *)sym)->lit;
@@ -260,6 +266,27 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     }
 
     lit->ival = (uint64_t)lit->ival_128;
+
+    /* an int literal converts to an enum only when it is one of the member values */
+    if (type_is_enum(ts)) {
+        if (!narrow_lit_int(ps, lit, int64_type_spec(), 1)) {
+            /* the overflow is reported, keep the enum type to not report it again */
+            lit->ts = ts;
+            return;
+        }
+        EnumSymbol *enum_sym = get_symbol_by_id(ts->sym_id);
+        EnumMemberSym *item;
+        vector_foreach_ptr(item, &enum_sym->members) {
+            if (item->val == (int64_t)lit->ival_128) {
+                lit->ts = ts;
+                return;
+            }
+        }
+        kl_error(lit->loc, "%s is not a valid value of enum '%s'", lit->orginal, enum_sym->name);
+        /* keep the enum type: the error is reported once, not again as a type mismatch */
+        lit->ts = ts;
+        return;
+    }
 
     if (type_is_union(ts)) {
         /* A literal narrows to the first integer member of the union able to
@@ -839,6 +866,14 @@ static void map_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected, Vect
  * are parsed again with it. A non-empty list or dict literal takes the expected type when its
  * elements fit it, e.g. `["a", 1]` passed as a list[any?].
  */
+int check_int_to_enum(ParserState *ps, Loc loc, TypeSpec *dst, TypeSpec *src)
+{
+    if (!dst || !src || !type_is_enum(dst) || src->kind != TYPE_INT) return 0;
+    Symbol *enum_sym = get_symbol_by_id(dst->sym_id);
+    kl_error(loc, "only an int literal can be converted to enum '%s'.", enum_sym->name);
+    return 1;
+}
+
 void parse_literal_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected)
 {
     Vector *vec = NULL;
@@ -890,6 +925,7 @@ static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i
         ArgInfo *arg = vector_get(params, i);
         if (!strcmp(arg->name, kw->key.name)) {
             parse_literal_as_expected(ps, kw->value, arg->ts);
+            if (check_int_to_enum(ps, kw->loc, arg->ts, kw->value->ts)) return;
             if (!type_spec_compatible(arg->ts, kw->value->ts)) {
                 kl_error_incompatible_type(kw->loc, arg->ts, kw->value->ts);
             }
@@ -923,7 +959,9 @@ static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int 
             }
             log_info("kw-param: '%s', check value passed by positional argument", arg->name);
             parse_literal_as_expected(ps, e, arg->ts);
-            if (!type_spec_compatible(arg->ts, e->ts)) {
+            if (check_int_to_enum(ps, e->loc, arg->ts, e->ts)) {
+                // reported
+            } else if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error_incompatible_type(e->loc, arg->ts, e->ts);
             }
             ++i__;
@@ -1032,7 +1070,9 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 parse_literal_as_expected(ps, e, arg->ts);
             }
 
-            if (!type_spec_compatible(arg->ts, e->ts)) {
+            if (check_int_to_enum(ps, e->loc, arg->ts, e->ts)) {
+                // reported
+            } else if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error_incompatible_type(e->loc, arg->ts, e->ts);
             }
 
@@ -2383,6 +2423,32 @@ static void copy_tps(Vector *dst, Vector *src)
     }
 }
 
+static void parse_enum_member(ParserState *ps, DotExpr *dot, EnumSymbol *enum_sym)
+{
+    Expr *exp = (Expr *)dot;
+    if (dot->opt_or_bang != DOT_NORMAL) {
+        kl_error(dot->id.loc, "enum member can't use `!.` or `?.`");
+        return;
+    }
+
+    if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
+        kl_error(dot->id.loc, "cannot assign to enum member '%s'", dot->id.name);
+        return;
+    }
+
+    EnumMemberSym *item;
+    vector_foreach_ptr(item, &enum_sym->members) {
+        if (str_equal(item->name, dot->id.name)) {
+            exp->ts = enum_sym->ts;
+            /* irgen folds the member into its int64 value via the enum symbol */
+            exp->sym = (Symbol *)enum_sym;
+            return;
+        }
+    }
+
+    kl_error(dot->id.loc, "enum '%s' has no member '%s'", enum_sym->name, dot->id.name);
+}
+
 static void parse_dot(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
@@ -2396,9 +2462,29 @@ static void parse_dot(ParserState *ps, Expr *exp)
      * stop analysing the expression instead of dereferencing NULL. */
     if (!lhs) return;
 
+    /* `A.MEMBER`: the only way to refer an enum member */
+    if (lhs->kind == EXPR_ID_KIND) {
+        Symbol *esym = find_symbol(ps, &((IdentExpr *)lhs)->id);
+        if (esym && esym->kind == SYM_ENUM) {
+            parse_enum_member(ps, dot, (EnumSymbol *)esym);
+            return;
+        }
+    }
+
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
+
+    if (lhs->sym && lhs->sym->kind == SYM_ENUM) {
+        parse_enum_member(ps, dot, (EnumSymbol *)lhs->sym);
+        return;
+    }
+
+    if (type_is_enum(lhs->ts)) {
+        kl_error(lhs->loc, "enum '%s' has no members.",
+                 ((Symbol *)get_symbol_by_id(lhs->ts->sym_id))->name);
+        return;
+    }
 
     // '?.' is disabled for now: it type-checks but irgen cannot emit it yet
     if (opt_or_bang == DOT_OPTIONAL) {
@@ -2899,6 +2985,11 @@ static void parse_slice_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
  */
 static TypeSpec *type_arg_of_expr(Expr *arg, ParserState *ps)
 {
+    if (arg->kind == EXPR_ID_KIND) {
+        Symbol *sym = find_symbol(ps, &((IdentExpr *)arg)->id);
+        if (sym && sym->kind == SYM_ENUM) return sym->ts;
+    }
+
     /* Foo[Bar?](), Foo[Bar[Z, int]?]() */
     if (arg->kind == EXPR_OPTIONAL_TYPE_KIND) {
         TypeSpec *src_ts = type_arg_of_expr(((OptionalTypeExpr *)arg)->src, ps);
@@ -2940,6 +3031,11 @@ static TypeSpec *type_arg_of_expr(Expr *arg, ParserState *ps)
     if (type_is_optional(arg->ts)) return arg->ts;
 
     Symbol *arg_sym = arg->sym;
+    if (arg_sym && arg_sym->kind == SYM_ENUM && arg->kind == EXPR_DOT_KIND) {
+        Expr *lhs = ((DotExpr *)arg)->lhs;
+        if (lhs && lhs->ts && lhs->ts->kind == TYPE_PACKAGE) return arg_sym->ts;
+    }
+
     if (arg_sym && (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT)) {
         return ((KlassSymbol *)arg_sym)->instance_ts;
     }
@@ -3493,6 +3589,11 @@ static void parse_unary(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
+    if (type_is_enum(e->ts)) {
+        kl_error(unary->op_loc, "enum does not support unary operators.");
+        return;
+    }
+
     TypeSpec *orig_ts = e->ts;
 
     if (op == UNARY_PLUS) {
@@ -3642,9 +3743,24 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     if (!lhs->ts || !rhs->ts) return;
 
-    if (op == BINARY_SHL || op == BINARY_SHR) check_shift_count(ps, lhs->ts, rhs);
+    if (type_is_enum(lhs->ts) || type_is_enum(rhs->ts)) {
+        if (op != BINARY_EQ && op != BINARY_NEQ) {
+            kl_error(bin->op_loc, "enum only supports '==' and '!=', not '%s'.",
+                     get_binary_op_str(op));
+            return;
+        }
+        if (type_is_enum(lhs->ts) && type_is_enum(rhs->ts) && lhs->ts != rhs->ts) {
+            kl_error(bin->op_loc, "cannot compare different enums.");
+            return;
+        }
+    }
 
-    if (type_is_optional(lhs->ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
+    TypeSpec *lhs_op_ts = type_is_enum(lhs->ts) ? int64_type_spec() : lhs->ts;
+    TypeSpec *rhs_op_ts = type_is_enum(rhs->ts) ? int64_type_spec() : rhs->ts;
+
+    if (op == BINARY_SHL || op == BINARY_SHR) check_shift_count(ps, lhs_op_ts, rhs);
+
+    if (type_is_optional(lhs_op_ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
         Symbol *opt_sym = lhs->sym;
         if (opt_sym && opt_sym->kind == SYM_SHADOW_VAR) {
             // check shadow variable nil state
@@ -3667,7 +3783,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     if (op == BINARY_EQ || op == BINARY_NEQ) {
         // special handling for optional and nil comparison
-        if (type_is_optional(lhs->ts) && type_is_optional(rhs->ts)) {
+        if (type_is_optional(lhs_op_ts) && type_is_optional(rhs_op_ts)) {
             if (expr_is_literal_null(lhs) || expr_is_literal_null(rhs)) {
                 // allow optional type compared with nil literal
                 exp->ts = bool_type_spec();
@@ -3676,13 +3792,13 @@ static void parse_binary(ParserState *ps, Expr *exp)
                 return;
             }
 
-            if (!type_spec_compatible(lhs->ts, rhs->ts)) {
+            if (!type_spec_compatible(lhs_op_ts, rhs_op_ts)) {
                 kl_error(lhs->loc, "two optional types are not compatible for '%s' operator.",
                          get_binary_op_str(op));
                 log_info("lhs type:");
-                log_type_spec(lhs->ts);
+                log_type_spec(lhs_op_ts);
                 log_info("rhs type:");
-                log_type_spec(rhs->ts);
+                log_type_spec(rhs_op_ts);
             } else {
                 exp->ts = bool_type_spec();
                 log_info("binary operator '%s' resolved.", get_binary_op_str(op));
@@ -3691,7 +3807,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
             return;
         }
 
-        if (type_is_optional(lhs->ts) && !type_is_optional(rhs->ts)) {
+        if (type_is_optional(lhs_op_ts) && !type_is_optional(rhs_op_ts)) {
             kl_error(bin->op_loc,
                      "cannot compare optional type with non-optional type for '%s' "
                      "operator.",
@@ -3699,7 +3815,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
             return;
         }
 
-        if (!type_is_optional(lhs->ts) && type_is_optional(rhs->ts)) {
+        if (!type_is_optional(lhs_op_ts) && type_is_optional(rhs_op_ts)) {
             kl_error(bin->op_loc,
                      "cannot compare non-optional type with optional type for '%s' "
                      "operator.",
@@ -3710,7 +3826,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
         // fall through to normal operator resolution
     }
 
-    Symbol *sym = get_symbol_by_id(lhs->ts->sym_id);
+    Symbol *sym = get_symbol_by_id(lhs_op_ts->sym_id);
     if (!sym) {
         kl_error(bin->op_loc, "type is not found.");
         return;
@@ -3719,7 +3835,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     /* `&&` / `||` are bool-only and are not overloadable (only bool may define `__and__` /
      * `__or__`): fail early instead of emitting a non-bool branch.
      */
-    if ((op == BINARY_AND || op == BINARY_OR) && !type_is_bool(lhs->ts)) {
+    if ((op == BINARY_AND || op == BINARY_OR) && !type_is_bool(lhs_op_ts)) {
         kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.", get_binary_op_str(op),
                  sym->name);
         return;
@@ -3739,7 +3855,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
         // the automatic Equatable: the operands are two values of the type parameter,
         // compared at runtime by their own __eq__ / __ne__ (irgen emits a plain compare)
         if (is_auto_trait_func(ps, fn)) {
-            if (!type_spec_compatible(lhs->ts, rhs->ts)) {
+            if (!type_spec_compatible(lhs_op_ts, rhs_op_ts)) {
                 kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
                          get_binary_op_str(op), sym->name);
                 return;
@@ -3781,13 +3897,13 @@ static void parse_binary(ParserState *ps, Expr *exp)
     ASSERT(arg_info);
 
     TypeSpec *arg_ts = arg_info->ts;
-    if (!type_spec_compatible(arg_ts, rhs->ts)) {
+    if (!type_spec_compatible(arg_ts, rhs_op_ts)) {
         kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
                  get_binary_op_str(op), sym->name);
         log_info("expected type:");
         log_type_spec(arg_ts);
         log_info("actual type:");
-        log_type_spec(rhs->ts);
+        log_type_spec(rhs_op_ts);
         return;
     }
 

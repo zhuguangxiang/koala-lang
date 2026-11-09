@@ -503,6 +503,7 @@ static void __ts_free(TypeSpec *ts)
         }
         case TYPE_NO_TYPE:
         case TYPE_INT:
+        case TYPE_ENUM:
         case TYPE_FLOAT:
         case TYPE_BFLOAT16:
         case TYPE_BOOL:
@@ -757,6 +758,22 @@ TypeSpec *pkg_type_spec(char *path)
     return type_spec_intern(ts);
 }
 
+TypeSpec *enum_type_spec(char *path, char *name)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_ENUM;
+    ts->enum_type.pkg = atom(path);
+    ts->enum_type.name = atom(name);
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
+}
+
 static int cmp_typespec_by_type_id(const void *a, const void *b)
 {
     TypeSpec **ts1 = (TypeSpec **)a;
@@ -859,6 +876,16 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
 
     TypeKind kind = ts->kind;
     switch (kind) {
+        case TYPE_ENUM: {
+            buf_write_char(buf, 'E');
+            if (ts->enum_type.pkg) {
+                buf_write_str(buf, ts->enum_type.pkg);
+                buf_write_char(buf, '.');
+            }
+            buf_write_str(buf, ts->enum_type.name);
+            buf_write_str(buf, ";");
+            break;
+        }
         case TYPE_INT: {
             if (ts->int_flt_info.width == 1) {
                 char ch = ts->int_flt_info.sign ? 'c' : 'C';
@@ -1053,6 +1080,33 @@ static TypeSpec *__to_mangled_type(char *s, int len, Vector *args)
     }
 }
 
+static TypeSpec *__to_enum_type(char *s, int len)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_ENUM;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+
+    int dot = -1;
+    for (int i = 0; i < len; i++) {
+        if (s[i] == '.') dot = i;
+    }
+
+    if (dot >= 0) {
+        ts->enum_type.pkg = atom_nstr(s, dot);
+        ts->enum_type.name = atom_nstr(s + dot + 1, len - dot - 1);
+    } else {
+        ts->enum_type.name = atom_nstr(s, len);
+    }
+
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
+}
+
 static TypeSpec *__to_typespec(char **str)
 {
     char *s = *str;
@@ -1066,6 +1120,14 @@ static TypeSpec *__to_typespec(char **str)
     Vector *args;
 
     switch (ch) {
+        case 'E': {
+            s++;
+            k = s;
+            while (*s != ';' && *s != '\0') s++;
+            ts = __to_enum_type(k, s - k);
+            if (*s == ';') s++;
+            break;
+        }
         case 'L': {
             s++;
             k = s;
@@ -1251,6 +1313,9 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
 
     if (ts->kind == TYPE_NO_TYPE) {
         buf_write_str(buf, "<NO-TYPE>");
+    } else if (ts->kind == TYPE_ENUM) {
+        Symbol *esym = get_symbol_by_id(ts->sym_id);
+        buf_write_str(buf, esym->name);
     } else if (ts->kind == TYPE_INT) {
         if (!ts->int_flt_info.sign) {
             buf_write_char(buf, 'u');
@@ -1546,6 +1611,11 @@ static void type_spec_str_func_name(TypeSpec *ts, Buffer *buf)
     TypeKind kind = ts->kind;
 
     switch (kind) {
+        case TYPE_OPTIONAL:
+        case TYPE_ENUM: {
+            type_spec_to_str(ts, buf);
+            break;
+        }
         case TYPE_INT: {
             if (ts->int_flt_info.width == 1) {
                 char *s = ts->int_flt_info.sign ? "int8" : "uint8";
@@ -1661,6 +1731,10 @@ bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b)
         case TYPE_BFLOAT16: {
             return a->int_flt_info.width == b->int_flt_info.width &&
                    a->int_flt_info.sign == b->int_flt_info.sign;
+        }
+
+        case TYPE_ENUM: {
+            return a->sym_id == b->sym_id;
         }
 
         case TYPE_NO_TYPE:

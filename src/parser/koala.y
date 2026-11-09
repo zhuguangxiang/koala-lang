@@ -209,6 +209,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
     ParamDecl *param;
     IdentType kls_name;
     AnnotParam *annot_param;
+    EnumMember *enum_member;
 }
 
 %token FROM
@@ -220,6 +221,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %token FUNC
 %token CLASS
 %token TRAIT
+%token ENUM
 %token IF
 %token ELSE
 %token WHILE
@@ -301,6 +303,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %token COALESCE
 
 %token CONST_PLACEHOLDER
+%token FUNC_LPAREN
 
 %type<stmt> import_stmt
 %type<stmt> link_stmt
@@ -322,6 +325,9 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<stmt> prefix_field_decl
 %type<stmt> method_decl
 %type<stmt> trait_decl
+%type<stmt> enum_decl
+%type<vec> enum_member_list
+%type<enum_member> enum_member
 %type<stmt> class_decl
 %type<stmt> func_proto_decl
 %type<stmt> trait_method
@@ -376,7 +382,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<type_spec> union_opt_type
 %type<type_spec> return_type
 %type<type_spec> const_type
-%type<type_spec> lambda_type
+%type<type_spec> func_type
 
 %type<vec> const_expr_list
 %type<vec> id_as_list
@@ -452,6 +458,14 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %destructor { free_param_list($$); } param_list id_type_arg_list kw_arg_list
 %destructor { free_ident_type_list($$); } tuple_decl_list
 %destructor { vector_destroy($$); } id_as_list id_list int_lit_list
+%destructor { mm_free($$); } <enum_member>
+%destructor {
+    EnumMember *m;
+    vector_foreach(m, $$) {
+        mm_free(m);
+    }
+    vector_destroy($$);
+} enum_member_list
 
 %locations
 %parse-param {ParserState *ps}
@@ -681,6 +695,15 @@ top_stmt
         $$ = $2;
         if ($$) stmt_set_prefix($$, $1);
     }
+    | enum_decl
+    {
+        $$ = $1;
+    }
+    | access enum_decl
+    {
+        $$ = $2;
+        if ($$) stmt_set_prefix($$, $1);
+    }
     | semi
     {
         $$ = NULL;
@@ -740,7 +763,7 @@ type_alias
     {
         type_spec_free($4);
     }
-    | TYPE ID '=' lambda_type
+    | TYPE ID '=' func_type
     {
         type_spec_free($4);
     }
@@ -900,9 +923,8 @@ optional_type
     {
         $$ = $1;
     }
-    | lambda_type
+    | func_type
     {
-        printf("anonymous func type\n");
         type_spec_free($1);
         $$ = NULL;
     }
@@ -958,39 +980,25 @@ type
     }
     ;
 
-lambda_type
-    : '|' base_type_list '|' base_type
+func_type
+    : FUNC_LPAREN base_type_list ')' base_type
     {
-        printf("optional func-type\n");
         free_optional_type_list($2);
         type_spec_free($4);
         $$ = NULL;
     }
-    | '|' base_type_list '|'
+    | FUNC_LPAREN base_type_list ')'
     {
-        printf("no return func-type\n");
         free_optional_type_list($2);
         $$ = NULL;
     }
-    | OR base_type
+    | FUNC_LPAREN ')' base_type
     {
-        printf("no parameter func-type\n");
-        type_spec_free($2);
+        type_spec_free($3);
         $$ = NULL;
     }
-    | OR
+    | FUNC_LPAREN ')'
     {
-        printf("no return no parameter func-type\n");
-        $$ = NULL;
-    }
-    | anony_type_with_brackets
-    {
-        printf("anonymous func type with brackets\n");
-        $$ = NULL;
-    }
-    | anony_type_with_brackets '?'
-    {
-        printf("optional anonymous func type with brackets\n");
         $$ = NULL;
     }
     ;
@@ -1005,29 +1013,6 @@ base_type_list
     {
         vector_push_back($1, &$3);
         $$ = $1;
-    }
-    ;
-
-anony_type_with_brackets
-    : LAMBDA_START base_type_list '|' base_type '}'
-    {
-        printf("optional func-type\n");
-        free_optional_type_list($2);
-        type_spec_free($4);
-    }
-    | LAMBDA_START base_type_list '|' '}'
-    {
-        printf("no return func-type\n");
-        free_optional_type_list($2);
-    }
-    | LAMBDA_START_OR base_type '}'
-    {
-        printf("no parameter func-type\n");
-        type_spec_free($2);
-    }
-    | LAMBDA_START_OR '}'
-    {
-        printf("no return no parameter func-type\n");
     }
     ;
 
@@ -1952,7 +1937,7 @@ func_proto_decl
     }
     | FUNC ID error
     {
-        kl_error(loc(@3), "expected a function prototype.");
+        kl_error(loc(@3), "expected a valid function declaration.");
         yy_clear_ok;
         $$ = NULL;
     }
@@ -2516,6 +2501,58 @@ method_decl
     | semi
     {
         $$ = NULL;
+    }
+    ;
+
+enum_decl
+    : ENUM ID '{' enum_member_list '}'
+    {
+        Ident id = {$2, loc(@2)};
+        $$ = stmt_from_enum(id, $4);
+        stmt_set_loc($$, lloc(@1, @5));
+    }
+    | ENUM ID '{' enum_member_list enum_sep '}'
+    {
+        Ident id = {$2, loc(@2)};
+        $$ = stmt_from_enum(id, $4);
+        stmt_set_loc($$, lloc(@1, @6));
+    }
+    ;
+
+/* members are separated by ',', ';' or a newline(an inserted ';') */
+enum_sep
+    : ','
+    | semi
+    ;
+
+enum_member_list
+    : enum_member
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | enum_member_list enum_sep enum_member
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    ;
+
+enum_member
+    : ID
+    {
+        Ident id = {$1, loc(@1)};
+        $$ = enum_member_new(id, 0, 0, loc(@1));
+    }
+    | ID '=' INT_LITERAL
+    {
+        Ident id = {$1, loc(@1)};
+        __int128 v = $3;
+        if (v > INT64_MAX || v < INT64_MIN) {
+            kl_error(loc(@3), "enum member '%s' overflows int64", $1);
+            v = 0;
+        }
+        $$ = enum_member_new(id, 1, (int64_t)v, loc(@3));
     }
     ;
 
@@ -4071,12 +4108,12 @@ tuple_expr
     ;
 
 lambda_expr
-    : LAMBDA_START lambda_params '|' expr '}'
+    : LAMBDA_START lambda_params '|' value_expr '}'
     {
         expr_free($4);
         $$ = NULL;
     }
-    | LAMBDA_START_OR expr '}'
+    | LAMBDA_START_OR value_expr '}'
     {
         expr_free($2);
         $$ = NULL;

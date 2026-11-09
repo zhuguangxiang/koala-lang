@@ -24,7 +24,10 @@ extern "C" {
 #define ITEM_FUNC      8
 #define ITEM_CLASS     9
 #define ITEM_LINEINFO  10
-#define ITEM_MAX       11
+#define ITEM_ENUM      11
+#define ITEM_MAX       12
+
+#define KLC_ENUM_METADATA_VERSION ((0 << 16) | (30 << 8) | 0)
 
 typedef struct _KlcFile {
     char *path;
@@ -196,6 +199,16 @@ typedef struct _KlcKlass {
     Vector intf_table;
 } KlcKlass;
 
+typedef struct _KlcEnumValue {
+    uint16_t name_index;
+    int64_t value;
+} KlcEnumValue;
+
+typedef struct _KlcEnum {
+    uint16_t name_index;
+    Vector mbrs;
+} KlcEnum;
+
 typedef struct _KlcCode {
     /* name index */
     uint16_t name_index;
@@ -245,6 +258,8 @@ KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_type, int flags);
 KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags);
 KlcIntfEntry *klc_klass_add_intf_entry(KlcKlass *kls);
+KlcEnum *klc_add_enum(KlcFile *klc, char *name);
+void klc_enum_add_value(KlcEnum *enm, uint16_t name_index, int64_t value);
 
 uint16_t klc_add_none(KlcFile *klc);
 uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width);
