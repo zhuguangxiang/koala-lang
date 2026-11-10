@@ -1,0 +1,85 @@
+// RUN: koala %s | filecheck %s
+// A new list or dict literal takes its element type from the expected type, as Go and
+// Rust do: each class element is converted to the trait element type when the literal
+// is built. Converting an existing container is still an error (test_generic_invariant).
+
+trait Animal {
+    func name() str
+}
+
+class Dog : Animal {
+    func __init__() {}
+
+    pub func name() str = "dog"
+}
+
+class Cat : Animal {
+    func __init__() {}
+
+    pub func name() str = "cat"
+}
+
+func names(xs list[Animal]) str {
+    var out = ""
+    for x in xs {
+        out += x.name() + " "
+    }
+    return out
+}
+
+func first(xs Iterable[Animal]) str {
+    for x in xs {
+        return x.name()
+    }
+    return "none"
+}
+
+func main() {
+    // argument
+    print(names([Dog(), Cat()]))
+
+    // variable
+    let pets list[Animal] = [Cat(), Dog()]
+    print(pets[0].name(), pets[1].name())
+
+    // an element already of the trait type is kept
+    let a Animal = Dog()
+    let mixed list[Animal] = [a, Cat()]
+    print(names(mixed))
+
+    // Iterable target
+    let it Iterable[Animal] = [Cat()]
+    print(first(it))
+
+    // dict value
+    let zoo dict[str, Animal] = {"d": Dog(), "c": Cat()}
+    print(zoo["d"].name(), zoo["c"].name())
+
+    // nested literal
+    let grid list[list[Animal]] = [[Dog()], [Cat(), Dog()]]
+    print(grid[1][0].name(), grid[1][1].name())
+
+    // return
+    print(names(make()))
+
+    // any and plain elements keep their behavior
+    let anys list[any?] = ["a", 1, nil]
+    print(anys.len())
+    let ints list[int] = [1, 2, 3]
+    print(ints[2])
+}
+
+func make() list[Animal] {
+    return [Dog()]
+}
+
+// CHECK: dog cat
+// CHECK-NEXT: cat dog
+// CHECK-NEXT: dog cat
+// CHECK-NEXT: cat
+// CHECK-NEXT: dog cat
+// CHECK-NEXT: cat dog
+// CHECK-NEXT: dog
+// CHECK-NEXT: 3
+// CHECK-NEXT: 3
+// CHECK-NOT: {{.}}

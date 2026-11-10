@@ -1,0 +1,233 @@
+// RUN: koala %s | filecheck %s
+// A class value converted to a trait without generics: locals, parameters, return values,
+// fields, globals and the other places a value goes into a slot of a trait type.
+
+trait Animal {
+    func name() str
+}
+
+trait Pet : Animal {
+    func owner() str
+}
+
+class Dog : Animal {
+    func __init__() {}
+
+    pub func name() str = "dog"
+}
+
+class Cat : Pet {
+    func __init__() {}
+
+    pub func name() str = "cat"
+
+    pub func owner() str = "ann"
+}
+
+class Zoo {
+    pub var a Animal
+    pub var o Animal?
+
+    func __init__(x Animal) {
+        a = x
+        o = nil
+    }
+
+    pub func take(x Animal) str = x.name()
+
+    pub func give() Animal = Dog()
+
+    static func make() Animal = Cat()
+
+    pub func me() Animal = Self2()
+}
+
+class Self2 : Animal {
+    func __init__() {}
+
+    pub func name() str = "self2"
+
+    pub func me() Animal = self
+}
+
+var g Animal = Dog()
+
+func show(x Animal) str = x.name()
+
+func show_opt(x Animal?) str {
+    if let v = x { return v.name() }
+    return "nil"
+}
+
+func show_kw(prefix str, x Animal? = nil) str {
+    if let v = x { return prefix + v.name() }
+    return prefix + "none"
+}
+
+func ret() Animal = Dog()
+
+func ret_block() Animal {
+    return Cat()
+}
+
+func ret_opt() Animal? = Dog()
+
+func ret_opt_block() Animal? {
+    return Dog()
+}
+
+func ret_if(b bool) Animal {
+    if b { return Dog() }
+    return Cat()
+}
+
+func ret_expr(b bool) Animal = if b { Dog() } else { Cat() }
+
+func ret_pet() Pet = Cat()
+
+func ret_up() Animal = ret_pet()
+
+func ret_local() Animal {
+    let d = Dog()
+    return d
+}
+
+func main() {
+    // locals
+    let a1 Animal = Dog()
+    var a2 Animal = Dog()
+    a2 = Cat()
+    let d = Dog()
+    let a3 Animal = d
+    let a4 Animal = Cat()
+    print(a1.name(), a2.name(), a3.name(), a4.name())
+
+    // optional locals
+    var o1 Animal? = nil
+    o1 = Cat()
+    let dopt Dog? = Dog()
+    let o2 Animal? = dopt
+    var o3 Animal? = Dog()
+    print(o1!.name(), o2!.name(), o3!.name())
+
+    // trait to parent trait
+    let p Pet = Cat()
+    let a5 Animal = p
+    print(a5.name(), show(p))
+
+    // parameters
+    print(show(Dog()), show(d), show_opt(Dog()), show_opt(nil))
+    print(show_kw("k:", x = Cat()), show_kw("d:"))
+    print(Zoo(Dog()).take(Cat()), Zoo(Cat()).a.name())
+
+    // return values
+    print(ret().name(), ret_block().name(), ret_opt()!.name(), ret_opt_block()!.name())
+    print(ret_if(true).name(), ret_if(false).name(), ret_expr(true).name(), ret_expr(false).name())
+    print(ret_up().name(), ret_local().name(), ret_pet().owner())
+    print(Zoo(Dog()).give().name(), Zoo.make().name(), Self2().me().name(), show(ret()))
+
+    // fields and globals
+    let z = Zoo(Dog())
+    z.a = Cat()
+    z.o = Cat()
+    print(z.a.name(), z.o!.name(), g.name())
+    g = Cat()
+    print(g.name())
+
+    // if expression, tuple destructuring, reassignment in a branch or loop
+    let b = true
+    let a6 Animal = if b { Dog() } else { Cat() }
+    let (a7 Animal, n int) = (Dog(), 1)
+    var a8 Animal = Dog()
+    var m = 0
+    (a8, m) = (Cat(), 2)
+    var a9 Animal = Dog()
+    for _ in range(2) { a9 = Cat() }
+    print(a6.name(), a7.name(), n, a8.name(), m, a9.name())
+
+    // container elements
+    let xs = list[Animal]()
+    xs.append(Dog())
+    xs[0] = Cat()
+    let dd = dict[str, Animal]()
+    dd["a"] = Dog()
+    print(xs[0].name(), dd["a"].name())
+
+    // narrowing
+    let a10 Animal = Dog()
+    print(a10 is Dog, (a10 as Dog)!.name())
+    let o4 Animal? = Dog()
+    if let v = o4 { print(v.name()) }
+    var o5 Animal? = Dog()
+    while let v = o5 {
+        print(v.name())
+        o5 = nil
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Disabled: written as they should work, but crash or fail today, or need a
+// decision. Enable each one when its item in docs/Koala_TODO.md is closed.
+// ---------------------------------------------------------------------------
+//
+// [TODO §90, crash] compiler abort (isel.c:934): `let` optional trait, then `!`
+//     let o Animal? = Dog()
+//     print(o!.name())                        // expect: dog
+//     let d2 = Dog()
+//     let o2 Animal? = d2
+//     let b = o2!
+//     print(b.name())                         // expect: dog
+//     let p2 Pet = Cat()
+//     let o3 Animal? = p2
+//     print(o3!.name())                       // expect: cat
+//
+// [TODO §90, crash] VM crash: class values passed to a `...Trait` variadic
+//     func va_names(xs ...Animal) str {
+//         var s = ""
+//         for x in xs { s += x.name() }
+//         return s
+//     }
+//     print(va_names(Dog(), Cat()))           // expect: dogcat
+//     print(va_names(Dog()))                  // expect: dog
+//     let a Animal = Dog()
+//     print(va_names(a, Cat()))               // expect: dogcat
+//
+// [TODO §89/§90, to confirm] a tuple literal does not take a trait element type,
+// while tuple destructuring `let (a Animal, n int) = (Dog(), 1)` does
+//     let t (Animal, int) = (Dog(), 1)
+//     print(t[0].name(), t[1])                // expect: dog 1
+//     func ret_pair() (Animal, int) = (Dog(), 1)
+//     let (a, n) = ret_pair()
+//     print(a.name(), n)                      // expect: dog 1
+//
+// [TODO §90, to confirm] `==` on two trait values
+//     let a Animal = Dog()
+//     let b Animal = a
+//     print(a == b)                           // expect: true
+//
+// [TODO §90, to confirm] an if expression as a call argument
+//     let c = false
+//     print(show(if c { Dog() } else { Cat() }))   // expect: cat
+//
+// [TODO §90, not implemented] `?.`
+//     let o Animal? = Dog()
+//     print(o?.name())                        // expect: dog
+
+// CHECK: dog cat dog cat
+// CHECK-NEXT: cat dog dog
+// CHECK-NEXT: cat cat
+// CHECK-NEXT: dog dog dog nil
+// CHECK-NEXT: k:cat d:none
+// CHECK-NEXT: cat cat
+// CHECK-NEXT: dog cat dog dog
+// CHECK-NEXT: dog cat dog cat
+// CHECK-NEXT: cat dog ann
+// CHECK-NEXT: dog cat self2 dog
+// CHECK-NEXT: cat cat dog
+// CHECK-NEXT: cat
+// CHECK-NEXT: dog dog 1 cat 2 cat
+// CHECK-NEXT: cat dog
+// CHECK-NEXT: true dog
+// CHECK-NEXT: dog
+// CHECK-NEXT: dog
+// CHECK-NOT: {{.}}

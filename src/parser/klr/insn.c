@@ -208,8 +208,10 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
         panic("'move %%x, %%v' requires a local/param var.");
     }
 
+    /* a function is a value like any other: `let f = add1` moves it into a local */
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_PARAM &&
-        val->kind != KLR_VALUE_INSN) {
+        val->kind != KLR_VALUE_INSN && val->kind != KLR_VALUE_FUNC &&
+        val->kind != KLR_VALUE_EXT_FUNC) {
         panic("'move %%x, %%v' requires a reg value.");
     }
 
@@ -280,7 +282,8 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
     }
 
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
-        val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_EXT_GLOBAL) {
+        val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_EXT_GLOBAL &&
+        val->kind != KLR_VALUE_FUNC && val->kind != KLR_VALUE_EXT_FUNC) {
         panic("'set_global %%g, %%v' requires a reg value.");
     }
 

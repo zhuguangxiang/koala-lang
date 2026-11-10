@@ -142,6 +142,21 @@ static void print_const(KlrConst *v, FILE *fp)
 static void print_operand(KlrOper *oper, FILE *fp)
 {
     KlrValue *val = oper_value(oper);
+
+    if (klr_is_func(val)) {
+        KlrFunc *fn = (KlrFunc *)val;
+        fprintf(fp, "@%s", fn->name);
+        print_type(fn->proto, fp);
+        return;
+    }
+
+    if (klr_is_extfunc(val)) {
+        KlrExtFunc *fn = (KlrExtFunc *)val;
+        fprintf(fp, "@%s", fn->name);
+        print_type(fn->proto, fp);
+        return;
+    }
+
     if (klr_is_const(val)) {
         print_const((KlrConst *)val, fp);
     } else {
@@ -220,6 +235,14 @@ static void print_unary(KlrInsn *insn, char *op, FILE *fp)
 static void print_no_value_insn(const char *name, KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "%s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
+static void print_move_insn(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "move ");
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -403,7 +426,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
 
 static void print_print(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "print ");
+    fprintf(fp, "` ");
 
     KlrOper *oper;
     for (int i = 0; i < insn->num_opers; i++) {
@@ -627,7 +650,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_MOVE:
-            print_no_value_insn(name, insn, fp);
+            print_move_insn(insn, fp);
             break;
 
         case OP_MOVE_TRUE:

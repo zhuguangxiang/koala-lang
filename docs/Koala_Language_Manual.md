@@ -68,6 +68,8 @@ From these principles follow a number of advanced features that most languages d
 - [Functions](#functions)
 - [Classes and Interfaces](#classes-and-interfaces)
 - [Generics](#generics)
+  - [Invariance](#invariance)
+  - [Inferring Type Arguments](#inferring-type-arguments)
   - [Generic Methods](#generic-methods)
   - [Instantiating Generic Functions](#instantiating-generic-functions)
 - [Operator Overloading](#operator-overloading)
@@ -1141,6 +1143,95 @@ let empty list[int] = list[int]()
 
 Note the asymmetry for parameter types: a bare trait name is not a valid parameter type —
 concrete trait instances such as `Arithmetic[int]` must be spelled out there.
+
+A type parameter has at most one bound: `T : Comparable` is valid, `T : Shape & Comparable` is a
+compile error. To require several capabilities, declare a trait that inherits them and use it
+as the bound.
+
+### Invariance
+
+A generic type equals another only when all their type arguments are equal, at every level.
+Koala has no covariance and no contravariance, not even for read-only traits such as `Iterable`:
+
+```kl
+trait Animal { func name() str }
+class Dog : Animal { ... }
+class Cat : Animal { ... }
+
+let dogs = [Dog()]                          // a list[Dog]
+let a list[Animal] = dogs                   // error: list[Dog] is not list[Animal]
+let b Iterable[Animal] = dogs               // error: list[Dog] is not Iterable[Animal]
+let c list[list[Animal]] = [dogs]           // error: list[list[Dog]] is not list[list[Animal]]
+let d list[any] = [1, 2]                    // ok: a new literal, see below
+let e list[any] = list[int]()               // error: list[int] is not list[any]
+let f list[int?] = list[int]()              // error: list[int] is not list[int?]
+```
+
+There are two reasons:
+
+- **Safety.** If a `list[Dog]` could be used as a `list[Animal]`, a `Cat` could be appended through
+  the second name, and the first one would hold a `Cat`.
+- **Nothing hidden.** A trait value carries the interface table of its class, so a `list[Animal]`
+  and a `list[Dog]` hold different values. Converting one into the other means building a new list,
+  and an assignment never copies a container behind your back.
+
+To convert an existing container, build the new one explicitly:
+
+```kl
+let animals = list[Animal]()
+for x in dogs { animals.append(x) }
+```
+
+**Only values are converted.** A class value goes into a trait type wherever it is put into a
+slot of that type: a variable, an argument, a `return`, a field, an element of a new `list` or
+`dict` literal, or the `T` argument of a generic class constructed with a trait type argument.
+The containers and generic instances around it are never converted:
+
+```kl
+let x Animal = Dog()                            // the value is converted
+let xs list[Animal] = [Dog(), Cat()]            // a new list[Animal]: each element is converted
+let zoo dict[str, Animal] = {"d": Dog()}        // the same for a dict value
+let grid list[list[Animal]] = [[Dog()], [Cat()]]  // nested new literals
+let foo = Foo[Animal](Dog())                    // the argument goes into a T = Animal slot
+let foos list[Foo[Animal]] = [Foo[Animal](Dog())]
+
+let ys list[Foo[Animal]] = [Foo[Dog](Dog())]    // error: Foo[Dog] is not Foo[Animal]
+```
+
+A `list` or `dict` literal is new, so it takes the expected type when every element fits it (see
+[Containers](#containers)). A tuple literal does not: `let t (Animal, int) = (Dog(), 1)` is an
+error, because `(Dog, int)` is not `(Animal, int)`.
+
+### Inferring Type Arguments
+
+Type arguments are inferred from the arguments of the call, never from the expected type.
+When the inferred type is not the one you want, write the type argument:
+
+```kl
+func make[T](x T) list[T] = [x]
+
+let a Foo[Animal] = Foo(Dog())                  // error: Foo(Dog()) is a Foo[Dog]
+let b = Foo[Animal](Dog())                      // ok
+let c list[Animal] = make(Dog())                // error: make(Dog()) is a list[Dog]
+let d = make[Animal](Dog())                     // ok
+```
+
+All the arguments that give the same type parameter must have the same type. The compiler does not
+look for a common type:
+
+```kl
+func pick[T](a T, b T) T = a
+
+pick(1, 2)                  // T is int
+pick(1, 2.5)                // error: T is inferred as int, but got float
+pick(Dog(), Cat())          // error: T is inferred as Dog, but got Cat
+pick[Animal](Dog(), Cat())  // ok
+pick[int?](1, nil)          // ok
+```
+
+This differs from a literal: the element type of a literal is the common type of its elements,
+for example `[1, nil]` is a `list[int?]`. The common type of two classes is `any`, not a trait they
+share, so `[Dog(), Cat()]` alone is a `list[any]`. Give the literal a type to get a `list[Animal]`.
 
 ### Generic Methods
 

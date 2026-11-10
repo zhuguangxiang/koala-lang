@@ -906,6 +906,35 @@ static void try_to_build_tp_args_cast(FuncSymbol *origin_fn, Vector *tps, KlrVal
     }
 }
 
+/*
+ * Converts the arguments passed to an unbounded parameter `T` of a generic class's `__init__` to
+ * the class's type argument, when that is a trait: in `Foo[N](L())` the `L` value goes into a
+ * slot of type `N`. The caller sees the original signature, where the parameter still is `T`,
+ * so update_call_args() finds nothing to convert. A bounded `T` is left to
+ * try_to_build_tp_args_cast(), whose body expects the bound's interface value.
+ */
+static void try_to_build_type_arg_cast(FuncSymbol *origin_fn, Vector *tps, Vector *type_args,
+                                       KlrValue **ir_args, int nargs, ParserState *ps)
+{
+    Vector *params = origin_fn->params;
+
+    for (int i = 0; i < nargs; i++) {
+        ArgInfo *arg_info = vector_at(params, i);
+        TypeSpec *param_ts = arg_info->ts;
+        if (param_ts->kind != TYPE_GENERIC_VAR) continue;
+
+        int index = param_ts->generic_var.index;
+        TypeParamSymbol *tp_sym = vector_at(tps, index);
+        if (!tp_sym || vector_at(&tp_sym->bound, 0)) continue;
+
+        TypeSpec *type_arg = vector_at(type_args, index);
+        if (!type_arg) continue;
+
+        KlrValue *casted = _build_obj_intf_upcast(ps, ir_args[i], type_arg, "");
+        if (casted) ir_args[i] = casted;
+    }
+}
+
 static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *init_fn,
                                 KlrValue **args, int nargs, Expr *e)
 {
@@ -962,6 +991,8 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
             KlassSymbol *origin_kls = (KlassSymbol *)((InstanceSymbol *)ret_sym)->origin;
             FuncSymbol *origin_init = (FuncSymbol *)origin_kls->__init__;
             try_to_build_tp_args_cast(origin_init, &origin_kls->tps, _args + 1, nargs, ps);
+            try_to_build_type_arg_cast(origin_init, &origin_kls->tps,
+                                       ((InstanceSymbol *)ret_sym)->tp_args, _args + 1, nargs, ps);
         }
 
         klr_builder_end(&bldr, ps->scope->bb);
@@ -1103,6 +1134,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     } else if (callee->kind == KLR_VALUE_INSN) {
         ASSERT(klr_is_local(callee));
         Symbol *sym = exp->arg;
+        // if (sym) {
         ASSERT(sym && sym->kind == SYM_FUNC && str_equal(sym->name, "__call__"));
         ASSERT(sym->ir_val);
         KlrBuilder bldr;
@@ -1113,9 +1145,17 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             _ir_args[i + 1] = ir_args[i];
         }
         ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
+        // } else {
+        //     ASSERT(type_is_proto(callee->ts));
+        //     KlrBuilder bldr;
+        //     klr_builder_end(&bldr, ps->scope->bb);
+        //     ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+        // }
+
     } else if (callee->kind == KLR_VALUE_GLOBAL) {
         ASSERT(klr_is_global(callee));
         Symbol *sym = exp->arg;
+        // if (sym) {
         ASSERT(sym && sym->kind == SYM_FUNC && str_equal(sym->name, "__call__"));
         ASSERT(sym->ir_val);
         KlrBuilder bldr;
@@ -1126,6 +1166,12 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             _ir_args[i + 1] = ir_args[i];
         }
         ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
+        // } else {
+        //     ASSERT(type_is_proto(callee->ts));
+        //     KlrBuilder bldr;
+        //     klr_builder_end(&bldr, ps->scope->bb);
+        //     ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+        // }
     } else {
         // normal call, try to build interface cast;
         // a call through a function value, e.g. `cb(v)`, lands here as well
@@ -1999,19 +2045,39 @@ static void emit_ir_unary(ParserState *ps, Expr *exp)
     SET_IR_LOC(res, exp);
 }
 
+/* The type argument `index` of the list or dict instance `ts`, or NULL. */
+static TypeSpec *literal_type_arg(TypeSpec *ts, int index)
+{
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym || sym->kind != SYM_INSTANCE) return NULL;
+    Vector *args = ((InstanceSymbol *)sym)->tp_args;
+    if (!args || vector_size(args) <= index) return NULL;
+    return vector_get(args, index);
+}
+
+/* An item of a new list or dict literal stored as `elem_ts`: a class value for a trait
+ * element (e.g. `[L()]` as a list[N]) is converted like an assignment to a variable. */
+static KlrValue *literal_item(ParserState *ps, KlrValue *val, TypeSpec *elem_ts)
+{
+    if (!elem_ts) return val;
+    KlrValue *casted = _build_obj_intf_upcast(ps, val, elem_ts, "");
+    return casted ? casted : val;
+}
+
 static void emit_ir_list(ParserState *ps, Expr *exp)
 {
     ListExpr *list = (ListExpr *)exp;
 
     int size = vector_size(list->vec);
     KlrValue *items[size];
+    TypeSpec *elem_ts = literal_type_arg(exp->ts, 0);
 
     Expr *e;
     vector_foreach(e, list->vec) {
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
-        items[i__] = e->ir_val;
+        items[i__] = literal_item(ps, e->ir_val, elem_ts);
     }
 
     emit_ir_type(ps, exp);
@@ -2098,6 +2164,8 @@ static void emit_ir_map(ParserState *ps, Expr *exp)
     int size = vector_size(map->vec);
     int nargs = size * 2;
     KlrValue *items[nargs > 0 ? nargs : 1];
+    TypeSpec *key_ts = literal_type_arg(exp->ts, 0);
+    TypeSpec *val_ts = literal_type_arg(exp->ts, 1);
 
     Expr *e;
     vector_foreach(e, map->vec) {
@@ -2107,13 +2175,13 @@ static void emit_ir_map(ParserState *ps, Expr *exp)
         key->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, key);
         if (!key->ir_val) return;
-        items[i__ * 2] = key->ir_val;
+        items[i__ * 2] = literal_item(ps, key->ir_val, key_ts);
 
         Expr *val = entry->val;
         val->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, val);
         if (!val->ir_val) return;
-        items[i__ * 2 + 1] = val->ir_val;
+        items[i__ * 2 + 1] = literal_item(ps, val->ir_val, val_ts);
     }
 
     // a map is mutable: always built afresh, even from constant items
@@ -3068,18 +3136,25 @@ static Symbol *get_iter_func(KlrValue *val, char *name, ParserState *ps)
                          ? get_instance_method((InstanceSymbol *)owner, name, ps)
                          : stbl_get(owner->stbl, name);
     if (method) {
-        ASSERT(method->kind == SYM_FUNC);
+        // SYM_INHERITED: the receiver is a trait that inherits the method (e.g. a trait
+        // extending Iterable). Keep it: get_callable() takes the slot from the receiver.
+        ASSERT(method->kind == SYM_FUNC || method->kind == SYM_INHERITED);
         return method;
     }
 
     UNREACHABLE();
 }
 
+static FuncSymbol *iter_func_decl(Symbol *method)
+{
+    if (method->kind == SYM_INHERITED) return ((InheritedFunc *)method)->origin;
+    ASSERT(method->kind == SYM_FUNC);
+    return (FuncSymbol *)method;
+}
+
 static KlrValue *build_iter_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj, ParserState *ps)
 {
-    ASSERT(method->kind == SYM_FUNC);
-
-    FuncSymbol *fn = (FuncSymbol *)method;
+    FuncSymbol *fn = iter_func_decl(method);
 
     int nargs = vector_size(fn->params) + 1;
     KlrValue *args[nargs];
@@ -3144,7 +3219,7 @@ struct IterInfo {
 static KlrValue *build_has_next_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj,
                                      ParserState *ps)
 {
-    ASSERT(method->kind == SYM_FUNC);
+    ASSERT(method->kind == SYM_FUNC || method->kind == SYM_INHERITED);
 
     KlrValue *args[1];
     args[0] = obj;
@@ -3157,7 +3232,7 @@ static KlrValue *build_next_strict_call(KlrBuilder *bldr, Symbol *method, KlrVal
                                         TypeSpec *ret_ts, ParserState *ps)
 {
     ASSERT(ret_ts);
-    ASSERT(method->kind == SYM_FUNC);
+    ASSERT(method->kind == SYM_FUNC || method->kind == SYM_INHERITED);
 
     KlrValue *args[1];
     args[0] = obj;
@@ -4185,7 +4260,7 @@ static void _add_global(KlrModule *m, VarDeclStmt *var)
 // declare an IR function from its symbol's signature
 static KlrValue *_declare_func(KlrModule *m, FuncSymbol *sym, char *name)
 {
-    KlrValue *fval = klr_add_func(m, sym->ret, name);
+    KlrValue *fval = klr_add_func(m, sym->ret, sym->ts, name);
 
     KlrValue *param;
     ArgInfo *arg;
@@ -4457,7 +4532,7 @@ void kl_gen_ir(ParserModule *pm)
     pm->m = m;
 
     // add __init__ function firstly
-    KlrValue *fn = klr_add_func(m, no_type_spec(), "__init__");
+    KlrValue *fn = klr_add_func(m, no_type_spec(), NULL, "__init__");
     klr_append_block(fn, "entry");
     m->init = (KlrFunc *)fn;
 
@@ -4501,10 +4576,13 @@ void kl_gen_ir(ParserModule *pm)
         }
     }
 
+    // the block where control currently ends; the last created block is not it when a
+    // statement (e.g. a nested loop) adds blocks that come after its exit block
+    KlrBasicBlock *cur_bb = last_basic_block((KlrFunc *)fn);
+
     vector_foreach(ps, &pm->pss) {
-        KlrBasicBlock *last = last_basic_block((KlrFunc *)fn);
         ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
-        scope->bb = last;
+        scope->bb = cur_bb;
         // emit ir for all statements
         Stmt *s;
         vector_foreach(s, &ps->stmts) {
@@ -4532,6 +4610,7 @@ void kl_gen_ir(ParserModule *pm)
             emit_ir_stmt(ps, s);
         }
 
+        cur_bb = scope->bb;
         exit_scope(ps);
     }
 
@@ -4552,13 +4631,10 @@ void kl_gen_ir(ParserModule *pm)
         m->init = NULL;
     } else {
         /*
-        Best-effort early add: pre-RPO last_basic_block() may select an already-terminated block, in
-        which case klr_add_last_return() is a no-op. The authoritative fixup is the post-RPO add in
-        _do_lsra() (lsra.c), which runs after klr_build_rpo() reorders bb_list so last ==
-        layout-last == fall-off end.
+        Terminate the block where control ends. The post-RPO add in _do_lsra() (lsra.c) is
+        a further fixup for the layout-last block.
         */
-        KlrBasicBlock *last_bb = last_basic_block((KlrFunc *)fn);
-        klr_add_last_return(last_bb);
+        klr_add_last_return(cur_bb);
 
         // add symbol table entry for __init__ function
         HashMap *stbl = pm->stbl;

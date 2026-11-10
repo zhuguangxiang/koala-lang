@@ -1,0 +1,90 @@
+// RUN: koala %s | filecheck %s
+// A class value passed to the `T` parameter of a generic class's `__init__` is converted
+// when `T` is a trait: in `Foo[N](L())` the value goes into a slot of type `N`. Only the
+// value is converted; type arguments must match exactly (test_generic_invariant).
+
+trait Animal {
+    func name() str
+}
+
+class Dog : Animal {
+    func __init__() {}
+
+    pub func name() str = "dog"
+}
+
+class Cat : Animal {
+    func __init__() {}
+
+    pub func name() str = "cat"
+}
+
+class Foo[T] {
+    pub var v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+}
+
+class Pair[K, V] {
+    pub let k K
+    pub let v V
+
+    func __init__(_k K, _v V) {
+        k = _k
+        v = _v
+    }
+}
+
+func names(xs list[Foo[Animal]]) str {
+    var out = ""
+    for x in xs {
+        out += x.v.name() + " "
+    }
+    return out
+}
+
+func main() {
+    // a constructor call alone
+    let f = Foo[Animal](Dog())
+    print(f.v.name())
+
+    // in a list literal, a dict literal and as an argument
+    let xs list[Foo[Animal]] = [Foo[Animal](Cat()), Foo[Animal](Dog())]
+    print(names(xs))
+    let d dict[str, Foo[Animal]] = {"c": Foo[Animal](Cat())}
+    print(d["c"].v.name())
+    print(names([Foo[Animal](Dog())]))
+
+    // a value already of the trait type is kept
+    let a Animal = Cat()
+    print(Foo[Animal](a).v.name())
+
+    // an optional trait type argument
+    let o = Foo[Animal?](Dog())
+    print(o.v!.name())
+
+    // several type parameters, only the trait one is converted
+    let p = Pair[str, Animal]("k", Cat())
+    print(p.k, p.v.name())
+
+    // a nested generic: the value goes into the inner `T`
+    let nested = Foo[Foo[Animal]](Foo[Animal](Dog()))
+    print(nested.v.v.name())
+
+    // a class type argument needs no conversion
+    let plain = Foo[Dog](Dog())
+    print(plain.v.name())
+}
+
+// CHECK: dog
+// CHECK-NEXT: cat dog
+// CHECK-NEXT: cat
+// CHECK-NEXT: dog
+// CHECK-NEXT: cat
+// CHECK-NEXT: dog
+// CHECK-NEXT: k cat
+// CHECK-NEXT: dog
+// CHECK-NEXT: dog
+// CHECK-NOT: {{.}}

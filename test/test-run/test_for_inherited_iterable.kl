@@ -1,0 +1,43 @@
+// RUN: koala %s | filecheck %s
+// A value typed by a trait that inherits Iterable is iterated through the receiver
+// trait's own interface slot for the inherited `iter`.
+
+trait Node : Iterable[Node] {
+    func name() str
+}
+
+class Leaf : Node {
+    let _name str
+
+    func __init__(n str) {
+        _name = n
+    }
+
+    pub func name() str = _name
+}
+
+class Branch : Node {
+    let _children list[Node]
+
+    func __init__(children list[Node]) {
+        _children = children
+    }
+
+    pub func name() str = "branch"
+
+    pub func iter(step = 1) Iterator[Node] = _children.iter(step)
+}
+
+func main() {
+    let kids = list[Node]()
+    kids.append(Leaf("a"))
+    kids.append(Leaf("b"))
+    let root Node = Branch(kids)
+    for child in root {
+        print(child.name())
+    }
+}
+
+// CHECK: a
+// CHECK-NEXT: b
+// CHECK-NOT: {{.}}

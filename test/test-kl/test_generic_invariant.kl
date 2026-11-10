@@ -1,0 +1,59 @@
+// RUN: not koalac %s | filecheck %s
+// Generics are invariant: a container of a class is never a container of a trait the
+// class conforms to, even for a read-only trait like Iterable. Only a new literal takes
+// the trait element type (test_literal_trait_elem).
+
+trait Animal {
+    func name() str
+}
+
+class Dog : Animal {
+    func __init__() {}
+
+    pub func name() str = "dog"
+}
+
+class Foo[T] {
+    pub let v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+}
+
+func take(xs list[Animal]) {}
+
+func main() {
+    let dogs = [Dog()]
+    let a list[Animal] = dogs
+    take(dogs)
+    let b Iterable[Animal] = dogs
+    let m = {"d": Dog()}
+    let c dict[str, Animal] = m
+
+    // every type argument level must match exactly
+    let e list[Foo[Animal]] = [Foo[Dog](Dog())]
+    let fd = Foo[Dog](Dog())
+    let f Foo[Animal] = fd
+    let g list[list[Animal]] = [dogs]
+
+    // a tuple literal takes no element type from the expected type
+    let t (Animal, int) = (Dog(), 1)
+}
+
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: std/builtin.list<Ltest_generic_invariant.Animal;> =/= rhs: std/builtin.list<Ltest_generic_invariant.Dog;>
+// CHECK-NEXT: Incompatible type: expected 'std/builtin.list<Ltest_generic_invariant.Animal;>', but got 'std/builtin.list<Ltest_generic_invariant.Dog;>'.
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: std/builtin.Iterable<Ltest_generic_invariant.Animal;> =/= rhs: std/builtin.list<Ltest_generic_invariant.Dog;>
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: std/builtin.dict<uLtest_generic_invariant.Animal;> =/= rhs: std/builtin.dict<uLtest_generic_invariant.Dog;>
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: std/builtin.list<Ltest_generic_invariant.Foo<Ltest_generic_invariant.Animal;>;> =/= rhs: std/builtin.list<Ltest_generic_invariant.Foo<Ltest_generic_invariant.Dog;>;>
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: test_generic_invariant.Foo<Ltest_generic_invariant.Animal;> =/= rhs: test_generic_invariant.Foo<Ltest_generic_invariant.Dog;>
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: std/builtin.list<Lstd/builtin.list<Ltest_generic_invariant.Animal;>;> =/= rhs: std/builtin.list<Lstd/builtin.list<Ltest_generic_invariant.Dog;>;>
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: std/builtin.tuple<Ltest_generic_invariant.Animal;j> =/= rhs: std/builtin.tuple<Ltest_generic_invariant.Dog;j>
+// CHECK-NOT: {{.}}

@@ -1,0 +1,303 @@
+// RUN: koala %s | filecheck %s
+// A class value converted to a trait with generics: generic functions and methods (bounded
+// and unbounded), generic classes and traits instantiated with a trait, in locals, parameters,
+// return values, fields and globals. Only values are converted; type arguments must match.
+
+trait Animal {
+    func name() str
+}
+
+trait Pet : Animal {
+    func owner() str
+}
+
+class Dog : Animal {
+    func __init__() {}
+
+    pub func name() str = "dog"
+}
+
+class Cat : Pet {
+    func __init__() {}
+
+    pub func name() str = "cat"
+
+    pub func owner() str = "ann"
+}
+
+trait Getter[T] {
+    func get() T
+}
+
+class Box[T] : Getter[T] {
+    pub var v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+
+    pub func get() T = v
+
+    pub func set(_v T) {
+        v = _v
+    }
+
+    pub func pass[U](u U) U = u
+}
+
+class BBox[T : Animal] {
+    pub var v T
+
+    func __init__(_v T) {
+        v = _v
+    }
+
+    pub func nm() str = v.name()
+
+    pub func set(_v T) {
+        v = _v
+    }
+
+    pub func get() T = v
+}
+
+class AnimalGetter : Getter[Animal] {
+    func __init__() {}
+
+    pub func get() Animal = Cat()
+}
+
+class Holder {
+    pub var b Box[Animal]
+    pub var g Getter[Animal]
+
+    func __init__() {
+        b = Box[Animal](Dog())
+        g = AnimalGetter()
+    }
+}
+
+class Maker {
+    func __init__() {}
+
+    static func make[T](x T) T = x
+}
+
+var gb Box[Animal] = Box[Animal](Dog())
+
+func ident[T](x T) T = x
+
+func pick[T](a T, b T) T = a
+
+func wrap[T](x T) list[T] = [x]
+
+func opt_ret[T](x T) T? = x
+
+func by_bound[T : Animal](x T) str = x.name()
+
+func ret_bound[T : Animal](x T) T = x
+
+func bound_to_trait[T : Animal](x T) Animal = x
+
+func local_bound[T : Animal](x T) str {
+    let a Animal = x
+    return a.name()
+}
+
+func take_box(b Box[Animal]) str = b.v.name()
+
+func ret_box() Box[Animal] = Box[Animal](Dog())
+
+func take_getter(g Getter[Animal]) str = g.get().name()
+
+func ret_getter() Getter[Animal] = Box[Animal](Cat())
+
+func getter_ret_class() Getter[Animal] = AnimalGetter()
+
+func take_list(xs list[Animal]) str = xs[0].name()
+
+func ret_list() list[Animal] {
+    return [Dog()]
+}
+
+func ret_dict() dict[str, Animal] {
+    return {"a": Dog()}
+}
+
+func main() {
+    // unbounded generic functions
+    let a1 Animal = ident(Dog())
+    let a2 Animal = Cat()
+    print(ident[Animal](Dog()).name(), ident(a2).name(), a1.name(), take_list([ident(Dog())]))
+    print(pick[Animal](Dog(), Cat()).name(), pick[Animal?](Dog(), nil)!.name())
+    print(wrap[Animal](Dog())[0].name(), take_list(wrap[Animal](Cat())), opt_ret[Animal](Dog())!.name())
+
+    // bounded generic functions
+    let p Pet = Cat()
+    print(by_bound(Dog()), by_bound(a2), by_bound(p), by_bound[Animal](Dog()))
+    let a3 Animal = ret_bound(Dog())
+    print(ret_bound(Dog()).name(), a3.name(), ret_bound(a2).name())
+    print(bound_to_trait(Cat()).name(), local_bound(Dog()))
+
+    // a generic class instantiated with a trait
+    let b1 Box[Animal] = Box[Animal](Dog())
+    let b2 = Box[Animal](Dog())
+    b2.set(Cat())
+    let b3 = Box[Animal](Dog())
+    b3.v = Cat()
+    print(b1.v.name(), b1.get().name(), b2.get().name(), b3.v.name())
+    print(take_box(Box[Animal](Cat())), ret_box().v.name())
+
+    // a generic trait instantiated with a trait
+    let g1 Getter[Animal] = Box[Animal](Dog())
+    let g2 Getter[Animal] = AnimalGetter()
+    print(g1.get().name(), g2.get().name(), take_getter(Box[Animal](Dog())), take_getter(AnimalGetter()))
+    print(ret_getter().get().name(), getter_ret_class().get().name())
+    let g3 Getter[Pet] = Box[Pet](Cat())
+    print(g3.get().owner())
+
+    // a bounded generic class
+    let bb1 = BBox(Dog())
+    bb1.set(Dog())
+    let bb2 = BBox[Animal](Dog())
+    bb2.set(Cat())
+    let a4 Animal = bb1.get()
+    let a5 Animal = bb1.v
+    print(bb1.nm(), bb2.nm(), a4.name(), a5.name(), BBox(p).nm(), BBox[Pet](Cat()).nm())
+
+    // a class value read from a generic class of that class
+    let bc = Box(Dog())
+    let a6 Animal = bc.v
+    let a7 Animal = bc.get()
+    print(a6.name(), a7.name(), by_bound(bc.get()))
+
+    // generic methods
+    let a8 Animal = Box(1).pass(Cat())
+    let a9 Animal = Maker.make(Cat())
+    print(Box(1).pass[Animal](Cat()).name(), a8.name(), Maker.make[Animal](Cat()).name(), a9.name())
+
+    // containers of a trait
+    let xs = list[Animal]()
+    xs.append(Dog())
+    xs.insert(0, Cat())
+    xs.extend([Dog(), Cat()])
+    let d = Dog()
+    let ys list[Animal] = [d]
+    let m = dict[str, Animal]()
+    m["a"] = Dog()
+    print(xs.len(), xs[0].name(), d in ys, m.get("a")!.name(), m.get_or("x", Cat()).name())
+    print(take_list([Dog(), Cat()]), ret_list()[0].name(), ret_dict()["a"].name(), ys.copy()[0].name())
+    let it Iterable[Animal] = ys
+    for x in it { print(x.name()) }
+
+    // optional and nested
+    let ob Box[Animal]? = Box[Animal](Dog())
+    let bo = Box[Animal?](Dog())
+    let bn = Box[Animal?](nil)
+    let nb = Box[Box[Animal]](Box[Animal](Dog()))
+    print(ob!.v.name(), bo.v!.name(), bn.v == nil, nb.v.v.name())
+
+    // fields, globals, reassignment
+    let h = Holder()
+    print(h.b.v.name(), h.g.get().name())
+    h.b = Box[Animal](Cat())
+    h.g = Box[Animal](Dog())
+    print(h.b.v.name(), h.g.get().name(), gb.v.name())
+    gb = Box[Animal](Cat())
+    gb.set(Dog())
+    var a10 Animal = ident(Dog())
+    a10 = ident[Animal](Cat())
+    var b4 = Box[Animal](Dog())
+    b4 = Box[Animal](Cat())
+    let c = true
+    let b5 Box[Animal] = if c { Box[Animal](Dog()) } else { Box[Animal](Cat()) }
+    print(gb.v.name(), a10.name(), b4.v.name(), b5.v.name())
+
+    for bx in [Box[Animal](Dog()), Box[Animal](Cat())] { print(bx.get().name()) }
+    let t = (Box[Animal](Dog()), 1)
+    print(t[0].v.name())
+}
+
+// ---------------------------------------------------------------------------
+// Disabled: written as they should work, but crash or fail today, or need a
+// decision. Enable each one when its item in docs/Koala_TODO.md is closed.
+// ---------------------------------------------------------------------------
+//
+// [TODO §90, crash] compiler abort (parser_generic.c:126 NYI): inferring `T` of `...T`
+//     func va[T](xs ...T) int = xs.len()
+//     print(va(1, 2), va(Dog(), Dog()))       // expect: 2 2
+//
+// [TODO §90, crash] VM crash: class values passed to a bounded `...T` variadic
+//     func va_bound[T : Animal](xs ...T) str {
+//         var s = ""
+//         for x in xs { s += x.name() }
+//         return s
+//     }
+//     print(va_bound[Animal](Dog(), Cat()))   // expect: dogcat
+//
+// [TODO §90, crash] compiler abort (isel.c:934): `let` optional trait from a generic call, then `!`
+//     let o Animal? = ident(Dog())
+//     print(o!.name())                        // expect: dog
+//
+// [TODO §90] an `= expr` body does not give the return type to a list / dict literal
+// (a block body with `return` does)
+//     func rl() list[Animal] = [Dog()]
+//     func rd() dict[str, Animal] = {"a": Dog()}
+//     print(rl()[0].name(), rd()["a"].name()) // expect: dog dog
+//
+// [TODO §90] `enumerate` / `zip` are documented but not found
+//     let zs list[Animal] = [Dog(), Cat()]
+//     for (i, x) in enumerate(zs) { print(i, x.name()) }   // expect: 0 dog / 1 cat
+//
+// [TODO §89 #1, crash] VM crash: a bounded `T` inside a container parameter, inferred as a class
+//     func names[T : Animal](xs list[T]) str = xs[0].name()
+//     func mapped[T : Animal](m dict[str, T]) str = m["a"].name()
+//     class Holder[T : Animal] {
+//         pub let xs list[T]
+//         func __init__(_xs list[T]) {
+//             xs = _xs
+//         }
+//         pub func first() str = xs[0].name()
+//     }
+//     print(names([Dog()]), mapped({"a": Dog()}), Holder([Dog()]).first())   // expect: dog dog dog
+//
+// [TODO §89 #2, crash] compiler abort ("Why goes here?"): a type argument inferred or given as `any`
+//     func first[T](xs list[T]) T = xs[0]
+//     print(first([1, 2.5]), pick[any](1, "a"))   // expect: 1 1
+//
+// [TODO §89 #3] `T` is not inferred from a `T?` parameter
+//     func opt_t[T](x T?) str = if x == nil { "nil" } else { "val" }
+//     print(opt_t(Dog()))                     // expect: val
+//
+// [TODO §89 #4, to confirm] a generic call does not merge argument types as a literal does
+//     print(pick(1, nil))                     // expect: 1   (as [1, nil] is a list[int?])
+//
+// [TODO §89 #5, to confirm] the common type of two classes is any, not their shared trait
+//     let mixed = [Dog(), Cat()]
+//     print(mixed[1].name())                  // expect: cat   (if mixed were a list[Animal])
+
+// CHECK: dog cat dog dog
+// CHECK-NEXT: dog dog
+// CHECK-NEXT: dog cat dog
+// CHECK-NEXT: dog cat cat dog
+// CHECK-NEXT: dog dog cat
+// CHECK-NEXT: cat dog
+// CHECK-NEXT: dog dog cat cat
+// CHECK-NEXT: cat dog
+// CHECK-NEXT: dog cat dog cat
+// CHECK-NEXT: cat cat
+// CHECK-NEXT: ann
+// CHECK-NEXT: dog cat dog dog cat cat
+// CHECK-NEXT: dog dog dog
+// CHECK-NEXT: cat cat cat cat
+// CHECK-NEXT: 4 cat true dog cat
+// CHECK-NEXT: dog dog dog dog
+// CHECK-NEXT: dog
+// CHECK-NEXT: dog dog true dog
+// CHECK-NEXT: dog cat
+// CHECK-NEXT: cat dog dog
+// CHECK-NEXT: dog cat cat dog
+// CHECK-NEXT: dog
+// CHECK-NEXT: cat
+// CHECK-NEXT: dog
+// CHECK-NOT: {{.}}

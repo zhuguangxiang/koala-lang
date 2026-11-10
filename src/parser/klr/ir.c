@@ -779,9 +779,10 @@ static KlrFunc *new_func(TypeSpec *ret, char *name)
     return fn;
 }
 
-KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
+KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec *proto, char *name)
 {
     KlrFunc *fn = new_func(ret, name);
+    fn->proto = proto;
     list_push_back(&m->func_list, &fn->mlink);
     fn->module = m;
     return (KlrValue *)fn;

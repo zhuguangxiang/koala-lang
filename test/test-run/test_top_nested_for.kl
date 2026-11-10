@@ -1,0 +1,19 @@
+// RUN: koala %s | filecheck %s
+// Top-level code ends in the exit block of the outer loop, which is not the last block
+// created: the inner loop's blocks come after it. The module `__init__` must return from
+// the exit block instead of falling through into the inner loop.
+
+let outer = ["x", "y"]
+for f in outer {
+    for n in [1, 2, 3] {
+        if n == 1 { continue }
+        print(f, n)
+        break
+    }
+}
+print("done")
+
+// CHECK: x 2
+// CHECK-NEXT: y 2
+// CHECK-NEXT: done
+// CHECK-NOT: {{.}}

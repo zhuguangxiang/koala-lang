@@ -3999,3 +3999,129 @@ Not done yet:
   enum 成员（如 `A.X`）也不能作为类型实参；覆盖本地与包限定写法。
 
 `match` 和 display / `fmt` 属于暂缓讨论的功能，不纳入当前 enum 支持的完成范围。
+
+## 89. 泛型规范审查发现的不一致（2026-11-10，待修）
+
+规范见 `Koala_Design_Overview.md` §4（泛型实参不变、只转换值）与手册 Generics 章节。以下是审查中
+实测到的、与规范不一致或有缺陷的行为。
+
+### 不一致与缺陷（暂缓处理）
+
+以下 5 项保留为待办。本轮针对第 1、2 项的修复尝试及新增测试已回退，尚未修复；
+后续需先确认处理方案，再补回归测试。
+
+| # | 问题 | 严重程度 |
+|---|---|---|
+| 1 | `func names[T : N](xs list[T])` 以 `names([L()])` 调用时 VM 崩溃；`dict[str, T]` 参数、构造函数的 `list[T]` 参数同样受影响。 | VM 崩溃 |
+| 2 | 类型参数推断或显式指定为 `any` 时编译器中止，报内部错误 "Why goes here?"，如 `first([1, 2.5])`、`pick[any](1, "a")`；对应 §40.4。 | 编译器中止 |
+| 3 | `T?` 参数不能从 `opt(1)` 推断出 `T = int`；报错文案把函数称为 "class"。 | 缺陷 |
+| 4 | 字面量取公共类型（`[1, nil]` 为 `list[int?]`），泛型函数的实参推断未做同样的合并（`pick(1, nil)` 报错）。 | 待讨论 |
+| 5 | 求公共类型时不找共同的 trait：`[Dog(), Cat()]` 推断为 `list[any]` 而不是 `list[Animal]`。 | 待讨论 |
+
+### 复现细节与后续方向
+
+- [ ] **VM 崩溃：有约束的 `T` 嵌在容器参数里，推断为类**（擦除路径，与 §8、§34、§40.1 同源）：
+  `func names[T : N](xs list[T])` 以 `names([L()])` 调用，或 `dict[str, T]` 参数、
+  `class Holder[T : N]` 的 `__init__(_xs list[T])`，运行时 `_eval_frame` 断言失败。泛型体按约束的
+  intf-table 调用 `x.name()`，但容器里是原始的类值；`try_to_build_tp_args_cast()` 只转换类型恰为
+  `T` 的参数。显式写 `names[N](...)` / `Holder[N](...)` 正常。方向：擦除体内对 `T` 值的约束方法调用
+  按值自身的类型查表（规范所说的“由值的类型在运行时分发”），或推断出类时拒绝该调用。
+- [ ] **编译器中止：泛型函数的类型实参推断为 `any`**（§40.4 的复现）：`first([1, 2.5])`、
+  `lst([1, "a"])`、`pick[any](1, "a")` 在 `mangle_func_name()` → `type_spec_str_func_name()`
+  （`typespec.c`）走到 `UNREACHABLE()`（"Why goes here?"）。类型实参无法命名时应跳过特化路由，
+  调用擦除的泛型函数。
+- [ ] **`T?` 参数不能从非空实参推断 `T`**：`func opt[T](x T?)` 的 `opt(1)` 报
+  "cannot infer type parameter 'T' for class 'opt'"（`opt[int](1)` 正常）。应推断 `T = int`；
+  报错文案把函数称为 class。
+- [ ] **推断规则两套**：字面量取 lub（`[1, nil]` 是 `list[int?]`），泛型函数实参要求完全相同
+  （`pick(1, nil)` 报错，需 `pick[int?](1, nil)`）。当前按规范记录为现状，是否统一待讨论。
+- [ ] **lub 不找公共 trait**：`[Dog(), Cat()]` 是 `list[any]`；`let n Animal = Dog()` 后 `[n, Cat()]`
+  也是 `list[any]`（`Cat : Animal`）。因此 `names([Dog(), Cat()])` 报约束不满足。是否让 lub 取
+  公共 trait 待讨论；目前需给字面量写类型。
+- [ ] **多约束不支持**：`T : A & B` 报 "can only have one bound"。规范已按现状记录；是否支持待讨论。
+- [ ] **`@specialized` 在类上的映射 / 生成形态未实现**：`Koala_Design_Overview.md` §7.4 前半部分按
+  设计描述了 `@specialized(list[int64]) class int64list` 与 `@specialized(Foo[int]) class Foo[T]`，
+  实现中类上的注解被警告并忽略（`test-kl/test_specialized_ignored_warnings.kl`）。§7.4 末尾已注明，
+  阅读时以手册为准。
+
+## 90. class 转 trait（不含泛型）测试发现的问题（2026-11-10，待修 / 待确认）
+
+覆盖局部变量、参数、返回值、字段、全局变量等 65 种写法，通过的场景已固化为
+`test-run/test_class_to_trait.kl`（刻意避开下列崩溃写法）。以下问题暂未处理。
+
+### 崩溃（待修）
+
+- [ ] **编译器中止：`let` 声明的可选 trait 变量再用 `!` 取值**：
+  ```kl
+  let a Animal? = Dog()
+  print(a!.name())        // 或 let b = a!
+  ```
+  `isel.c:934` `isel_lower_cast` 断言 `ts_symbol_is_trait(src_ts) && ts_symbol_is_klass(dst_ts)`
+  失败。原因：const-copy-prop 把 `cast %a Animal? to Animal` 中的 `%a` 换成了初值
+  `%1 = make_intf ... to Animal`，得到 `cast %1 Animal to Animal`（源和目标是同一个 trait），
+  isel 只接受 trait → class 的 cast。`let a Animal? = d`（`d` 是 `Dog`）、`let a Animal? = p`
+  （`p` 是 `Pet`）同样中止。`var` 声明、`if let` 取值正常。方向：isel 把同类型的 cast 当 move，
+  或 const-copy-prop 不产生同类型 cast。
+- [ ] **VM 崩溃：可变参数 `...Trait` 接收类实例**：
+  ```kl
+  func names(xs ...Animal) str {
+      var s = ""
+      for x in xs { s += x.name() }
+      return s
+  }
+  names(Dog(), Cat())     // _eval_frame 断言 callable->tag 失败
+  ```
+  可变参数被打包为 `build_intern @tuple, %0 Dog`，类型 `tuple<Dog>`，元素没有 `make_intf` 成
+  `Animal`；体内按 intf 调用 `x.name()` 时崩溃。只调用 `xs.len()` 不崩；实参已是 `Animal` 值时
+  正常；混合（`names(a, Cat())`）也崩溃。方向：`handle_valist_and_dfl_args()` 构造的 tuple
+  按可变参数的元素类型转换每个元素（与 list/dict 字面量的 `literal_item()` 相同）。
+
+### 不一致 / 待确认
+
+- [ ] **tuple 字面量与 tuple 解构不一致**：`let t (Animal, int) = (Dog(), 1)` 编译报错
+  （§89 已记），但 `let (a Animal, n int) = (Dog(), 1)` 与 `(a, n) = (Cat(), 2)` 正常，
+  返回类型 `(Animal, int)` 的函数 `return (Dog(), 1)` 也报错。是否让 tuple 字面量按期望类型
+  逐元素转换，待讨论。
+- [ ] **trait 值不能用 `==`**：两个 `Animal` 值 `a == b` 报 "operator '==' is not defined in type
+  'Animal'"。设计上每个 class 自动遵循 `Equatable`（identity 默认），但 trait 类型本身不带
+  `__eq__`。是否让所有 trait 值支持 `==` / `!=`（按值自身类型的 `__eq__`），待确认。
+- [ ] **if 表达式不能直接作为调用实参**：`show(if b { Dog() } else { Cat() })` 语法错误
+  （与 trait 无关）；`let x = if ...` 和 `func f() T = if ...` 可用。是否放开，待确认。
+- [ ] **`?.` 未实现**：`a?.name()` 报 "not supported yet, use 'if let' or '!.'"（已知）。
+
+### 泛型场景（2026-11-10 补测）
+
+覆盖 80 种带泛型的写法（泛型函数 / 方法，有无约束；泛型类、泛型 trait 以 trait 实例化；局部变量、
+参数、返回值、字段、全局变量、容器、可选、嵌套），通过的已固化为
+`test-run/test_generic_class_to_trait.kl`。下列问题暂未处理（§89 已记的不重复）。
+
+| # | 写法 | 结果 |
+|---|---|---|
+| 1 | 可变参数泛型 `func va[T](xs ...T)` 以 `va(1, 2)` 调用 | 编译器中止（类型推断未实现，与 trait 无关；`va[int](1, 2)` 正常） |
+| 2 | 带约束的可变参数 `va_bound[Animal](Dog(), Cat())`，函数内调用元素的方法 | VM 崩溃（与不带泛型的 `...Animal` 同源） |
+| 3 | `let a Animal? = ident(Dog())` 后接 `a!` | 编译器中止（与不带泛型的 `let` 加 `!` 同源） |
+| 4 | `func rl() list[Animal] = [Dog()]`，dict 字面量同理 | 编译报错；`{ return [Dog()] }` 正常，两种函数体不一致 |
+| 5 | `enumerate([1, 2])` | 报 "'enumerate' is not found"，手册说 `enumerate` / `zip` 可用 |
+
+详细说明：
+
+- [ ] **编译器中止：泛型可变参数 `...T` 的类型推断未实现**：`func va[T](xs ...T) int` 以
+  `va(1, 2)` 调用即在 `parser_generic.c:126` `infer_tp_from_call()` 的 `TYPE_VA_LIST` 分支
+  `NYI()` 中止（与 trait 无关，普通 int 也中止）。`va[int](1, 2)` 显式写类型实参正常。
+- [ ] **VM 崩溃：有约束的泛型可变参数接收类实例**：`func va_bound[T : Animal](xs ...T)` 以
+  `va_bound[Animal](Dog(), Cat())` 调用、体内 `x.name()` 时崩溃。与上文“可变参数 `...Trait`
+  接收类实例”同源：打包 tuple 时元素未 `make_intf`。
+- [ ] **`let x Trait? = <泛型调用>` 后 `x!` 同样触发 `isel.c:934` 编译器中止**：
+  `let a Animal? = ident(Dog())` 再 `a!.name()`，与上文 `let a Animal? = Dog()` 同源。
+- [ ] **`= expr` 函数体不把返回类型传给 list / dict 字面量**：
+  ```kl
+  func rl() list[Animal] = [Dog()]          // 报错：list<Dog> 不匹配 list<Animal>
+  func rd() dict[str, Animal] = {"a": Dog()} // 同样报错
+  func rb() list[Animal] { return [Dog()] }  // 正常
+  ```
+  两种函数体对字面量的期望类型处理不一致；`= expr` 体应与 `return` 一样调用
+  `parse_literal_as_expected()`。
+- [ ] **`enumerate` / `zip` 不可用，与手册不符**：手册 Branching and Loops 写
+  “Top-level iteration combinators `enumerate` and `zip` are available”，实际 `enumerate([1, 2])`
+  报 "'enumerate' is not found"（`libs/std/builtin/enumerate.kl`、`zip.kl` 中的定义是注释）。
+  需实现，或修改手册。

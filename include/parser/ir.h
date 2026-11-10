@@ -194,6 +194,9 @@ typedef struct _KlrFunc {
     /* params(value, use only) */
     Vector params;
 
+    /* function prototype */
+    TypeSpec *proto;
+
     /* start basic block */
     struct _KlrBasicBlock *sbb;
     /* end basic block */
@@ -670,7 +673,7 @@ KlrValue *klr_new_index(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, int wh
 KlrModule *klr_create_module(char *name);
 void klr_destroy_module(KlrModule *m);
 
-KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name);
+KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec *proto, char *name);
 KlrValue *klr_func_get_param(KlrValue *val, int index);
 KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name);
 int klr_func_empty(KlrFunc *fn);
