@@ -83,7 +83,8 @@ static void __free_inner_stbl(Symbol *sym)
             ASSERT(!sym->stbl);
             break;
         }
-        case SYM_ENUM: {
+        case SYM_ENUM:
+        case SYM_TYPE_ALIAS: {
             ASSERT(!sym->stbl);
             break;
         }
@@ -173,6 +174,10 @@ static void __symbol_free(Symbol *sym)
         }
         case SYM_IMPORTED: {
             // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
+        case SYM_TYPE_ALIAS: {
             ASSERT(!sym->stbl);
             break;
         }
@@ -320,7 +325,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
 }
 
 Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *owner_kls,
-                               KlassSymbol *origin_trait)
+                                KlassSymbol *origin_trait)
 {
     ASSERT(sym->kind == SYM_FUNC);
     FuncSymbol *origin = (FuncSymbol *)sym;
@@ -389,6 +394,25 @@ EnumSymbol *stbl_add_enum(HashMap *stbl, char *name, int flags)
     } else {
         sym->flags = flags;
         vector_init(&sym->members, sizeof(EnumMemberSym));
+        add_to_global(sym);
+    }
+
+    return sym;
+}
+
+Symbol *stbl_add_type_alias(HashMap *stbl, char *name, TypeSpec *ts, int flags)
+{
+    Symbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(name));
+    sym->kind = SYM_TYPE_ALIAS;
+    sym->name = name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        sym->ts = ts;
+        sym->flags = flags;
         add_to_global(sym);
     }
 
@@ -503,7 +527,7 @@ Symbol *stbl_add_func_instance(HashMap *stbl, FuncSymbol *origin, char *mangled_
         }
         sym->real_params = real_params;
 
-        sym->ts = func_type_spec(real_arg_types, ret_type);
+        sym->ts = func_type_spec_intern(real_arg_types, ret_type);
     }
 
     return (Symbol *)sym;
@@ -648,6 +672,10 @@ void stbl_show(HashMap *stbl)
                 log_info("enum symbol: '%s'", sym->name);
                 break;
             }
+            case SYM_TYPE_ALIAS: {
+                log_info("type alias symbol: '%s'", sym->name);
+                break;
+            }
             default: {
                 UNREACHABLE();
                 break;
@@ -789,9 +817,9 @@ int get_intf_index(Symbol *sym, TypeSpec *trait_ts)
 
     // Not an internal error: a wrong index would silently call another method at
     // runtime, so report it and let the caller emit a diagnostic.
-    log_error("type '%s' does not implement interface '%s'", sym->name,
-              trait_sym ? trait_sym->name
-                        : (canon_ts->signature ? canon_ts->signature : "<unknown>"));
+    log_error(
+        "type '%s' does not implement interface '%s'", sym->name,
+        trait_sym ? trait_sym->name : (canon_ts->signature ? canon_ts->signature : "<unknown>"));
     return -1;
 }
 

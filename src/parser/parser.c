@@ -975,6 +975,25 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         return va_list_type_spec_intern(ret);
     }
 
+    if (_ts->kind == TYPE_PROTO) {
+        if (_ts->type_id >= 0) return _ts;
+
+        Vector *args = vector_create_ptr();
+        TypeSpec *arg;
+        vector_foreach(arg, _ts->proto_type.args) {
+            if (!arg) continue;
+            TypeSpec *arg_ts = resolve_type(ps, arg);
+            vector_push_back(args, &arg_ts);
+        }
+
+        TypeSpec *ret_ts = resolve_type(ps, _ts->proto_type.ret);
+        vector_destroy(_ts->proto_type.args);
+        _ts->proto_type.args = NULL;
+        _ts->proto_type.ret = NULL;
+        type_spec_free(_ts);
+        return func_type_spec_intern(args, ret_ts);
+    }
+
     if (_ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
@@ -1120,6 +1139,26 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             return NULL;
         }
         TypeSpec *ret = sym->ts;
+        type_spec_free(_ts);
+        return ret;
+    } else if (sym->kind == SYM_TYPE_ALIAS) {
+        if (tp_args != NULL) {
+            kl_error(_ts->loc, "'%s' is not a generic type", _ts->unresolved.name.name);
+            vector_destroy(tp_args);
+            return NULL;
+        }
+
+        if (sym->status == SYM_RESOLVING) {
+            kl_error(_ts->loc, "circular type alias '%s'", sym->name);
+            return NULL;
+        }
+
+        sym->status = SYM_RESOLVING;
+        TypeSpec *ret = resolve_type(ps, sym->ts);
+        sym->ts = ret;
+        sym->status = SYM_RESOLVED;
+        if (!ret) return NULL;
+
         type_spec_free(_ts);
         return ret;
     } else {
@@ -3958,6 +3997,11 @@ static void parse_enum_decl(ParserState *ps, Stmt *stmt)
     // do nothing here.
 }
 
+static void parse_type_alias(ParserState *ps, Stmt *stmt)
+{
+    // the alias symbol is registered in parse_top_stmt
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -3988,6 +4032,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_WITH_KIND]      = parse_with,
         [STMT_TUPLE_DECL_KIND] = parse_tuple_decl,
         [STMT_ENUM_KIND]      = parse_enum_decl,
+        [STMT_TYPE_ALIAS_KIND] = parse_type_alias,
     };
     /* clang-format on */
 
@@ -4557,6 +4602,25 @@ static Symbol *_add_enum(ParserState *ps, HashMap *stbl, EnumDeclStmt *e)
     return (Symbol *)sym;
 }
 
+static Symbol *_add_type_alias(ParserState *ps, HashMap *stbl, TypeAliasDeclStmt *alias)
+{
+    Ident *id = &alias->id;
+    ASSERT(alias->ts);
+
+    int flags = parse_flags(&alias->flags);
+    Symbol *sym = stbl_add_type_alias(stbl, id->name, alias->ts, flags);
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    sym->path = ps->pm->pkg_path;
+    sym->status = SYM_RESOLVED;
+    sym->ps = ps;
+    sym->loc = id->loc;
+    return sym;
+}
+
 void parse_top_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -4606,6 +4670,12 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             if (!sym) return;
             sym->ps = ps;
             sym->loc = e->id.loc;
+            break;
+        }
+        case STMT_TYPE_ALIAS_KIND: {
+            TypeAliasDeclStmt *alias = (TypeAliasDeclStmt *)stmt;
+            sym = _add_type_alias(ps, ps->pm->stbl, alias);
+            if (!sym) return;
             break;
         }
         case STMT_IMPORT_KIND: {

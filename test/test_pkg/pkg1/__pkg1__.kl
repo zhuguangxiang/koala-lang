@@ -109,3 +109,9 @@ pub func print_str_list(args list[str]?) {
         }
     }
 }
+
+type String = str
+
+pub func print_string(s String) String {
+    return s + " welcome"
+}

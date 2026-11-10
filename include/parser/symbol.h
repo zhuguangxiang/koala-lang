@@ -31,6 +31,7 @@ typedef enum _SymKind {
     SYM_IMPORTED,           /* imported symbol */
     SYM_INSTANCE_FUNC,      /* instance func */
     SYM_ENUM,               /* enum       */
+    SYM_TYPE_ALIAS,         /* type alias */
     SYM_MAX,
 } SymKind;
 
@@ -277,6 +278,7 @@ Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *owner_k
                                 KlassSymbol *origin_trait);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 EnumSymbol *stbl_add_enum(HashMap *stbl, char *name, int flags);
+Symbol *stbl_add_type_alias(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
 Symbol *stbl_add_narrow_var(HashMap *stbl, Symbol *origin, TypeSpec *narrow_ts);

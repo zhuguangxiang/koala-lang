@@ -1,0 +1,47 @@
+// RUN: koalac --irgen --dump=all %s | filecheck %s
+//
+// A type alias is file-local: it is expanded at every use site, so the type
+// that reaches the IR is the expanded one, never the alias name.
+//
+// CHECK: func @apply(%cb func(int64)int64, %v int64) int64 {
+// CHECK: func @first(%xs std/builtin.list<{{.*}}>) int64 {
+// CHECK: func @a_fnlist(%xs std/builtin.list<{{.*}}>) int64 {
+// CHECK: func @a_opt(%cb func(int64)int64?) int64 {
+// CHECK: func @a_forward(%f func(int64, str)bool) bool {
+
+type IntFn = func(int) int
+type IntList = list[int]
+type FnList = list[IntFn]
+type OptFn = IntFn?
+
+// an alias may refer to a type that is declared later in the file
+type Forward = Later
+
+func apply(cb IntFn, v int) int {
+    return v
+}
+
+func first(xs IntList) int {
+    return xs[0]
+}
+
+func a_fnlist(xs FnList) int {
+    return 0
+}
+
+func a_opt(cb OptFn) int {
+    return 0
+}
+
+func a_forward(f Forward) bool {
+    return true
+}
+
+type Later = func(int, str) bool
+
+class Holder {
+    var cb IntFn
+    var xs IntList
+
+    func __init__() {}
+}

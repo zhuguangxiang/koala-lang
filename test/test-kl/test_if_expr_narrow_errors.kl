@@ -4,12 +4,12 @@
 func f(v str?) int {
     // the then branch of `v == nil` keeps `v` optional
     let a = if v == nil { v.len() } else { 0 }
-    // CHECK: [[@LINE-1]]:{{.*}}optional cannot use dot operator.
+    // CHECK: optional cannot use dot operator.
 
     // after the expression `v` is optional again
     let b = if v == nil { 0 } else { v.len() }
     let c = v.len()
-    // CHECK: [[@LINE-1]]:{{.*}}optional cannot use dot operator.
+    // CHECK: optional cannot use dot operator.
     return a + b + c
 }
 

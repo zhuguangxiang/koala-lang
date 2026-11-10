@@ -1,0 +1,12 @@
+// RUN: ! koalac %s | filecheck %s
+//
+// Alias targets are resolved lazily, so a cycle is only detected when the
+// alias is expanded, that is, at its first use.
+
+type A = B
+type B = A
+
+// CHECK: circular type alias 'A'
+func use_a(x A) int {
+    return x
+}

@@ -1,0 +1,28 @@
+// RUN: koalac --irgen --dump=all %s | filecheck %s
+//
+// The alias form and the explicit form must produce the very same type, which
+// is the whole point of expanding an alias at its use site.
+//
+// CHECK: func @via_alias_fn(%cb func(int64)int64) int64 {
+// CHECK: func @direct_fn(%cb func(int64)int64) int64 {
+// CHECK: func @via_alias_list(%xs std/builtin.list<{{.*}}>) int64 {
+// CHECK: func @direct_list(%xs std/builtin.list<{{.*}}>) int64 {
+
+type IntFn = func(int) int
+type IntList = list[int]
+
+func via_alias_fn(cb IntFn) int {
+    return 0
+}
+
+func direct_fn(cb func(int) int) int {
+    return 0
+}
+
+func via_alias_list(xs IntList) int {
+    return 0
+}
+
+func direct_list(xs list[int]) int {
+    return 0
+}

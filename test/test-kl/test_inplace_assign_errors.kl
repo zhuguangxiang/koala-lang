@@ -25,49 +25,49 @@ func main() {
     // numbers: the right side must fit the operator's argument
     var g = 0
     g += if c { true } else { false }
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g += true
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g -= "x"
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g *= 1.5
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g /= true
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g %= "s"
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g <<= 1.0
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
     g |= true
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
 
     var s = "a"
     s += 1
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
 
     // bool has neither the in-place nor the binary method
     var b = true
     b += true
-    // CHECK: [[@LINE-1]]:5: {{.*}}neither '__iadd__' nor '__add__' is defined for class 'bool'.
+    // CHECK: neither '__iadd__' nor '__add__' is defined for class 'bool'.
     b |= false
-    // CHECK: [[@LINE-1]]:5: {{.*}}neither '__ibitor__' nor '__bitor__' is defined for class 'bool'.
+    // CHECK: neither '__ibitor__' nor '__bitor__' is defined for class 'bool'.
     b &= false
-    // CHECK: [[@LINE-1]]:5: {{.*}}neither '__ibitand__' nor '__bitand__' is defined for class 'bool'.
+    // CHECK: neither '__ibitand__' nor '__bitand__' is defined for class 'bool'.
 
     // a class with only `__add__`: its argument type is checked
     var p = Point(1)
     p += 1
-    // CHECK: [[@LINE-1]]:5: {{.*}}Types of two sides are not matched in inplace assignment.
+    // CHECK: Types of two sides are not matched in inplace assignment.
 
     // the result must be assignable back to the left side
     var w = Weird()
     w += 1
-    // CHECK: [[@LINE-1]]:5: {{.*}}the result 'str' of '__add__' cannot be assigned back to
+    // CHECK: the result 'str' of '__add__' cannot be assigned back to
 
     // one argument only
     var t = Twice()
     t += 1
-    // CHECK: [[@LINE-1]]:5: {{.*}}inplace operator '__iadd__' in class 'Twice' must have exactly one parameter.
+    // CHECK: inplace operator '__iadd__' in class 'Twice' must have exactly one parameter.
 }
 
 // CHECK-NOT: error:

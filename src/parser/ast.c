@@ -893,6 +893,15 @@ Stmt *stmt_from_enum(Ident id, Vector *members)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_type_alias(Ident id, TypeSpec *ts)
+{
+    TypeAliasDeclStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_TYPE_ALIAS_KIND;
+    s->id = id;
+    s->ts = ts;
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_return(Expr *exp)
 {
     RetStmt *s = mm_alloc_obj(s);
@@ -976,6 +985,12 @@ static void enum_decl_stmt_free(Stmt *stmt)
     }
     vector_destroy(s->members);
     mm_free(s);
+}
+
+static void type_alias_decl_stmt_free(Stmt *stmt)
+{
+    // ts is owned by the symbol registered for this alias
+    mm_free(stmt);
 }
 
 static void klass_decl_stmt_free(Stmt *stmt)
@@ -1167,6 +1182,7 @@ void stmt_free(Stmt *stmt)
         [STMT_CLASS_KIND] = klass_decl_stmt_free,
         [STMT_TRAIT_KIND] = klass_decl_stmt_free,
         [STMT_ENUM_KIND] = enum_decl_stmt_free,
+        [STMT_TYPE_ALIAS_KIND] = type_alias_decl_stmt_free,
         [STMT_RETURN_KIND] = ret_stmt_free,
         [STMT_ASSIGN_KIND] = assign_stmt_free,
         [STMT_BREAK_KIND] = break_stmt_free,

@@ -1,0 +1,17 @@
+// RUN: ! koalac %s | filecheck %s
+//
+// A type alias lives in the package symbol table, so a second declaration of
+// the same name is rejected like any other redefinition.
+
+type B = int
+
+// CHECK: redefinition of 'B'
+type B = list[int]
+
+func use_b(x B) int {
+    return x
+}
+
+from "test_pkg/pkg1" import print_string
+print(print_string(100))
+// CHECK: Incompatible type: expected 'str', but got 'int64'.

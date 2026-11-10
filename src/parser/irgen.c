@@ -1126,10 +1126,9 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             _ir_args[i + 1] = ir_args[i];
         }
         ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
-    } else if (callee->kind == KLR_VALUE_PARAM) {
-        NYI();
     } else {
-        // normal call, try to build interface cast
+        // normal call, try to build interface cast;
+        // a call through a function value, e.g. `cb(v)`, lands here as well
         update_call_args(ps, ir_args, size, lhs->ts);
 
         Symbol *lhs_sym = lhs->sym;
@@ -4131,6 +4130,12 @@ static void emit_ir_enum_decl(ParserState *ps, Stmt *stmt)
     // nothing to do.
 }
 
+// a type alias emits nothing: it is expanded to its target type at its use site
+static void emit_ir_type_alias(ParserState *ps, Stmt *stmt)
+{
+    // nothing to do.
+}
+
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -4161,6 +4166,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_TUPLE_DECL_KIND] = emit_ir_tuple_decl,
         [STMT_TUPLE_ASSIGN_KIND] = emit_ir_tuple_assign,
         [STMT_ENUM_KIND]      = emit_ir_enum_decl,
+        [STMT_TYPE_ALIAS_KIND] = emit_ir_type_alias,
     };
     /* clang-format on */
 

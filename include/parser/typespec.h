@@ -146,6 +146,7 @@ void union_type_spec_add(TypeSpec *ts, TypeSpec *arg);
 TypeSpec *union_type_spec_intern(Vector *args);
 TypeSpec *klass_type_spec(char *path, char *name);
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
+TypeSpec *func_type_spec_intern(Vector *args, TypeSpec *ret);
 TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 TypeSpec *optional_type_spec(TypeSpec *src);
 TypeSpec *optional_type_spec_intern(TypeSpec *src);

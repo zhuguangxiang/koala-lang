@@ -1,0 +1,14 @@
+// RUN: koala %s | filecheck %s
+// CHECK: 7
+// CHECK: Jack welcome
+
+from "test_pkg/pkg1" import print_string
+
+type Int = int
+
+func add(a Int, b Int) Int {
+    return a + b
+}
+
+print(add(3, 4))
+print(print_string("Jack"))

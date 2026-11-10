@@ -815,9 +815,10 @@ static void check_generic_traits_once(KlassSymbol *kls, Vector *bases, Vector *s
             BUF(second_buf);
             generic_trait_print(base_ts, &second_buf);
 
-            kl_error(kls->loc,
-                     "class '%s' implements trait '%s' with different type arguments: '%s' and '%s'.",
-                     kls->name, inst->origin->name, BUF_STR(first_buf), BUF_STR(second_buf));
+            kl_error(
+                kls->loc,
+                "class '%s' implements trait '%s' with different type arguments: '%s' and '%s'.",
+                kls->name, inst->origin->name, BUF_STR(first_buf), BUF_STR(second_buf));
 
             FINI_BUF(first_buf);
             FINI_BUF(second_buf);

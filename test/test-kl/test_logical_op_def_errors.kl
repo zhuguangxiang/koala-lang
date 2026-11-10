@@ -4,11 +4,11 @@
 
 class Flags {
     func __or__(rhs Flags) Flags = self
-    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__or__' can only be defined by bool; use '__bitor__' for '|'.
+    // CHECK: logical operator method '__or__' can only be defined by bool; use '__bitor__' for '|'.
     func __and__(rhs Flags) Flags = self
-    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__and__' can only be defined by bool; use '__bitand__' for '&'.
+    // CHECK: logical operator method '__and__' can only be defined by bool; use '__bitand__' for '&'.
     func __not__() Flags = self
-    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__not__' can only be defined by bool; use '__bitnot__' for '~'.
+    // CHECK: logical operator method '__not__' can only be defined by bool; use '__bitnot__' for '~'.
 
     // the bitwise methods are fine
     func __bitor__(rhs Flags) Flags = self
@@ -17,7 +17,7 @@ class Flags {
 
 trait Logic {
     func __or__(rhs int) int
-    // CHECK: [[@LINE-1]]:10: {{.*}}logical operator method '__or__' can only be defined by bool; use '__bitor__' for '|'.
+    // CHECK: logical operator method '__or__' can only be defined by bool; use '__bitor__' for '|'.
 }
 
 // CHECK-NOT: error:

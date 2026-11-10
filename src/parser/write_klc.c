@@ -316,6 +316,11 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 break;
             }
 
+            case SYM_TYPE_ALIAS: {
+                // do nothing
+                break;
+            }
+
             default: {
                 UNREACHABLE();
                 break;

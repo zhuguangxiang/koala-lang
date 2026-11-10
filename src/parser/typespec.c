@@ -593,6 +593,17 @@ TypeSpec *func_type_spec(Vector *args, TypeSpec *ret)
     ts->proto_type.ret = ret;
     ts->sym_id = -1;
     ts->type_id = -1;
+    return ts;
+}
+
+TypeSpec *func_type_spec_intern(Vector *args, TypeSpec *ret)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_PROTO;
+    ts->proto_type.args = args;
+    ts->proto_type.ret = ret;
+    ts->sym_id = -1;
+    ts->type_id = -1;
     BUF(buf);
     type_spec_to_str(ts, &buf);
     ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
@@ -609,7 +620,7 @@ TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret)
         if (!arg_info->ts) continue;
         vector_push_back(arg_types, &arg_info->ts);
     }
-    return func_type_spec(arg_types, ret);
+    return func_type_spec_intern(arg_types, ret);
 }
 
 TypeSpec *optional_type_spec(TypeSpec *src)

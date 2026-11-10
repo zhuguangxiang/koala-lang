@@ -448,6 +448,8 @@ typedef enum _StmtKind {
     STMT_TUPLE_ASSIGN_KIND,
     /* enum */
     STMT_ENUM_KIND,
+    /* type alias */
+    STMT_TYPE_ALIAS_KIND,
     /* with r {}, with v = expr {} */
     STMT_WITH_KIND,
     STMT_MAX_KIND
@@ -749,6 +751,15 @@ typedef struct _EnumDeclStmt {
 } EnumDeclStmt;
 
 Stmt *stmt_from_enum(Ident id, Vector *members);
+
+typedef struct _TypeAliasDeclStmt {
+    STMT_HEAD
+    Ident id;
+    // the aliased type, may be unresolved until it is first used
+    TypeSpec *ts;
+} TypeAliasDeclStmt;
+
+Stmt *stmt_from_type_alias(Ident id, TypeSpec *ts);
 
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_continue(void);

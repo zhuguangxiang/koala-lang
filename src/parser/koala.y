@@ -326,6 +326,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<stmt> method_decl
 %type<stmt> trait_decl
 %type<stmt> enum_decl
+%type<stmt> type_alias
 %type<vec> enum_member_list
 %type<enum_member> enum_member
 %type<stmt> class_decl
@@ -725,7 +726,7 @@ top_stmt
     }
     | type_alias semi
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | expr semi
     {
@@ -761,11 +762,15 @@ top_stmt
 type_alias
     : TYPE ID '=' base_type
     {
-        type_spec_free($4);
+        Ident id = {$2, loc(@2)};
+        $$ = stmt_from_type_alias(id, $4);
+        stmt_set_loc($$, loc(@1));
     }
     | TYPE ID '=' func_type
     {
-        type_spec_free($4);
+        Ident id = {$2, loc(@2)};
+        $$ = stmt_from_type_alias(id, $4);
+        stmt_set_loc($$, loc(@1));
     }
     ;
 
@@ -925,8 +930,7 @@ optional_type
     }
     | func_type
     {
-        type_spec_free($1);
-        $$ = NULL;
+        $$ = $1;
     }
     ;
 
@@ -983,23 +987,30 @@ type
 func_type
     : FUNC_LPAREN base_type_list ')' base_type
     {
-        free_optional_type_list($2);
-        type_spec_free($4);
-        $$ = NULL;
+        $$ = func_type_spec($2, $4);
+    }
+    | FUNC_LPAREN base_type_list ')' func_type
+    {
+        $$ = func_type_spec($2, $4);
     }
     | FUNC_LPAREN base_type_list ')'
     {
-        free_optional_type_list($2);
-        $$ = NULL;
+        $$ = func_type_spec($2, no_type_spec());
     }
     | FUNC_LPAREN ')' base_type
     {
-        type_spec_free($3);
-        $$ = NULL;
+        Vector *args = vector_create_ptr();
+        $$ = func_type_spec(args, $3);
+    }
+    | FUNC_LPAREN ')' func_type
+    {
+        Vector *args = vector_create_ptr();
+        $$ = func_type_spec(args, $3);
     }
     | FUNC_LPAREN ')'
     {
-        $$ = NULL;
+        Vector *args = vector_create_ptr();
+        $$ = func_type_spec(args, no_type_spec());
     }
     ;
 

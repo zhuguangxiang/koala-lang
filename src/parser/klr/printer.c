@@ -326,12 +326,17 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         KlrIntf *intf = (KlrIntf *)fn;
         fprintf(fp, "@%s:%s", intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
-    } else {
-        ASSERT(fn->kind == KLR_VALUE_EXT_INTF);
+    } else if (fn->kind == KLR_VALUE_EXT_INTF) {
         KlrExtIntf *intf = (KlrExtIntf *)fn;
         KlrExtModule *ext_m = intf->module;
         fprintf(fp, "@%s.%s:%s", ext_m->name, intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
+    } else if (fn->ts && type_is_proto(fn->ts)) {
+        // the callee is a function value, e.g. the `cb` in `cb(v)`
+        klr_print_value_name(fn, fp);
+        print_value_type(fn, fp);
+    } else {
+        UNREACHABLE();
     }
 
     if (insn->num_opers > 1) fprintf(fp, ", ");

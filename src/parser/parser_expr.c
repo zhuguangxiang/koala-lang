@@ -998,6 +998,25 @@ static void check_valist_arg(ParserState *ps, TypeSpec *expected, Vector *exprs,
     *next_j = expr_size;
 }
 
+/*
+ * `check_call_args` walks ArgInfo, but a proto type only carries the parameter
+ * types, so wrap them before the call checks run on a call through a function
+ * value, e.g. `cb(v)`. mm_alloc zeroes the ArgInfo: no default value, no var-arg.
+ */
+static Vector *arg_infos_from_arg_types(Vector *arg_types)
+{
+    Vector *params = vector_create_ptr();
+
+    TypeSpec *ts;
+    vector_foreach(ts, arg_types) {
+        ArgInfo *arg = mm_alloc_obj(arg);
+        arg->ts = ts;
+        vector_push_back(params, &arg);
+    }
+
+    return params;
+}
+
 static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {
     Expr *e1;
@@ -2098,7 +2117,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             log_info("call lhs is proto variable.");
             // proto variable call
             exp->ts = ts->proto_type.ret;
-            params = ts->proto_type.args;
+            params = arg_infos_from_arg_types(ts->proto_type.args);
         } else if (ts->kind == TYPE_KLASS) {
             Symbol *_sym = get_symbol_by_id(ts->sym_id);
             if (!_sym) {
