@@ -149,6 +149,7 @@ void klr_erase_insn(KlrInsn *insn)
 static OpCode no_regs_codes[] = {
     OP_UNREACHABLE,
     OP_MOVE,
+    OP_LOAD_FUNC,
     OP_LOAD_INT_IMM,
     OP_LOADK,
     OP_LOAD_TAG,
@@ -592,6 +593,24 @@ KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode o
     init_oper(&insn->opers[0], insn, var, 0);
     init_oper(&insn->opers[1], insn, val, 0);
     insn->ts = val->ts;
+    klr_append_insn(bldr, insn);
+    return insn;
+}
+
+KlrInsn *klr_build_load_func(KlrBuilder *bldr, KlrValue *var, KlrValue *func)
+{
+    if (!klr_is_local(var) && !klr_is_param(var)) {
+        panic("'load_func' op requires a local/param var");
+    }
+
+    if (!klr_is_func(func) && !klr_is_extfunc(func)) {
+        panic("'load_func' op requires a function");
+    }
+
+    KlrInsn *insn = new_insn(OP_LOAD_FUNC, 2, "");
+    init_oper(&insn->opers[0], insn, var, 0);
+    init_oper(&insn->opers[1], insn, func, 0);
+    insn->ts = var->ts;
     klr_append_insn(bldr, insn);
     return insn;
 }

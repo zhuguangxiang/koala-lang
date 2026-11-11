@@ -348,6 +348,60 @@ static KlrValue *_build_opt_obj_intf_upcast(ParserState *ps, KlrValue *obj, Type
 }
 
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp);
+static void build_return(ParserState *ps, KlrValue *exp_val);
+
+static void emit_ir_lambda(ParserState *ps, Expr *exp)
+{
+    LambdaExpr *lambda = (LambdaExpr *)exp;
+    char name[64];
+    int index = 0;
+    do {
+        snprintf(name, sizeof(name), "__lambda$%d", index++);
+    } while (stbl_get(ps->pm->stbl, name));
+
+    char *fn_name = atom(name);
+    Vector *args = vector_create_ptr();
+    Symbol *sym = stbl_add_func(ps->pm->stbl, fn_name, lambda->body->ts, args, 0);
+    ASSERT(sym);
+    FuncSymbol *func = (FuncSymbol *)sym;
+    func->ts = exp->ts;
+    func->status = SYM_RESOLVED;
+    sym->path = ps->pm->pkg_path;
+
+    KlrValue *fn = klr_add_func(MOD, func->ret, func->ts, fn_name);
+    sym->ir_val = fn;
+    ParamDecl *param;
+    vector_foreach(param, lambda->params) {
+        Symbol *param_sym = stbl_get(lambda->scope, param->id.name);
+        ASSERT(param_sym && param_sym->ts);
+        ArgInfo *arg = mm_alloc_obj(arg);
+        arg->name = param_sym->name;
+        arg->sym = param_sym;
+        arg->ts = param_sym->ts;
+        vector_push_back(args, &arg);
+        param_sym->ir_val = klr_func_add_param(fn, arg->ts, arg->name);
+    }
+
+    ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0, fn_name);
+    scope->sym = sym;
+    scope->bb = klr_append_block(fn, "entry");
+    emit_ir_visit_expr(ps, lambda->body);
+    if (lambda->body->ir_val) {
+        if (type_is_no_type(func->ret)) {
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, scope->bb);
+            klr_build_ret_void(&bldr);
+        } else {
+            build_return(ps, lambda->body->ir_val);
+        }
+    }
+    if (dump_no_opt_ir_enabled()) {
+        fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
+        klr_print_func((KlrFunc *)fn, stdout);
+    }
+    exit_scope(ps);
+    exp->ir_val = fn;
+}
 
 static KlrValue *_add_literal(ParserState *ps, Literal *lit)
 {
@@ -429,6 +483,7 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
                 val = klr_add_ext_func(MOD, parent->name, func_sym->ret, sym->name);
+                ((KlrExtFunc *)val)->proto = func_sym->ts;
             } else if (sym->kind == SYM_VAR) {
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
@@ -1063,7 +1118,9 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     int size = vector_size(args);
 
     // gen ir for lhs
-    lhs->ctx = EXPR_CTX_CALL;
+    int function_value =
+        lhs->ts && lhs->ts->kind == TYPE_PROTO && (!lhs->sym || lhs->sym->kind == SYM_VAR);
+    lhs->ctx = function_value ? EXPR_CTX_LOAD : EXPR_CTX_CALL;
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
@@ -1083,7 +1140,13 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     KlrValue *callee = lhs->ir_val;
     KlrValue *ret;
 
-    if (callee->kind == KLR_VALUE_KLASS) {
+    if (function_value) {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        update_call_args(ps, ir_args, size, lhs->ts);
+        klr_builder_end(&bldr, ps->scope->bb);
+        ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+    } else if (callee->kind == KLR_VALUE_KLASS) {
         Symbol *lhs_sym = lhs->sym;
         ASSERT(lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_INSTANCE);
         KlassSymbol *kls_sym = (KlassSymbol *)lhs_sym;
@@ -1377,7 +1440,12 @@ static KlrValue *get_class_method(ParserState *ps, Symbol *sym)
 
 static KlrValue *get_callable(ParserState *ps, Symbol *sym)
 {
-    if (sym->ir_val) return sym->ir_val;
+    if (sym->ir_val) {
+        if (klr_is_extfunc(sym->ir_val) && !((KlrExtFunc *)sym->ir_val)->proto) {
+            ((KlrExtFunc *)sym->ir_val)->proto = sym->ts;
+        }
+        return sym->ir_val;
+    }
     // SYM_INHERITED: a base trait's method inherited by `sym->parent`. The parent is the
     // receiver's static type, so it owns the interface slots that must be used.
     ASSERT(sym->kind == SYM_FUNC || sym->kind == SYM_INHERITED);
@@ -1423,6 +1491,7 @@ static KlrValue *get_callable(ParserState *ps, Symbol *sym)
         ASSERT(sym->kind == SYM_FUNC);
         ASSERT(owner->ir_val && owner->ir_val->kind == KLR_VALUE_EXT_MODULE);
         sym->ir_val = klr_add_ext_func(MOD, owner->name, ((FuncSymbol *)sym)->ret, sym->name);
+        ((KlrExtFunc *)sym->ir_val)->proto = sym->ts;
     } else {
         // For a local trait all slots are created up-front by _add_trait(), which also
         // caches them on the symbols, so only external traits can reach here.
@@ -1483,6 +1552,10 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             // use expr's arg to save the lhs's ir_val, so that we can use it in emit_ir_call
             exp->arg = lhs->ir_val;
         } else if (exp->ctx == EXPR_CTX_LOAD) {
+            if (lhs->ir_val->kind == KLR_VALUE_EXT_MODULE) {
+                exp->ir_val = get_callable(ps, sym);
+                return;
+            }
             KlrValue *fn_ir_val;
             if (!sym->ir_val) {
                 ASSERT(sym->flags & SYM_FLAGS_EXT);
@@ -1632,6 +1705,7 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
                 Symbol *parent = _sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
                 _sym->ir_val = klr_add_ext_func(MOD, parent->name, func_sym->ret, _sym->name);
+                ((KlrExtFunc *)_sym->ir_val)->proto = func_sym->ts;
             }
             exp->ir_val = _sym->ir_val;
         }
@@ -2130,6 +2204,10 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
+        if (e->ir_val->kind == KLR_VALUE_KLASS || e->ir_val->kind == KLR_VALUE_EXT_KLASS) {
+            kl_error(e->loc, "class objects cannot be used as values yet");
+            return;
+        }
         items[i__] = e->ir_val;
         // a const tuple holds only immutable items
         if (!is_immutable_const(e->ir_val)) konst = 0;
@@ -2571,6 +2649,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_SELF_KIND]    = emit_ir_self,
         [EXPR_LIST_KIND]    = emit_ir_list,
         [EXPR_TUPLE_KIND]   = emit_ir_tuple,
+        [EXPR_ANONY_KIND]   = emit_ir_lambda,
         [EXPR_MAP_KIND]     = emit_ir_map,
         [EXPR_TYPE_KIND]    = emit_ir_type,
         [EXPR_CALL_KIND]    = emit_ir_call,
@@ -2683,7 +2762,10 @@ static void build_return(ParserState *ps, KlrValue *exp_val)
     if (!ret_ir_val) {
         KlrValue *cast = exp_val;
         ret_ir_val = cast;
-        if (cast->ts != ret_ts && !type_is_any_or_opt_any(ret_ts)) {
+        if (cast->kind != KLR_VALUE_FUNC && cast->kind != KLR_VALUE_EXT_FUNC &&
+            cast->ts != ret_ts && !type_is_any_or_opt_any(ret_ts) &&
+            !(type_is_proto(cast->ts) && type_is_proto(ret_ts) &&
+              type_spec_equal_exact(cast->ts, ret_ts))) {
             if (!type_is_optional(ret_ts)) {
                 log_info("implicit cast from");
                 log_type_spec(cast->ts);
@@ -2934,7 +3016,7 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     if (has_with_scope(ps, NULL)) {
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *tmp = klr_build_local(&bldr, exp->ir_val->ts, "with.ret");
+        KlrValue *tmp = klr_build_local(&bldr, exp->ts, "with.ret");
         klr_build_move(&bldr, tmp, exp->ir_val);
         build_with_exits(ps, NULL);
         build_return(ps, tmp);
@@ -4316,7 +4398,9 @@ static KlrValue *resolve_specialized_call(KlrValue *callee, Vector *tp_args, voi
     char *path = ((KlrExtFunc *)callee)->module->name;
     Symbol *sym = find_ext_symbol(ps, path, mangled_name);
     if (!sym || sym->kind != SYM_FUNC) return NULL;
-    return klr_add_ext_func(MOD, path, ((FuncSymbol *)sym)->ret, mangled_name);
+    KlrValue *fn = klr_add_ext_func(MOD, path, ((FuncSymbol *)sym)->ret, mangled_name);
+    ((KlrExtFunc *)fn)->proto = sym->ts;
+    return fn;
 }
 
 // 'ts' of the generic body with its type variables replaced by 'tp_args', the same as the

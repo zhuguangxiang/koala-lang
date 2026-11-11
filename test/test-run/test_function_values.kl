@@ -1,0 +1,109 @@
+// RUN: koalac %s --cgen --write-klc -o %t.klc && koala %t.klc | filecheck %s
+// RUN: koalac %s --cgen --ssa --fusion --tail-call --write-klc -o %t.opt.klc && koala %t.opt.klc | filecheck %s
+//
+// Named Koala and native functions as locals, arguments, returns and globals.
+
+import "test_pkg/pkg_generic_method"
+import "koala/math"
+
+type IntFn = func(int) int
+
+func add1(x int) int { return x + 1 }
+func double(x int) int { return x * 2 }
+
+let default_fn = add1
+var current_fn IntFn = add1
+let external_fn = pkg_generic_method.pass
+let native_fn = math.sqrt
+
+func apply(f IntFn, x int) int {
+    return f(x)
+}
+
+func select() IntFn {
+    return current_fn
+}
+
+func named() IntFn {
+    return add1
+}
+
+func identity(f IntFn) IntFn { return f }
+func choose_after_change() int {
+    current_fn = double
+    return 3
+}
+func apply_float(f func(float) float, x float) float { return f(x) }
+func zero() int { return 42 }
+func run_action(f func()) { f() }
+func action() { print("action") }
+class Resource : Withable {
+    pub func __init__() {}
+    pub func __enter__() {}
+    pub func __exit__() { current_fn = double }
+}
+func with_named() IntFn {
+    with r = Resource() { return add1 }
+}
+func with_global() IntFn {
+    with r = Resource() { return current_fn }
+}
+func recurse(f IntFn, n int) int {
+    if n == 0 { return f(4) }
+    return recurse(add1, n - 1)
+}
+
+func main() {
+    let local_fn = add1
+    var changed IntFn = double
+    print(local_fn(1))
+    print(apply(add1, 2))
+    print(apply(changed, 3))
+    changed = local_fn
+    print(changed(4))
+    print(default_fn(5))
+    current_fn = double
+    print(select()(3))
+    print(named()(7))
+    print(external_fn(8))
+    print(pkg_generic_method.pass(9))
+    print(native_fn(9.0))
+    print(apply(pkg_generic_method.pass, 10))
+    print(identity(add1)(11))
+    print(apply_float(math.sqrt, 16.0))
+    print(recurse(double, 1))
+    current_fn = add1
+    print(current_fn(choose_after_change()))
+    print(current_fn(3))
+    print(identity(add1)(choose_after_change()))
+    let no_args = zero
+    print(no_args())
+    run_action(action)
+    print(with_named()(2))
+    current_fn = add1
+    print(with_global()(3))
+    print(current_fn(3))
+}
+
+// CHECK: 2
+// CHECK-NEXT: 3
+// CHECK-NEXT: 6
+// CHECK-NEXT: 5
+// CHECK-NEXT: 6
+// CHECK-NEXT: 6
+// CHECK-NEXT: 8
+// CHECK-NEXT: 9
+// CHECK-NEXT: 10
+// CHECK-NEXT: 3
+// CHECK-NEXT: 11
+// CHECK-NEXT: 12
+// CHECK-NEXT: 4
+// CHECK-NEXT: 5
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6
+// CHECK-NEXT: 4
+// CHECK-NEXT: 42
+// CHECK-NEXT: action
+// CHECK-NEXT: 3
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6

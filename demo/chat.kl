@@ -1,0 +1,105 @@
+/// A command-line chat REPL on koala/openai (DeepSeek endpoint).
+///
+/// Usage:
+///   source env.sh at the repository root, then
+///       koala demo/rest/chat_cli.kl
+///
+///   On a pipe it reads plain lines, so it can be scripted:
+///       printf 'hello\nquit\n' | koala demo/rest/chat_cli.kl
+///
+/// Commands: /quit or /exit or Ctrl-D leaves, /reset clears the history,
+/// and a line like "@path/to/file" loads that file into the conversation
+/// so the next questions can be about its code.
+import "std/fs"
+import "std/os"
+import "koala/readline"
+import "koala/openai" as openai
+
+// The line typed last run, kept between runs.
+const HISTORY = ".chat_cli_history"
+
+// The model to chat with.
+const MODEL = "deepseek-chat"
+
+// The biggest file @ accepts; fs.read_str panics above the cap.
+const MAX_CODE_BYTES = 1048576
+
+// The user message that carries the code of `path`, nil when there is no
+// such file. The fence and the path line are what make the model quote
+// locations back well.
+func _code_message(path str) dict[str, str]? {
+    if !fs.is_file(path) { return nil }
+    let text = fs.read_str(path, MAX_CODE_BYTES)
+    let content = "File: " + path + "\n```\n" + text + "\n```\n"
+    return {"role": "user", "content": content}
+}
+
+// True when the line holds nothing but spaces.
+func _is_blank(line str) bool {
+    for c in line {
+        if c != " " && c != "\t" { return false }
+    }
+    return true
+}
+
+// The start of every conversation: one system message.
+func _new_messages() list[dict[str, str]] {
+    var messages = list[dict[str, str]]()
+    messages.append({"role": "system", "content": "You are a helpful assistant. Answer concisely."})
+    return messages
+}
+
+func main() {
+    var key = "sk-63570c4b930d48fd84c81c54be56f192"
+    let env_key = os.getenv("DEEPSEEK_API_KEY")
+    if env_key != nil { key = env_key }
+    let client = openai.Client(key, "https://api.deepseek.com")
+
+    var messages = _new_messages()
+
+    // False on the first run, when there is no history file yet.
+    readline.read_history_file(HISTORY)
+    readline.set_history_length(200)
+
+    // The prompt in bold cyan on a terminal; plain on a pipe.
+    var prompt = "you> "
+    if os.isatty(1) { prompt = "\x01\x1b[1;36m\x02you>\x01\x1b[0m\x02 " }
+
+    print("Chat with " + MODEL + ". /quit or Ctrl-D to leave, /reset to clear the history, @FILE to load a file.")
+    while let line = readline.input(prompt) {
+        // blank lines (and the "" Ctrl-C returns) are not sent
+        if _is_blank(line) { continue }
+        if line == "/quit" || line == "/exit" { break }
+        if line == "/reset" {
+            messages = _new_messages()
+            print("(the history is cleared)")
+            continue
+        }
+        if line.starts_with("@") {
+            let path = line.substr(1, line.len())
+            if let msg = _code_message(path) {
+                messages.append(msg)
+                print("(loaded " + path + ", " + str(msg["content"].len()) + " chars)")
+            } else {
+                print("cannot read: " + path)
+            }
+            continue
+        }
+
+        messages.append({"role": "user", "content": line})
+        let resp = client.chat.completions.create(MODEL, messages, 0.7, 1024)
+        if !resp.ok() {
+            // keep the conversation consistent for the retry
+            messages.pop()
+            print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+            continue
+        }
+
+        let reply = resp.choices[0].message.content
+        messages.append({"role": "assistant", "content": reply})
+        print("bot> " + reply)
+        printf("({} tokens)\n", resp.usage.total_tokens)
+    }
+
+    readline.write_history_file(HISTORY)
+}

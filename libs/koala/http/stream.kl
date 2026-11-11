@@ -1,0 +1,196 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Streaming HTTP responses: the head and the body arrive separately.
+///
+/// `Client.stream` sends the request and returns at once; the response
+/// head is read on first access, as httpx does. That keeps a single
+/// thread free to drive both ends of a loopback connection, and lets a
+/// caller hold the response before the server has answered.
+///
+/// Unlike `get` / `post`, the request's `Connection` header is left to
+/// the caller: a server-sent-events stream stays open until the peer
+/// closes it, and `read` ends at EOF, at the end of a Content-Length or
+/// chunked body, on a read error, or when the read timeout expires.
+
+import "std/socket" as so
+import "koala/tls" as tls
+
+/// A response whose body is read piece by piece.
+///
+///     let resp = Client().stream(Request.get(url))!
+///     with resp {
+///         print(resp.status())
+///         loop {
+///             let piece = resp.read()
+///             if piece == nil { break }
+///             print(piece!.to_str())
+///         }
+///     }
+///
+/// `read` returns the next piece of the decoded body, chunked framing
+/// removed, or nil once the body is exhausted. `close` releases the
+/// connection and the parser; `with` calls it on every exit of the block.
+pub class StreamResponse : Withable {
+    let _conn so.Conn
+    let _parser _Parser
+    var _head ResponseHead? = nil
+    var _pending bytes
+    var _done bool = false
+    var _failed bool = false
+    var _closed bool = false
+
+    func __init__(conn so.Conn, parser _Parser) {
+        _conn = conn
+        _parser = parser
+        _pending = bytes(0)
+    }
+
+    /// The status line and headers, read on first access. Nil when the
+    /// peer closed, timed out, or answered with a malformed head.
+    pub func head() ResponseHead? {
+        if !_ensure_head() { return nil }
+        return _head
+    }
+
+    /// The status code, or 0 when the head is unavailable.
+    pub func status() int {
+        if let h = head() { return h.status() }
+        return 0
+    }
+
+    /// Header lookup, case-insensitive. Nil when absent or the head is
+    /// unavailable.
+    pub func header(name str) str? {
+        if let h = head() { return h.header(name) }
+        return nil
+    }
+
+    /// The next piece of the decoded body, or nil at the end of the
+    /// stream: message complete, peer closed, read error, or timeout.
+    pub func read() bytes? {
+        if _done || !_ensure_head() { return nil }
+
+        // Bytes already read past the head belong to the body.
+        if _pending.len() > 0 {
+            let data = _pending
+            _pending = bytes(0)
+            let body = _feed(data)
+            if body != nil { return body }
+            if _done { return nil }
+        }
+
+        let scratch = bytes(4096)
+        loop {
+            let n = _conn.read(scratch)
+            if n < 0 {
+                _done = true
+                return nil
+            }
+            if n == 0 {
+                // EOF: a body framed by connection close ends here.
+                _done = true
+                if !_parser.finish() { return nil }
+                let body = _parser.take_body()
+                if body.len() > 0 { return body }
+                return nil
+            }
+            let body = _feed(scratch[0:n])
+            if body != nil { return body }
+            if _done { return nil }
+        }
+    }
+
+    /// Release the connection and the parser. Safe to call twice.
+    pub func close() {
+        if _closed { return }
+        _closed = true
+        _done = true
+        _conn.close()
+        _parser.close()
+    }
+
+    pub func __enter__() {}
+
+    pub func __exit__() { close() }
+
+    // Feed `data` to the parser and take whatever body it decoded.
+    // Nil when nothing is ready; bytes left over after the message
+    // belong to the next one on a keep-alive connection.
+    func _feed(data bytes) bytes? {
+        let fed = _parser.feed(data, _STATE_COMPLETE)
+        if fed < 0 {
+            _done = true
+            return nil
+        }
+        if fed < data.len() { _pending = data[fed:data.len()] }
+        let body = _parser.take_body()
+        if _parser.state() >= _STATE_COMPLETE { _done = true }
+        if body.len() > 0 { return body }
+        return nil
+    }
+
+    // Read until the head is complete, keeping any bytes past it.
+    func _ensure_head() bool {
+        if _head != nil { return true }
+        if _failed || _closed { return false }
+
+        let scratch = bytes(4096)
+        loop {
+            let n = _conn.read(scratch)
+            if n <= 0 {
+                _failed = true
+                return false
+            }
+            let data = scratch[0:n]
+            let fed = _parser.feed(data, _STATE_BODY)
+            if fed < 0 {
+                _failed = true
+                return false
+            }
+            if _parser.state() >= _STATE_BODY {
+                _head = _head_of(_parser)
+                _pending = data[fed:data.len()]
+                return true
+            }
+        }
+    }
+}
+
+// The implementation behind `Client.stream`: dial, arm the timeouts,
+// send the request, and hand the connection to a StreamResponse. The
+// head is read on first access, not here; a stalled peer ends the
+// stream instead of blocking forever. Nil when the connection or the
+// write fails.
+func _send_stream(req Request, timeout_ms int) StreamResponse? {
+    let url = req.url()
+    let addr = url.host() + ":" + str(url.port())
+
+    var conn so.Conn?
+    if url.is_tls() {
+        let opts = tls.TlsOptions().set_handshake_timeout_ms(timeout_ms)
+        conn = tls.dial(addr, opts)
+    } else {
+        conn = so.dial(addr, so.SocketTypeSpec.tcp())
+    }
+    if conn == nil { return nil }
+
+    conn.set_read_timeout(timeout_ms)
+
+    let parser = _Parser.response()
+    if parser == nil {
+        conn.close()
+        return nil
+    }
+
+    let nw = conn.write(req.to_bytes())
+    if nw <= 0 {
+        parser.close()
+        conn.close()
+        return nil
+    }
+
+    return StreamResponse(conn, parser)
+}

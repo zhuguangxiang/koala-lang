@@ -1,0 +1,11 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Create a message dict compatible with the OpenAI messages format.
+///
+/// This is syntactic sugar for `{"role": role, "content": content}`.
+pub func msg(role str, content str) dict[str, str] {
+    return {"role": role, "content": content}
+}

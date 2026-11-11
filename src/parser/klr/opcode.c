@@ -81,11 +81,17 @@ void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_
                 break;
             }
 
-            case FORMAT_RImm2:
-            case FORMAT_RIdx2: {
+            case FORMAT_RImm2: {
                 int R = (insn >> 16) & 0xFFu;
                 int data = (int16_t)(insn & 0xFFFFu);
                 printf("r%d, #%d", R, data);
+                break;
+            }
+
+            case FORMAT_RIdx2: {
+                int R = (insn >> 16) & 0xFFu;
+                int index = insn & 0xFFFFu;
+                printf("r%d, #%d", R, index);
                 break;
             }
 
@@ -170,6 +176,8 @@ void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_
                             printf("(func_index=%d(imported))", (int)insn);
                     } else if (flag == 1) {
                         printf("(intf_slot=%d)", (int)insn);
+                    } else if (flag == 2) {
+                        printf("(callee_reg=%d)", (int)insn);
                     } else {
                         UNREACHABLE();
                     }

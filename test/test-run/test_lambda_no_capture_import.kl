@@ -1,0 +1,14 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+
+import "test_pkg/lambda_no_capture_dep"
+
+func main() {
+    let f = lambda_no_capture_dep.get_callback()
+    print(f(5))
+    lambda_no_capture_dep.set_offset(10)
+    print(f(5))
+}
+
+// CHECK: 7
+// CHECK-NEXT: 15

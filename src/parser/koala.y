@@ -402,6 +402,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<vec> expr_list
 %type<vec> index_expr_list
 %type<vec> param_list
+%type<vec> lambda_params
 %type<vec> id_type_arg_list
 %type<vec> kw_arg_list
 %type<vec> klass_list
@@ -435,6 +436,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<kls_name> trait_name
 %type<tpval> type_param_decl
 %type<param> kw_arg
+%type<param> lambda_param
 
 /*
  * Free the values bison discards during error recovery (popped states and
@@ -456,7 +458,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %destructor { free_optional_type_list($$); }
     optional_type_list base_type_list atom_primitive_type_list klass_list extends
 %destructor { free_tp_list($$); } type_param_list const_tp_list tp_decl_list
-%destructor { free_param_list($$); } param_list id_type_arg_list kw_arg_list
+%destructor { free_param_list($$); } param_list id_type_arg_list kw_arg_list lambda_params
 %destructor { free_ident_type_list($$); } tuple_decl_list
 %destructor { vector_destroy($$); } id_as_list id_list int_lit_list
 %destructor { mm_free($$); } <enum_member>
@@ -4121,32 +4123,39 @@ tuple_expr
 lambda_expr
     : LAMBDA_START lambda_params '|' value_expr '}'
     {
-        expr_free($4);
-        $$ = NULL;
+        $$ = expr_from_lambda($2, $4);
+        expr_set_loc($$, lloc(@1, @5));
     }
     | LAMBDA_START_OR value_expr '}'
     {
-        expr_free($2);
-        $$ = NULL;
+        $$ = expr_from_lambda(vector_create_ptr(), $2);
+        expr_set_loc($$, lloc(@1, @3));
     }
     ;
 
 lambda_params
     : lambda_param
     {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
     }
     | lambda_params ',' lambda_param
     {
+        $$ = $1;
+        vector_push_back($$, &$3);
     }
     ;
 
 lambda_param
     : ID
     {
+        IDENT(id, $1, loc(@1));
+        $$ = param_new(loc(@1), id, NULL, NULL);
     }
     | ID base_type
     {
-        type_spec_free($2);
+        IDENT(id, $1, loc(@1));
+        $$ = param_new(lloc(@1, @2), id, $2, NULL);
     }
     ;
 

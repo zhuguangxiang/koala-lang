@@ -1,0 +1,6 @@
+[package]
+name = "koala/openai"
+version = "0.1.0"
+description = "OpenAI-compatible chat completions client"
+dependencies = ["koala/http", "koala/tls", "koala/json"]
+natives = []

@@ -1,0 +1,173 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+from "koala/http" import StreamResponse
+
+/// The SSE side of a streaming response, as Python's
+/// `httpx_sse.EventSource`.
+///
+///     let es = connect_sse(client, "GET", url)!
+///     with es {
+///         if let it = es.iter_sse() {
+///             for ev in it { print(ev.data) }
+///         }
+///     }
+///
+/// Where Python raises `SSEError` on a wrong Content-Type, `iter_sse`
+/// returns nil and `error()` reports the message, as `koala/shlex`
+/// does for ValueError.
+pub class EventSource : Withable {
+    let _response StreamResponse
+    var _error str = ""
+
+    pub func __init__(response StreamResponse) {
+        _response = response
+    }
+
+    /// The underlying streaming response.
+    pub func response() StreamResponse { return _response }
+
+    /// The last error message, "" when there is none.
+    pub func error() str { return _error }
+
+    /// Iterate the events of the response.
+    ///
+    /// Nil when the Content-Type is not "text/event-stream"; `error()`
+    /// then holds the message, where Python raises `SSEError`.
+    pub func iter_sse() SSEIter? {
+        let ct = _response.header("Content-Type")
+        var base = ""
+        if let v = ct { base = v.split(";")[0] }
+        if !("text/event-stream" in base) {
+            _error = "Expected response header Content-Type to contain 'text/event-stream', got '" + base + "'"
+            return nil
+        }
+        return SSEIter(_response)
+    }
+
+    pub func __enter__() {}
+
+    pub func __exit__() { _response.close() }
+}
+
+/// The events of an `EventSource`, one at a time, as the iterator
+/// returned by Python's `iter_sse()`.
+///
+/// The next event is decoded as soon as one is handed out, so
+/// `has_next()` is exact. An event still incomplete at the end of the
+/// stream is dropped, as in Python: only a blank line dispatches.
+pub class SSEIter : Iterator[ServerSentEvent] {
+    let _response StreamResponse
+    let _lines SSELineDecoder
+    let _decoder SSEDecoder
+    var _pending list[str]
+    var _next int = 0
+    var _at_eof bool = false
+    var _flushed bool = false
+    var _carry bytes
+    var _ahead ServerSentEvent? = nil
+
+    func __init__(response StreamResponse) {
+        _response = response
+        _lines = SSELineDecoder()
+        _decoder = SSEDecoder()
+        _pending = list[str]()
+        _carry = bytes(0)
+    }
+
+    /// True if another event is left.
+    pub func has_next() bool {
+        if _ahead != nil { return true }
+        _ahead = _advance()
+        return _ahead != nil
+    }
+
+    /// Return the next event and move on. Panic if there is none.
+    pub func next_strict() ServerSentEvent {
+        if !has_next() { panic("No more events in SSEIter") }
+        let ev = _ahead!
+        _ahead = nil
+        return ev
+    }
+
+    /// Return the next event, or nil if there is none.
+    pub func next() ServerSentEvent? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    // Decode until one event is ready or the stream ends.
+    func _advance() ServerSentEvent? {
+        loop {
+            while _next < _pending.len() {
+                let line = _pending[_next]
+                _next += 1
+                let ev = _decoder.decode(line)
+                if ev != nil { return ev }
+            }
+            _pending = list[str]()
+            _next = 0
+
+            if _at_eof {
+                if !_flushed {
+                    _flushed = true
+                    _pending = _lines.flush()
+                    continue
+                }
+                return nil
+            }
+
+            let chunk = _response.read()
+            if chunk == nil {
+                _at_eof = true
+                continue
+            }
+
+            // A multi-byte UTF-8 character may straddle two chunks;
+            // carry its incomplete tail into the next read. Note that
+            // to_str stops at a NUL byte, as koala str is C-style.
+            var data = chunk
+            if _carry.len() > 0 {
+                data = _carry + data
+                _carry = bytes(0)
+            }
+            let cut = _utf8_complete_len(data)
+            if cut < data.len() {
+                _carry = data[cut:data.len()]
+                data = data[0:cut]
+            }
+            _pending = _lines.decode(data.to_str())
+        }
+    }
+}
+
+// The length of the longest prefix of `b` that ends on a UTF-8
+// character boundary. A trailing incomplete sequence is left out.
+func _utf8_complete_len(b bytes) int {
+    let n = b.len()
+    if n == 0 { return 0 }
+
+    // Walk back over continuation bytes (10xxxxxx), at most three.
+    var i = n - 1
+    var back = 0
+    while i >= 0 && back < 3 {
+        if int(b[i]) / 64 != 2 { break }
+        i -= 1
+        back += 1
+    }
+    if i < 0 { return n }
+
+    let lead = int(b[i])
+    var need = 1
+    if lead >= 240 {
+        need = 4
+    } else if lead >= 224 {
+        need = 3
+    } else if lead >= 192 {
+        need = 2
+    }
+    if n - i < need { return i }
+    return n
+}

@@ -845,6 +845,9 @@ static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
         case TYPE_KLASS:
             return compatible_klass(dst, src);
 
+        case TYPE_PROTO:
+            return type_spec_equal_exact(dst, src);
+
         case TYPE_UNION:
             return compatible_union(dst, src);
 

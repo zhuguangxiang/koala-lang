@@ -1,0 +1,154 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=NOOPT
+// RUN: koalac %s --opt --dump=ir | filecheck %s --check-prefix=OPT
+// RUN: koalac %s --cgen --dump=lir | filecheck %s --check-prefix=LIR
+// RUN: koalac %s --cgen --dump=code | filecheck %s --check-prefix=CODE
+
+import "test_pkg/pkg_generic_method"
+import "koala/math"
+
+type IntFn = func(int) int
+
+func increment(x int) int { return x + 1 }
+var current IntFn = increment
+let external = pkg_generic_method.pass
+let native_fn = math.sqrt
+
+func apply(f IntFn, x int) int { return f(x) }
+func choose() IntFn { return increment }
+func get_global() IntFn { return current }
+func use_local(x int) int {
+    let f = increment
+    return f(x)
+}
+func use_external(x int) int { return external(x) }
+func direct_external(x int) int { return pkg_generic_method.pass(x) }
+func use_native(x float) float { return native_fn(x) }
+func direct_native(x float) float { return math.sqrt(x) }
+func pass_function(x int) int { return apply(increment, x) }
+
+// NOOPT-LABEL: func @apply(%f func(int64)int64, %x int64) int64 {
+// NOOPT: %0 = call %f func(int64)int64, %x int64
+// NOOPT-NEXT: ret %0 int64
+// NOOPT-LABEL: func @choose() func(int64)int64 {
+// NOOPT: ret @increment func(int64)int64
+// NOOPT-LABEL: func @get_global() func(int64)int64 {
+// NOOPT: %0 = global_get @current func(int64)int64
+// NOOPT-NEXT: ret %0 func(int64)int64
+// NOOPT-LABEL: func @use_local(%x int64) int64 {
+// NOOPT: %f = local [immutable] func(int64)int64
+// NOOPT-NEXT: move %f func(int64)int64, @increment func(int64)int64
+// NOOPT-NEXT: %0 = call %f func(int64)int64, %x int64
+// NOOPT-LABEL: func @use_external(%x int64) int64 {
+// NOOPT: %0 = global_get @external func(int64)int64
+// NOOPT-NEXT: %1 = call %0 func(int64)int64, %x int64
+// NOOPT-LABEL: func @direct_external(%x int64) int64 {
+// NOOPT: %0 = call @pass [path = 'test_pkg/pkg_generic_method'], %x int64
+// NOOPT-LABEL: func @use_native(%x float64) float64 {
+// NOOPT: %0 = global_get @native_fn func(float64)float64
+// NOOPT-NEXT: %1 = call %0 func(float64)float64, %x float64
+// NOOPT-LABEL: func @direct_native(%x float64) float64 {
+// NOOPT: %0 = call @sqrt [path = 'koala/math'], %x float64
+// NOOPT-LABEL: func @pass_function(%x int64) int64 {
+// NOOPT: %0 = call @apply, @increment func(int64)int64, %x int64
+// NOOPT-LABEL: func @__init__() <NO-TYPE> {
+// NOOPT: global_set @current func(int64)int64, @increment func(int64)int64
+// NOOPT-NEXT: global_set @external func(int64)int64, @pass func(int64)int64
+// NOOPT-NEXT: global_set @native_fn func(float64)float64, @sqrt func(float64)float64
+
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
+// OPT: global_set @current func(int64)int64, @increment func(int64)int64
+// OPT-NEXT: global_set @external func(int64)int64, @pass func(int64)int64
+// OPT-NEXT: global_set @native_fn func(float64)float64, @sqrt func(float64)float64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@apply] ---
+// OPT: %0 = call %f func(int64)int64, %x int64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@choose] ---
+// OPT: ret @increment func(int64)int64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@get_global] ---
+// OPT: %0 = global_get @current func(int64)int64
+// OPT-NEXT: ret %0 func(int64)int64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@use_local] ---
+// OPT: %0 = call @increment, %x int64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@use_external] ---
+// OPT: %0 = global_get @external func(int64)int64
+// OPT-NEXT: %1 = call %0 func(int64)int64, %x int64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@use_native] ---
+// OPT: %0 = global_get @native_fn func(float64)float64
+// OPT-NEXT: %1 = call %0 func(float64)float64, %x float64
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@pass_function] ---
+// OPT: %0 = call @apply, @increment func(int64)int64, %x int64
+
+// LIR-LABEL: --- IR Dump After isel [@__init__] ---
+// LIR: load_func %0 func(int64)int64, @increment func(int64)int64
+// LIR-NEXT: global_set @current func(int64)int64, %0 func(int64)int64
+// LIR: load_func %1 func(int64)int64, @pass func(int64)int64
+// LIR-NEXT: global_set @external func(int64)int64, %1 func(int64)int64
+// LIR: load_func %2 func(float64)float64, @sqrt func(float64)float64
+// LIR-NEXT: global_set @native_fn func(float64)float64, %2 func(float64)float64
+// LIR-LABEL: --- IR Dump After isel [@apply] ---
+// LIR: %0 = local int64 [fixedslot = 0(next)]
+// LIR-NEXT: move %0 int64, %x int64
+// LIR-NEXT: %1 = call %f func(int64)int64, nargs=1
+// LIR-LABEL: --- IR Dump After isel [@choose] ---
+// LIR: load_func %0 func(int64)int64, @increment func(int64)int64
+// LIR-NEXT: ret %0 func(int64)int64
+// LIR-LABEL: --- IR Dump After isel [@get_global] ---
+// LIR: %0 = global_get @current func(int64)int64
+// LIR-NEXT: ret %0 func(int64)int64
+// LIR-LABEL: --- IR Dump After isel [@use_external] ---
+// LIR: %0 = global_get @external func(int64)int64
+// LIR: %2 = call %0 func(int64)int64, nargs=1
+// LIR-LABEL: --- IR Dump After isel [@direct_external] ---
+// LIR: %1 = call @pass [path = 'test_pkg/pkg_generic_method'], nargs=1
+// LIR-LABEL: --- IR Dump After isel [@use_native] ---
+// LIR: %0 = global_get @native_fn func(float64)float64
+// LIR: %2 = call %0 func(float64)float64, nargs=1
+// LIR-LABEL: --- IR Dump After isel [@direct_native] ---
+// LIR: %1 = call @sqrt [path = 'koala/math'], nargs=1
+// LIR-LABEL: --- IR Dump After isel [@pass_function] ---
+// LIR: %0 = local func(int64)int64 [fixedslot = 0(next)]
+// LIR-NEXT: load_func %0 func(int64)int64, @increment func(int64)int64
+// LIR: %2 = call @apply, nargs=2
+
+// The imported function slots are deliberately different from import-table indices.
+// CODE-LABEL: ====== Emitted Bytecode
+// CODE-LABEL: @__init__[0,6]:
+// CODE-NEXT: 0000: B0000001 load_func r0, #1
+// CODE-NEXT: 0001: 89000000 global.set r0, #0
+// CODE-NEXT: 0002: B000000B load_func r0, #11
+// CODE-NEXT: 0003: 89000001 global.set r0, #1
+// CODE-NEXT: 0004: B000000C load_func r0, #12
+// CODE-NEXT: 0005: 89000002 global.set r0, #2
+// CODE-LABEL: @apply[9,12]:
+// CODE: 7A200001 call flg=2, r0, #1
+// CODE-NEXT: 0011: 00000000 data (callee_reg=0)
+// CODE-LABEL: @choose[13,14]:
+// CODE-NEXT: 0013: B0000001 load_func r0, #1
+// CODE-NEXT: 0014: 7C000000 ret r0
+// CODE-LABEL: @get_global[15,16]:
+// CODE-NEXT: 0015: 88000000 global.get r0, #0
+// CODE-NEXT: 0016: 7C000000 ret r0
+// CODE-LABEL: @use_local[17,20]:
+// CODE: 7A000001 call flg=0, r0, #1
+// CODE-NEXT: 0019: 00000001 data (func_index=1(local))
+// CODE-LABEL: @use_external[21,25]:
+// CODE-NEXT: 0021: 88001001 global.get r1, #1
+// CODE: 7A200001 call flg=2, r0, #1
+// CODE-NEXT: 0024: 00000001 data (callee_reg=1)
+// CODE-LABEL: @direct_external[26,29]:
+// CODE: 7A000001 call flg=0, r0, #1
+// CODE-NEXT: 0028: 0000000B data (func_index=11(imported))
+// CODE-LABEL: @use_native[30,34]:
+// CODE-NEXT: 0030: 88001002 global.get r1, #2
+// CODE: 7A200001 call flg=2, r0, #1
+// CODE-NEXT: 0033: 00000001 data (callee_reg=1)
+// CODE-LABEL: @direct_native[35,38]:
+// CODE: 7A000001 call flg=0, r0, #1
+// CODE-NEXT: 0037: 0000000C data (func_index=12(imported))
+// CODE-LABEL: @pass_function[39,43]:
+// CODE-NEXT: 0039: B0010001 load_func r1, #1
+// CODE: 7A000002 call flg=0, r0, #2
+// CODE-NEXT: 0042: 00000002 data (func_index=2(local))
+// CODE-LABEL: Constant Pool:
+// CODE-NEXT: Import Table:
+// CODE-NEXT: [000] func test_pkg/pkg_generic_method::pass, slot_index: 11
+// CODE-NEXT: [001] func koala/math::sqrt, slot_index: 12

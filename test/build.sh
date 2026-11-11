@@ -9,6 +9,7 @@ koala -c --package-name=test_pkg/pkg_intf test_pkg/pkg_intf
 koala -c --package-name=test_pkg/pkg_field test_pkg/pkg_field
 koala -c --package-name=test_pkg/pkg_no_init test_pkg/pkg_no_init
 koala -c --package-name=test_pkg/pkg_generic_method test_pkg/pkg_generic_method
+koala -c --package-name=test_pkg/lambda_no_capture_dep test_pkg/lambda_no_capture_dep
 koala -c --package-name=test_pkg/pkg_const_then_let test_pkg/pkg_const_then_let
 koala -c --package-name=test_pkg/pkg_bytes_default test_pkg/pkg_bytes_default
 koala -c --package-name=test_pkg/pkg_with test_pkg/pkg_with

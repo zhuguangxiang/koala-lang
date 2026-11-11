@@ -1,0 +1,81 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+from "koala/http" import Url
+from "koala/json" import Object, Array, String, Integer, Float, Value
+
+/// The chat completions endpoint.
+///
+/// Mirrors Python: client.chat.completions.create(...)
+pub class Completions {
+    let _api_key str
+    let _base_url Url
+    let _timeout_ms int
+
+    func __init__(api_key str, base_url Url, timeout_ms int) {
+        _api_key = api_key
+        _base_url = base_url
+        _timeout_ms = timeout_ms
+    }
+
+    /// Create a chat completion. Parameters match Python's create() signature order.
+    pub func create(model str, messages list[dict[str, str]], temperature float = 1.0, max_tokens int = 0, top_p float = 0.0, frequency_penalty float = 0.0, presence_penalty float = 0.0) ChatCompletion {
+        let path = _base_url.path() + "/chat/completions"
+        let url = Url(_base_url.scheme(), _base_url.host(), _base_url.port(), path)
+        let body = _build_json(model, messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty)
+        let resp = _post(url, _api_key, body, _timeout_ms)
+
+        if resp == nil {
+            return _parse_completion(0, "", "transport failure: connect or read error")
+        }
+
+        let status = resp.status()
+        let text = resp.body().to_str()
+        return _parse_completion(status, text, "")
+    }
+
+    func _build_json(model str, messages list[dict[str, str]], temperature float, max_tokens int, top_p float, frequency_penalty float, presence_penalty float) str {
+        let root = Object()
+        root.add("model", String(model))
+
+        let arr = Array()
+        var i = 0
+        while i < messages.len() {
+            let m = Object()
+            m.add("role", String(messages[i]["role"]))
+            m.add("content", String(messages[i]["content"]))
+            arr.add(m)
+            i += 1
+        }
+        root.add("messages", arr)
+
+        if temperature != 1.0 {
+            root.add("temperature", Float(temperature))
+        }
+        if max_tokens > 0 {
+            root.add("max_tokens", Integer(max_tokens))
+        }
+        if top_p > 0.0 && top_p < 1.0 {
+            root.add("top_p", Float(top_p))
+        }
+        if frequency_penalty != 0.0 {
+            root.add("frequency_penalty", Float(frequency_penalty))
+        }
+        if presence_penalty != 0.0 {
+            root.add("presence_penalty", Float(presence_penalty))
+        }
+
+        return root.to_json()
+    }
+}
+
+/// The chat namespace: client.chat.completions
+pub class Chat {
+    pub let completions Completions
+
+    func __init__(_completions Completions) {
+        completions = _completions
+    }
+}

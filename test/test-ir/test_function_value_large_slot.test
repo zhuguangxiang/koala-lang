@@ -1,0 +1,9 @@
+# RUN: python3 %S/../inputs/generate_function_slots.py 32766 > %t.kl
+# RUN: koalac %t.kl --cgen --dump=code --write-klc -o %t.klc | filecheck %s --check-prefix=CODE
+# RUN: koala %t.klc | filecheck %s --check-prefix=OUTPUT
+#
+# The target is slot 32768: this exceeds the former 12-bit limit and exercises
+# the high bit of the 16-bit index in code generation, disassembly, and the VM.
+
+# CODE: 0000: B0008000 load_func r0, #32768
+# OUTPUT: 42

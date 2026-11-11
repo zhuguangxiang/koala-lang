@@ -1,0 +1,44 @@
+// RUN: koalac %s --cgen --write-klc -o %t.klc && koala %t.klc | filecheck %s
+// RUN: koalac %s --cgen --ssa --fusion --tail-call --write-klc -o %t.opt.klc && koala %t.opt.klc | filecheck %s
+
+import "test_pkg/pkg_generic_method"
+import "koala/math"
+
+func add1(x int) int { return x + 1 }
+class Example {
+    pub func __init__() {}
+}
+let default_fn = add1
+let external_fn = pkg_generic_method.pass
+let native_fn = math.sqrt
+
+func main() {
+    print(default_fn)
+    print(external_fn)
+    print(native_fn)
+    print(add1)
+    print(pkg_generic_method.pass)
+    print(math.sqrt)
+    print(Example())
+    print(typeof(Example()))
+    print(typeof(pkg_generic_method.Box()))
+    print(typeof(1))
+    let local_fn = native_fn
+    print(local_fn)
+    print(format("value: {}", default_fn))
+    print((default_fn, external_fn, native_fn))
+}
+
+// CHECK: <function(code) 'add1' in module 'test_function_value_print'>
+// CHECK-NEXT: <function(code) 'pass' in module 'test_pkg/pkg_generic_method'>
+// CHECK-NEXT: <function(native) 'sqrt' in module 'koala/math'>
+// CHECK-NEXT: <function(code) 'add1' in module 'test_function_value_print'>
+// CHECK-NEXT: <function(code) 'pass' in module 'test_pkg/pkg_generic_method'>
+// CHECK-NEXT: <function(native) 'sqrt' in module 'koala/math'>
+// CHECK-NEXT: <test_function_value_print.Example object at 0x{{[0-9a-f]+}}>
+// CHECK-NEXT: <class 'test_function_value_print.Example'>
+// CHECK-NEXT: <class 'test_pkg/pkg_generic_method.Box'>
+// CHECK-NEXT: <class 'int64'>
+// CHECK-NEXT: <function(native) 'sqrt' in module 'koala/math'>
+// CHECK-NEXT: value: <function(code) 'add1' in module 'test_function_value_print'>
+// CHECK-NEXT: (<function(code) 'add1' in module 'test_function_value_print'>, <function(code) 'pass' in module 'test_pkg/pkg_generic_method'>, <function(native) 'sqrt' in module 'koala/math'>)

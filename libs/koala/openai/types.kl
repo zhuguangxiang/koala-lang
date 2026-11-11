@@ -1,0 +1,160 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+from "koala/json" import parse_str, Object, Null, Value
+
+// Internal response parsing. Public API shape is in types declared here;
+// construction logic is internal.
+
+/// A complete chat completion response — mirrors Python's ChatCompletion.
+///
+/// User-facing access (same syntax as Python):
+///     resp.choices[0].message.content
+///     resp.usage.total_tokens
+///     resp.model
+///     resp.id
+///     resp.status_code
+///     resp.error_message
+pub class ChatCompletion {
+    pub let status_code int
+    pub let id str
+    pub let object str
+    pub let created int
+    pub let model str
+    pub let choices list[Choice]
+    pub let usage Usage
+    pub let error_message str
+
+    pub func __init__(_status int, _id str, _obj str, _created int, _model str, _choices list[Choice], _usage Usage, _err str) {
+        status_code = _status
+        id = _id
+        object = _obj
+        created = _created
+        model = _model
+        choices = _choices
+        usage = _usage
+        error_message = _err
+    }
+
+    pub func ok() bool { return status_code == 200 }
+
+    pub func first_content() str {
+        if choices.len() == 0 { return "" }
+        return choices[0].message.content
+    }
+}
+
+pub class Choice {
+    pub let index int
+    pub let message CompletionMessage
+    pub let finish_reason str
+
+    pub func __init__(_index int, _message CompletionMessage, _finish_reason str) {
+        index = _index
+        message = _message
+        finish_reason = _finish_reason
+    }
+}
+
+pub class CompletionMessage {
+    pub let role str
+    pub let content str
+
+    pub func __init__(_role str, _content str) {
+        role = _role
+        content = _content
+    }
+}
+
+pub class Usage {
+    pub let prompt_tokens int
+    pub let completion_tokens int
+    pub let total_tokens int
+
+    pub func __init__(_pt int, _ct int, _tt int) {
+        prompt_tokens = _pt
+        completion_tokens = _ct
+        total_tokens = _tt
+    }
+}
+
+// ---- internal: build ChatCompletion from raw JSON ----
+
+func _parse_completion(status int, body str, transport_err str) ChatCompletion {
+    if status == 0 {
+        return _error_completion(0, transport_err)
+    }
+    if status != 200 {
+        var msg = _extract_error(body)
+        if msg.len() == 0 { msg = "HTTP " + str(status) }
+        return _error_completion(status, msg)
+    }
+
+    let root = (parse_str(body) as Object)!
+    let rid = _get_str(root, "id")
+    let obj = _get_str(root, "object")
+    let created = _get_int(root, "created")
+    let mdl = _get_str(root, "model")
+
+    let choices = list[Choice]()
+    if "choices" in root {
+        let arr = root.get_array("choices")
+        var i = 0
+        while i < arr.len() {
+            let c = arr.get_object(i)
+            let idx = _get_int(c, "index")
+            let fr = _get_str(c, "finish_reason")
+            var mrole = ""
+            var mcontent = ""
+            if "message" in c {
+                let m = c.get_object("message")
+                mrole = _get_str(m, "role")
+                mcontent = _get_str(m, "content")
+            }
+            choices.append(Choice(idx, CompletionMessage(mrole, mcontent), fr))
+            i += 1
+        }
+    }
+
+    var pt = 0
+    var ct = 0
+    var tt = 0
+    if "usage" in root {
+        let u = root.get_object("usage")
+        pt = _get_int(u, "prompt_tokens")
+        ct = _get_int(u, "completion_tokens")
+        tt = _get_int(u, "total_tokens")
+    }
+
+    return ChatCompletion(status, rid, obj, created, mdl, choices, Usage(pt, ct, tt), "")
+}
+
+func _error_completion(status int, msg str) ChatCompletion {
+    return ChatCompletion(status, "", "error", 0, "", list[Choice](), Usage(0, 0, 0), msg)
+}
+
+func _get_str(obj Object, k str) str {
+    if !(k in obj) { return "" }
+    let v = obj.get(k)
+    let null_check = v as Null
+    if null_check != nil { return "" }
+    return obj.get_str(k)
+}
+
+func _get_int(obj Object, k str) int {
+    if !(k in obj) { return 0 }
+    return obj.get_int(k)
+}
+
+func _extract_error(body str) str {
+    if body.len() == 0 { return "" }
+    let val = parse_str(body)
+    let obj = val as Object
+    if obj == nil { return "" }
+    if !("error" in obj) { return "" }
+    let err = obj.get_object("error")
+    if !("message" in err) { return "" }
+    return err.get_str("message")
+}

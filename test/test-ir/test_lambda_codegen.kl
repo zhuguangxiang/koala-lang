@@ -1,0 +1,37 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,ir,lir,code | filecheck %s
+
+func choose() func(int) int {
+    return { |x int| x + 1 }
+}
+
+func main() {
+    let f = choose()
+    print(f(2))
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @__lambda$0(%x int64) int64 {
+// CHECK: %0 = add %x int64, 1 int64
+// CHECK-NEXT: ret %0 int64
+// CHECK-LABEL: func @choose() func(int64)int64 {
+// CHECK: ret @__lambda$0 func(int64)int64
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__lambda$0] ---
+// CHECK-LABEL: func @__lambda$0(%x int64) int64 {
+// CHECK: %0 = add %x int64, 1 int64
+// CHECK-NEXT: ret %0 int64
+
+// CHECK-LABEL: --- IR Dump After isel [@choose] ---
+// CHECK: load_func %0 func(int64)int64, @__lambda$0 func(int64)int64
+// CHECK-NEXT: ret %0 func(int64)int64
+// CHECK-LABEL: --- IR Dump After isel [@__lambda$0] ---
+// CHECK: %0 = int.add_imm %x int64, 1 int64
+// CHECK-NEXT: ret %0 int64
+
+// CHECK-LABEL: ====== Emitted Bytecode
+// CHECK-LABEL: @choose[0,1]:
+// CHECK: load_func r0, #2
+// CHECK-NEXT: {{.*}}ret r0
+// CHECK-LABEL: @__lambda$0[14,15]:
+// CHECK: int.add_imm r0, r0, #1
+// CHECK-NEXT: {{.*}}ret r0

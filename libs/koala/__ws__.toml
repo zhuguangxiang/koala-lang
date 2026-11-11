@@ -27,4 +27,6 @@ packages = [
     "sqlite3",
     "shlex",
     "readline",
+    "openai",
+    "sse",
 ]

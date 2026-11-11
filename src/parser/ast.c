@@ -269,6 +269,15 @@ Expr *expr_from_self(void)
     return exp;
 }
 
+Expr *expr_from_lambda(Vector *params, Expr *body)
+{
+    LambdaExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_ANONY_KIND;
+    exp->params = params;
+    exp->body = body;
+    return (Expr *)exp;
+}
+
 Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type)
 {
     IsExpr *e = mm_alloc_obj(e);
@@ -510,7 +519,22 @@ static void const_tuple_expr_free(Expr *exp)
     vector_destroy(tuple->vec);
     mm_free(exp);
 }
-static void anony_expr_free(Expr *exp) { mm_free(exp); }
+
+static void anony_expr_free(Expr *exp)
+{
+    LambdaExpr *lambda = (LambdaExpr *)exp;
+    ParamDecl *param;
+    vector_foreach(param, lambda->params) {
+        type_spec_free(param->type);
+        expr_free(param->value);
+        mm_free(param);
+    }
+    vector_destroy(lambda->params);
+    expr_free(lambda->body);
+    stbl_free(lambda->scope);
+    mm_free(exp);
+}
+
 static void type_expr_free(Expr *exp) { mm_free(exp); }
 
 static void optional_type_expr_free(Expr *exp)

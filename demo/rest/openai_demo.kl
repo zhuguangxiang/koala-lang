@@ -1,0 +1,57 @@
+/// demo: call DeepSeek (OpenAI-compatible API) via the koala/openai package.
+///
+/// Usage:
+///   export KOALA_PATH=/home/james/Codes/koala-lang/build/release/lib/koala/lib/koala/
+///   export LD_LIBRARY_PATH=/home/james/Codes/koala-lang/build/release/lib
+///   /home/james/Codes/koala-lang/build/release/bin/koala demo/rest/openai_demo.kl
+///
+/// The interface mirrors the Python openai SDK:
+///   Python:  client.chat.completions.create(model=..., messages=[...])
+///   Koala:   client.chat.completions.create(model, [...])
+import "koala/openai" as openai
+
+func main() {
+    // DeepSeek is OpenAI-compatible: only base_url and model differ.
+    let client = openai.Client("sk-63570c4b930d48fd84c81c54be56f192", "https://api.deepseek.com")
+
+    // --- 1. simple question ---
+    let resp = client.chat.completions.create(
+        "deepseek-chat",
+        [
+            {"role": "system", "content": "You are a helpful assistant. Answer in one word."},
+            {"role": "user", "content": "What is 2+3?"},
+        ],
+        0.0,
+        8,
+    )
+
+    if resp.ok() {
+        print("Q: What is 2+3?")
+        print("A: " + resp.choices[0].message.content)
+        print("Model: " + resp.model)
+        print("Tokens: " + str(resp.usage.total_tokens))
+    } else {
+        print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+    }
+
+    print()
+
+    // --- 2. code generation ---
+    let resp2 = client.chat.completions.create(
+        "deepseek-chat",
+        [
+            {"role": "system", "content": "You are a code assistant. Output only code, no markdown fences."},
+            {"role": "user", "content": "Write a function `first_upper(s)` in Koala that capitalizes the first letter."},
+        ],
+        0.0,
+        256,
+    )
+
+    if resp2.ok() {
+        print("Code:")
+        print(resp2.choices[0].message.content)
+        print("Tokens: " + str(resp2.usage.total_tokens))
+    } else {
+        print("Error [" + str(resp2.status_code) + "]: " + resp2.error_message)
+    }
+}

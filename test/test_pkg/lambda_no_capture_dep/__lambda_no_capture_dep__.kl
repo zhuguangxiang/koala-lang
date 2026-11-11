@@ -1,0 +1,7 @@
+var offset = 2
+
+pub func get_callback() func(int) int {
+    return { |x int| x + offset }
+}
+
+pub func set_offset(n int) { offset = n }

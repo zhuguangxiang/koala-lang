@@ -242,7 +242,15 @@ static void print_no_value_insn(const char *name, KlrInsn *insn, FILE *fp)
 
 static void print_move_insn(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "move ");
+    fprintf(fp, "%s ", op_name(insn->code));
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
+static void print_load_func_insn(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", op_name(insn->code));
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -312,7 +320,7 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
 {
     KlrValue *fn = insn_oper_value(insn, 0);
 
-    if (fn->ts->kind == TYPE_NO_TYPE) {
+    if (type_is_no_type(insn->ts)) {
         fprintf(fp, "call ");
     } else {
         klr_print_value_name((KlrValue *)insn, fp);
@@ -376,7 +384,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
 {
     KlrValue *fn = insn_oper_value(insn, 0);
 
-    if (fn->ts->kind == TYPE_NO_TYPE || insn->code == OP_TAIL_CALL) {
+    if (type_is_no_type(insn->ts) || insn->code == OP_TAIL_CALL) {
         fprintf(fp, "%s ", name);
     } else {
         klr_print_value_name((KlrValue *)insn, fp);
@@ -413,12 +421,16 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         KlrIntf *intf = (KlrIntf *)fn;
         fprintf(fp, "@%s:%s", intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
-    } else {
-        ASSERT(fn->kind == KLR_VALUE_EXT_INTF);
+    } else if (fn->kind == KLR_VALUE_EXT_INTF) {
         KlrExtIntf *intf = (KlrExtIntf *)fn;
         KlrExtModule *ext_m = intf->module;
         fprintf(fp, "@%s.%s:%s", ext_m->name, intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
+    } else if (fn->ts && type_is_proto(fn->ts)) {
+        klr_print_value_name(fn, fp);
+        print_value_type(fn, fp);
+    } else {
+        UNREACHABLE();
     }
 
     fprintf(fp, ", nargs=%d", insn->num_args);
@@ -651,6 +663,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_MOVE:
             print_move_insn(insn, fp);
+            break;
+
+        case OP_LOAD_FUNC:
+            print_load_func_insn(insn, fp);
             break;
 
         case OP_MOVE_TRUE:

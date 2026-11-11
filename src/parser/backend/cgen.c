@@ -1266,6 +1266,32 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
     KlrRawOper *op1 = &insn->raws[1];
     KlrRawOper *op2 = &insn->raws[2];
 
+    if (insn->code == OP_LOAD_FUNC) {
+        mi->opers[0] = get_mach_oper(insn, op0);
+        if (mi->opers[0] < 0 || mi->opers[0] > UINT8_MAX) {
+            fprintf(stderr, "register index %d exceeds load_func encoding\n", mi->opers[0]);
+            abort();
+        }
+        KlrValue *target = get_mach_oper_ptr(insn, op1);
+        int index;
+        if (klr_is_extfunc(target)) {
+            KlrExtFunc *fn = (KlrExtFunc *)target;
+            ASSERT(!fn->klass);
+            index = mach_import_add_func(m, fn->module->name, fn->name);
+        } else {
+            ASSERT(klr_is_func(target));
+            KlrFunc *fn = (KlrFunc *)target;
+            ASSERT(fn->mach);
+            index = ((KlMachFunc *)fn->mach)->index;
+        }
+        if (index < 0 || index > UINT16_MAX) {
+            fprintf(stderr, "function table index %d exceeds load_func encoding\n", index);
+            abort();
+        }
+        mi->opers[1] = index;
+        return;
+    }
+
     /* Map raw operands into physical encoding fields. */
     switch (mi->format) {
         case FORMAT_Rx:
@@ -1312,6 +1338,15 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
         case FORMAT_CALL: {
             mi->opers[1] = get_mach_oper(insn, op0);
             mi->opers[2] = get_mach_oper(insn, op1);
+            if (op2->kind == RAW_OPER_REG) {
+                mi->intf_index = get_mach_oper(insn, op2);
+                KlMachInsn *data = build_data_mach_insn(mi->bb);
+                vector_push_back(&mi->bb->insns, &data);
+                vector_push_back(&m->fixups, &mi);
+                mi->fixup_flag = KL_MACH_FIXUP_INTFID;
+                mi->opers[0] = 2;
+                break;
+            }
             void *ptr = get_mach_oper_ptr(insn, op2);
             ASSERT(klr_is_func(ptr) || klr_is_extfunc(ptr) || klr_is_intf(ptr) ||
                    klr_is_ext_intf(ptr));

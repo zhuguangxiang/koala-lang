@@ -1,0 +1,25 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+//
+// A function used as a value: it is assigned to a local like any other value,
+// and the call goes through the local (no compile-time aliasing).
+
+func add1(x int) int {
+    return x + 1
+}
+
+func use_local() int {
+    let f = add1
+    return f(10)
+}
+
+// CHECK-LABEL: func @use_local() int64 {
+// CHECK: %bb0(entry):
+// CHECK: %f = local [immutable] func(int64)int64
+// CHECK: move %f func(int64)int64, @add1 func(int64)int64
+// CHECK: %0 = call %f func(int64)int64, 10 int64
+// CHECK: ret %0 int64
+// CHECK: }
+
+// let gfn = use_local
+
+print(use_local())

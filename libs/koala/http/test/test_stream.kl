@@ -1,0 +1,117 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Streaming client tests on loopback. A raw TCP socket stands in for
+// the peer; no HTTP server is involved.
+//
+// The head is read lazily, so one thread can drive both ends: dial and
+// send first, then accept, read the request, and write the response.
+
+import "std/ut"
+import "std/socket" as so
+from "koala/http" import Url, Request, Client
+
+// Accept the pending connection, read the request, write `response`,
+// and close the peer side.
+func _serve(listener so.Listener, response str) {
+    let r = listener.accept()
+    let server = r.conn()!
+    let buf = bytes(4096)
+    server.read(buf)
+    server.write_str(response)
+    server.close()
+}
+
+@test
+func test_stream_close_delimited() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let port = listener.local_addr().port()
+    let url = Url("http", "127.0.0.1", port, "/events")
+
+    let resp = Client().stream(Request.get(url))!
+    _serve(listener, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\ndata: one\n\ndata: two\n\n")
+
+    ut.assert_eq(resp.status(), 200)
+    ut.assert_eq(resp.header("Content-Type")!, "text/event-stream")
+
+    var body = ""
+    loop {
+        let piece = resp.read()
+        if piece == nil { break }
+        body += piece!.to_str()
+    }
+    ut.assert_eq(body, "data: one\n\ndata: two\n\n")
+    ut.assert_true(resp.read() == nil)
+
+    resp.close()
+    listener.close()
+}
+
+@test
+func test_stream_chunked() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let port = listener.local_addr().port()
+    let url = Url("http", "127.0.0.1", port, "/")
+
+    let resp = Client().stream(Request.get(url))!
+    _serve(listener, "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n")
+
+    ut.assert_eq(resp.status(), 200)
+    var body = ""
+    loop {
+        let piece = resp.read()
+        if piece == nil { break }
+        body += piece!.to_str()
+    }
+    ut.assert_eq(body, "hello world")
+
+    resp.close()
+    listener.close()
+}
+
+@test
+func test_stream_with_block() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let port = listener.local_addr().port()
+    let url = Url("http", "127.0.0.1", port, "/")
+
+    let resp = Client().stream(Request.get(url))!
+    _serve(listener, "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi")
+
+    with resp {
+        ut.assert_eq(resp.status(), 200)
+        ut.assert_eq(resp.read()!.to_str(), "hi")
+        ut.assert_true(resp.read() == nil)
+    }
+    // The with block closed the stream; further reads stay nil.
+    ut.assert_true(resp.read() == nil)
+    listener.close()
+}
+
+@test
+func test_stream_connect_refused() {
+    let url = Url("http", "127.0.0.1", 1, "/")
+    ut.assert_true(Client().stream(Request.get(url)) == nil)
+}
+
+@test
+func test_stream_head_timeout() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let port = listener.local_addr().port()
+    let url = Url("http", "127.0.0.1", port, "/")
+
+    let resp = Client().stream(Request.get(url), 200)!
+    // Accept but never answer: the head read must time out, not hang.
+    let r = listener.accept()
+    let server = r.conn()!
+
+    ut.assert_true(resp.head() == nil)
+    ut.assert_eq(resp.status(), 0)
+    ut.assert_true(resp.read() == nil)
+
+    resp.close()
+    server.close()
+    listener.close()
+}

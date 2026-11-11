@@ -919,6 +919,9 @@ KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op);
 /* IR: %0 = load_int_imm/load_tag/loadk %var */
 KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode op);
 
+/* IR: load_func %var, @function */
+KlrInsn *klr_build_load_func(KlrBuilder *bldr, KlrValue *var, KlrValue *func);
+
 /* add a return instruction at the end of a basic block if it doesn't have one
  */
 void klr_add_last_return(KlrBasicBlock *bb);

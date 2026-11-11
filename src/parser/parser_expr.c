@@ -92,6 +92,23 @@ static int check_literal_as_expected(Literal *lit, Loc loc, TypeSpec *expected, 
     }
 }
 
+static int check_lambda_capture(ParserState *ps, Ident *id, Symbol *sym)
+{
+    if (sym->kind == SYM_SHADOW_VAR) sym = ((ShadowVarSymbol *)sym)->origin;
+    if (sym->kind != SYM_VAR) return 0;
+    VarSymbol *var = (VarSymbol *)sym;
+    if (var->scope != VAR_SCOPE_LOCAL && var->scope != VAR_SCOPE_PARAM) return 0;
+
+    ParserScope *decl_scope = id->scope;
+    for (ParserScope *sc = ps->scope; sc && sc != decl_scope; sc = sc->next) {
+        if (sc->kind == SCOPE_ANONY) {
+            kl_error(id->loc, "lambda variable captures are not implemented yet");
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void parse_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *id_exp = (IdentExpr *)exp;
@@ -105,6 +122,17 @@ static void parse_ident(ParserState *ps, Expr *exp)
     if (sym->kind == SYM_ENUM) {
         kl_error(id->loc, "enum '%s' is not a value, use '%s.MEMBER'", id->name, id->name);
         return;
+    }
+
+    if (check_lambda_capture(ps, id, sym)) return;
+
+    if (sym->kind == SYM_VAR && ((VarSymbol *)sym)->scope == VAR_SCOPE_FIELD) {
+        for (ParserScope *sc = ps->scope; sc && sc->kind != SCOPE_FUNC; sc = sc->next) {
+            if (sc->kind == SCOPE_ANONY) {
+                kl_error(exp->loc, "capturing 'self' in a lambda is not implemented yet");
+                return;
+            }
+        }
     }
 
     if (sym->kind == SYM_VAR) {
@@ -168,7 +196,6 @@ static void parse_ident(ParserState *ps, Expr *exp)
     }
 
     exp->sym = sym;
-
     log_info("ident resolved: %s", sym->name);
     log_type_spec(sym->ts);
 }
@@ -457,6 +484,13 @@ static Symbol *get_current_klass(ParserState *ps)
 static void parse_self(ParserState *ps, Expr *exp)
 {
     ASSERT(exp->ctx == EXPR_CTX_LOAD);
+
+    for (ParserScope *sc = ps->scope; sc && sc->kind != SCOPE_FUNC; sc = sc->next) {
+        if (sc->kind == SCOPE_ANONY) {
+            kl_error(exp->loc, "capturing 'self' in a lambda is not implemented yet");
+            return;
+        }
+    }
 
     Symbol *sym = get_current_klass(ps);
     if (!sym || sym->kind != SYM_CLASS) {
@@ -2107,7 +2141,13 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
 
     Vector *params = NULL;
-    if (lhs_sym->kind == SYM_VAR) {
+    if (!lhs_sym && lhs->ts->kind == TYPE_PROTO) {
+        exp->ts = lhs->ts->proto_type.ret;
+        params = arg_infos_from_arg_types(lhs->ts->proto_type.args);
+    } else if (!lhs_sym) {
+        kl_error(lhs->loc, "expression is not callable.");
+        return;
+    } else if (lhs_sym->kind == SYM_VAR) {
         TypeSpec *ts = lhs_sym->ts;
 
         log_info("call lhs is variable of type:");
@@ -4609,6 +4649,76 @@ static void parse_coalesce(ParserState *ps, Expr *exp)
     log_type_spec(exp->ts);
 }
 
+static void parse_lambda(ParserState *ps, Expr *exp)
+{
+    LambdaExpr *lambda = (LambdaExpr *)exp;
+    if (exp->ts) return;
+    if (!lambda->body) return;
+    for (int i = 0; i < vector_size(lambda->params); i++) {
+        ParamDecl *param = vector_get(lambda->params, i);
+        for (int j = 0; j < i; j++) {
+            ParamDecl *previous = vector_get(lambda->params, j);
+            if (str_equal(param->id.name, previous->id.name)) {
+                kl_error(param->id.loc, "duplicate lambda parameter '%s'", param->id.name);
+                return;
+            }
+        }
+    }
+
+    TypeSpec *expected = exp->expected;
+    if (expected && type_is_optional(expected)) expected = expected->opt.src;
+    if (expected && !type_is_proto(expected)) expected = NULL;
+    if (expected && vector_size(expected->proto_type.args) != vector_size(lambda->params)) {
+        kl_error(exp->loc, "lambda parameter count does not match expected function type");
+        return;
+    }
+
+    if (!lambda->scope) lambda->scope = stbl_new();
+    ParserScope *scope = enter_scope(ps, SCOPE_ANONY, 0, "lambda");
+    scope->stbl = lambda->scope;
+    Vector *args = vector_create_ptr();
+    int errors = ps->errors;
+    for (int i = 0; i < vector_size(lambda->params); i++) {
+        ParamDecl *param = vector_get(lambda->params, i);
+        int has_type = param->type != NULL;
+        TypeSpec *param_ts = has_type ? resolve_type(ps, param->type) : NULL;
+        if (has_type) param->type = param_ts;
+        TypeSpec *expected_ts = expected ? vector_get(expected->proto_type.args, i) : NULL;
+        if (!param_ts && !has_type) param_ts = expected_ts;
+        if (!param_ts) {
+            if (!has_type) {
+                kl_error(param->id.loc, "lambda parameter '%s' needs a type", param->id.name);
+            }
+            break;
+        }
+        if (!check_type(ps, param_ts)) break;
+        if (expected_ts && !type_spec_equal_exact(param_ts, expected_ts)) {
+            kl_error_incompatible_type(param->id.loc, expected_ts, param_ts);
+            break;
+        }
+        Symbol *sym = stbl_add_var(scope->stbl, param->id.name, param_ts, 0);
+        if (!sym) {
+            kl_error(param->id.loc, "duplicate lambda parameter '%s'", param->id.name);
+            break;
+        }
+        sym->status = SYM_RESOLVED;
+        ((VarSymbol *)sym)->scope = VAR_SCOPE_PARAM;
+        vector_push_back(args, &param_ts);
+    }
+    if (ps->errors == errors) {
+        lambda->body->ctx = EXPR_CTX_LOAD;
+        lambda->body->expected = expected ? expected->proto_type.ret : NULL;
+        parser_visit_expr(ps, lambda->body);
+    }
+    exit_scope(ps);
+
+    if (ps->errors != errors || !lambda->body->ts) {
+        vector_destroy(args);
+        return;
+    }
+    exp->ts = func_type_spec_intern(args, lambda->body->ts);
+}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -4626,6 +4736,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_MAP_KIND]     = parse_map,
         [EXPR_MAP_ENTRY_KIND] = parse_map_entry,
         [EXPR_TUPLE_KIND]   = parse_tuple,
+        [EXPR_ANONY_KIND]   = parse_lambda,
         [EXPR_TYPE_KIND]    = parse_type,
         [EXPR_OPTIONAL_TYPE_KIND] = parse_optional_type,
         [EXPR_CALL_KIND]    = parse_call,

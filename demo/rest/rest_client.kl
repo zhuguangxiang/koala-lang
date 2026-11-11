@@ -1,0 +1,180 @@
+/*
+ * rest_client.kl — Koala HTTP client demo against a local Python REST server.
+ *
+ * Run server.py in another terminal first, then:
+ *   koala rest_client.kl
+ */
+
+import "std/socket" as so
+from "koala/http" import Url, Request, Response
+from "koala/json" import parse_str, Object, Array, String, Integer, Value
+
+const HOST = "127.0.0.1"
+const PORT = 8080
+const BASE = "http://127.0.0.1:8080"
+
+// ---- main flow ----
+
+func test_post_create() {
+    print("=== POST /items (create) ===")
+    let body = build_json("alpha", 100)
+    let resp = send("POST", "/items", body)
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_post_create2() {
+    print("=== POST /items (create second) ===")
+    let body = build_json("beta", 200)
+    let resp = send("POST", "/items", body)
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_get_list() {
+    print("=== GET /items (list all) ===")
+    let resp = send("GET", "/items", "")
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_get_one() {
+    print("=== GET /items/1 (single) ===")
+    let resp = send("GET", "/items/1", "")
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_put_update() {
+    print("=== PUT /items/1 (update) ===")
+    let body = build_json("alpha-updated", 999)
+    let resp = send("PUT", "/items/1", body)
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_delete() {
+    print("=== DELETE /items/2 ===")
+    let resp = send("DELETE", "/items/2", "")
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_get_after_delete() {
+    print("=== GET /items (after delete) ===")
+    let resp = send("GET", "/items", "")
+    print_status(resp)
+    print_body(resp)
+}
+
+func test_parse_response() {
+    print("=== Parse JSON response ===")
+    let resp = send("GET", "/items", "")
+    if resp == nil {
+        print("  (no response, is server running?)")
+        return
+    }
+    let json_str = resp.body().to_str()
+    let val = parse_str(json_str)
+    let arr = (val as Array)!
+    print("  items count: " + str(arr.len()))
+}
+
+// ---- helpers ----
+
+/// Build a JSON body string for an item.
+func build_json(name str, value int) str {
+    let obj = Object()
+    obj.add("name", String(name))
+    obj.add("value", Integer(value))
+    return obj.to_json()
+}
+
+/// Send an HTTP request using raw TCP + Request serialization + Response parsing.
+func send(method str, path str, body_str str) Response? {
+    // Dial TCP
+    let addr = HOST + ":" + str(PORT)
+    let conn = so.dial(addr, so.SocketTypeSpec.tcp())
+    if conn == nil {
+        print("  [error] cannot connect to " + addr)
+        return nil
+    }
+
+    // Build Request
+    let url = Url.parse(BASE + path)!
+    let body = body_str.to_bytes()
+    let headers = list[list[str]]()
+
+    // Force Connection: close so read_all gets EOF after the response
+    let cc = list[str]()
+    cc.append("Connection")
+    cc.append("close")
+    headers.append(cc)
+
+    if body_str.len() > 0 {
+        let ct = list[str]()
+        ct.append("Content-Type")
+        ct.append("application/json")
+        headers.append(ct)
+    }
+
+    let req = Request(method, url, headers, body)
+    let data = req.to_bytes()
+
+    // Write request
+    let nw = conn.write(data)
+    if nw <= 0 {
+        conn.close()
+        print("  [error] write failed")
+        return nil
+    }
+
+    // Set read timeout: 5 seconds
+    conn.set_read_timeout(5000)
+
+    // Read response (Connection: close means we read until EOF)
+    let raw = read_all(conn)
+    conn.close()
+
+    if raw == nil {
+        print("  [error] read failed")
+        return nil
+    }
+
+    // Parse HTTP response
+    return Response.parse(raw)
+}
+
+/// Read all bytes from conn until EOF or error.
+func read_all(conn so.Conn) bytes? {
+    let buf = Buffer(4096)
+    let scratch = bytes(4096)
+    loop {
+        let n = conn.read(scratch)
+        if n < 0 { return nil }
+        if n == 0 { return buf.to_bytes() }
+        buf.write(scratch[0:n])
+    }
+}
+
+func print_status(resp Response?) {
+    if resp == nil { return }
+    print("  status: " + str(resp.status()))
+}
+
+func print_body(resp Response?) {
+    if resp == nil { return }
+    print("  body:   " + resp.body().to_str())
+}
+
+// ---- run all tests ----
+
+test_post_create()
+test_post_create2()
+test_get_list()
+test_get_one()
+test_put_update()
+test_delete()
+test_get_after_delete()
+test_parse_response()
+print("\nDone.")

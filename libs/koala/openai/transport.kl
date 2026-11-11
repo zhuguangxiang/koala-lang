@@ -1,0 +1,69 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+import "koala/tls" as tls
+from "koala/http" import Url, Request, Response
+
+// Internal HTTP transport layer shared by API endpoints.
+
+// Dial a connection to the given URL, using TLS or plain TCP.
+func _dial(url Url, timeout_ms int) so.Conn? {
+    let addr = url.host() + ":" + str(url.port())
+    if url.is_tls() {
+        let opts = tls.TlsOptions().set_handshake_timeout_ms(15000)
+        let tls_conn = tls.dial(addr, opts)
+        if tls_conn == nil { return nil }
+        return tls_conn
+    }
+    return so.dial(addr, so.SocketTypeSpec.tcp())
+}
+
+// Send a POST request with JSON body and return the raw HTTP response.
+func _post(url Url, api_key str, json_body str, timeout_ms int) Response? {
+    let conn = _dial(url, timeout_ms)
+    if conn == nil { return nil }
+
+    conn.set_read_timeout(timeout_ms)
+
+    let headers = list[list[str]]()
+    _hdr(headers, "Authorization", "Bearer " + api_key)
+    _hdr(headers, "Content-Type", "application/json")
+    _hdr(headers, "Accept", "application/json")
+    _hdr(headers, "Connection", "close")
+
+    let req = Request("POST", url, headers, json_body.to_bytes())
+    let data = req.to_bytes()
+
+    let nw = conn.write(data)
+    if nw <= 0 {
+        conn.close()
+        return nil
+    }
+
+    let raw = _read_all(conn)
+    conn.close()
+
+    if raw == nil { return nil }
+    return Response.parse(raw)
+}
+
+func _hdr(headers list[list[str]], name str, value str) {
+    let pair = list[str]()
+    pair.append(name)
+    pair.append(value)
+    headers.append(pair)
+}
+
+func _read_all(conn so.Conn) bytes? {
+    let buf = Buffer(8192)
+    let scratch = bytes(8192)
+    loop {
+        let n = conn.read(scratch)
+        if n < 0 { return nil }
+        if n == 0 { return buf.to_bytes() }
+        buf.write(scratch[0:n])
+    }
+}

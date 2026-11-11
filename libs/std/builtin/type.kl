@@ -35,3 +35,17 @@ pub class type {
     @native
     pub func lro() list[str] {}
 }
+
+/// The runtime representation of a Koala function.
+class code {
+    /// Format the function for display.
+    @native
+    pub func fmt(f Formatter) {}
+}
+
+/// The runtime representation of a native function.
+class cfunc {
+    /// Format the function for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

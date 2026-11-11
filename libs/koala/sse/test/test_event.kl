@@ -1,0 +1,40 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+from "koala/sse" import ServerSentEvent
+from "koala/json" import Object
+
+@test
+func test_defaults() {
+    let ev = ServerSentEvent()
+    ut.assert_eq(ev.event, "message")
+    ut.assert_eq(ev.data, "")
+    ut.assert_eq(ev.id, "")
+    ut.assert_true(ev.retry == nil)
+}
+
+@test
+func test_empty_event_becomes_message() {
+    ut.assert_eq(ServerSentEvent("").event, "message")
+}
+
+@test
+func test_fields() {
+    let ev = ServerSentEvent("update", "payload", "9", 250)
+    ut.assert_eq(ev.event, "update")
+    ut.assert_eq(ev.data, "payload")
+    ut.assert_eq(ev.id, "9")
+    ut.assert_eq(ev.retry!, 250)
+}
+
+@test
+func test_json() {
+    let ev = ServerSentEvent(nil, "{\"a\": 1, \"b\": \"x\"}")
+    let obj = ev.json() as Object
+    ut.assert_true(obj != nil)
+    ut.assert_eq(obj!.get_int("a"), 1)
+    ut.assert_eq(obj!.get_str("b"), "x")
+}

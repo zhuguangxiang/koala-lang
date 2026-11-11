@@ -1,0 +1,47 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+
+type IntFn = func(int) int
+
+var offset = 1
+var calls = 0
+let callback IntFn = { |x| x + offset }
+
+func apply(f IntFn, x int) int { return f(x) }
+func choose() IntFn { return { |x int| x * 2 } }
+func bump() int { calls += 1; return calls }
+
+func main() {
+    let f = { |x int| x + 3 }
+    print(f(2))
+    print(({ |x int| x - 1 })(8))
+    print(apply({ |x int| x * 3 }, 4))
+    print(choose()(5))
+    print(callback(3))
+    offset = 5
+    print(callback(3))
+    let nested = { || { || 7 } }
+    print(nested()())
+    let own_parameter = { |x int| x + 1 }
+    print(own_parameter(8))
+    let nested_parameter = { || { |x int| x + offset } }
+    print(nested_parameter()(1))
+    let action = { || print("action") }
+    action()
+    let side_effect = { || bump() }
+    side_effect()
+    side_effect()
+    print(calls)
+}
+
+// CHECK: 5
+// CHECK-NEXT: 7
+// CHECK-NEXT: 12
+// CHECK-NEXT: 10
+// CHECK-NEXT: 4
+// CHECK-NEXT: 8
+// CHECK-NEXT: 7
+// CHECK-NEXT: 9
+// CHECK-NEXT: 6
+// CHECK-NEXT: action
+// CHECK-NEXT: 2

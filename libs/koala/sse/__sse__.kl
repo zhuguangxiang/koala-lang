@@ -1,0 +1,52 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Server-Sent Events client, a port of Python's `httpx-sse`.
+///
+///     import "koala/http" as http
+///     import "koala/sse" as sse
+///
+///     let client = http.Client()
+///     let url = http.Url.parse("https://example.com/events")!
+///     let es = sse.connect_sse(client, "GET", url)!
+///     with es {
+///         if let it = es.iter_sse() {
+///             for ev in it {
+///                 if ev.data == "[DONE]" { break }
+///                 print(ev.data)
+///             }
+///         }
+///     }
+///
+/// The names, the parameters, the defaults and the results are
+/// Python's. Where Python raises `SSEError`, `iter_sse` returns nil and
+/// `EventSource.error()` reports the message.
+
+from "koala/http" import Client, Request, Url
+
+/// Open an SSE stream, as Python's `connect_sse(client, method, url)`.
+///
+/// Adds `Accept: text/event-stream` and `Cache-Control: no-store` to
+/// `headers`, sends `body`, and wraps the streaming response in an
+/// `EventSource`. Use it with `with` so the connection is closed on
+/// every exit of the block.
+///
+/// `timeout_ms` bounds each read and defaults to 180s, long enough for
+/// a quiet LLM stream; Python uses the client's timeout instead.
+/// Nil when the connection or the write fails.
+pub func connect_sse(client Client, method str, url Url, headers list[list[str]]? = nil, body bytes? = nil, timeout_ms int = 180000) EventSource? {
+    var hdrs = list[list[str]]()
+    if let h = headers { hdrs = h }
+    var payload = bytes(0)
+    if let b = body { payload = b }
+
+    let req = Request(method, url, hdrs, payload)
+    req.header("Accept", "text/event-stream")
+    req.header("Cache-Control", "no-store")
+
+    let resp = client.stream(req, timeout_ms)
+    if resp == nil { return nil }
+    return EventSource(resp)
+}

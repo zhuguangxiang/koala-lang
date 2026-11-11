@@ -1,0 +1,19 @@
+// RUN: not koalac %s --irgen 2>&1 | filecheck %s
+
+type IntFn = func(int) int
+
+func takes_str(x str) int { return 1 }
+func returns_str(x int) str { return "x" }
+func takes_fn(f IntFn) {}
+func wrong_return() IntFn { return returns_str }
+
+func main() {
+    let wrong_arg IntFn = takes_str
+    let wrong_ret IntFn = returns_str
+    takes_fn(takes_str)
+}
+
+// CHECK: return type mismatch in function 'wrong_return'
+// CHECK: Types of two sides are not matched.
+// CHECK: Types of two sides are not matched.
+// CHECK: Incompatible type: expected 'func(int64)int64', but got 'func(str)int64'.

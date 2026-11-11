@@ -1,0 +1,76 @@
+// RUN: not koalac %s --cgen 2>&1 | filecheck %s
+
+class Example {
+    pub var value int
+    pub func __init__() { value = 3 }
+    pub func first() func() int { return { || self.value } }
+    pub func second() func() int { return { || value } }
+}
+
+func body_error() {
+    let f = { |x int| x + missing_body }
+}
+
+func class_parameter() {
+    let f = { |x Example| missing_class_body }
+}
+
+func duplicate_parameter() {
+    let f = { |x int, y int, x int| x + y }
+}
+
+func expected_type() {
+    let f func(int) int = { |x str| x }
+}
+
+func nested_error() {
+    let f func(int) func() int = { |x| { || missing_nested } }
+}
+
+func parameter_type() {
+    let f = { |x| x + 1 }
+}
+
+func outer(n int) func() int {
+    return { || n }
+}
+
+func local_capture() {
+    let n = 1
+    let f = { || n }
+}
+
+func mutable_capture() {
+    var n = 1
+    let f = { || n }
+}
+
+func nested_capture() {
+    let f = { |x int| { || x } }
+}
+
+func transitive_capture(n int) {
+    let f = { || { || n } }
+}
+
+func block_capture() {
+    if true {
+        let n = 1
+        let f = { || n }
+    }
+}
+
+// CHECK: capturing 'self' in a lambda is not implemented yet
+// CHECK: capturing 'self' in a lambda is not implemented yet
+// CHECK: 'missing_body' is not found
+// CHECK: 'missing_class_body' is not found
+// CHECK: duplicate lambda parameter 'x'
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+// CHECK: 'missing_nested' is not found
+// CHECK: lambda parameter 'x' needs a type
+// CHECK: lambda variable captures are not implemented yet
+// CHECK: lambda variable captures are not implemented yet
+// CHECK: lambda variable captures are not implemented yet
+// CHECK: lambda variable captures are not implemented yet
+// CHECK: lambda variable captures are not implemented yet
+// CHECK: lambda variable captures are not implemented yet

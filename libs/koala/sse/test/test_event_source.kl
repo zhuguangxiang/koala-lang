@@ -1,0 +1,172 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// EventSource tests on loopback. A raw TCP socket stands in for the
+// SSE peer; no HTTP server is involved. The head is read lazily, so
+// one thread can drive both ends.
+
+import "std/ut"
+import "std/socket" as so
+import "std/time" as time
+import "koala/http" as http
+import "koala/sse" as sse
+
+func _url(listener so.Listener) http.Url {
+    return http.Url("http", "127.0.0.1", listener.local_addr().port(), "/events")
+}
+
+// Accept, read the request, write `response`, close the peer side.
+func _serve(listener so.Listener, response str) {
+    let r = listener.accept()
+    let server = r.conn()!
+    let buf = bytes(4096)
+    server.read(buf)
+    server.write_str(response)
+    server.close()
+}
+
+const _HEAD = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n"
+
+@test
+func test_iter_sse_basic() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = http.Client()
+    let es = sse.connect_sse(client, "GET", _url(listener))!
+    _serve(listener, _HEAD + "data: one\n\nevent: update\nid: 7\ndata: two\n\n")
+
+    let events = list[sse.ServerSentEvent]()
+    if let it = es.iter_sse() {
+        for ev in it { events.append(ev) }
+    }
+    ut.assert_eq(es.error(), "")
+    ut.assert_eq(events.len(), 2)
+    ut.assert_eq(events[0].event, "message")
+    ut.assert_eq(events[0].data, "one")
+    ut.assert_eq(events[1].event, "update")
+    ut.assert_eq(events[1].id, "7")
+    ut.assert_eq(events[1].data, "two")
+
+    es.response().close()
+    listener.close()
+}
+
+@test
+func test_chunked_and_split_writes() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = http.Client()
+    let es = sse.connect_sse(client, "GET", _url(listener))!
+
+    let r = listener.accept()
+    let server = r.conn()!
+    let buf = bytes(4096)
+    server.read(buf)
+
+    // Chunked framing, with a "\r\n" split across two writes so the
+    // trailing-CR carry of the line decoder is exercised.
+    server.write_str("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n")
+    server.write_str("b\r\ndata: a\r\n\r")
+    time.sleep(time.Duration.from_millis(50))
+    server.write_str("\n\r\n0\r\n\r\n")
+    server.close()
+
+    let events = list[sse.ServerSentEvent]()
+    if let it = es.iter_sse() {
+        for ev in it { events.append(ev) }
+    }
+    ut.assert_eq(events.len(), 1)
+    ut.assert_eq(events[0].data, "a")
+
+    es.response().close()
+    listener.close()
+}
+
+@test
+func test_wrong_content_type() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = http.Client()
+    let es = sse.connect_sse(client, "GET", _url(listener))!
+    _serve(listener, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{}")
+
+    ut.assert_true(es.iter_sse() == nil)
+    ut.assert_true(es.error().len() > 0)
+
+    es.response().close()
+    listener.close()
+}
+
+@test
+func test_request_headers_and_body() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = http.Client()
+    let es = sse.connect_sse(client, "POST", _url(listener), nil, "{\"q\":1}".to_bytes())!
+
+    let r = listener.accept()
+    let server = r.conn()!
+    let buf = bytes(4096)
+    let n = server.read(buf)
+    let req = buf[0:n].to_str()
+    ut.assert_true(req.starts_with("POST /events HTTP/1.1\r\n"))
+    ut.assert_true("Accept: text/event-stream\r\n" in req)
+    ut.assert_true("Cache-Control: no-store\r\n" in req)
+    ut.assert_true(req.ends_with("{\"q\":1}"))
+    server.write_str(_HEAD + "data: ok\n\n")
+    server.close()
+
+    if let it = es.iter_sse() {
+        ut.assert_eq(it.next()!.data, "ok")
+        ut.assert_true(it.next() == nil)
+    }
+
+    es.response().close()
+    listener.close()
+}
+
+@test
+func test_utf8_split_across_writes() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = http.Client()
+    let es = sse.connect_sse(client, "GET", _url(listener))!
+
+    let r = listener.accept()
+    let server = r.conn()!
+    let buf = bytes(4096)
+    server.read(buf)
+
+    // "中" is E4 B8 AD at offsets 6..8: cut after E4 B8 so the
+    // character straddles the two writes.
+    let full = "data: 中\n\n".to_bytes()
+    server.write_str(_HEAD)
+    server.write(full[0:8])
+    time.sleep(time.Duration.from_millis(50))
+    server.write(full[8:full.len()])
+    server.close()
+
+    let events = list[sse.ServerSentEvent]()
+    if let it = es.iter_sse() {
+        for ev in it { events.append(ev) }
+    }
+    ut.assert_eq(events.len(), 1)
+    ut.assert_eq(events[0].data, "中")
+
+    es.response().close()
+    listener.close()
+}
+
+@test
+func test_with_block_closes() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = http.Client()
+    let es = sse.connect_sse(client, "GET", _url(listener))!
+    _serve(listener, _HEAD + "data: x\n\n")
+
+    with es {
+        if let it = es.iter_sse() {
+            ut.assert_eq(it.next()!.data, "x")
+        }
+    }
+    // The with block closed the response; further reads stay nil.
+    ut.assert_true(es.response().read() == nil)
+    listener.close()
+}

@@ -1,0 +1,15 @@
+// RUN: not koalac %s --cgen 2>&1 | filecheck %s
+
+import "test_pkg/pkg_generic_method"
+
+class Example {
+    pub func __init__() {}
+}
+
+func local_class() { print(Example) }
+func external_class() { print(pkg_generic_method.Box) }
+func builtin_class() { print(int) }
+
+// CHECK: class objects cannot be used as values yet
+// CHECK: class objects cannot be used as values yet
+// CHECK: class objects cannot be used as values yet

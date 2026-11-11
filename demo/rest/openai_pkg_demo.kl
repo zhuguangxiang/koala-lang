@@ -1,0 +1,25 @@
+/*
+ * openai_pkg_demo.kl — koala/openai package demo, Python-compatible API.
+ */
+
+import "koala/openai" as openai
+
+func main() {
+    let client = openai.Client("sk-63570c4b930d48fd84c81c54be56f192", "https://api.deepseek.com")
+
+    // Python style: client.chat.completions.create(model, messages, ...)
+    let resp = client.chat.completions.create("deepseek-chat", [
+        {"role": "system", "content": "You are helpful. Reply in one word."},
+        {"role": "user", "content": "What is 2+3?"},
+    ], 0.0, 8)
+
+    // Python style: resp.choices[0].message.content
+    if resp.ok() {
+        print("Reply: " + resp.choices[0].message.content)
+        print("Model: " + resp.model)
+        print("Finish: " + resp.choices[0].finish_reason)
+        print("Tokens: " + str(resp.usage.prompt_tokens) + " + " + str(resp.usage.completion_tokens) + " = " + str(resp.usage.total_tokens))
+    } else {
+        print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+    }
+}

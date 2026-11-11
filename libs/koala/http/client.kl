@@ -36,6 +36,13 @@ pub class Client {
     pub func post(url Url, body bytes) Response? {
         return do(Request.post(url, body))
     }
+
+    /// Send `req` and return its response as a stream, the equivalent
+    /// of httpx's `client.stream(...)`. The head is read on first
+    /// access; see `StreamResponse`.
+    pub func stream(req Request, timeout_ms int = 5000) StreamResponse? {
+        return _send_stream(req, timeout_ms)
+    }
 }
 
 /// GET `url` with a one-shot default client.

@@ -1,0 +1,6 @@
+pub func increment(x int) int { return x + 1 }
+pub var callback func(int) int = increment
+
+pub func apply(f func(int) int, x int) int { return f(x) }
+pub func get_callback() func(int) int { return callback }
+pub func get_increment() func(int) int { return increment }

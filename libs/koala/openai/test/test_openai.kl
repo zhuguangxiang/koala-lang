@@ -1,0 +1,76 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Smoke test for koala/openai against DeepSeek.
+/// Skips gracefully when the API key is absent or network is unreachable.
+
+import "std/ut"
+import "std/os"
+import "koala/openai" as openai
+
+@test
+func test_msg_helper() {
+    let m = openai.msg("user", "hi")
+    ut.assert_eq(m["role"], "user")
+    ut.assert_eq(m["content"], "hi")
+}
+
+@test
+func test_chat_basic() {
+    let key = os.getenv("OPENAI_API_KEY")
+    if key == nil { return }
+
+    let client = openai.Client(key, "https://api.deepseek.com")
+    let resp = client.chat.completions.create("deepseek-chat", [
+        {"role": "system", "content": "Reply in one word only."},
+        {"role": "user", "content": "What is 1+1?"},
+    ], 0.0, 8)
+
+    if !resp.ok() { return }
+
+    ut.assert_true(resp.choices[0].message.content.len() > 0)
+    ut.assert_true(resp.usage.prompt_tokens > 0)
+    ut.assert_true(resp.usage.completion_tokens > 0)
+    ut.assert_true(resp.usage.total_tokens > 0)
+}
+
+@test
+func test_chat_model_field() {
+    let key = os.getenv("OPENAI_API_KEY")
+    if key == nil { return }
+
+    let client = openai.Client(key, "https://api.deepseek.com")
+    let resp = client.chat.completions.create("deepseek-chat", [
+        openai.msg("user", "Hi"),
+    ], 0.0, 4)
+
+    if !resp.ok() { return }
+
+    ut.assert_true(resp.model.len() > 0)
+    ut.assert_true(resp.choices[0].finish_reason.len() > 0)
+}
+
+@test
+func test_invalid_key_error() {
+    let client = openai.Client("sk-invalid-key-for-test", "https://api.deepseek.com")
+    let resp = client.chat.completions.create("deepseek-chat", [
+        openai.msg("user", "test"),
+    ])
+
+    // Should not be ok with an invalid key
+    ut.assert_true(!resp.ok())
+    ut.assert_true(resp.error_message.len() > 0)
+}
+
+@test
+func test_transport_failure() {
+    // Connect to a port that is not listening
+    let client = openai.Client("sk-x", "https://127.0.0.1:1")
+    let resp = client.chat.completions.create("test", [openai.msg("user", "hi")])
+
+    ut.assert_eq(resp.status_code, 0)
+    ut.assert_true(!resp.ok())
+    ut.assert_true(resp.error_message.len() > 0)
+}

@@ -2652,6 +2652,27 @@ X(OP_HASH, FORMAT_RxRx, "hash")
  */
 X(OP_FMT, FORMAT_RxRx, "fmt")
 
+/**
+ * OP_LOAD_FUNC — load a function from the function table
+ *
+ * FORMAT_RIdx2:
+ *     | op:8 | rd:8 | idx:16 |
+ *
+ * Fields:
+ *     rd  — destination register.
+ *     idx — unsigned slot index in the current module's function table.
+ *
+ * Details:
+ *     Loads the function object from the current module's funcs table:
+ *         rd = funcs[idx]
+ *     The table contains local functions and methods, followed by resolved
+ *     imported functions and methods. The object may be a CodeObject or a
+ *     CFuncObject; no function object is created or copied.
+ *
+ *     An invalid register or empty/out-of-range slot raises an error.
+ */
+X(OP_LOAD_FUNC, FORMAT_RIdx2, "load_func")
+
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |
  +---------------------------------------------------------------*/

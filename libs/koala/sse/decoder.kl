@@ -1,0 +1,180 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Incremental SSE decoding, a port of httpx-sse's `SSELineDecoder`
+/// and `SSEDecoder`.
+///
+/// `SSELineDecoder` turns text chunks into lines, splitting only on
+/// "\r\n", "\r" and "\n" as the SSE spec requires; `SSEDecoder` turns
+/// lines into events. Both are pub so they can be tested without a
+/// network, as httpx-sse tests its own decoders.
+
+/// Turns text chunks into lines, splitting only on "\r\n", "\r" and
+/// "\n", as the SSE spec requires.
+///
+/// A trailing "\r" is carried into the next chunk, so a "\r\n" split
+/// across chunks still counts as one newline. An unterminated tail is
+/// buffered until more text arrives or `flush` is called.
+pub class SSELineDecoder {
+    var _buffer str = ""
+    var _trailing_cr bool = false
+
+    pub func __init__() {}
+
+    /// The complete lines in `text`, joined with any buffered tail.
+    pub func decode(text str) list[str] {
+        var t = text
+        if _trailing_cr {
+            t = "\r" + t
+            _trailing_cr = false
+        }
+        if t.ends_with("\r") {
+            _trailing_cr = true
+            t = t[0:t.len() - 1]
+        }
+        if t.len() == 0 { return list[str]() }
+
+        let trailing_newline = t.ends_with("\n") || t.ends_with("\r")
+        let lines = _splitlines_sse(t)
+
+        if lines.len() == 1 && !trailing_newline {
+            // No newline yet: buffer the input and wait for more.
+            _buffer += lines[0]
+            return list[str]()
+        }
+
+        if _buffer.len() > 0 {
+            lines[0] = _buffer + lines[0]
+            _buffer = ""
+        }
+
+        if !trailing_newline {
+            // The last segment is unterminated: buffer it.
+            _buffer = lines.pop()
+        }
+
+        return lines
+    }
+
+    /// The buffered tail as one final line, if any.
+    pub func flush() list[str] {
+        if _buffer.len() == 0 && !_trailing_cr { return list[str]() }
+        let lines = list[str]()
+        lines.append(_buffer)
+        _buffer = ""
+        _trailing_cr = false
+        return lines
+    }
+}
+
+// Split on "\r\n", "\r" or "\n" only, dropping the empty segment after
+// a trailing newline, as httpx-sse's _splitlines_sse.
+func _splitlines_sse(text str) list[str] {
+    if text.len() == 0 { return list[str]() }
+
+    var normalized = text
+    if "\r" in text {
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    }
+    let lines = normalized.split("\n")
+    if text.ends_with("\n") || text.ends_with("\r") { lines.pop() }
+    return lines
+}
+
+/// Turns SSE lines into events, following the event-stream
+/// interpretation of the HTML spec, as httpx-sse's `SSEDecoder`.
+///
+/// A blank line dispatches the accumulated fields, if any. `data`
+/// lines join with "\n"; the last event id persists across events, as
+/// the spec requires; comments and unknown fields are ignored.
+pub class SSEDecoder {
+    var _event str = ""
+    var _data list[str]
+    var _last_event_id str = ""
+    var _retry int? = nil
+
+    pub func __init__() {
+        _data = list[str]()
+    }
+
+    /// Feed one line; returns an event on a dispatching blank line,
+    /// nil otherwise.
+    pub func decode(line str) ServerSentEvent? {
+        if line.len() == 0 {
+            if _event.len() == 0 && _data.len() == 0 && _last_event_id.len() == 0 && _retry == nil {
+                return nil
+            }
+
+            let sse = ServerSentEvent(_event, "\n".join(_data), _last_event_id, _retry)
+
+            // As per the SSE spec, do not reset the last event id.
+            _event = ""
+            _data = list[str]()
+            _retry = nil
+
+            return sse
+        }
+
+        if line.starts_with(":") { return nil }
+
+        let (fieldname, value) = _partition(line)
+
+        if fieldname == "event" {
+            _event = value
+        } else if fieldname == "data" {
+            _data.append(value)
+        } else if fieldname == "id" {
+            // An id containing NUL is ignored, as per the spec. Koala
+            // str cannot carry NUL (bytes.to_str stops at it), so this
+            // guard is defensive only.
+            if value.to_bytes().index(0) < 0 { _last_event_id = value }
+        } else if fieldname == "retry" {
+            let n = _parse_int(value)
+            if n != nil { _retry = n }
+        }
+        // Unknown fields are ignored.
+
+        return nil
+    }
+}
+
+// Split `line` at the first ":", dropping one leading space from the
+// value, as Python's str.partition plus the SSE field rule.
+func _partition(line str) (str, str) {
+    let colon = line.index(":")
+    if colon < 0 { return (line, "") }
+
+    var value = line[colon + 1:line.len()]
+    if value.starts_with(" ") { value = value[1:value.len()] }
+    return (line[0:colon], value)
+}
+
+// `s` as Python's int(): surrounding whitespace and a leading sign are
+// allowed; anything else gives nil, where Python raises ValueError.
+func _parse_int(s str) int? {
+    let t = s.strip()
+    if t.len() == 0 { return nil }
+
+    var digits = t
+    var neg = false
+    let first = t[0:1]
+    if first == "+" || first == "-" {
+        neg = first == "-"
+        digits = t[1:t.len()]
+    }
+    if digits.len() == 0 { return nil }
+
+    let b = digits.to_bytes()
+    var v = 0
+    var i = 0
+    while i < b.len() {
+        let c = int(b[i])
+        if c < 48 || c > 57 { return nil }
+        v = v * 10 + (c - 48)
+        i += 1
+    }
+    if neg { return -v }
+    return v
+}

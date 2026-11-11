@@ -1,0 +1,80 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+type Mapper = func(int) int
+
+let GLOBAL_LIMIT = 100
+var calls = 0
+
+func record_call(x int) { calls += x }
+func apply(cb Mapper, v int) int { return cb(v) }
+
+func mappers() list[Mapper] {
+    let ms list[Mapper] = [{ |x int| x + 1 }, { |x int| x * 2 }]
+    return ms
+}
+
+@test
+func test_parameters_and_calls() {
+    let inc func(int) int = { |x int| x + 1 }
+    let add = { |a int, b int| a + b }
+    let triple Mapper = { |x| x * 3 }
+    ut.assert_eq(inc(1), 2)
+    ut.assert_eq(add(2, 3), 5)
+    ut.assert_eq(({ |x int| x * 2 })(21), 42)
+    ut.assert_eq(triple(3), 9)
+    ut.assert_eq(apply(inc, 4), 5)
+}
+
+@test
+func test_no_parameters_and_global() {
+    let get = { || 42 }
+    let global = { || GLOBAL_LIMIT }
+    ut.assert_eq(get(), 42)
+    ut.assert_eq(global(), 100)
+}
+
+@test
+func test_nested_without_capture() {
+    let nested = { || { |x int| x + 1 } }
+    ut.assert_eq(nested()(3), 4)
+}
+
+@test
+func test_if_body() {
+    let sign = { |x int| if x > 0 { 1 } else { 0 } }
+    ut.assert_eq(sign(1), 1)
+    ut.assert_eq(sign(-1), 0)
+}
+
+@test
+func test_no_value_body() {
+    calls = 0
+    let log_it = { |x int| record_call(x) }
+    let action = { || record_call(2) }
+    log_it(1)
+    action()
+    ut.assert_eq(calls, 3)
+}
+
+@test
+func test_optional_parameter() {
+    let keep = { |x int?| x }
+    ut.assert_eq(keep(3)!, 3)
+    ut.assert_true(keep(nil) == nil)
+}
+
+@test
+func test_function_list() {
+    let ms = [{ |x int| x + 1 }, { |x int| x * 2 }]
+    let first = ms[0]
+    let second = ms[1]
+    ut.assert_eq(first(3), 4)
+    ut.assert_eq(second(3), 6)
+    let typed = mappers()
+    let typed_first = typed[0]
+    let typed_second = typed[1]
+    ut.assert_eq(typed_first(4), 5)
+    ut.assert_eq(typed_second(4), 8)
+}

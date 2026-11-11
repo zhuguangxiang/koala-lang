@@ -1,0 +1,6 @@
+[package]
+name = "koala/sse"
+version = "0.1.0"
+description = "Server-Sent Events client, a port of Python's httpx-sse"
+dependencies = ["koala/http", "koala/json"]
+natives = []

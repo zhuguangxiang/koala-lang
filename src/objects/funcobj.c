@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+static TValue _function_fmt(TValue *self, TValue *args, int nargs);
+
 /*---------------------------------------------------------------------------+
  |  Koala Code type definition                                               |
  +---------------------------------------------------------------------------*/
@@ -22,7 +24,9 @@ static TValue _code_str(TValue *self, TValue *args, int nargs)
     Object *owner = co->owner;
 
     Object *r;
-    if (IS_MODULE(owner)) {
+    if (!owner) {
+        r = kl_new_fmt_str("<function(code) '%s'>", co->cs.name);
+    } else if (IS_MODULE(owner)) {
         ModuleObject *m = (ModuleObject *)owner;
         r = kl_new_fmt_str("<function(code) '%s' in module '%s'>", co->cs.name, m->path);
     } else {
@@ -36,6 +40,7 @@ static TValue _code_str(TValue *self, TValue *args, int nargs)
 
 static MethodDef code_methods[] = {
     { "__str__", _code_str },
+    { "fmt", _function_fmt },
     { NULL },
 };
 
@@ -67,7 +72,9 @@ static TValue _cfunc_str(TValue *self, TValue *args, int nargs)
     Object *owner = fo->owner;
 
     Object *r;
-    if (IS_MODULE(owner)) {
+    if (!owner) {
+        r = kl_new_fmt_str("<function(native) '%s'>", fo->name);
+    } else if (IS_MODULE(owner)) {
         ModuleObject *m = (ModuleObject *)owner;
         r = kl_new_fmt_str("<function(native) '%s' in module '%s'>", fo->name, m->path);
     } else {
@@ -81,6 +88,7 @@ static TValue _cfunc_str(TValue *self, TValue *args, int nargs)
 
 static MethodDef cfunc_methods[] = {
     { "__str__", _cfunc_str },
+    { "fmt", _function_fmt },
     { NULL },
 };
 
@@ -99,6 +107,17 @@ Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)
     cfunc->func = fn;
     cfunc->owner = owner;
     return (Object *)cfunc;
+}
+
+static TValue _function_fmt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Formatter *fmt = kl_arg_obj_as(0, fmt_type);
+    TValue text = IS_CODE(to_obj(self)) ? _code_str(self, NULL, 0) : _cfunc_str(self, NULL, 0);
+    Object *str = to_obj(&text);
+    kl_fmt_write_str(fmt, STR_BUF(str), STR_LEN(str));
+    kl_free_str(str);
+    return no_value;
 }
 
 #ifdef __cplusplus

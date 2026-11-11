@@ -1,0 +1,28 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+//
+// A func-typed parameter is an ordinary parameter: the callee is called
+// through it, and a function is passed to it as an ordinary argument.
+
+func add1(x int) int {
+    return x + 1
+}
+
+func apply(cb func(int) int, v int) int {
+    return cb(v)
+}
+
+func caller() int {
+    return apply(add1, 41)
+}
+
+// CHECK-LABEL: func @apply(%cb func(int64)int64, %v int64) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %0 = call %cb func(int64)int64, %v int64
+// CHECK: ret %0 int64
+// CHECK: }
+
+// CHECK-LABEL: func @caller() int64 {
+// CHECK: %bb0(entry):
+// CHECK: %0 = call @apply, @add1 func(int64)int64, 41 int64
+// CHECK: ret %0 int64
+// CHECK: }

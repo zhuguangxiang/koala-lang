@@ -1,0 +1,163 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Unit tests for the SSE decoders, ported from httpx-sse's own tests.
+
+import "std/ut"
+from "koala/sse" import SSELineDecoder, SSEDecoder
+
+@test
+func test_lines_simple() {
+    let d = SSELineDecoder()
+    let lines = d.decode("data: hello\n\n")
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "data: hello")
+    ut.assert_eq(lines[1], "")
+    ut.assert_eq(d.flush().len(), 0)
+}
+
+@test
+func test_lines_crlf_and_cr() {
+    let d = SSELineDecoder()
+    let lines = d.decode("a\r\nb\rc\n")
+    ut.assert_eq(lines.len(), 3)
+    ut.assert_eq(lines[0], "a")
+    ut.assert_eq(lines[1], "b")
+    ut.assert_eq(lines[2], "c")
+}
+
+@test
+func test_lines_trailing_cr_across_chunks() {
+    let d = SSELineDecoder()
+    ut.assert_eq(d.decode("data: a\r").len(), 0)
+    let lines = d.decode("\ndata: b\n\n")
+    ut.assert_eq(lines.len(), 3)
+    ut.assert_eq(lines[0], "data: a")
+    ut.assert_eq(lines[1], "data: b")
+    ut.assert_eq(lines[2], "")
+}
+
+@test
+func test_lines_partial_buffering() {
+    let d = SSELineDecoder()
+    ut.assert_eq(d.decode("data: hel").len(), 0)
+    let lines = d.decode("lo\n")
+    ut.assert_eq(lines.len(), 1)
+    ut.assert_eq(lines[0], "data: hello")
+}
+
+@test
+func test_lines_flush_tail() {
+    let d = SSELineDecoder()
+    ut.assert_eq(d.decode("data: x").len(), 0)
+    let lines = d.flush()
+    ut.assert_eq(lines.len(), 1)
+    ut.assert_eq(lines[0], "data: x")
+    ut.assert_eq(d.flush().len(), 0)
+}
+
+@test
+func test_lines_lone_cr_flush() {
+    let d = SSELineDecoder()
+    ut.assert_eq(d.decode("\r").len(), 0)
+    let lines = d.flush()
+    ut.assert_eq(lines.len(), 1)
+    ut.assert_eq(lines[0], "")
+}
+
+@test
+func test_events_data_only() {
+    let d = SSEDecoder()
+    ut.assert_true(d.decode("data: hello") == nil)
+    let ev = d.decode("")
+    ut.assert_true(ev != nil)
+    ut.assert_eq(ev!.event, "message")
+    ut.assert_eq(ev!.data, "hello")
+    ut.assert_eq(ev!.id, "")
+    ut.assert_true(ev!.retry == nil)
+}
+
+@test
+func test_events_multiline_data() {
+    let d = SSEDecoder()
+    d.decode("data: a")
+    d.decode("data: b")
+    let ev = d.decode("")!
+    ut.assert_eq(ev.data, "a\nb")
+}
+
+@test
+func test_events_named_and_retry() {
+    let d = SSEDecoder()
+    d.decode("event: update")
+    d.decode("id: 42")
+    d.decode("retry: 1000")
+    d.decode("data: x")
+    let ev = d.decode("")!
+    ut.assert_eq(ev.event, "update")
+    ut.assert_eq(ev.id, "42")
+    ut.assert_eq(ev.retry!, 1000)
+}
+
+@test
+func test_events_id_persists() {
+    let d = SSEDecoder()
+    d.decode("id: 7")
+    d.decode("data: a")
+    ut.assert_eq(d.decode("")!.id, "7")
+    d.decode("data: b")
+    // The last event id carries over, as the SSE spec requires.
+    ut.assert_eq(d.decode("")!.id, "7")
+}
+
+@test
+func test_events_comment_and_unknown() {
+    let d = SSEDecoder()
+    ut.assert_true(d.decode(": keep-alive") == nil)
+    ut.assert_true(d.decode("foo: bar") == nil)
+    ut.assert_true(d.decode("") == nil)
+}
+
+@test
+func test_events_no_colon_line() {
+    let d = SSEDecoder()
+    d.decode("data")
+    ut.assert_eq(d.decode("")!.data, "")
+}
+
+@test
+func test_events_one_space_stripped() {
+    let d = SSEDecoder()
+    d.decode("data:  x")
+    ut.assert_eq(d.decode("")!.data, " x")
+}
+
+@test
+func test_events_bad_retry_ignored() {
+    let d = SSEDecoder()
+    d.decode("retry: abc")
+    ut.assert_true(d.decode("") == nil)
+    d.decode("retry:  50 ")
+    ut.assert_eq(d.decode("")!.retry!, 50)
+}
+
+@test
+func test_events_id_update() {
+    let d = SSEDecoder()
+    d.decode("id: good")
+    d.decode("id: better")
+    d.decode("data: x")
+    ut.assert_eq(d.decode("")!.id, "better")
+}
+
+@test
+func test_events_retry_only_dispatch() {
+    let d = SSEDecoder()
+    d.decode("retry: 10")
+    let ev = d.decode("")
+    ut.assert_true(ev != nil)
+    ut.assert_eq(ev!.retry!, 10)
+    ut.assert_eq(ev!.data, "")
+}

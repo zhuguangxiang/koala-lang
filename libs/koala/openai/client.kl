@@ -1,0 +1,37 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+from "koala/http" import Url
+
+/// OpenAI-compatible API client.
+///
+/// Usage:
+///     let client = openai.Client("sk-...", "https://api.deepseek.com/v1")
+///     let resp = client.chat.completions.create("deepseek-chat", [
+///         {"role": "user", "content": "Hello"},
+///     ])
+///     print(resp.choices[0].message.content)
+pub class Client {
+    pub let chat Chat
+
+    /// Create a client.
+    ///
+    /// `api_key`: Bearer token.
+    /// `base_url`: full API URL. Defaults to "https://api.openai.com/v1".
+    ///   - DeepSeek:  "https://api.deepseek.com"
+    ///   - Moonshot:  "https://api.moonshot.cn/v1"
+    ///   - Ollama:    "http://127.0.0.1:11434/v1"
+    /// `timeout_ms`: read timeout, default 180s.
+    pub func __init__(api_key str, base_url str = "https://api.openai.com/v1", timeout_ms int = 180000) {
+        let parsed = Url.parse(base_url)
+        var url Url
+        if parsed == nil {
+            url = Url("https", "api.openai.com", 443, "/v1")
+        } else {
+            url = parsed
+        }
+        chat = Chat(Completions(api_key, url, timeout_ms))
+    }
+}

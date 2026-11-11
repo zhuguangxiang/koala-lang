@@ -30,8 +30,8 @@
 > (§49, to design), a bare `{ ... }` block statement is never executed (§50, fixed),
 > `break` / `continue` look for a loop past a function boundary (§51, latent, fix with closures),
 > `BufReader.read_line` keeps the '\r' of a CRLF line (§52, to decide), reading an uninitialized
-> local gives a garbage value: no definite-assignment check (§53, to fix), a type name used as a
-> value crashes the backend (§54, to fix with an error), `sealed trait`: a closed set of implementers
+> local gives a garbage value: no definite-assignment check (§53, to fix), class and trait names used
+> as values need consistent errors (§54, partially checked, to fix), `sealed trait`: a closed set of implementers
 > (§55, to design), returning a value as `any` (§56, fixed), no check that a class method matches its
 > trait (§57, postponed), `obj["key"]` on a plain class fails inside the compiler (§58, fixed),
 > nullable generic elements do not compile (§59, fixed), a tuple type argument asserts in the compiler
@@ -3121,29 +3121,35 @@ zero value of their type or keep the manual honest.
 
 ---
 
-## 54. A type name used as a value crashes the backend (2026-11-03, to fix with an error)
+## 54. Class and trait names used as values need consistent errors (partially checked, to fix)
 
 Found together with §53 in `test2.kl`.
 
 ```kl
 class P {}
-print(int)       // isel.c: lower_call_argument: Assertion `arg->kind == KLR_VALUE_INSN'
-print(P)         // same
-print(ToString)  // irgen.c: "Why goes here?" (a trait has no case there)
-let t = int      // compilation failed, no useful message
+print(int)
+print(P)
+print(ToString)
+let t = int
 ```
 
-A type name in a value position is checked as a type expression and irgen lowers it to a class
-reference (`KLR_VALUE_KLASS`), but the backend has no instruction that loads a type object into a
-register, so it cannot be an argument or the value of a variable. `typeof(x)` is the existing way
-to get a type object at runtime (`let x = typeof(1)` prints `<class 'int64'>`).
+A class name in a value position can reach irgen as a class reference (`KLR_VALUE_KLASS`), but
+the backend has no instruction that loads it into a register. Trait names also lack a complete
+value path. Class objects in tuple construction, including `print`'s variadic arguments, now
+receive an irgen error; this does not cover all value contexts or trait names.
 
-Supporting types as first-class values (a load-type instruction, isel and the VM) is not a small
-change. The simple fix (not applied): report in the checker when a type name is used where a value
-is needed — call arguments, `let` / `var` initializers, the right side of an assignment, `return` —
-e.g. "type 'int' cannot be used as a value", keeping the legal uses: a constructor or conversion
-call (`int(x)`, `P()`), a generic type argument (`list[int]`), a static method (`bytes.from_hex`),
-and the result of `typeof`.
+Until class and trait names are supported as first-class values, report a clear compile error in
+semantic analysis wherever they are used as values: `let` / `var` initializers, assignments, call
+arguments, returns, tuple and other container elements, and nested expressions. Cover local,
+external, builtin and generic type names, and test optimized and non-optimized compilation.
+Keep existing more specific type errors where appropriate; do not allow invalid input to reach
+compiler assertions.
+
+Distinguish a type-name expression from an instance expression: an expression's symbol alone can
+also refer to the class of an instance. Preserve type annotations, constructor and conversion
+calls (`int(x)`, `P()`), generic type arguments (`list[int]`), static member access
+(`bytes.from_hex`), class and trait instance values (including trait-typed variables, parameters
+and returns), and runtime values returned by `typeof`.
 
 Fixed alongside (2026-11-03): `list[any]()` asserted in `parse_type` (`parser_expr.c`), which
 expected a class while the keyword type `any` is a trait (`libs/std/builtin/any.kl`); it now accepts

@@ -13,6 +13,23 @@ TARGET(OP_MOVE) {
     DISPATCH();
 }
 
+TARGET(OP_LOAD_FUNC) {
+    rd = I_VAL(inst, 16, 8);
+    idx = I_VAL(inst, 0, 16);
+#ifndef NDEBUG
+    if (rd >= max_regs) {
+        raise_exc_str("invalid function destination register");
+        goto error;
+    }
+#endif
+    if (idx >= vector_size(&m->funcs) || !ENTRY(idx)) {
+        raise_exc_str("invalid function table index");
+        goto error;
+    }
+    regs[rd] = obj_value(ENTRY(idx));
+    DISPATCH();
+}
+
 TARGET(OP_LOAD_INT_IMM) {
     rd = I_VAL(inst, 16, 8);
     int ti = I_VAL(inst, 12, 4);
@@ -461,6 +478,20 @@ TARGET(OP_CALL) {
         IntfTable *itab = callable->itab;
         ASSERT(index < itab->num_funcs);
         fn = itab->methods[index];
+    } else if (__builtin_expect(flg == 2, 0)) {
+        uint32_t callee_reg = *pc++;
+#ifndef NDEBUG
+        if (callee_reg >= max_regs) {
+            raise_exc_str("invalid function callee register");
+            goto error;
+        }
+#endif
+        TValue *callee = regs + callee_reg;
+        if (!is_ref(callee) || !callee->obj || (!IS_CODE(callee->obj) && !IS_CFUNC(callee->obj))) {
+            raise_exc_str("function value is not callable");
+            goto error;
+        }
+        fn = callee->obj;
     } else {
         int32_t local_index = *(int32_t *)pc++;
         ASSERT(local_index >= 0 && local_index < entry_size);

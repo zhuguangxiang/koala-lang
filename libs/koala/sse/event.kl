@@ -1,0 +1,51 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+from "koala/json" import Value, parse_str
+
+/// One server-sent event, as Python's `httpx_sse.ServerSentEvent`.
+///
+/// The fields are read-only, with Python's names and defaults:
+///
+///     ev.event    // "message" when the stream named no event type
+///     ev.data     // the data lines joined with "\n"
+///     ev.id       // "" when the stream sent no id
+///     ev.retry    // nil when the stream sent no retry
+///
+/// An empty or absent `event` becomes "message", as in Python.
+pub class ServerSentEvent {
+    pub let event str
+    pub let data str
+    pub let id str
+    pub let retry int?
+
+    pub func __init__(_event str? = nil, _data str? = nil, _id str? = nil, _retry int? = nil) {
+        var e = "message"
+        if let ev = _event {
+            if ev.len() > 0 { e = ev }
+        }
+        event = e
+
+        var d = ""
+        if let dv = _data { d = dv }
+        data = d
+
+        var i = ""
+        if let iv = _id { i = iv }
+        id = i
+
+        retry = _retry
+    }
+
+    /// The data parsed as JSON, as Python's `json.loads(self.data)`.
+    ///
+    /// Errors
+    ///
+    /// Panic if the data is not valid JSON, where Python raises
+    /// `json.JSONDecodeError`.
+    pub func json() Value {
+        return parse_str(data)
+    }
+}

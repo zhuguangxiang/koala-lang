@@ -934,10 +934,43 @@ func split(x int) (int, int) {
 }
 ```
 
+Named functions can be used as values. A function type specifies its parameter and return types;
+the signatures must match exactly. Function values can be stored in locals or globals, passed as
+arguments, returned, and called. Both Koala functions and native functions can be used this way,
+including functions imported from another module:
+
+```kl
+type IntFn = func(int) int
+
+func increment(x int) int { return x + 1 }
+var current IntFn = increment
+
+func apply(f IntFn, x int) int { return f(x) }
+func choose() IntFn { return current }
+
+print(apply(increment, 2))  // 3
+print(choose()(4))          // 5
+```
+
+Function types do not carry parameter names or default argument values, so calls through a
+function value supply the arguments specified by its type. Printing or formatting a function
+value shows its name and module, identifying Koala functions as `function(code)` and native
+functions as `function(native)`. Class names cannot currently be passed directly as values, for
+example to `print`; class instances and the result of `typeof` can be printed.
+
 Generic functions constrain their type parameters with traits; see [Generics](#generics).
 
-Anonymous functions and closures are not part of the current language: named functions — including
-functions defined inside packages — are the supported unit of abstraction.
+An anonymous function can use a single expression as its body:
+
+```kl
+let twice = { |x int| x * 2 }
+let get_answer = { || 42 }
+```
+
+Its parameter types must be specified unless an expected function type supplies them. The body
+can access module globals, but capturing local variables, parameters or `self` is not implemented
+yet. The compiler does not require the body to be side-effect-free. Statement bodies and bound
+method values are also not supported.
 
 ## Classes and Interfaces
 

@@ -115,6 +115,15 @@ typedef struct _Expr {
 void expr_free(Expr *exp);
 #define expr_set_loc(e, l) (e)->loc = (l)
 
+typedef struct _LambdaExpr {
+    EXPR_HEAD
+    Vector *params; /* ParamDecl* */
+    Expr *body;
+    HashMap *scope;
+} LambdaExpr;
+
+Expr *expr_from_lambda(Vector *params, Expr *body);
+
 typedef struct _LitExpr {
     EXPR_HEAD
     int which;
