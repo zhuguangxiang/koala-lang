@@ -1,0 +1,178 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+// RUN: koalac %s --cgen --ssa --fusion --tail-call --write-klc -o %t.opt.klc && koala %t.opt.klc | filecheck %s
+//
+// Leaving SSA turns the PHIs of a block into copies on each incoming edge. The copies
+// of one edge are a parallel copy: when the loop-carried values feed each other
+// (`a, b = b, a`) they must all be read before any is written, and a copy must only
+// run on its own edge, not on the other paths out of the predecessor.
+
+// the classic swap problem
+func swap(n int) int {
+    var a = 1
+    var b = 2
+    var i = 0
+    while i < n {
+        let t = a
+        a = b
+        b = t
+        i = i + 1
+    }
+    return a * 10 + b
+}
+
+// the swap happens on one branch only, so the back-edge leaves the `if` merge block
+func swap_if(n int) int {
+    var a = 1
+    var b = 2
+    var i = 0
+    while i < n {
+        if i % 2 == 0 {
+            let t = a
+            a = b
+            b = t
+        }
+        i = i + 1
+    }
+    return a * 10 + b
+}
+
+// a three-element cycle
+func rotate3(n int) int {
+    var a = 1
+    var b = 2
+    var c = 3
+    var i = 0
+    while i < n {
+        let t = a
+        a = b
+        b = c
+        c = t
+        i = i + 1
+    }
+    return a * 100 + b * 10 + c
+}
+
+// a chain, not a cycle: `b` must be read before it is overwritten
+func fib_pair(n int) int {
+    var a = 0
+    var b = 1
+    var i = 0
+    while i < n {
+        let t = a + b
+        a = b
+        b = t
+        i = i + 1
+    }
+    return a
+}
+
+// parameters taking part in the cycle
+func gcd(a int, b int) int {
+    var x = a
+    var y = b
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+// a constant on the back-edge must not be written before the loop body reads x
+func const_backedge(n int) int {
+    var x = 0
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + x
+        x = 5
+        i = i + 1
+    }
+    return s
+}
+
+// `prev` takes the old `cur` in a for-each loop
+func prev_cur(xs list[int]) int {
+    var prev = 0
+    var cur = 0
+    var s = 0
+    for x in xs {
+        prev = cur
+        cur = x
+        s = s + prev * cur
+    }
+    return s
+}
+
+// a `continue` in the `if` gives the loop header several back-edges
+func with_continue(n int) int {
+    var i = 0
+    var s = 0
+    while i < n {
+        i = i + 1
+        if i % 2 == 0 { continue }
+        s = s + i
+    }
+    return s
+}
+
+func for_continue(xs list[int]) int {
+    var s = 0
+    var c = 0
+    for x in xs {
+        c = c + 1
+        if x == 3 { continue }
+        if x > 1 { s = s + x } else { s = s - 1 }
+    }
+    return s * 10 + c
+}
+
+// filling the outer header PHI creates a PHI in the inner loop header, which does not
+// touch `n`, while the back-edges are being filled
+func lazy_inner_hdr(xs list[int]) int {
+    var n = 0
+    for x in xs {
+        if x > 2 { n = n + 1 }
+        for j in [0, 1] { }
+    }
+    return n
+}
+
+func main() {
+    let xs list[int] = [1, 2, 3, 4, 5]
+
+    print(swap(0))
+    print(swap(3))
+    print(swap(4))
+    print(swap_if(1))
+    print(swap_if(3))
+    print(rotate3(1))
+    print(rotate3(2))
+    print(rotate3(3))
+    print(fib_pair(10))
+    print(gcd(48, 18))
+    print(gcd(17, 5))
+    print(const_backedge(3))
+    print(prev_cur([1, 2, 3, 4]))
+    print(with_continue(5))
+    print(for_continue(xs))
+    print(lazy_inner_hdr(xs))
+}
+
+// CHECK: 12
+// CHECK-NEXT: 21
+// CHECK-NEXT: 12
+// CHECK-NEXT: 21
+// CHECK-NEXT: 12
+// CHECK-NEXT: 231
+// CHECK-NEXT: 312
+// CHECK-NEXT: 123
+// CHECK-NEXT: 55
+// CHECK-NEXT: 6
+// CHECK-NEXT: 1
+// CHECK-NEXT: 10
+// CHECK-NEXT: 20
+// CHECK-NEXT: 9
+// CHECK-NEXT: 105
+// CHECK-NEXT: 3

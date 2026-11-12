@@ -579,16 +579,27 @@ static void parse_list(ParserState *ps, Expr *exp)
 {
     ListExpr *list_exp = (ListExpr *)exp;
 
+    Symbol *origin = stbl_get(ps->pm->builtin, "list");
+
+    /* a lambda element takes its parameter types from the expected element type,
+       so it must be known before the elements are visited */
+    TypeSpec *expected_elem = empty_literal_elem_type(ps, exp->expected, origin);
+    if (expected_elem && (type_is_generic_var(expected_elem) || type_is_generic_ref(expected_elem)))
+        expected_elem = NULL;
+
     Vector *tp_args = vector_create_ptr();
     Expr *e;
     vector_foreach(e, list_exp->vec) {
         e->ctx = EXPR_CTX_LOAD;
+        /* a lambda element takes its parameter types from the expected element type,
+           and a nested literal takes it too so it can pass it on to its own elements */
+        int nested_literal = e->kind == EXPR_LIST_KIND || e->kind == EXPR_MAP_KIND ||
+                             e->kind == EXPR_TUPLE_KIND;
+        if (expected_elem && (lambda_needs_infer(e) || nested_literal)) e->expected = expected_elem;
         parser_visit_expr(ps, e);
         if (!e->ts) return;
         vector_push_back(tp_args, &e->ts);
     }
-
-    Symbol *origin = stbl_get(ps->pm->builtin, "list");
 
     TypeSpec *infer_ts = NULL;
     if (vector_empty(tp_args)) {
@@ -950,6 +961,62 @@ void parse_literal_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected)
     }
 }
 
+int lambda_needs_infer(Expr *exp)
+{
+    if (!exp || exp->kind != EXPR_ANONY_KIND || exp->ts) return 0;
+
+    LambdaExpr *lambda = (LambdaExpr *)exp;
+    ParamDecl *param;
+    vector_foreach(param, lambda->params) {
+        if (param && !param->type) return 1;
+    }
+    return 0;
+}
+
+/* a composite literal forwards its expected type down to its own elements, so an
+   untyped lambda nested anywhere inside one still needs the enclosing construct
+   to defer it until the expected type is known */
+int expr_needs_infer(Expr *exp)
+{
+    if (!exp || exp->ts) return 0;
+    if (lambda_needs_infer(exp)) return 1;
+
+    Expr *e;
+    switch (exp->kind) {
+        case EXPR_LIST_KIND:
+            vector_foreach(e, ((ListExpr *)exp)->vec) {
+                if (expr_needs_infer(e)) return 1;
+            }
+            return 0;
+
+        case EXPR_TUPLE_KIND:
+            vector_foreach(e, ((TupleExpr *)exp)->vec) {
+                if (expr_needs_infer(e)) return 1;
+            }
+            return 0;
+
+        case EXPR_MAP_KIND:
+            vector_foreach(e, ((MapExpr *)exp)->vec) {
+                if (!e) continue;
+                MapEntryExpr *entry = (MapEntryExpr *)e;
+                if (expr_needs_infer(entry->key) || expr_needs_infer(entry->val)) return 1;
+            }
+            return 0;
+
+        default:
+            return 0;
+    }
+}
+
+void resolve_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected)
+{
+    if (!expr_needs_infer(exp)) return;
+
+    exp->ctx = EXPR_CTX_LOAD;
+    exp->expected = expected;
+    parser_visit_expr(ps, exp);
+}
+
 static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i__)
 {
     log_info("check keyword argument: '%s' at %d", kw->key.name, i__);
@@ -1018,6 +1085,9 @@ static void check_valist_arg(ParserState *ps, TypeSpec *expected, Vector *exprs,
 
         log_info("var-arg: check value passed by positional argument");
 
+        resolve_as_expected(ps, e, expected);
+        if (!e->ts) return;
+
         arg_ts = e->ts;
 
         if ((e->kind == EXPR_BANG_KIND) && (match_sequence(e->ts, NULL, &arg_ts))) {
@@ -1051,6 +1121,201 @@ static Vector *arg_infos_from_arg_types(Vector *arg_types)
     return params;
 }
 
+/*
+ * Resolves an argument against its parameter and checks the type. Shared by the
+ * positional and the keyword path so both report the same diagnostic.
+ * Returns 0 when compatible, 1 when an error was reported, -1 when the argument
+ * could not be resolved at all and the caller has to stop.
+ */
+static int check_arg_type(ParserState *ps, ArgInfo *param, Expr *e)
+{
+    if (expr_needs_infer(e)) {
+        log_info("arg needs an expected type, resolve it with the parameter type:");
+        log_type_spec(param->ts);
+        resolve_as_expected(ps, e, param->ts);
+        if (!e->ts) return -1;
+    } else if (e->kind == EXPR_LITERAL_KIND) {
+        log_info("arg is literal, parse literal expr again with expected type:");
+        log_type_spec(e->ts);
+        e->ctx = EXPR_CTX_LOAD;
+        e->expected = param->ts;
+        parser_visit_expr(ps, e);
+        if (!e->ts) return -1;
+    } else if (e->kind == EXPR_ID_KIND && e->sym && e->sym->kind == SYM_VAR) {
+        VarSymbol *var_sym = (VarSymbol *)e->sym;
+        if (var_sym->flags & SYM_FLAGS_CONST) {
+            log_info("arg is a constant variable");
+            e->ctx = EXPR_CTX_LOAD;
+            e->expected = param->ts;
+            parser_visit_expr(ps, e);
+            if (!e->ts) return -1;
+        }
+    } else {
+        parse_literal_as_expected(ps, e, param->ts);
+        if (!e->ts) return -1;
+    }
+
+    if (check_int_to_enum(ps, e->loc, param->ts, e->ts)) return 1;
+    if (!type_spec_compatible(param->ts, e->ts)) {
+        kl_error_incompatible_type(e->loc, param->ts, e->ts);
+        return 1;
+    }
+    return 0;
+}
+
+/* Number of leading positional arguments; the grammar puts every keyword after them. */
+static int count_positional_args(Vector *exprs)
+{
+    int n = 0;
+    int size = vector_size(exprs);
+    while (n < size) {
+        Expr *e = vector_get(exprs, n);
+        if (e->kind == EXPR_KW_KIND) break;
+        n++;
+    }
+    return n;
+}
+
+/*
+ * The argument that fills parameter `index`, for the passes that run before the
+ * call arguments are reordered. The positional prefix lines up with the leading
+ * parameters, but a keyword suffix may come in any order, so once the argument at
+ * `index` is a keyword the real one has to be found by name.
+ */
+Expr *call_arg_for_param(Vector *call_args, int index, const char *name)
+{
+    Expr *exp = vector_get(call_args, index);
+    if (!exp || exp->kind != EXPR_KW_KIND) return exp;
+
+    int size = vector_size(call_args);
+    for (int j = 0; j < size; j++) {
+        Expr *e = vector_get(call_args, j);
+        if (e->kind != EXPR_KW_KIND) continue;
+        KeyWordExpr *kw = (KeyWordExpr *)e;
+        if (str_equal(kw->key.name, name)) return kw->value;
+    }
+    return NULL;
+}
+
+static KeyWordExpr *find_kw_arg(Vector *exprs, int npos, const char *name)
+{
+    int size = vector_size(exprs);
+    for (int j = npos; j < size; j++) {
+        Expr *e = vector_get(exprs, j);
+        KeyWordExpr *kw = (KeyWordExpr *)e;
+        if (str_equal(kw->key.name, name)) return kw;
+    }
+    return NULL;
+}
+
+static int find_param_by_name(Vector *params, const char *name)
+{
+    int size = vector_size(params);
+    for (int i = 0; i < size; i++) {
+        ArgInfo *arg = vector_get(params, i);
+        if (arg->name && str_equal(arg->name, name)) return i;
+    }
+    return -1;
+}
+
+/*
+ * A call with a keyword suffix. The positional prefix fills the leading parameters
+ * in order, the keywords fill the rest by name and may come in any order. Every
+ * required parameter has to end up covered by one or the other, and no parameter
+ * may be filled twice.
+ *
+ * Parameters are laid out as [required...] [va_list?] [defaulted...], so the
+ * va_list, when present, sits at index `nreq` and swallows the whole positional
+ * tail: a defaulted parameter after it can only be passed by keyword.
+ */
+static void check_call_args_kw(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc,
+                               int npos)
+{
+    int param_size = vector_size(params);
+    int expr_size = vector_size(exprs);
+
+    // A function value carries only the parameter types, so there is no name to match.
+    ArgInfo *p;
+    vector_foreach(p, params) {
+        if (p && !p->name) {
+            Expr *e = vector_get(exprs, npos);
+            kl_error(e->loc, "keyword argument is not allowed in a function value call");
+            return;
+        }
+    }
+
+    int nreq = 0;
+    int ndfl = 0;
+    int valist_index = -1;
+    for (int i = 0; i < param_size; i++) {
+        ArgInfo *arg = vector_get(params, i);
+        if (arg->has_dfl_val) {
+            ndfl++;
+        } else if (type_is_valist(arg->ts)) {
+            valist_index = i;
+        } else {
+            nreq++;
+        }
+    }
+
+    if (valist_index < 0 && npos > nreq + ndfl) {
+        Expr *e = vector_get(exprs, nreq + ndfl);
+        kl_error(e->loc, "too many positional arguments in function call.");
+        return;
+    }
+
+    // The positional prefix is checked first so that a bad value is reported even
+    // when a later keyword argument turns out to be unknown.
+    int pos_end = (valist_index >= 0) ? valist_index : npos;
+    if (pos_end > npos) pos_end = npos;
+    for (int i = 0; i < pos_end; i++) {
+        Expr *e = vector_get(exprs, i);
+        ArgInfo *arg = vector_get(params, i);
+        if (check_arg_type(ps, arg, e) < 0) return;
+    }
+
+    // A parameter is filled positionally when it precedes the va_list and the
+    // positional prefix reaches it.
+    for (int j = npos; j < expr_size; j++) {
+        Expr *e = vector_get(exprs, j);
+        KeyWordExpr *kw = (KeyWordExpr *)e;
+        int pi = find_param_by_name(params, kw->key.name);
+        if (pi < 0 || pi == valist_index) {
+            kl_error(kw->loc, "unexpected keyword argument: '%s'", kw->key.name);
+            return;
+        }
+        if (pi < npos && (valist_index < 0 || pi < valist_index)) {
+            kl_error(kw->loc, "duplicate argument for parameter '%s'", kw->key.name);
+            return;
+        }
+    }
+
+    for (int i = 0; i < nreq; i++) {
+        if (i < npos) continue;
+        ArgInfo *arg = vector_get(params, i);
+        if (find_kw_arg(exprs, npos, arg->name)) continue;
+        kl_error(fn_loc, "missing argument for parameter '%s'", arg->name);
+        return;
+    }
+
+    for (int j = npos; j < expr_size; j++) {
+        Expr *e = vector_get(exprs, j);
+        KeyWordExpr *kw = (KeyWordExpr *)e;
+        ArgInfo *arg = vector_get(params, find_param_by_name(params, kw->key.name));
+        if (check_arg_type(ps, arg, kw->value) < 0) return;
+    }
+
+    if (valist_index >= 0 && npos > valist_index) {
+        ArgInfo *arg = vector_get(params, valist_index);
+        TypeSpec *src = arg->ts->va_list.src;
+        if (!type_is_any(src)) {
+            log_info("param '%s' is var-arg, check the positional tail", arg->name);
+            int next_j = 0;
+            check_valist_arg(ps, src, exprs, valist_index, &next_j);
+        }
+    }
+}
+
 static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {
     Expr *e1;
@@ -1067,6 +1332,12 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 }
             }
         }
+    }
+
+    int npos = count_positional_args(exprs);
+    if (npos < vector_size(exprs)) {
+        check_call_args_kw(params, exprs, ps, fn_loc, npos);
+        return;
     }
 
     int param_size = vector_size(params);
@@ -1091,43 +1362,9 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 return;
             }
 
-            if (e->kind == EXPR_KW_KIND) {
-                KeyWordExpr *kw = (KeyWordExpr *)e;
-                kl_error(kw->loc, "require a positional argument, but got a keyword argument: '%s'",
-                         kw->key.name);
-            }
-
             log_info("param '%s' is positional argument", arg->name);
 
-            if (e->kind == EXPR_LITERAL_KIND) {
-                log_info("arg is literal, parse literal expr again with expected type:");
-                log_type_spec(e->ts);
-                e->ctx = EXPR_CTX_LOAD;
-                e->expected = arg->ts;
-                parser_visit_expr(ps, e);
-                if (!e->ts) return;
-                log_info("after parsing literal expr, arg type is:");
-                log_type_spec(e->ts);
-            } else if (e->kind == EXPR_ID_KIND && e->sym && e->sym->kind == SYM_VAR) {
-                VarSymbol *var_sym = (VarSymbol *)e->sym;
-                if (var_sym->flags & SYM_FLAGS_CONST) {
-                    log_info("arg is a constant variable");
-                    e->ctx = EXPR_CTX_LOAD;
-                    e->expected = arg->ts;
-                    parser_visit_expr(ps, e);
-                    if (!e->ts) return;
-                    log_info("after parsing identifier expr, arg type is:");
-                    log_type_spec(e->ts);
-                }
-            } else {
-                parse_literal_as_expected(ps, e, arg->ts);
-            }
-
-            if (check_int_to_enum(ps, e->loc, arg->ts, e->ts)) {
-                // reported
-            } else if (!type_spec_compatible(arg->ts, e->ts)) {
-                kl_error_incompatible_type(e->loc, arg->ts, e->ts);
-            }
+            if (check_arg_type(ps, arg, e) < 0) return;
 
             ++i__;
         } else {
@@ -1676,7 +1913,7 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
 
         TypeSpec *ts = arg->ts;
 
-        Expr *e = vector_get(call_args, i__);
+        Expr *e = call_arg_for_param(call_args, i__, arg->name);
         if (!e) {
             // no more arguments passed, report error.
             if (type_is_valist(ts)) {
@@ -1906,10 +2143,27 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
     int eaten_kw_args = 0;
     int changed = 0;
 
-    ASSERT(param_info.npos <= arg_info.npos);
-
+    // A required parameter is either filled by the positional prefix or, once that
+    // runs out, by a keyword argument. check_call_args has already verified that
+    // every one of them is covered.
     for (int i = 0; i < param_info.npos; i++) {
-        Expr *arg = vector_get(call->args, i);
+        Expr *arg = NULL;
+        if (i < arg_info.npos) {
+            arg = vector_get(call->args, i);
+        } else {
+            ArgInfo *param = vector_get(params, i);
+            KeyWordExpr *kw;
+            vector_foreach(kw, &arg_info.kwargs) {
+                if (str_equal(kw->key.name, param->name)) {
+                    arg = kw->value;
+                    break;
+                }
+            }
+            ASSERT(arg);
+            log_info("[handle_valist_and_dfl_args] required param '%s' is passed by keyword.",
+                     param->name);
+            changed = 1;
+        }
         vector_push_back(real_args, &arg);
     }
 
@@ -2112,6 +2366,11 @@ static void parse_call(ParserState *ps, Expr *exp)
     vector_foreach(arg, call->args) {
         if (!arg) continue;
         arg->ctx = EXPR_CTX_LOAD;
+        /* an untyped lambda takes its parameter types from the callee's parameter,
+           which is not known until the callee is resolved: check_call_args fills it
+           in, and a composite literal forwards it to the lambdas nested inside */
+        Expr *value = (arg->kind == EXPR_KW_KIND) ? ((KeyWordExpr *)arg)->value : arg;
+        if (expr_needs_infer(value)) continue;
         parser_visit_expr(ps, arg);
         if (!arg->ts) return;
     }
@@ -2276,33 +2535,46 @@ static void parse_call(ParserState *ps, Expr *exp)
                 if (str_equal(cls_sym->name, "range")) {
                     log_info("special handling for 'range' constructor call.");
 
+                    /* range(stop) and range(start, stop) fill in the parameters the
+                       caller left out. The transform is positional, so collect the
+                       arguments into the three parameter slots first: a keyword
+                       suffix may arrive in any order. */
+                    Vector *range_params = ((FuncSymbol *)_fn_sym)->params;
                     int nargs = vector_size(call->args);
+                    int npos = count_positional_args(call->args);
+                    Expr *slots[3] = { NULL, NULL, NULL };
 
-                    if (nargs == 1) {
-                        // range(stop), add default start and step
-                        Expr *stop = vector_at(call->args, 0);
+                    if (nargs <= 3) {
+                        for (int i = 0; i < npos; i++) slots[i] = vector_get(call->args, i);
+                        for (int j = npos; j < nargs; j++) {
+                            Expr *e = vector_get(call->args, j);
+                            KeyWordExpr *kw = (KeyWordExpr *)e;
+                            int pi = find_param_by_name(range_params, kw->key.name);
+                            if (pi >= 0 && pi < 3) slots[pi] = kw->value;
+                        }
 
-                        Expr *start = expr_from_lit_int("0", 1, 0, 0);
-                        start->ctx = EXPR_CTX_LOAD;
-                        parser_visit_expr(ps, start);
-                        Expr *step = expr_from_lit_int("1", 1, 0, 1);
-                        step->ctx = EXPR_CTX_LOAD;
-                        parser_visit_expr(ps, step);
+                        // range(stop): the lone positional argument is the end
+                        if (!slots[1] && slots[0] && npos == 1 && npos == nargs) {
+                            slots[1] = slots[0];
+                            slots[0] = NULL;
+                        }
+                    }
+
+                    if (nargs <= 3 && slots[1]) {
+                        if (!slots[0]) {
+                            slots[0] = expr_from_lit_int("0", 1, 0, 0);
+                            slots[0]->ctx = EXPR_CTX_LOAD;
+                            parser_visit_expr(ps, slots[0]);
+                        }
+                        if (!slots[2]) {
+                            slots[2] = expr_from_lit_int("1", 1, 0, 1);
+                            slots[2]->ctx = EXPR_CTX_LOAD;
+                            parser_visit_expr(ps, slots[2]);
+                        }
 
                         vector_clear(call->args);
-                        vector_push_back(call->args, &start);
-                        vector_push_back(call->args, &stop);
-                        vector_push_back(call->args, &step);
-                        log_info("transformed range(stop) call to range(0, stop, 1).");
-                    } else if (nargs == 2) {
-                        // range(start, stop), add default step
-                        Expr *step = expr_from_lit_int("1", 1, 0, 1);
-                        step->ctx = EXPR_CTX_LOAD;
-                        parser_visit_expr(ps, step);
-                        vector_push_back(call->args, &step);
-                        log_info("transformed range(start, stop) call to range(start, stop, 1).");
-                    } else {
-                        // nothing to do, use passed arguments as is.
+                        for (int i = 0; i < 3; i++) vector_push_back(call->args, &slots[i]);
+                        log_info("transformed range call to range(start, end, step).");
                     }
                 }
 
@@ -2315,7 +2587,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else if (lhs_sym->kind == SYM_FUNC) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
         if (func_has_infer_tp(fn_sym)) {
-            Vector *_tp_args = infer_func_tp(fn_sym, call->args, ps);
+            Vector *_tp_args = infer_func_tp(fn_sym, call->args, NULL, ps);
             if (!_tp_args) {
                 kl_error(lhs->loc, "failed to infer type parameters for function '%s'.",
                          fn_sym->name);
@@ -2827,7 +3099,7 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
     FuncSymbol *fn_sym = (FuncSymbol *)__fn_sym;
 
     if (func_has_infer_tp(fn_sym)) {
-        Vector *_tp_args = infer_func_tp(fn_sym, index->vec, ps);
+        Vector *_tp_args = infer_func_tp(fn_sym, index->vec, lhs->ts, ps);
         if (!_tp_args) {
             kl_error(lhs->loc, "failed to infer type parameters for function '%s'.", fn_sym->name);
             return;
@@ -3335,12 +3607,16 @@ static void parse_index(ParserState *ps, Expr *exp)
         }
     }
 
-    if (index->ctx == EXPR_CTX_LOAD) {
+    if (index->ctx == EXPR_CTX_LOAD || index->ctx == EXPR_CTX_CALL) {
         if (arg->kind == EXPR_SLICE_KIND) {
             parse_slice_load(ps, lhs_sym, index);
         } else {
             parse_index_load(ps, lhs_sym, index);
         }
+        /* the result is the callee of a call, so it is a plain value rather than a
+           named symbol: clearing it makes `parse_call` take the function-value path,
+           and report 'expression is not callable' when the element is not a function */
+        if (index->ctx == EXPR_CTX_CALL) index->sym = NULL;
     } else if (index->ctx == EXPR_CTX_STORE) {
         if (arg->kind == EXPR_SLICE_KIND) {
             parse_slice_store(ps, lhs_sym, index, exp->arg);
@@ -4668,6 +4944,27 @@ static void parse_lambda(ParserState *ps, Expr *exp)
     TypeSpec *expected = exp->expected;
     if (expected && type_is_optional(expected)) expected = expected->opt.src;
     if (expected && !type_is_proto(expected)) expected = NULL;
+    if (expected) {
+        /* an unspecialized `func(T) R` inside a generic body names a type
+           variable, which is not a type a lambda parameter can have */
+        TypeSpec *proto_part;
+        vector_foreach(proto_part, expected->proto_type.args) {
+            if (type_is_generic_var(proto_part) || type_is_generic_ref(proto_part)) {
+                kl_error(exp->loc,
+                         "lambda parameter type cannot be inferred from the generic function "
+                         "type '%s', annotate the lambda parameter.",
+                         expected->signature);
+                return;
+            }
+        }
+        if (type_is_generic_var(expected->proto_type.ret) ||
+            type_is_generic_ref(expected->proto_type.ret)) {
+            kl_error(exp->loc,
+                     "lambda return type cannot be inferred from the generic function type '%s'.",
+                     expected->signature);
+            return;
+        }
+    }
     if (expected && vector_size(expected->proto_type.args) != vector_size(lambda->params)) {
         kl_error(exp->loc, "lambda parameter count does not match expected function type");
         return;

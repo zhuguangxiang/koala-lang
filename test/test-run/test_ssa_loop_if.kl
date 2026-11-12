@@ -1,0 +1,153 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+//
+// A `for` body that contains an `if` splits into several basic blocks, so the
+// source of the loop back-edge is the merge block of the `if` rather than the
+// block that writes the variable. Filling the header PHI must therefore look
+// the variable up through that merge block instead of reading its def table
+// directly.
+
+type Pred = func(int) bool
+
+func is_even(n int) bool { return n % 2 == 0 }
+
+// the variable is written only on one branch of the `if`
+func count_gt(xs list[int], k int) int {
+    var n = 0
+    for x in xs {
+        if x > k {
+            n = n + 1
+        }
+    }
+    return n
+}
+
+func sum_even(xs list[int]) int {
+    var s = 0
+    for x in xs {
+        if x % 2 == 0 {
+            s = s + x
+        }
+    }
+    return s
+}
+
+// both branches write the variable
+func pick(xs list[int]) int {
+    var n = 0
+    for x in xs {
+        if x > 3 {
+            n = n + 10
+        } else {
+            n = n + 1
+        }
+    }
+    return n
+}
+
+// an unconditional write followed by an `if`: the back-edge source still does
+// not carry the definition
+func walk(xs list[int]) int {
+    var n = 0
+    for x in xs {
+        n = n + 1
+        if n > 3 {
+            n = n + 100
+        }
+    }
+    return n
+}
+
+// two loop-carried variables, only one of them written under the `if`
+func two_vars(xs list[int]) int {
+    var i = 0
+    var s = 0
+    for x in xs {
+        i = i + 1
+        if x % 2 == 1 {
+            s = s + i
+        }
+    }
+    return s
+}
+
+// the `if` is in the inner loop, so the outer loop's back-edge operand is a PHI
+// defined in a block other than the one the edge leaves
+func nested_if() int {
+    var n = 0
+    for i in [0, 1, 2] {
+        for j in [0, 1] {
+            if j > 0 {
+                n = n + 1
+            }
+        }
+    }
+    return n
+}
+
+// the `if` follows the inner loop instead, so the two loops carry the same
+// variable through differently shaped PHI chains
+func nested_outer_if() int {
+    var n = 0
+    for i in [0, 1, 2] {
+        for j in [0, 1] {
+            n = n + 1
+        }
+        if i > 0 {
+            n = n + 10
+        }
+    }
+    return n
+}
+
+// the `while` form already worked: kept as a regression guard
+func while_if(n int) int {
+    var i = 0
+    var s = 0
+    while i < n {
+        if i % 2 == 0 {
+            s = s + i
+        }
+        i = i + 1
+    }
+    return s
+}
+
+// a function value called in the `if` condition
+func count_with(xs list[int], ok Pred) int {
+    var n = 0
+    for x in xs {
+        if ok(x) {
+            n = n + 1
+        }
+    }
+    return n
+}
+
+func main() {
+    let xs list[int] = [1, 2, 3, 4, 5]
+
+    print(count_gt(xs, 2))
+    print(count_gt(xs, 0))
+    print(sum_even(xs))
+    print(pick(xs))
+    print(walk(xs))
+    print(two_vars(xs))
+    print(nested_if())
+    print(nested_outer_if())
+    print(while_if(5))
+    print(count_with(xs, is_even))
+    print(count_with(xs, { |x| x > 2 }))
+}
+
+// CHECK: 3
+// CHECK-NEXT: 5
+// CHECK-NEXT: 6
+// CHECK-NEXT: 23
+// CHECK-NEXT: 205
+// CHECK-NEXT: 9
+// CHECK-NEXT: 3
+// CHECK-NEXT: 26
+// CHECK-NEXT: 6
+// CHECK-NEXT: 2
+// CHECK-NEXT: 3

@@ -1718,6 +1718,11 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
         return;
     }
 
+    /* the index result is the callee of a call: load it here, `emit_ir_call` emits
+       the call itself. The generic function index (`max[int64](...)`) already
+       returned above, so only a plain element load is left. */
+    if (exp->ctx == EXPR_CTX_CALL) exp->ctx = EXPR_CTX_LOAD;
+
     if (vector_size(vec) == 1) {
         Expr *e = vector_at(vec, 0);
         e->ctx = EXPR_CTX_LOAD;

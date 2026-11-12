@@ -4131,3 +4131,433 @@ Not done yet:
   “Top-level iteration combinators `enumerate` and `zip` are available”，实际 `enumerate([1, 2])`
   报 "'enumerate' is not found"（`libs/std/builtin/enumerate.kl`、`zip.kl` 中的定义是注释）。
   需实现，或修改手册。
+
+## 91. 变长参数的打包 / 解包：实现现状与缺陷（2026-11-12，待修 / 待设计）
+
+起因是修「变长参数静态下标 ≥ 1 报越界」时顺带挖出的转发与 `!` 解包问题。本节先把当前实现
+的模型写清楚，再列缺陷；**设计未定案，未施工**。
+
+### 91.1 当前模型：变长槽 = 一个位置实参，持有一个 tuple 对象
+
+- 打包在 `handle_valist_and_dfl_args()`（`src/parser/parser_expr.c:1967`）：把第
+  `valist_index` 个及之后的位置实参收进 `vec`，再 `expr_from_tuple(vec)` 造成**一个** tuple
+  表达式塞进 `real_args`（`:2035`）。零变长实参时也补一个空 tuple（`:2047`），注释
+  （`:2042-2045`）说明理由：变长形参恒占一个位置槽，实参个数必须与 prototype 对齐。
+- 因此被调方看到的 `xs` 就是一个普通 tuple 值，`xs.len()` / `for x in xs` / `xs[i]` 全部走
+  tuple 的方法，运行期没有独立的 va_list 概念。
+- 实测（根目录 `test22.kl`）：
+
+  ```kl
+  func pass(xs ...int) int {
+      print(xs)                  // → 1 2 3
+      print(xs, typeof(xs))      // → (1, 2, 3) <class 'tuple'>
+      return 0
+  }
+  ```
+
+  同一个 `xs`，独占变长槽时被摊开，和别人并列时是一个 tuple 元素。差异来自下面的直通路径。
+
+### 91.2 已存在的「直通」路径 `skip_tuple`
+
+`parser_expr.c:2011-2025`：当变长槽**只收到 1 个**实参、且该实参的 `ts` 本身是
+`TYPE_VA_LIST` 时，不再包 tuple，直接透传（`skip_tuple = 1`）。这就是 `print(xs)` 输出
+`1 2 3` 的原因。两个限制：
+
+- 只在独占整个变长槽时生效；`print(xs, typeof(xs))` 有 2 个实参 → 走打包 → `xs` 成为新 tuple
+  的一个元素。
+- 完全不检查元素类型，只看「是不是 va_list」。
+
+**关键结论：打包层已经支持「把一个变长值原样交给另一个变长形参」，类型检查层不认这件事。**
+下面 A / B 两个缺陷都是这两层不一致的表现。
+
+### 91.3 缺陷 A：转发给带类型的变长形参被类型检查拒绝（待修）
+
+- [ ] ```kl
+  func second(xs ...int) int { return xs[1] }
+  func pass(xs ...int) int { return second(xs) }   // 报错
+  ```
+  `Incompatible type: expected 'int64', but got '...int64'.`
+
+  位置：`check_valist_arg()`（`parser_expr.c:1073`）在 `:1098` 直接拿**元素类型**与实参类型
+  比兼容性；它只有 `!` 解包分支（`:1093`），没有「实参本身是一个 va_list 值」的分支。
+
+  实测矩阵（失败只取决于**被调方**的变长形参有没有类型）：
+
+  | 调用方 | 被调方 | 结果 |
+  |---|---|---|
+  | `...int` | `...int` | 报错 `expected 'int64', but got '...int64'` |
+  | `...`（无类型） | `...int` | 报错 `expected 'int64', but got '...any'` |
+  | `...int` | `...`（无类型） | 通过 |
+  | `...` | `...` | 通过（`test-run/test_valist_zero_args.kl` 即此形态） |
+
+  后两行通过**不是**因为有特判，而是被调方元素类型为 `any`，
+  `type_spec_compatible(any, ...int64)` 恒真，把整个 tuple 吞掉了。
+
+  方向：让 `check_valist_arg` 承认「实参是 va_list / tuple 值且独占变长槽」，与 `skip_tuple`
+  对齐，同时校验元素类型兼容（`...int` → `...str` 应报错）。
+
+### 91.4 缺陷 B：`!` 对 Sequence 只做了类型层，codegen 是空操作（待修 / 待设计）
+
+- [ ] 类型层：`parse_bang()`（`parser_expr.c:4068`）在 `:4098-4103` 用
+  `match_sequence(e->ts, &it_ts, NULL)` 把静态类型改成 Sequence 实例类型（`it_ts` 出参语义见
+  `typespec.c:845`）；`check_valist_arg:1093` 再用 `arg_ts` 出参取**元素类型**，于是检查通过。
+- [ ] 代码生成层：`emit_ir_bang()`（`src/parser/irgen.c:2278-2300`）在非 optional 时直接
+  `exp->ir_val = e->ir_val` 返回（`:2290`，注释写的是 shadow variable 的场景），**没有任何摊开
+  动作**。KLR 指令集、`isel.c`、VM 里也都没有用于**调用实参摊开**的指令（`irgen.c:3369`
+  的 `build_unpack_vars` 是 `let (x, y) = ...` 的解构，与此无关）。即 `!` 的 Sequence 语义
+  目前只是一个类型标注。
+- [ ] 实测后果（静默算错，比崩溃更危险）：
+
+  ```kl
+  func n(xs ...int) int { return xs.len() }
+  func count_bang(xs ...int) int { return n(xs!) }
+  func second(xs ...int) int { return xs[1] }
+  func pass_bang(xs ...int) int { return second(xs!) }
+  ```
+  `count_bang(10, 20, 30)` 得 **1**（应为 3）；`pass_bang(10, 20, 30)` 运行时抛
+  `Error: tuple index out of range`。`typeof(xs!)` 仍是 `<class 'tuple'>`，值就是原 tuple。
+
+  链路：`xs!` 的 `ts` 已被 `parse_bang` 改成 Sequence 而非 VA_LIST → `skip_tuple` 不触发 →
+  整个 tuple 被当成**一个元素**再包一层 → 被调方 `len()` 为 1。
+
+  方向：`!` 需要真正的下降。打包时把 sequence 的元素展开进 tuple（运行期长度未知，需要
+  runtime 侧的 tuple 拼接 / 扩展支持），或引入显式 spread 指令。属设计题，不是补一个分支。
+
+### 91.5 缺陷 C：`xs!` 能否编译取决于编译顺序（偶然而非设计，待修）
+
+- [ ] `match_type_spec()`（`typespec.c:829-832`）靠 `get_symbol_by_id(ts->sym_id)` 找符号；
+  va_list 的 `sym_id` 初值是 -1（`va_list_type_spec()`，`typespec.c:732`），由
+  `get_type_symbol()`（`parser.c:437`）**惰性**填写。于是 `xs!` 是否被认成 Sequence，取决于
+  之前有没有别的代码碰过同一个 va_list TypeSpec。
+
+  实测三个最小形态（同一函数体，只差前置语句）：
+
+  ```kl
+  // w1：xs! 是第一次使用 → 编译报错
+  func pass(xs ...int) int { print(xs!, typeof(xs!))  return 0 }
+  // error: only optional type/Sequence's subtype can use bang operator.
+
+  // w2：先 xs.len() → 通过，且 xs! 的值仍是整个 tuple
+  func pass(xs ...int) int { print(xs.len())  print(xs!, typeof(xs!))  return 0 }
+  // → 3 / (1, 2, 3) <class 'tuple'>
+
+  // w3：先 xs[0] → 同 w2
+  func pass(xs ...int) int { print(xs[0])  print(xs!, typeof(xs!))  return 0 }
+  // → 1 / (1, 2, 3) <class 'tuple'>
+  ```
+
+  方向：va_list 的类型符号应在 `resolve_type` 阶段就确定，不要依赖惰性填 `sym_id` 的副作用。
+
+### 91.6 缺陷 D：`tuple.__getslice__` 未实现（2026-11-12 作者决定：暂不解决）
+
+- [ ] 任何 tuple 切片都在运行时抛 `func 'tuple::__getslice__' is not implemented!`，
+  **不限于变长参数**：
+
+  ```kl
+  let t = (1, 2, 3)
+  print(t[1:])        // Error: func 'tuple::__getslice__' is not implemented!
+
+  func tail(xs ...int) int {
+      var s = 0
+      for x in xs[1:] { s = s + x }   // 同样抛错
+      return s
+  }
+  ```
+
+  `tuple_methods[]`（`src/objects/tupleobj.c:60-66`）只注册了 `to_list` / `fmt` / `len` /
+  `__getitem__`，没有 `__getslice__`。前端能过（`parse_slice_load` 认 tuple 是 Sequence），
+  所以是纯运行期缺口，编译期无诊断。
+
+  注：`demo/func_type.kl` 的 `reduce` 用 `xs[1:]` 能跑，是因为那里的 `xs` 是 `list[int]`；
+  变长槽是 tuple，同样的写法就炸。`for x in xs` 直接迭代 tuple 是正常的，只有切片不行。
+
+  方向（未施工）：给 tuple 补 `__getslice__`，返回新 tuple；需先定下越界 / 负下标 / 空切片的
+  语义，与 §11（`OP_SEQ_GET_IMM` / `OP_SEQ_SET_IMM` 负下标语义未定义）一并考虑。
+
+### 91.7 设计前必须先看：既有负向用例把「`!` 不摊开」钉住了
+
+- [ ] `test/test-kl/test_list.kl:54,57-58`：`let l6_1 = list(100, l2!, 200)` 之后
+  `l6_1[1][0] = 100` 期望报 `type 'int64' is not subscriptable (missing __setitem__)`。
+- [ ] `test/test-kl/test_infer_new.kl:66-68`：`A(100, 200, "hello", l!, v5 = 1, v6 = false)`
+  之后 `a6.f2[0] = 100` 期望报同样的错。
+
+  这两条都建立在「`l!` 只贡献**一个**元素」的现状上。真要 implement spread，必须先决定这两个
+  用例怎么改，不能直接改实现。
+
+### 91.8 已修 / 已固化的部分
+
+- 变长参数**静态下标 ≥ 1** 已修（原 C1）。根因：`get_valist_symbol()`（`parser.c:421`）把变长
+  参数映射成 `tuple[元素类型]`，只有 1 个类型实参，而 `infer_tuple___getitem__` 拿字面量下标去
+  和 `vector_size(inst_sym->tp_args)`（恒为 1）比。修法：`infer_func_tp` 增加 `recv_ts` 参数
+  （`include/parser/parser.h:230`），`parser.c:53` 对 `TYPE_VA_LIST` 直接返回 `va_list.src`，
+  不做 arity 检查（长度只有调用点才知道）。
+  不能给 instance 打标记：`tuple[int64]` 与真实一元组 `(1,)` 是同一个缓存符号
+  （`find_or_add_instance` 按 mangled name 缓存），打标记会破坏真实元组的越界检查。
+- 用例：`test/test-run/test_vararg_index.kl`（纯类型 `...int` / `...str` / `...float` / 无类型
+  `...` / 泛型 `...T`，覆盖下标 0/1/2、方法、泛型函数、泛型类方法，并保留动态下标、常量折叠
+  下标、for-each、`len()` 作回归护栏；两条 RUN：默认 + `--ssa`）。
+- **该用例目前故意留红**：按作者要求保留了 `pass`（缺陷 A）与 `pass_bang`（缺陷 B）两条待修
+  用例，等设计定案后再动。全量 491/492，唯一红点就是它。注意文件里缺陷 B 被缺陷 A 遮住
+  （`pass` 编译不过，lit 跑不到运行时），两个缺陷要分开修、分开验。
+
+### 91.9 关联条目
+
+§90 已记的「可变参数 `...Trait` 接收类实例时 VM 崩溃」（打包 tuple 时元素未 `make_intf`）与
+本节同源，都在 `handle_valist_and_dfl_args()` 的打包处，宜一并设计。§89 / §90 已记的
+「泛型可变参数 `...T` 推断 `NYI()`」（`parser_generic.c:126` 的 `TYPE_VA_LIST` 分支）也在同一
+条链路上。
+
+## 92. phi coalescing 把常量当空区间，导致两个循环的累加器被合并到同一个 local（2026-11-12，待修）
+
+发现于「kw 传位置参数」的回归验证，**与 kw 无关**：全部复现都只用纯位置实参和字面量。
+只在 `--ssa` 下出现，默认 VM 路径全部正确。
+
+### 92.1 症状：同一函数里两个 for-each 循环，第一个累加器的值被清零
+
+- [ ] 最小复现（`a`、`b` 都以 `0` 初始化）：
+
+  ```kl
+  func main() {
+      var a = 0
+      for i in range(3) { a = a + i }
+      print(a)          // VM: 3    SSA: 0   ← 错
+      var b = 0
+      for i in range(3) { b = b + i }
+      print(b)          // VM: 3    SSA: 3
+  }
+  ```
+
+- [ ] **不是 range 的问题**：把两个 `range(3)` 都换成 `[0, 1, 2]` 一样错；只换其中一个也错。
+  最初误以为是「连续 range 循环」，实测与迭代器种类无关。
+
+### 92.2 触发条件矩阵（VM 全部正确，下表只列 SSA）
+
+| 变体 | 第一个累加器初值 | 第二个初值 | 循环数 | SSA 输出 | 结论 |
+| --- | --- | --- | --- | --- | --- |
+| 基准 | `0` | `0` | 2 | `0 3` | 错 |
+| 两个 `var` 都提到最前 | `0` | `0` | 2 | `0 3` | 错，与 `var` 位置无关 |
+| 只改第二个初值 | `0` | `7` | 2 | `0 10` | 错，**只有第一个初值起作用** |
+| 只改第一个初值 | `5` | `0` | 2 | `8 3` | 对 |
+| 两个都非 0 | `5` | `7` | 2 | `8 10` | 对 |
+| 同一个累加器贯穿两个循环 | `0` | — | 2 | `3 9` | 对 |
+| 两个循环共用一个累加器、末尾才 print | `0` | — | 2 | `6` | 对 |
+| 换成两个 `while` 手写循环 | `0` | `0` | 2 | `3 3` | 对 |
+| 三个循环三个累加器（list 字面量） | `0` | `0` | 3 | `3 3 3` | 对，块布局变了 |
+
+- [ ] 更硬的症状：第一个循环用 list、第二个用 range 时**直接编译崩溃**：
+
+  ```kl
+  func main() {
+      var a = 0
+      for i in [0, 1, 2] { a = a + i }
+      print(a)
+      var b = 0
+      for i in range(3) { b = b + i }
+      print(b)
+  }
+  ```
+
+  ```
+  cgen.c:1426: Why goes here?      // fill_mach_insn() 的 default: UNREACHABLE()
+  ```
+
+### 92.3 直接证据：de-ssa 之后 `b` 的 local 声明消失，`b` 的 phi copy 落在 print 之前
+
+`koalac --ssa --dump=ssa` 的 de-ssa 输出（节选，基准复现）：
+
+```
+%bb0(entry):
+      %lc.i.phi.0 = local int64
+      %lc.i.phi.0 = local int64
+      move %lc.i.phi.0 int64, 0 int64
+      %lc.a.phi.0 = local int64
+      move %lc.a.phi.0 int64, 0 int64      // 只有 a 的 local，b 的没有了
+      jmp label %bb1
+...
+%bb3(loop-end):                            // 第一个循环的出口
+      move %lc.i.phi.0 int64, 0 int64
+      move %lc.a.phi.0 int64, 0 int64      // ← b 的 phi copy，把 a 清零了
+      %3 = build_intern @tuple, %lc.a.phi.0 int64
+      call @print ...                    // 于是打印 0
+      jmp label %bb4
+...
+%bb5(loop-body):
+      %5 = add %lc.a.phi.0 int64, %lc.i.phi.0 int64   // 第二个循环也在用 a 的 local
+```
+
+SSA 层本身是**对的**（`%a.phi.0` 与 `%b.phi.0` 是两个不同的 phi，各自 `phi 0, %backedge`）。
+错在 de-ssa / coalescing：`b` 被并进 `a` 的 congruence class。
+
+对照：把初值改成 `5` / `7`（正确的那一档），de-ssa 输出里 `%lc.a.phi.0` 与 `%lc.b.phi.0`
+**是两个独立 local**，`move %lc.b.phi.0, 7` 同样落在 `%bb3`，但因为不共享槽位所以无害。
+
+### 92.4 根因推断（证据充分，未施工验证）
+
+- [ ] `src/parser/opt/phi_coalescing.c:108` `_build_interval()` 给常量 `start = 0`，
+  `:77` `_build_interval_end()` 对常量直接 `return 0` —— 常量的活跃区间是**空区间 `[0, 0)`**。
+- [ ] `:181` `_intervals_overlap()` 是 `a->start < b->end && b->start < a->end`。
+  代入常量（`start == end == 0`）恒为 false，**常量与任何区间都不干涉**。
+- [ ] `:386` `klr_coalesce_run_analysis()` 对每个 phi 的**每个** incoming operand 都调
+  `_try_merge()`，常量 operand 也不例外。于是「所有以同一个常量对象为 incoming 的 phi」
+  都并到那个常量的 class 里。`0` 是共享的同一个 `KlrValue`，所以 `a.phi.0` 和 `b.phi.0`
+  被判定可合并 —— 而它们的真实活跃范围在 `%bb3` 的 print 处是重叠的（`b` 定义时 `a` 还活着）。
+- [ ] 这正好解释 §92.2 的全部现象：初值不同 → 不同常量对象 → 不合并 → 正确；
+  只有第一个初值为 0 也照样错（`b` 并进零 class 即可）；三个循环时块布局变化使线性区间真的重叠，
+  反而被拦住。
+- [ ] 附带问题：线性区间模型 `[def_pos, last_use_pos)` 按指令序号铺平，**不考虑 CFG**，
+  也不把「phi copy 实际插在前驱块的什么位置」计入 incoming 值的活跃范围。
+  即使修掉常量这一条，循环出口块里带其他代码时仍可能有别的漏判。
+
+  方向（未定）：要么给常量算出真实区间（延伸到每个 phi copy 的落点，即 `pred->last_pos`），
+  要么干脆不让常量参与 coalescing —— 常量的 phi copy 本来就该是一条立即数 `move`，
+  不需要和 phi 共享槽位。后者改动面更小。
+
+### 92.5 现状与规避
+
+- 全量 497/497 通过，现有用例没有覆盖到这个形状。
+- `test/test-run/test_kw_range.kl` 因此**每个函数只放一个 range 循环**，文件头注释记了原因。
+  这是规避，不是修复；本节修好后可以把那些循环合回一个函数。
+- 修好后应新增正向用例，至少覆盖 §92.2 矩阵里「错」的三档 + 崩溃那一档，两条 RUN（默认 + `--ssa`）。
+
+### 92.6 关联条目
+
+同在 `phi_coalescing.c` 的已修问题：嵌套 for-each + if 的 `move` 放错块（本轮之前已修）。
+另有一条待议的 de-ssa critical-edge 问题，与本节同属「phi copy 落点」这一类，宜一并考虑。
+
+## 93. 未初始化变量的读取：无诊断 + 垃圾值 / nil / 两处段错误（2026-11-12，待修）
+
+**编译器对「声明了但没赋初值就读取」完全不报错。** 全仓库 grep 不到 `uninitialized` /
+`not initialized` / `used before` 之类诊断，`VarSymbol`（`include/parser/symbol.h:82`）里
+也没有任何「已赋值」状态位。顺着查出来 4 个独立问题，其中 2 个是段错误。
+
+### 93.1 现状矩阵
+
+| 写法 | koalac | VM | SSA |
+| --- | --- | --- | --- |
+| 局部 `var a int` 后 `print(a)` | exit 0，无诊断 | 打印 **40960**（垃圾） | **段错误** |
+| 局部 `var s str` 后 `print(s)` | exit 0，无诊断 | 打印 **40960**（垃圾当指针） | 未测 |
+| 全局 `var g int` 后 `print(g)` | exit 0，无诊断 | 打印 **`nil`** | 打印 **`nil`** |
+| 全局 `var g int` 后 `print(g + 1)` | exit 0，无诊断 | **运行时断言崩溃** | **运行时断言崩溃** |
+| 全局 `let c int`（无 `=`） | 已报错 `expected '='` | — | — |
+| 局部 `let c int`（无 `=`） | **段错误** | **段错误** | **段错误** |
+
+全局算术崩溃的断言：
+
+```
+include/runtime/vm_ops.h:85: _eval_frame: Assertion
+  `((((regs + rs)->tag) & ~(uintptr_t)0b11) == 0b1000) || ... == 0b1100)' failed.
+```
+
+即一个声明为 `int` 的全局槽里装着 `nil`，是**类型谎言**，不只是「值为 0」的问题。
+
+### 93.2 缺陷 A：局部 var 无初值被读取，无诊断（待修）
+
+- [ ] 最小复现：
+
+  ```kl
+  func main() {
+      var a int
+      print(a)      // VM: 40960    SSA: 段错误
+  }
+  ```
+
+- [ ] 前端根因：`src/parser/parser.c:1392` `parse_var_decl()`，`!exp && ts` 分支只设
+  `sym->ts` 就 `sym->status = SYM_RESOLVED` 返回，不记录「有没有初值」。
+- [ ] 后端根因：`src/parser/irgen.c:2711` `emit_ir_var_decl()`，局部变量只
+  `klr_build_local_var()` 建槽，`exp` 为空就不发 `move`，槽里是未初始化内存。
+- [ ] SSA 崩溃栈（`koalac --ssa`，gdb）：
+
+  ```
+  find_entry            src/common/hashmap.c:163
+  hashmap_get           src/common/hashmap.c:177
+  read_variable         src/parser/klr/ssa.c:85
+  read_variable_recursive src/parser/klr/ssa.c:243
+  read_variable         src/parser/klr/ssa.c:93
+  build_ssa             src/parser/klr/ssa.c:318
+  ```
+
+  `read_variable_recursive()` 一路回溯到入口仍找不到该变量的任何定义。注意
+  `build_ssa()` Step 2（`ssa.c:273`）已给**所有**块初始化过 `current_defs`，
+  所以不是「map 没初始化」那么简单，回溯 path 上的 `pred` 有问题，具体机制未查清。
+  前端加上诊断后合法程序不会再走到这里，但 SSA 侧本身是否该有兜底另议。
+
+### 93.3 缺陷 B：全局 var 无初值，槽里是 nil（待修）
+
+- [ ] 最小复现：
+
+  ```kl
+  var g int
+  func main() { print(g) }      // nil
+  ```
+
+  ```kl
+  var g int
+  func main() { print(g + 1) }  // 运行时断言崩溃，见 §93.1
+  ```
+
+- [ ] 全局 `let` / `const` 无初值**已经**被文法拦住（`src/parser/koala.y:1524` 起的
+  `let_decl` 所有非错误产生式都要求 `'='`），只有 `var` 开着这个口子。
+
+### 93.4 缺陷 C：局部 `let` 无初值 → 编译器段错误（待修，独立小 bug）
+
+- [ ] 最小复现：
+
+  ```kl
+  func main() {
+      let c int
+      print(c)
+  }
+  ```
+
+  `koalac` 直接 SIGSEGV，**连那条 `expected '='` 都没打出来**。
+
+- [ ] 根因：`src/parser/koala.y:1554` 的错误产生式 `LET ID optional_type error`
+  报完 `expected '='` 后置 `$$ = NULL`；`koala.y:2757` 的 `local: let_decl semi`
+  动作里 `var_set_where($$, VAR_LOCAL)` 是个裸宏
+  （`include/parser/ast.h:537`：`((VarDeclStmt *)stmt)->where = _where;`），**不判 NULL**。
+- [ ] 旁证：紧邻的 `local: const_decl semi`（`koala.y:2752`）里同一行
+  **已经被注释掉了** —— 这个坑之前有人踩过，但只绕开了 const，没修 let / var。
+- [ ] `var_decl` 的错误产生式（`koala.y:1741` 起）同样置 `$$ = NULL`，
+  `koala.y:2762` 同样无保护。实测 `var a int =` 走到别的产生式没崩，
+  但这条路径的 NULL 风险仍在，宜一并加保护。
+
+### 93.5 必须保留的合法写法（实测 VM / SSA 都正确）
+
+- [ ] 局部「先声明后赋值」是合法且常用的，修复**不能**简单地「没初始化式就报错」：
+
+  ```kl
+  var a int; a = 5; print(a)                    // 5
+  var a int; if true { a = 1 } else { a = 2 }   // 1
+  var a int; for i in range(3) { a = i }        // 2
+  ```
+
+- [ ] 全局可选类型的懒初始化，**全仓库唯一的无初值全局**，在 std 里：
+
+  `libs/koala/log/default.kl:75` `var _default Logger?`，靠
+  `if _default == nil { _default = Logger(...) }` 懒建（`:80`）。
+  对 `T?` 来说未初始化就是 nil，语义自洽，**不能打断**。
+
+### 93.6 拟定规则（未施工，待作者确认）
+
+- [ ] 1. **全局非可选**必须有初始化式，否则报错 —— 堵住 §93.3 的类型谎言。
+- [ ] 2. **全局可选 `T?`** 允许省略初值，等价于隐式 `= nil`，std 不动。
+- [ ] 3. **局部 `var`**：给 `VarSymbol` 加「已赋值」标记，赋值语句置位；
+  **整个函数里从未被赋值过**的变量被读取时报错。
+  这是小步方案，漏判 `if c { a = 1 } print(a)` 这类部分路径未赋值；
+  完整的必经赋值分析（definite assignment）要新增流分析 pass，且会拒掉
+  §93.5 里「循环内赋值、循环外读取」这种现在能跑的写法，暂不做。
+- [ ] 4. 顺手修 §93.4 的 NULL 解引用（`var_set_where` 加保护，或错误产生式不返回 NULL）。
+
+### 93.7 施工代价与影响面
+
+- `test/test-kl/test_call.kl:59,61` 有两个 `var l2 List[Bar];` / `var l2_1 List[Baz];`，
+  **声明后从未使用**（遗留装饰）。规则 1 会让它们各多出一条错误，
+  打乱该负向用例钉住的报错序列，需要补初始化式或删掉这两行。
+- 除此之外 `libs/` / `test/` / `demo/` 里没有别的无初值全局。
+- 按 TDD：先写用例（局部未赋值读取、全局非可选无初值、局部 let 无初值不崩、
+  §93.5 三种合法写法 + std 懒初始化仍通过），再实现。
+
+### 93.8 关联条目
+
+§92 也是「读到一个不该读的值」，但那个是 SSA 优化把两个变量合并所致，与本节无关：
+本节在**前端就没有任何检查**，两条后端都受影响。

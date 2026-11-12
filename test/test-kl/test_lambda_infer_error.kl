@@ -1,0 +1,40 @@
+// RUN: not koalac %s --cgen 2>&1 | filecheck %s
+//
+// Positions where no expected function type reaches the lambda: the parameter
+// type stays unknown and must be reported, not guessed and not crashed on.
+
+type IntFn = func(int) int
+
+func apply(cb IntFn, v int) int { return cb(v) }
+
+// nothing supplies a type for 'x'
+func no_annotation() int {
+    let f = { |x| x + 1 }
+    return f(1)
+}
+
+// the lambda is the callee of its own call, so the argument type of the outer
+// call is not a function type and cannot supply one for 'y'
+func immediately_invoked() int {
+    let cb IntFn = { |x int| x + 1 }
+    return cb({ |y| y }(1))
+}
+
+// a global without an annotation
+let bare_global = { |z| z }
+
+// the expected function type takes one parameter, the lambda takes two
+func arity_mismatch() int {
+    return apply({ |x, y| x + y }, 1)
+}
+
+// the annotated parameter contradicts the expected function type
+func param_conflict() int {
+    return apply({ |x str| 1 }, 1)
+}
+
+// CHECK: lambda parameter 'x' needs a type
+// CHECK: lambda parameter 'y' needs a type
+// CHECK: lambda parameter 'z' needs a type
+// CHECK: lambda parameter count does not match expected function type
+// CHECK: Incompatible type: expected 'func(int64)int64', but got 'func(str)int64'.

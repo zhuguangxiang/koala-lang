@@ -1,0 +1,49 @@
+// RUN: koalac %s --ssa --dump=ssa | filecheck %s
+//
+// De-SSA of PHIs whose operands come from other congruence classes: the copies go on
+// the incoming edge as a parallel copy, a cycle is broken with a temporary, and a
+// critical edge carrying copies is split.
+
+func swap(n int) int {
+    var a = 1
+    var b = 2
+    var i = 0
+    while i < n {
+        let t = a
+        a = b
+        b = t
+        i = i + 1
+    }
+    return a * 10 + b
+}
+
+// a constant on the back-edge: `x` is dead after the loop, so the copy stays at the
+// end of the loop body (after the read of `x`) and the edge is not split
+func const_backedge(n int) int {
+    var x = 0
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + x
+        x = 5
+        i = i + 1
+    }
+    return s
+}
+
+// CHECK-LABEL: --- IR Dump After de-ssa [@swap] ---
+// CHECK: %tmp.lc.b.phi.0 = local int64
+// CHECK: %bb4(phi-copy):
+// CHECK-NEXT: move %tmp.lc.b.phi.0 int64, %lc.b.phi.0 int64
+// CHECK-NEXT: move %lc.b.phi.0 int64, %lc.a.phi.0 int64
+// CHECK-NEXT: move %lc.a.phi.0 int64, %tmp.lc.b.phi.0 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-NOT: = phi
+
+// CHECK-LABEL: --- IR Dump After de-ssa [@const_backedge] ---
+// CHECK: %bb1(while-body):
+// CHECK: %1 = add %lc.s.phi.0 int64, %lc.x.phi.0 int64
+// CHECK: move %lc.x.phi.0 int64, 5 int64
+// CHECK-NEXT: %3 = cmplt %lc.i.phi.0 int64, %n int64
+// CHECK-NEXT: branch %3 bool, label %bb1, label %bb2
+// CHECK-NOT: phi-copy

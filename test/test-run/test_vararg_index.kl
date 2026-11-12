@@ -1,0 +1,136 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+
+// Statically indexing a variadic parameter. The variadic slot is a tuple whose
+// length is only known at the call site, so `xs[1]` has to resolve to the
+// element type rather than being bounds-checked against a fixed arity.
+
+func first(xs ...int) int {
+    return xs[0]
+}
+
+func second(xs ...int) int {
+    return xs[1]
+}
+
+func third(xs ...int) int {
+    return xs[2]
+}
+
+func sum3(xs ...int) int {
+    return xs[0] + xs[1] + xs[2]
+}
+
+func second_str(ss ...str) str {
+    return ss[1]
+}
+
+func second_float(fs ...float) float {
+    return fs[1]
+}
+
+func second_any(us ...) any {
+    return us[1]
+}
+
+// a non-literal index already worked; keep it as a guard
+func dyn(i int, xs ...int) int {
+    return xs[i]
+}
+
+func folded(xs ...int) int {
+    return xs[1 + 1]
+}
+
+func each(xs ...int) int {
+    var n = 0
+    for x in xs {
+        n = n + x
+    }
+    return n
+}
+
+func count(xs ...int) int {
+    return xs.len()
+}
+
+// TODO
+// // a variadic slot forwarded to another variadic parameter, then indexed
+// func pass(xs ...int) int {
+//     return second(xs)
+// }
+
+// // same, spelled with the '!' unpack operator: this one type-checks, but the slot
+// // is not spread at runtime, so `second` receives one element (the tuple itself)
+// // instead of three and `xs[1]` raises "tuple index out of range"
+// func pass_bang(xs ...int) int {
+//     return second(xs!)
+// }
+
+// func pass(xs ...int) int {
+//     print(xs)
+//     print(xs, typeof(xs))
+//     // print(xs!)
+//     return 0
+// }
+
+// func main() {
+//     pass(1,2,3)
+// }
+
+class Box {
+    pub func __init__() {}
+
+    pub func pick(xs ...int) int {
+        return xs[1]
+    }
+}
+
+func gsecond[T](xs ...T) T {
+    return xs[1]
+}
+
+class GBox[T] {
+    pub func __init__() {}
+
+    pub func pick(xs ...T) T {
+        return xs[1]
+    }
+}
+
+func main() {
+    print(first(10, 20, 30))
+    print(second(10, 20, 30))
+    print(third(10, 20, 30))
+    print(sum3(10, 20, 30))
+    print(second_str("a", "b", "c"))
+    print(second_float(1.5, 2.5, 3.5))
+    print(second_any(1, "b", 2.5))
+    print(dyn(2, 10, 20, 30))
+    print(folded(10, 20, 30))
+    print(each(1, 2, 3))
+    print(count(1, 2, 3))
+    // TODO:
+    // print(pass(10, 20, 30))
+    // print(pass_bang(10, 20, 30))
+    print(Box().pick(7, 8, 9))
+    print(gsecond[int](4, 5, 6))
+    print(gsecond[str]("x", "y", "z"))
+    print(GBox[int]().pick(4, 5, 6))
+}
+
+// CHECK: 10
+// CHECK-NEXT: 20
+// CHECK-NEXT: 30
+// CHECK-NEXT: 60
+// CHECK-NEXT: b
+// CHECK-NEXT: 2.5
+// CHECK-NEXT: b
+// CHECK-NEXT: 30
+// CHECK-NEXT: 30
+// CHECK-NEXT: 6
+// CHECK-NEXT: 3
+// CHECK-NEXT: 8
+// CHECK-NEXT: 5
+// CHECK-NEXT: y
+// CHECK-NEXT: 5

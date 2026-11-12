@@ -38,6 +38,9 @@ typedef struct _KlrCongruenceClass {
     KlrCongruenceValue *repr;
     /* containing pointers to KlrCongruenceMember */
     Vector members;
+    /* the local carrying this class once the PHIs are eliminated, declared in the
+       entry block; NULL for a trivial singleton class, which needs none */
+    KlrValue *lc;
 } KlrCongruenceClass;
 
 // Congruence Member
@@ -48,10 +51,17 @@ typedef struct _KlrCongruenceMember {
     KlrCongruenceClass *cls; // Congruence class
 } KlrCongruenceMember;
 
-typedef struct _PhiEdge {
-    KlrBasicBlock *pred;
+/* One PHI operand that has to be copied along a CFG edge */
+typedef struct _PhiCopy {
+    /* the class of the PHI */
+    struct _KlrCongruenceClass *cls;
+    /* the local of the PHI's class */
+    KlrValue *dst;
+    /* the SSA value flowing in, renamed to its class local by PHASE B */
     KlrValue *src;
-} PhiEdge;
+    /* the local `src` lives in at the end of the edge, NULL if it lives in no local */
+    KlrValue *loc;
+} PhiCopy;
 
 static void _assign_coord(KlrFunc *fn)
 {
@@ -423,12 +433,405 @@ static void klr_coalesce_context_fini(KlrCoalesceContext *ctx)
     hashmap_fini(&ctx->member_map, NULL, NULL);
 }
 
+static KlrCongruenceClass *_class_of(KlrCoalesceContext *ctx, KlrValue *val)
+{
+    KlrCongruenceMember *member = _find_member_by_ssa(ctx, val);
+    return member ? member->cls : NULL;
+}
+
+/* The local holding `val` once the PHIs are gone, NULL if it keeps its own register */
+static KlrValue *_loc_of(KlrCoalesceContext *ctx, KlrValue *val)
+{
+    /* a constant joins whatever class (its interval is empty) but is never stored there */
+    if (klr_is_const(val)) return NULL;
+    KlrCongruenceClass *cls = _class_of(ctx, val);
+    return cls ? cls->lc : NULL;
+}
+
+static bool _phi_is_dead(KlrInsn *phi) { return list_empty(&phi->use_list); }
+
+/* A class needs a local as soon as it carries one live PHI, even a singleton one:
+   every PHI has to be eliminated */
+static bool _class_needs_local(KlrCongruenceClass *cls)
+{
+    KlrCongruenceMember *member;
+    vector_foreach(member, &cls->members) {
+        KlrValue *val = member->key->val;
+        if (klr_is_phi(val) && !_phi_is_dead((KlrInsn *)val)) return true;
+    }
+    return false;
+}
+
+/* Collect the copies the edge `pred -> bb` needs for the PHIs of `bb`. An operand of the
+   PHI's own class is already in the local (written at its definition), so only the
+   others are copied: constants, and values of another class or of no class at all */
+static void _collect_edge_copies(KlrCoalesceContext *ctx, KlrBasicBlock *pred, KlrBasicBlock *bb,
+                                 Vector *copies)
+{
+    KlrInsn *phi;
+    insn_foreach(phi, bb) {
+        if (phi->code != OP_IR_PHI) break;
+        if (_phi_is_dead(phi)) continue;
+
+        KlrCongruenceClass *cls = _class_of(ctx, (KlrValue *)phi);
+        ASSERT(cls && cls->lc);
+
+        for (int i = 0; i < phi->num_opers; i++) {
+            if (phi->phi_preds[i] != pred) continue;
+
+            KlrValue *src = insn_oper_value(phi, i);
+            if (!klr_is_const(src) && _class_of(ctx, src) == cls) continue;
+
+            bool dup = false;
+            PhiCopy *c;
+            vector_foreach_ptr(c, copies) {
+                if (c->dst == cls->lc) {
+                    ASSERT(c->src == src);
+                    dup = true;
+                    break;
+                }
+            }
+            if (dup) continue;
+
+            PhiCopy copy = { .cls = cls, .dst = cls->lc, .src = src, .loc = _loc_of(ctx, src) };
+            vector_push_back(copies, &copy);
+        }
+    }
+}
+
+/* Is the SSA value `val` live on entry to `bb`? Walks back from each use to the definition. */
+static bool _value_live_in(KlrFunc *fn, KlrValue *val, KlrBasicBlock *bb)
+{
+    if (klr_is_const(val)) return false;
+
+    /* a parameter is defined before the entry block */
+    KlrBasicBlock *def_bb = klr_is_insn(val) ? ((KlrInsn *)val)->bb : NULL;
+    if (bb == def_bb) return false;
+
+    KlrBasicBlock *blk;
+    basic_block_foreach(blk, fn) {
+        blk->visited = 0;
+    }
+
+    Vector work;
+    vector_init_ptr(&work);
+
+    KlrUse *use;
+    use_foreach(use, val) {
+        KlrInsn *insn = use->insn;
+        if (insn->code == OP_IR_PHI) {
+            /* a PHI operand is read at the end of the predecessor it comes from */
+            int index = use->oper - insn->opers;
+            if (index >= insn->filled) continue;
+            blk = insn->phi_preds[index];
+        } else {
+            blk = insn->bb;
+        }
+        if (blk != def_bb) vector_push_back(&work, &blk);
+    }
+
+    bool live = false;
+    while (!live && vector_size(&work) > 0) {
+        vector_pop_back(&work, &blk);
+        if (blk->visited) continue;
+        blk->visited = 1;
+        if (blk == bb) {
+            live = true;
+            break;
+        }
+        KlrBasicBlock *pred;
+        bb_pred_foreach(pred, blk) {
+            if (pred != def_bb && pred != fn->sbb) vector_push_back(&work, &pred);
+        }
+    }
+
+    vector_fini(&work);
+    return live;
+}
+
+/* Does the edge `pred -> succ` still need the old content of the local of `cls`? */
+static bool _class_live_on_edge(KlrFunc *fn, KlrCoalesceContext *ctx, KlrCongruenceClass *cls,
+                                KlrBasicBlock *pred, KlrBasicBlock *succ)
+{
+    KlrCongruenceMember *member;
+    vector_foreach(member, &cls->members) {
+        if (_value_live_in(fn, member->key->val, succ)) return true;
+    }
+
+    /* a PHI of the class fed, on this edge, by a value of the class: nothing is copied,
+       the local itself carries the value across the edge */
+    KlrInsn *phi;
+    insn_foreach(phi, succ) {
+        if (phi->code != OP_IR_PHI) break;
+        if (_phi_is_dead(phi) || _class_of(ctx, (KlrValue *)phi) != cls) continue;
+        for (int i = 0; i < phi->num_opers; i++) {
+            if (phi->phi_preds[i] != pred) continue;
+            KlrValue *src = insn_oper_value(phi, i);
+            if (!klr_is_const(src) && _class_of(ctx, src) == cls) return true;
+        }
+    }
+    return false;
+}
+
+/* Would moving the copies above `insn` change what they or `insn` see? */
+static bool _copies_clash(KlrCoalesceContext *ctx, Vector *copies, KlrInsn *insn)
+{
+    PhiCopy *c;
+    vector_foreach_ptr(c, copies) {
+        /* a copy reads the value `insn` defines */
+        if (c->src == (KlrValue *)insn) return true;
+    }
+
+    for (int i = 0; i < insn->num_opers; i++) {
+        KlrValue *val = insn_oper_value(insn, i);
+        if (!val || klr_is_block(val)) continue;
+
+        bool is_def = (insn->code == OP_MOVE && i == 0);
+        KlrValue *loc = is_def ? val : _loc_of(ctx, val);
+        if (!loc && klr_is_local(val)) loc = val;
+        if (!loc) continue;
+
+        vector_foreach_ptr(c, copies) {
+            /* `insn` reads a local a copy writes */
+            if (c->dst == loc) return true;
+            /* `insn` writes a local a copy reads */
+            if (is_def && c->loc == loc) return true;
+        }
+    }
+    return false;
+}
+
+/* Position the builder at the exit of `bb`, where the copies of its out-edge(s) go.
+ * The copies go above the branch condition when they can, so that the compare still
+ * sits right before the branch (needed by the fusion); they cannot when the
+ * instructions in between produce a copied value or read/write a copied local.
+ */
+static void _builder_at_exit(KlrBuilder *bldr, KlrCoalesceContext *ctx, KlrBasicBlock *bb,
+                             Vector *copies)
+{
+    KlrInsn *term = insn_last(bb);
+    ASSERT(insn_is_terminator(term));
+
+    KlrInsn *anchor = term;
+    if (term->code == OP_IR_JMP_COND) {
+        KlrValue *cond = insn_oper_value(term, 0);
+        if (klr_is_insn(cond) && ((KlrInsn *)cond)->bb == bb) {
+            anchor = (KlrInsn *)cond;
+            for (KlrInsn *insn = anchor; insn != term; insn = insn_next(insn, bb)) {
+                if (_copies_clash(ctx, copies, insn)) {
+                    anchor = term;
+                    break;
+                }
+            }
+        }
+    }
+
+    klr_builder_before(bldr, anchor);
+}
+
+/* Insert an empty block on the critical edge `pred -> succ`, return it */
+static KlrBasicBlock *_split_edge(KlrBasicBlock *pred, KlrBasicBlock *succ)
+{
+    KlrBasicBlock *mid = klr_add_block(pred, "phi-copy");
+
+    KlrInsn *term = insn_last(pred);
+    for (int i = 0; i < term->num_opers; i++) {
+        KlrValue *val = insn_oper_value(term, i);
+        if (val == (KlrValue *)succ) set_operand_at(term, i, (KlrValue *)mid);
+    }
+
+    /* retarget the edge in place to keep the order of pred's out-edges */
+    KlrEdge *edge = klr_find_edge(pred, succ);
+    ASSERT(edge);
+    list_remove(&edge->in_link);
+    --succ->num_inedges;
+    edge->dst = mid;
+    list_push_back(&mid->in_edges, &edge->in_link);
+    ++mid->num_inedges;
+
+    KlrBuilder bldr;
+    klr_builder_head(&bldr, mid);
+    klr_build_jmp(&bldr, succ);
+
+    KlrInsn *phi;
+    insn_foreach(phi, succ) {
+        if (phi->code != OP_IR_PHI) break;
+        for (int i = 0; i < phi->filled; i++) {
+            if (phi->phi_preds[i] == pred) phi->phi_preds[i] = mid;
+        }
+    }
+
+    log_info("[COALESCE] Split critical edge %s -> %s", klr_block_name(pred),
+             klr_block_name(succ));
+    return mid;
+}
+
+/* Emit the copies of one edge. They are a parallel copy: every source is read before any
+ * destination is written. A copy goes out once no pending copy still reads its
+ * destination; when only cycles are left (e.g. `a, b = b, a`), the content of one
+ * destination is saved into a temporary first.
+ */
+static void _emit_parallel_copy(KlrBuilder *bldr, KlrBasicBlock *entry_bb, Vector *copies)
+{
+    int n = vector_size(copies);
+    PhiCopy *pc = VECTOR_ITEMS(copies, PhiCopy);
+
+    while (n > 0) {
+        int i;
+        for (i = 0; i < n; i++) {
+            bool busy = false;
+            for (int j = 0; j < n; j++) {
+                if (j != i && pc[j].loc == pc[i].dst) {
+                    busy = true;
+                    break;
+                }
+            }
+            if (!busy) break;
+        }
+
+        if (i < n) {
+            klr_build_move(bldr, pc[i].dst, pc[i].src);
+            pc[i] = pc[--n];
+            continue;
+        }
+
+        KlrValue *dst = pc[0].dst;
+        KlrValue *saved = NULL;
+        for (int j = 0; j < n; j++) {
+            if (pc[j].loc == dst) {
+                saved = pc[j].src;
+                break;
+            }
+        }
+        ASSERT(saved);
+
+        char name[64];
+        snprintf(name, sizeof(name), "tmp.%s", klr_value_name(dst) + 1);
+        KlrBuilder local_bldr;
+        klr_builder_head(&local_bldr, entry_bb);
+        KlrValue *tmp = klr_build_local_var(&local_bldr, dst->ts, atom(name));
+        /* keep the declaration ahead of the move when both land at the entry head */
+        if (bldr->it == &entry_bb->insn_list) bldr->it = &((KlrInsn *)tmp)->bb_link;
+
+        /* `saved` is renamed to `dst` by PHASE B: this saves the old content of `dst` */
+        klr_build_move(bldr, tmp, saved);
+        log_info("[COALESCE] Broke a copy cycle on %s with %s", klr_value_name(dst),
+                 klr_value_name(tmp));
+
+        for (int j = 0; j < n; j++) {
+            if (pc[j].loc == dst) {
+                pc[j].src = tmp;
+                pc[j].loc = NULL;
+            }
+        }
+    }
+}
+
+/* Place the copies of all out-edges of `pred` */
+static void _place_edge_copies(KlrFunc *fn, KlrCoalesceContext *ctx, KlrBasicBlock *pred,
+                               KlrBasicBlock *entry_bb)
+{
+    int nsucc = pred->num_outedges;
+    if (nsucc == 0) return;
+
+    KlrBasicBlock *succs[nsucc];
+    Vector copies[nsucc];
+    bool any = false;
+    bool one_target = true;
+
+    int k = 0;
+    KlrEdge *edge;
+    edge_out_foreach(edge, pred) {
+        succs[k] = edge->dst;
+        vector_init(&copies[k], sizeof(PhiCopy));
+        if (k > 0 && succs[k] != succs[0]) one_target = false;
+        /* a branch with both targets alike has two edges to the same block */
+        bool seen = false;
+        for (int j = 0; j < k; j++) {
+            if (succs[j] == succs[k]) seen = true;
+        }
+        if (!seen) _collect_edge_copies(ctx, pred, succs[k], &copies[k]);
+        if (vector_size(&copies[k]) > 0) any = true;
+        k++;
+    }
+    ASSERT(k == nsucc);
+
+    if (!any) goto out;
+
+    KlrBuilder bldr;
+
+    if (one_target) {
+        _builder_at_exit(&bldr, ctx, pred, &copies[0]);
+        _emit_parallel_copy(&bldr, entry_bb, &copies[0]);
+        goto out;
+    }
+
+    /* Several successors: the copies may still run in `pred`, before the branch, if every
+       other successor either wants the very same copy or does not need the old content
+       of the destination; otherwise each edge with copies gets its own block. */
+    Vector all;
+    vector_init(&all, sizeof(PhiCopy));
+    bool hoist = true;
+
+    for (int s = 0; hoist && s < nsucc; s++) {
+        PhiCopy *c;
+        vector_foreach_ptr(c, &copies[s]) {
+            PhiCopy *u;
+            bool found = false;
+            vector_foreach_ptr(u, &all) {
+                if (u->dst == c->dst) {
+                    if (u->src != c->src) hoist = false;
+                    found = true;
+                    break;
+                }
+            }
+            if (!hoist) break;
+            if (!found) vector_push_back(&all, c);
+        }
+    }
+
+    for (int i = 0; hoist && i < vector_size(&all); i++) {
+        PhiCopy *c = vector_get_ptr(&all, i);
+        for (int s = 0; s < nsucc; s++) {
+            bool wanted = false;
+            PhiCopy *u;
+            vector_foreach_ptr(u, &copies[s]) {
+                if (u->dst == c->dst) wanted = true;
+            }
+            if (wanted) continue;
+            if (_class_live_on_edge(fn, ctx, c->cls, pred, succs[s])) {
+                hoist = false;
+                break;
+            }
+        }
+    }
+
+    if (hoist) {
+        _builder_at_exit(&bldr, ctx, pred, &all);
+        _emit_parallel_copy(&bldr, entry_bb, &all);
+    } else {
+        for (int s = 0; s < nsucc; s++) {
+            if (vector_size(&copies[s]) == 0) continue;
+            KlrBasicBlock *mid = _split_edge(pred, succs[s]);
+            klr_builder_before(&bldr, insn_last(mid));
+            _emit_parallel_copy(&bldr, entry_bb, &copies[s]);
+        }
+    }
+    vector_fini(&all);
+
+out:
+    for (int s = 0; s < nsucc; s++) {
+        vector_fini(&copies[s]);
+    }
+}
+
 /* Re-maps and flattens instruction operands using Def-Use chains.
- * For every non-trivial equivalence class:
+ * For every class holding a live PHI:
  *   1. Creates ONE local in entry block as the class carrier
- *   2. Inserts move %lc, src in predecessors of each eliminated PHI
- *   3. Replaces all uses of eliminated PHIs with %lc
- * Non-PHI members (%a, %1, %3) are NEVER touched.
+ *   2. Stores each non-PHI member into %lc at its definition, and copies every other
+ *      PHI operand into %lc on the edge it arrives by (a parallel copy per edge,
+ *      splitting the edge when it is critical)
+ *   3. Replaces all uses of the members with %lc
  * PHI instructions themselves are NOT deleted (De-SSA responsibility).
  */
 /*
@@ -491,108 +894,93 @@ static void klr_coalesce_rewrite(KlrFunc *fn, KlrCoalesceContext *ctx)
 {
     log_info("[COALESCE] Re-mapping IR operands based on high-efficiency Def-Use chains...");
 
+    KlrBasicBlock *entry_bb = klr_entry_block(fn);
     KlrCongruenceClass *cls;
+
+    /* Step 1: Create ONE local per class in entry block.
+     * Name derived from leader to ensure uniqueness and debuggability.
+     * e.g., leader "%x.phi.0" → local name "lc.x.phi.0"
+     */
     vector_foreach(cls, &ctx->final_classes) {
         ASSERT(cls->repr);
 
-        /* Skip trivial singleton classes — nothing to coalesce */
-        if (vector_size(&cls->members) <= 1) continue;
+        if (!_class_needs_local(cls)) continue;
 
         /* The winning representative value serves as the supreme target across the whole group */
         KlrValue *leader_val = cls->repr->val;
 
-        /* Step 1: Create ONE local per class in entry block.
-         * Name derived from leader to ensure uniqueness and debuggability.
-         * e.g., leader "%x.phi.0" → local name "lc.x.phi.0"
-         */
         char lc_name[64];
         snprintf(lc_name, sizeof(lc_name), "lc.%s", klr_value_name(leader_val) + 1);
 
-        KlrBasicBlock *entry_bb = klr_entry_block(fn);
         KlrBuilder bldr;
         klr_builder_head(&bldr, entry_bb);
-        KlrValue *lc = klr_build_local_var(&bldr, leader_val->ts, atom(lc_name));
+        cls->lc = klr_build_local_var(&bldr, leader_val->ts, atom(lc_name));
 
-        log_info("[COALESCE] Created local %s for class led by %s (%d members)", klr_value_name(lc),
-                 klr_value_name(leader_val), vector_size(&cls->members));
+        log_info("[COALESCE] Created local %s for class led by %s (%d members)",
+                 klr_value_name(cls->lc), klr_value_name(leader_val),
+                 vector_size(&cls->members));
+    }
 
-        /* Step 2: Process each member that is an eliminated PHI */
+    /*
+     * PHASE A: Insert moves (READ-ONLY on PHI operands)
+     * Runs to completion before PHASE B rewrites anything, so a PHI operand is always
+     * the original SSA value and phi_preds[i] still names the block it arrives from.
+     *
+     * A1: a value coalesced into a class is stored into the class local where it is
+     *     defined: right after its instruction, or at the entry for a parameter. The
+     *     classes do not interfere, so the local still holds it wherever it is read.
+     */
+    vector_foreach(cls, &ctx->final_classes) {
+        if (!cls->lc) continue;
+        KlrValue *lc = cls->lc;
 
-        Vector done_edges;
-        vector_init(&done_edges, sizeof(PhiEdge));
-
-        /*
-         * PHASE A: Insert moves (READ-ONLY on PHI operands)
-         * All PHI operands are still original SSA Values at this point.
-         * No use replacement has occurred yet.
-         */
         KlrCongruenceMember *member;
         vector_foreach(member, &cls->members) {
-            ASSERT(member->key && member->key->val);
-
             KlrValue *val = member->key->val;
-            if (klr_is_param(val) || klr_is_const(val)) continue;
+            if (klr_is_const(val) || klr_is_phi(val)) continue;
 
-            ASSERT(klr_is_insn(val));
-            KlrInsn *_insn = (KlrInsn *)val;
-
-            /* ONLY process PHI nodes. Non-PHI members are untouched. */
-            if (_insn->code != OP_IR_PHI) continue;
-
-            log_info("[COALESCE] Eliminating PHI %s -> replacing uses with %s", klr_value_name(val),
-                     klr_value_name(lc));
-
-            /* Insert move in each predecessor for this eliminated PHI */
-            for (int i = 0; i < _insn->num_opers; i++) {
-                KlrValue *src = insn_oper_value(_insn, i);
-                KlrBasicBlock *pred = _insn->phi_preds[i];
-
-                /* Skip self-loop back-edge: phi references itself */
-                if (src == val) continue;
-
-                /* Linear de-dup: has this (pred, src) already been
-                 * inserted for THIS local? O(done_count) per edge.
-                 */
-                bool already_done = false;
-                PhiEdge *edge;
-                vector_foreach_ptr(edge, &done_edges) {
-                    if (edge->pred == pred && edge->src == src) {
-                        already_done = true;
-                        break;
-                    }
-                }
-                if (already_done) continue;
-
-                /* Insert move immediately after the definition of src (if src is
-                 * an instruction in pred). This preserves the original instruction
-                 * order and minimizes live range overlap for peephole optimization.
-                 */
-
-                KlrBuilder bldr;
-                if (klr_is_insn(src)) {
-                    klr_builder_at(&bldr, (KlrInsn *)src); // insert after instruction
-                } else if (pred == entry_bb) {
-                    /* pred is entry block: insert after local declarations */
-                    klr_builder_at(&bldr, (KlrInsn *)lc);
-                } else {
-                    klr_builder_head(&bldr, pred); // insert at block start
-                }
-                klr_build_move(&bldr, lc, src);
-
-                log_info("[COALESCE] Inserted move %s, %s in bb %s", klr_value_name(lc),
-                         klr_value_name(src), klr_value_name((KlrValue *)pred));
-
-                /* Record this edge as processed */
-                PhiEdge new_edge = { .pred = pred, .src = src };
-                vector_push_back(&done_edges, &new_edge);
+            KlrBuilder bldr;
+            if (klr_is_param(val)) {
+                klr_builder_at(&bldr, (KlrInsn *)lc);
+            } else {
+                ASSERT(klr_is_insn(val));
+                klr_builder_at(&bldr, (KlrInsn *)val);
             }
-        }
+            klr_build_move(&bldr, lc, val);
 
-        /*
-         * PHASE B: Replace uses (MUTATION)
-         * Moves are already inserted with correct original sources.
-         * Now safe to mutate Use chains without affecting Phase A.
-         */
+            log_info("[COALESCE] Stored %s into %s at its definition", klr_value_name(val),
+                     klr_value_name(lc));
+        }
+    }
+
+    /*
+     * A2: every other PHI operand (a constant, or a value living outside the class) is
+     *     copied on the edge it arrives by, never at its definition: there it would also
+     *     run on the paths not leading to the PHI, and before the values it overwrites
+     *     have been read (`a, b = b, a` in a loop). The blocks are listed first because
+     *     splitting a critical edge adds blocks.
+     */
+    Vector blocks;
+    vector_init_ptr(&blocks);
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        vector_push_back(&blocks, &bb);
+    }
+    vector_foreach(bb, &blocks) {
+        _place_edge_copies(fn, ctx, bb, entry_bb);
+    }
+    vector_fini(&blocks);
+
+    /*
+     * PHASE B: Replace uses (MUTATION)
+     * Moves are already inserted with correct original sources.
+     * Now safe to mutate Use chains without affecting Phase A.
+     */
+    vector_foreach(cls, &ctx->final_classes) {
+        if (!cls->lc) continue;
+        KlrValue *lc = cls->lc;
+
+        KlrCongruenceMember *member;
         vector_foreach(member, &cls->members) {
             ASSERT(member->key && member->key->val);
             KlrValue *val = member->key->val;
@@ -635,8 +1023,6 @@ static void klr_coalesce_rewrite(KlrFunc *fn, KlrCoalesceContext *ctx)
                 set_operand(use->oper, use->insn, lc);
             }
         }
-
-        vector_fini(&done_edges);
     }
 
     log_info("[COALESCE] Core IR operand mutation complete. All redundant definitions flattened.");

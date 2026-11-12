@@ -1226,11 +1226,14 @@ static void isel_lower_set_field(KlrInsn *insn)
     KlrValue *val = insn_oper_value(insn, 2);
 
     ASSERT(klr_is_insn(obj) || klr_is_param(obj) || klr_is_const(obj));
-    ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val));
 
-    if (klr_is_const(val)) {
+    if (is_function_symbol(val)) {
+        set_operand_at(insn, 2, lower_function_value(insn, val));
+    } else if (klr_is_const(val)) {
         KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 2, _val);
+    } else {
+        ASSERT(klr_is_insn(val) || klr_is_param(val));
     }
 }
 

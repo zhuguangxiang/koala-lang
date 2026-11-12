@@ -744,8 +744,10 @@ KlrValue *klr_build_set_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
         panic("'set_field' op requires a reg/param value for obj");
     }
 
+    /* a function is a value like any other: `obj.f = add1` stores it into a field */
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
-        val->kind != KLR_VALUE_PARAM) {
+        val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_FUNC &&
+        val->kind != KLR_VALUE_EXT_FUNC) {
         panic("'set_field' op requires a reg/param value for val");
     }
 

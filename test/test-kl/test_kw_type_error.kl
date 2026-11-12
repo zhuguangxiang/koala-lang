@@ -1,0 +1,185 @@
+// RUN: ! koalac %s | filecheck %s
+
+// A value passed by keyword is type-checked against its parameter exactly like
+// a value passed positionally: same diagnostic, one error per call. The keyword
+// value also has to receive the parameter type as its expected type, so that
+// literals and lambdas are resolved against it rather than on their own.
+
+func sub(a int, b int) int {
+    return a - b
+}
+
+func greet(msg str) str {
+    return msg
+}
+
+func flag(f bool) bool {
+    return f
+}
+
+func take(xs list[int], n int) int {
+    return xs[n]
+}
+
+func lookup(d dict[str, int], k str) int {
+    return d[k]
+}
+
+func opt(v int?) int? {
+    return v
+}
+
+func pick2[T](a T, b T) T {
+    return a
+}
+
+func with_dfl(a int, b int, c = 3) int {
+    return a + b + c
+}
+
+func va_msg(v int, xs ...int, msg = "hi") str {
+    return msg
+}
+
+type IntFn = func(int) int
+
+func apply(f IntFn, v int) int {
+    return f(v)
+}
+
+trait Shape {
+    func area(w int, h int) int
+}
+
+class Rect : Shape {
+    pub func area(w int, h int) int {
+        return w * h
+    }
+}
+
+class Point {
+    pub var px int
+    pub var py int
+
+    pub func __init__(a int, b int) {
+        px = a
+        py = b
+    }
+
+    pub func diff(dx int, dy int) int {
+        return dx - dy
+    }
+}
+
+func use(s Shape) int {
+    return s.area(1, 2)
+}
+
+// the wrong type in the first keyword argument
+sub(a = "x", b = 3)
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// the wrong type in a later keyword argument
+sub(a = 10, b = "x")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// bool is not an int
+sub(a = true, b = 3)
+// CHECK: Incompatible type: expected 'int64', but got 'bool'.
+
+// float is not an int
+sub(a = 1.5, b = 3)
+// CHECK: Incompatible type: expected 'int64', but got 'float64'.
+
+// int is not a str
+greet(msg = 10)
+// CHECK: Incompatible type: expected 'str', but got 'int64'.
+
+// int is not a bool
+flag(f = 1)
+// CHECK: Incompatible type: expected 'bool', but got 'int64'.
+
+// a list literal of the wrong element type
+take(xs = ["a", "b"], n = 1)
+// CHECK: Incompatible type: expected 'std/builtin.list<j>', but got 'std/builtin.list<u>'.
+
+// the scalar parameter beside a correct list literal
+take(xs = [1, 2], n = "x")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// a dict literal of the wrong value type
+lookup(d = {"a": "b"}, k = "a")
+// CHECK: Incompatible type: expected 'std/builtin.dict<uj>', but got 'std/builtin.dict<uu>'.
+
+// a str is not an optional int
+opt(v = "x")
+// CHECK: Incompatible type: expected 'int64?', but got 'str'.
+
+// an explicitly specialized generic parameter
+pick2[int](a = "x", b = 8)
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// a defaulted parameter passed by keyword
+with_dfl(1, 2, c = "x")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// a defaulted parameter after the variadic slot
+va_msg(v = 1, msg = 10)
+// CHECK: Incompatible type: expected 'str', but got 'int64'.
+
+// an int is not a function value
+apply(f = 10, v = 5)
+// CHECK: Incompatible type: expected 'func(int64)int64', but got 'int64'.
+
+// A lambda passed by keyword must be resolved against the parameter type: its
+// parameter type is inferred from IntFn, and the mismatch is in the return type.
+apply(f = {|x| "s"}, v = 5)
+// CHECK: Incompatible type: expected 'func(int64)int64', but got 'func(int64)str'.
+
+// a constructor parameter
+Point(a = "x", b = 2)
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// a method parameter
+Point(1, 2).diff(dx = "x", dy = 4)
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// a trait-typed parameter
+use(s = 10)
+// CHECK: Incompatible type: expected 'test_kw_type_error.Shape', but got 'int64'.
+
+// the keyword value is a call whose result has the wrong type
+sub(a = greet("hi"), b = 3)
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// the keyword value is a variable, not a literal
+func wrong_var() int {
+    let s = "x"
+    return sub(a = s, b = 3)
+}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// a trait method parameter
+func use_shape() int {
+    let s Shape = Rect()
+    return s.area(w = "x", h = 4)
+}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// these stay valid
+sub(b = 3, a = 10)
+sub(10, b = 3)
+greet(msg = "hi")
+flag(f = true)
+take(xs = [1, 2, 3], n = 1)
+lookup(d = {"a": 1}, k = "a")
+opt(v = 10)
+pick2[str](b = "y", a = "x")
+with_dfl(a = 1, b = 2, c = 3)
+va_msg(v = 1, msg = "x")
+apply(f = {|x| x * 2}, v = 5)
+use(s = Rect())
+Point(b = 2, a = 1)
+Point(1, 2).diff(dy = 4, dx = 9)
+
+// CHECK-NOT: {{.}}

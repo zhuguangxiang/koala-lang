@@ -29,13 +29,14 @@ typedef struct _InferredInfo {
     /* klass_name.func_name */
     char *key;
     /* callback */
-    Vector *(*infer)(FuncSymbol *fn, Vector *args, ParserState *ps);
+    Vector *(*infer)(FuncSymbol *fn, Vector *args, TypeSpec *recv_ts, ParserState *ps);
 } InferredInfo;
 
 /* inferred tp of func */
 static HashMap *inferred;
 
-static Vector *infer_tuple___getitem__(FuncSymbol *fn, Vector *args, ParserState *ps)
+static Vector *infer_tuple___getitem__(FuncSymbol *fn, Vector *args, TypeSpec *recv_ts,
+                                       ParserState *ps)
 {
     ASSERT(vector_size(args) == 1);
     ASSERT(vector_size(&fn->tps) == 1);
@@ -44,6 +45,16 @@ static Vector *infer_tuple___getitem__(FuncSymbol *fn, Vector *args, ParserState
     if (!type_is_int(e->ts)) {
         kl_error(e->loc, "index of tuple must be int, but got '%s'", e->ts->signature);
         return NULL;
+    }
+
+    /* A variadic parameter is a tuple whose length is only known at the call site.
+       Its type symbol is tuple[elem], so tp_args holds the element type rather than
+       one entry per item: no arity bound applies and every index yields that type. */
+    if (recv_ts && type_is_valist(recv_ts)) {
+        TypeSpec *_ts = recv_ts->va_list.src;
+        Vector *res = vector_create_ptr();
+        vector_push_back(res, &_ts);
+        return res;
     }
 
     Symbol *parent = fn->parent;
@@ -104,7 +115,7 @@ static void free_inferred_map(void)
     mm_free(inferred);
 }
 
-Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps)
+Vector *infer_func_tp(FuncSymbol *fn, Vector *args, TypeSpec *recv_ts, ParserState *ps)
 {
     char name[256] = { 0 };
     Symbol *parent = fn->parent;
@@ -114,7 +125,7 @@ Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps)
     InferredInfo key = { .key = name };
     InferredInfo *info = hashmap_get(inferred, &key);
     ASSERT(info);
-    return info->infer(fn, args, ps);
+    return info->infer(fn, args, recv_ts, ps);
 }
 
 // path without .klc suffix
@@ -3837,15 +3848,25 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     Expr *lhs = assign->lhs;
     Expr *rhs = assign->rhs;
 
+    /* an untyped lambda rhs takes its parameter types from the assigned variable, so
+       it waits until the lhs is resolved; a composite literal waits too, and passes
+       the type on to the lambdas nested inside it */
+    int deferred = op == OP_ASSIGN && expr_needs_infer(rhs);
+
     rhs->ctx = EXPR_CTX_LOAD;
-    parser_visit_expr(ps, rhs);
+    if (!deferred) parser_visit_expr(ps, rhs);
 
     if (op == OP_ASSIGN) {
         log_info("simple assignment detected.");
         lhs->ctx = EXPR_CTX_STORE;
         lhs->arg = rhs;
         parser_visit_expr(ps, lhs);
-        if (!lhs->ts || !rhs->ts) return;
+        if (!lhs->ts) return;
+        if (deferred) {
+            resolve_as_expected(ps, rhs, lhs->ts);
+            lhs->arg = NULL;
+        }
+        if (!rhs->ts) return;
         parse_literal_as_expected(ps, rhs, lhs->ts);
         parse_simple_assign(ps, assign);
     } else {

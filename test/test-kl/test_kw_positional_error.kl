@@ -1,0 +1,175 @@
+// RUN: ! koalac %s | filecheck %s
+
+// Required positional parameters may be passed by keyword, but the keyword
+// arguments have to cover every parameter that was not already filled
+// positionally, and no parameter may be filled twice.
+//
+// A positional argument after a keyword argument is rejected by the grammar
+// itself, so it is not covered here (see test_func_call.kl).
+
+func sub(a int, b int) int {
+    return a - b
+}
+
+// a required parameter is left uncovered by the keyword arguments
+sub(a = 10)
+// CHECK: missing argument for parameter 'b'
+sub(b = 3)
+// CHECK: missing argument for parameter 'a'
+
+// no argument at all: the old diagnostic is kept for a purely positional call
+sub()
+// CHECK: too few arguments in function call.
+
+// a parameter is filled positionally and then again by keyword
+sub(10, a = 3)
+// CHECK: duplicate argument for parameter 'a'
+sub(10, 3, b = 4)
+// CHECK: duplicate argument for parameter 'b'
+
+// the same keyword twice
+sub(a = 10, a = 3)
+// CHECK: duplicate keyword argument: 'a'
+
+// a name that is not a parameter
+sub(a = 10, b = 3, c = 1)
+// CHECK: unexpected keyword argument: 'c'
+
+// a keyword value of the wrong type
+sub(a = 10, b = "x")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+func with_dfl(a int, b int, c = 3, d = 4) int {
+    return a * 1000 + b * 100 + c * 10 + d
+}
+
+// defaults do not excuse an uncovered required parameter
+with_dfl(a = 1)
+// CHECK: missing argument for parameter 'b'
+with_dfl(1, b = 2, b = 3)
+// CHECK: duplicate keyword argument: 'b'
+with_dfl(1, 2, a = 9)
+// CHECK: duplicate argument for parameter 'a'
+with_dfl(1, 2, c = 8, e = 9)
+// CHECK: unexpected keyword argument: 'e'
+
+// these stay valid
+with_dfl(1, 2)
+with_dfl(b = 2, a = 1)
+with_dfl(1, b = 2, d = 9)
+
+func va(v int, xs ...int) int {
+    var s = v
+    for x in xs {
+        s = s + x
+    }
+    return s
+}
+
+va()
+// CHECK: too few arguments in function call.
+
+// the required parameter before the variadic slot is filled twice
+va(1, 2, v = 3)
+// CHECK: duplicate argument for parameter 'v'
+
+// the variadic slot itself is positional-only
+va(v = 1, xs = 2)
+// CHECK: unexpected keyword argument: 'xs'
+
+// the required parameter before the variadic slot may be passed by keyword,
+// but then the variadic slot has to stay empty: the grammar does not allow a
+// positional argument after a keyword argument
+va(v = 1)
+va(1, 2, 3)
+
+func va_msg(v int, xs ...int, msg = "hi") str {
+    return msg
+}
+
+// a parameter after the variadic slot can only be passed by keyword: every
+// remaining positional argument belongs to the variadic slot
+va_msg(1, 2, "y")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+va_msg(msg = "x")
+// CHECK: missing argument for parameter 'v'
+
+va_msg(v = 1, msg = "x")
+va_msg(1, 2, 3, msg = "y")
+
+// A function value carries only the parameter types, no names, so there is
+// nothing a keyword argument could match.
+type IntFn = func(int) int
+
+func call_it(f IntFn) int {
+    return f(v = 5)
+}
+// CHECK: keyword argument is not allowed in a function value call
+
+func call_lambda() int {
+    let g IntFn = {|x| x * 2}
+    return g(x = 5)
+}
+// CHECK: keyword argument is not allowed in a function value call
+
+func apply(f IntFn, v int) int {
+    return f(v)
+}
+
+// the named function itself still takes keyword arguments
+apply(f = {|x| x * 2}, v = 5)
+
+func pick2[T](a T, b T) T {
+    return a
+}
+
+pick2[int](a = 7)
+// CHECK: missing argument for parameter 'b'
+pick2[int](b = 8, a = 7)
+
+class Point {
+    pub var px int
+    pub var py int
+
+    pub func __init__(a int, b int) {
+        px = a
+        py = b
+    }
+
+    pub func diff(dx int, dy int) int {
+        return dx - dy
+    }
+}
+
+Point(a = 1)
+// CHECK: missing argument for parameter 'b'
+Point(1, a = 2)
+// CHECK: duplicate argument for parameter 'a'
+Point(1, 2).diff(dx = 9)
+// CHECK: missing argument for parameter 'dy'
+
+Point(b = 2, a = 1)
+Point(1, b = 2).diff(dy = 4, dx = 9)
+
+trait Shape {
+    func area(w int, h int) int
+}
+
+class Rect : Shape {
+    pub func area(w int, h int) int {
+        return w * h
+    }
+}
+
+func use_shape() int {
+    let s Shape = Rect()
+    return s.area(w = 3)
+}
+// CHECK: missing argument for parameter 'h'
+
+func use_shape_ok() int {
+    let s Shape = Rect()
+    return s.area(h = 4, w = 3)
+}
+
+// CHECK-NOT: {{.}}

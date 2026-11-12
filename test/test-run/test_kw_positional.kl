@@ -1,0 +1,220 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+
+// A required positional parameter can also be passed by keyword. Keyword
+// arguments may come in any order, but every parameter that was not already
+// filled positionally has to be covered by one. The grammar already forbids a
+// positional argument after a keyword argument.
+//
+// The arithmetic below is deliberately asymmetric (subtraction, weighted sums)
+// so that a wrong reordering shows up as a wrong value, not just a wrong type.
+
+func sub(a int, b int) int {
+    return a - b
+}
+
+func sub3(a int, b int, c int) int {
+    return a * 100 + b * 10 + c
+}
+
+func with_dfl(a int, b int, c = 3, d = 4) int {
+    return a * 1000 + b * 100 + c * 10 + d
+}
+
+// a required parameter sitting before the variadic slot
+func va(v int, xs ...int) int {
+    var s = v
+    for x in xs {
+        s = s + x
+    }
+    return s
+}
+
+// a default parameter sitting after the variadic slot
+func va_msg(v int, xs ...int, msg = "hi") str {
+    return msg
+}
+
+func take(xs list[int], n int) int {
+    return xs[n]
+}
+
+type IntFn = func(int) int
+
+func apply(f IntFn, v int) int {
+    return f(v)
+}
+
+func pick2[T](a T, b T) T {
+    return a
+}
+
+func pair[T, U](a T, b U) U {
+    return b
+}
+
+class Box2[T, U] {
+    pub var first T
+    pub var second U
+
+    pub func __init__(a T, b U) {
+        first = a
+        second = b
+    }
+
+    pub func tail() U {
+        return second
+    }
+}
+
+class Point {
+    pub var px int
+    pub var py int
+
+    pub func __init__(a int, b int) {
+        px = a
+        py = b
+    }
+
+    pub func sum() int {
+        return px + py
+    }
+
+    pub func diff(dx int, dy int) int {
+        return dx - dy
+    }
+}
+
+trait Shape {
+    func area(w int, h int) int
+}
+
+class Rect : Shape {
+    pub func area(w int, h int) int {
+        return w * h
+    }
+}
+
+func main() {
+    // all keyword, in declaration order
+    print(sub(a = 10, b = 3))
+    // CHECK: 7
+
+    // all keyword, reversed
+    print(sub(b = 3, a = 10))
+    // CHECK-NEXT: 7
+
+    // positional prefix + keyword suffix
+    print(sub(10, b = 3))
+    // CHECK-NEXT: 7
+
+    // three parameters: one positional, two keywords out of order
+    print(sub3(1, c = 3, b = 2))
+    // CHECK-NEXT: 123
+    print(sub3(c = 3, a = 1, b = 2))
+    // CHECK-NEXT: 123
+    print(sub3(b = 2, c = 3, a = 1))
+    // CHECK-NEXT: 123
+
+    // required by keyword, defaults left alone
+    print(with_dfl(b = 2, a = 1))
+    // CHECK-NEXT: 1234
+
+    // required by keyword, one default overridden
+    print(with_dfl(a = 1, b = 2, d = 9))
+    // CHECK-NEXT: 1239
+
+    // required positional, defaults by keyword out of order
+    print(with_dfl(1, 2, d = 9, c = 8))
+    // CHECK-NEXT: 1289
+
+    // everything by keyword, fully reversed
+    print(with_dfl(d = 9, c = 8, b = 2, a = 1))
+    // CHECK-NEXT: 1289
+
+    // the parameter before the variadic slot, passed by keyword: the slot is empty
+    print(va(v = 7))
+    // CHECK-NEXT: 7
+
+    // same, with the variadic slot filled positionally (keyword cannot follow)
+    print(va(7, 1, 2))
+    // CHECK-NEXT: 10
+
+    // keyword reaches past the variadic slot to a later default parameter
+    print(va_msg(v = 1, msg = "x"))
+    // CHECK-NEXT: x
+    print(va_msg(1, 2, 3, msg = "y"))
+    // CHECK-NEXT: y
+    print(va_msg(v = 1))
+    // CHECK-NEXT: hi
+
+    // a list literal passed by keyword still gets the parameter's expected type
+    print(take(xs = [10, 20, 30], n = 1))
+    // CHECK-NEXT: 20
+    print(take(n = 1, xs = [10, 20, 30]))
+    // CHECK-NEXT: 20
+    print(take([10, 20, 30], n = 2))
+    // CHECK-NEXT: 30
+
+    // a lambda passed by keyword is inferred from the parameter's function type
+    print(apply(f = { |x| x * 2 }, v = 5))
+    // CHECK-NEXT: 10
+    print(apply(v = 5, f = { |x| x * 2 }))
+    // CHECK-NEXT: 10
+    print(apply({ |x| x * 2 }, v = 5))
+    // CHECK-NEXT: 10
+
+    // keyword values are arbitrary expressions
+    print(sub(a = 10 - 3, b = 2))
+    // CHECK-NEXT: 5
+    print(sub(a = sub(9, 4), b = 2))
+    // CHECK-NEXT: 3
+
+    // explicit type arguments together with keyword arguments
+    print(pick2[int](a = 7, b = 8))
+    // CHECK-NEXT: 7
+    print(pick2[int](b = 8, a = 7))
+    // CHECK-NEXT: 7
+
+    // constructor
+    print(Point(a = 1, b = 2).sum())
+    // CHECK-NEXT: 3
+    print(Point(b = 20, a = 10).sum())
+    // CHECK-NEXT: 30
+    print(Point(1, b = 2).sum())
+    // CHECK-NEXT: 3
+
+    // method
+    print(Point(a = 1, b = 2).diff(dx = 9, dy = 4))
+    // CHECK-NEXT: 5
+    print(Point(a = 1, b = 2).diff(dy = 4, dx = 9))
+    // CHECK-NEXT: 5
+    print(Point(a = 1, b = 2).diff(9, dy = 4))
+    // CHECK-NEXT: 5
+
+    // method dispatched through a trait value
+    let s Shape = Rect()
+    print(s.area(w = 3, h = 4))
+    // CHECK-NEXT: 12
+    print(s.area(h = 4, w = 3))
+    // CHECK-NEXT: 12
+    print(s.area(3, h = 4))
+    // CHECK-NEXT: 12
+
+    // Type parameters are inferred from the argument that fills each parameter,
+    // not from the argument sitting at the same position in the call.
+    print(pick2(a = 7, b = 8))
+    // CHECK-NEXT: 7
+    print(pick2(b = 9, a = 3))
+    // CHECK-NEXT: 3
+    print(pair(a = 1, b = "s"))
+    // CHECK-NEXT: s
+    print(pair(b = "t", a = 2))
+    // CHECK-NEXT: t
+    print(pair(1, b = "s"))
+    // CHECK-NEXT: s
+    print(Box2(a = 1, b = "s").tail())
+    // CHECK-NEXT: s
+    print(Box2(b = "t", a = 2).tail())
+    // CHECK-NEXT: t
+}

@@ -346,11 +346,12 @@ static void build_ssa(KlrFunc *func)
                 if (pred->index >= bb->index) {
                     log_info("build_ssa: filling back-edge from %%bb%d to %%bb%d for variable %s",
                              pred->tag, bb->tag, klr_value_name(local_var));
-                    CurrentDef key = { .key = local_var };
-                    hashmap_entry_init(&key, mem_hash(&local_var, PTR_SIZE));
-                    CurrentDef *entry = hashmap_get(&pred->current_defs, &key);
-                    ASSERT(entry && entry->value);
-                    KlrValue *final_pred_val = entry->value;
+                    /* the back-edge source is not the block that wrote the variable when
+                       the loop body holds an `if`: its merge block sits on the edge and
+                       carries no definition of its own, so resolve the variable through
+                       the predecessors exactly like the forward edges do */
+                    KlrValue *final_pred_val = read_variable(pred, local_var);
+                    ASSERT(final_pred_val);
 
                     /* Append the correct cyclic SSA definition into the PHI node slots */
                     log_info("build_ssa: appending %s from %%bb%d to PHI in %%bb%d for variable %s",

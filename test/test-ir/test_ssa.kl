@@ -226,6 +226,26 @@ func test10(a int) int {
 // CHECK-LABEL: func @test10(%a int64) int64
 // CHECK: ret %a int64
 
+// a for-each body holding an `if`: the loop back-edge leaves the merge block of
+// the `if`, which carries no definition of its own, so the header PHI has to be
+// filled by looking the variable up through that block's predecessors
+func test11(a int) int {
+    var x = a
+    for i in [0, 1, 2] {
+        if i > 0 {
+            x = x + 1
+        }
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test11] ---
+// CHECK-LABEL: func @test11(%a int64) int64
+// CHECK: %x.phi.0 = phi %a int64, %x.phi.1 int64
+// CHECK: ret %x.phi.0 int64
+// CHECK: %5 = add %x.phi.0 int64, 1 int64
+// CHECK: %x.phi.1 = phi %5 int64, %x.phi.0 int64
+
 
 // CHECK-LABEL: --- IR Dump After de-ssa [@test1] ---
 // CHECK-LABEL: func @test1(%a int64) int64
@@ -315,3 +335,11 @@ func test10(a int) int {
 // CHECK-NEXT: move %lc.n.phi.2 int64, %4 int64
 
 // CHECK: ret %lc.x.phi.0 int64
+
+// CHECK-LABEL: --- IR Dump After de-ssa [@test11] ---
+// CHECK-LABEL: func @test11(%a int64) int64
+// CHECK: %lc.x.phi.0 = local int64
+// CHECK: move %lc.x.phi.0 int64, %a int64
+// CHECK: ret %lc.x.phi.0 int64
+// CHECK: %5 = add %lc.x.phi.0 int64, 1 int64
+// CHECK-NEXT: move %lc.x.phi.0 int64, %5 int64

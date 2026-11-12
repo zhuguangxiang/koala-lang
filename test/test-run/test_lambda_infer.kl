@@ -1,0 +1,256 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+//
+// A lambda parameter may omit its type when an expected function type supplies
+// it (Manual, "Functions"). These are the positions that provide one.
+
+type IntFn = func(int) int
+type Applier = func(IntFn) int
+
+var offset = 10
+var global_cb IntFn = { |x| x + 1 }
+var global_fns list[IntFn] = [{ |x| x + 1 }]
+
+func apply(cb IntFn, v int) int { return cb(v) }
+
+func run_all(cbs ...IntFn) int {
+    let first = cbs[0]
+    return first(1)
+}
+
+func from_return() IntFn { return { |x| x * 2 } }
+
+func twice(v int) int { return v * 2 }
+
+// a user class as the parameter type of a function type
+class Point {
+    pub var x int
+    pub var y int
+
+    pub func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+}
+
+type PointFn = func(Point) int
+
+// a list literal as a call argument, and the element type is a function type
+func run_first(fns list[IntFn], v int) int {
+    let f = fns[0]
+    return f(v)
+}
+
+class Holder {
+    pub var f IntFn = { |x| x + 1 }
+
+    pub func __init__() {
+    }
+
+    // a named function stored into a field through the implicit self
+    pub func use_twice() {
+        f = twice
+    }
+}
+
+// a user class whose field is a list of functions, and whose method takes one
+class Registry {
+    pub var fns list[IntFn] = [{ |x| x + 1 }]
+
+    pub func __init__() {
+    }
+
+    pub func add(cb IntFn) {
+        fns.append(cb)
+    }
+}
+
+func main() {
+    // a positional call argument
+    print(apply({ |x| x + 1 }, 20))
+
+    // an argument of a call through a function value
+    let run Applier = { |f IntFn| f(3) }
+    print(run({ |x| x + 1 }))
+
+    // a var-arg call
+    print(run_all({ |x| x + 1 }, { |x| x * 2 }))
+
+    // assignment to a typed local
+    var slot IntFn = { |x int| x }
+    slot = { |x| x + 7 }
+    print(slot(1))
+
+    // assignment to a typed global
+    global_cb = { |x| x + 2 }
+    print(global_cb(1))
+
+    // the field initializer, then assignment to a typed field
+    let h = Holder()
+    print(h.f(3))
+    h.f = { |x| x * 4 }
+    print(h.f(3))
+
+    // a named function stored into a field
+    h.f = twice
+    print(h.f(5))
+
+    // a named function stored into a field through self
+    h.f = { |x| x + 1 }
+    h.use_twice()
+    print(h.f(5))
+
+    // a list element
+    let ms list[IntFn] = [{ |x| x + 1 }, { |x| x * 2 }]
+    let second = ms[1]
+    print(second(3))
+
+    // append a lambda and a named function, then iterate and call
+    let fns list[IntFn] = [{ |x| x + 1 }]
+    fns.append({ |x| x * 2 })
+    fns.append(twice)
+    for f in fns {
+        print(f(3))
+    }
+
+    // a nested list of functions
+    let nested list[list[IntFn]] = [[{ |x| x + 1 }, { |x| x * 2 }]]
+    let inner = nested[0]
+    let g = inner[1]
+    print(g(4))
+    print(nested[0][1](4))
+
+    // a dict as a list element
+    let dl list[dict[str, IntFn]] = [{"a": { |x| x + 1 }}, {"b": { |x| x * 3 }}]
+    let d0 = dl[0]
+    let f0 = d0["a"]
+    print(f0(3))
+
+    // a tuple as a list element
+    let tl list[(IntFn, IntFn)] = [({ |x| x + 1 }, { |x| x * 3 })]
+    let t0 = tl[0]
+    let (tadd, tmul) = t0
+    print(tadd(3))
+    print(tmul(3))
+
+    // a list as a dict value
+    let ld dict[str, list[IntFn]] = {"a": [{ |x| x + 1 }]}
+    let l0 = ld["a"]
+    let f1 = l0[0]
+    print(f1(3))
+
+    // a tuple of functions on its own, annotated so the elements get a type
+    let (tadd2 IntFn, tmul2 IntFn) = ({ |x| x + 1 }, { |x| x * 3 })
+    print(tadd2(3))
+    print(tmul2(3))
+
+    // three levels: list of list of dict of functions
+    let deep list[list[dict[str, IntFn]]] = [[{"a": { |x| x + 1 }}]]
+    let deep0 = deep[0]
+    let deepd = deep0[0]
+    let deepf = deepd["a"]
+    print(deepf(3))
+
+    // a list literal of functions as a call argument
+    print(run_first([{ |x| x + 1 }, { |x| x * 2 }], 5))
+
+    // a list of functions over a user class
+    let pts list[PointFn] = [{ |p| p.x + p.y }, { |p| p.x * p.y }]
+    let sum_of = pts[0]
+    let mul_of = pts[1]
+    print(sum_of(Point(2, 3)))
+    print(mul_of(Point(2, 3)))
+
+    // the same list iterated
+    let p = Point(2, 3)
+    for pf in pts {
+        print(pf(p))
+    }
+
+    // a list[IntFn] field of a user class, filled through a method
+    let reg = Registry()
+    reg.add({ |x| x * 5 })
+    reg.add(twice)
+    for cb in reg.fns {
+        print(cb(2))
+    }
+
+    // a dict value
+    let d dict[str, IntFn] = {"a": { |x| x + 1 }}
+    let from_dict = d["a"]
+    print(from_dict(3))
+
+    // a return value
+    let returned = from_return()
+    print(returned(4))
+
+    // the body still reads a module global
+    print(apply({ |x| x + offset }, 1))
+
+    // assignment of a composite literal of functions to a typed local
+    var slots list[IntFn] = [{ |x| x + 1 }]
+    slots = [{ |x| x * 6 }]
+    let s0 = slots[0]
+    print(s0(3))
+
+    var dm dict[str, IntFn] = {"a": { |x| x + 1 }}
+    dm = {"a": { |x| x * 6 }}
+    let dm0 = dm["a"]
+    print(dm0(3))
+
+    var tp (IntFn, IntFn) = ({ |x| x + 1 }, { |x| x * 6 })
+    tp = ({ |x| x + 100 }, { |x| x * 100 })
+    let (ta, tb) = tp
+    print(ta(1))
+    print(tb(1))
+
+    // assignment of a list literal of functions to a typed global
+    global_fns = [{ |x| x + 2 }]
+    let gf = global_fns[0]
+    print(gf(3))
+
+    // assignment of a list literal of functions to a typed field
+    reg.fns = [{ |x| x + 100 }]
+    let rf = reg.fns[0]
+    print(rf(3))
+}
+
+// CHECK: 21
+// CHECK-NEXT: 4
+// CHECK-NEXT: 2
+// CHECK-NEXT: 8
+// CHECK-NEXT: 3
+// CHECK-NEXT: 4
+// CHECK-NEXT: 12
+// CHECK-NEXT: 10
+// CHECK-NEXT: 10
+// CHECK-NEXT: 6
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6
+// CHECK-NEXT: 6
+// CHECK-NEXT: 8
+// CHECK-NEXT: 8
+// CHECK-NEXT: 4
+// CHECK-NEXT: 4
+// CHECK-NEXT: 9
+// CHECK-NEXT: 4
+// CHECK-NEXT: 4
+// CHECK-NEXT: 9
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6
+// CHECK-NEXT: 5
+// CHECK-NEXT: 6
+// CHECK-NEXT: 5
+// CHECK-NEXT: 6
+// CHECK-NEXT: 3
+// CHECK-NEXT: 10
+// CHECK-NEXT: 4
+// CHECK-NEXT: 4
+// CHECK-NEXT: 8
+// CHECK-NEXT: 11
+// CHECK-NEXT: 18
+// CHECK-NEXT: 18
+// CHECK-NEXT: 101
+// CHECK-NEXT: 100
+// CHECK-NEXT: 5
+// CHECK-NEXT: 103

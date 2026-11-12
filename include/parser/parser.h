@@ -157,7 +157,7 @@ typedef struct _ParserState {
 Symbol *find_symbol(ParserState *ps, Ident *id);
 
 /* more than MAX_ERRORS, discard remaining errors shown */
-#define MAX_ERRORS 32
+#define MAX_ERRORS 64
 
 /* clang-format off */
 
@@ -209,6 +209,12 @@ void kl_error_detail(ParserState *, Loc *);
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void parse_literal_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected);
+/* a lambda with a parameter that has no type: it can only be resolved once the
+   expected function type is known, so the enclosing construct defers it */
+int lambda_needs_infer(Expr *exp);
+/* lambda_needs_infer, or a list/tuple/dict literal with such a lambda nested inside */
+int expr_needs_infer(Expr *exp);
+void resolve_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected);
 /* an int value goes into an enum: report it and return 1, only an int literal converts */
 int check_int_to_enum(ParserState *ps, Loc loc, TypeSpec *dst, TypeSpec *src);
 void check_shift_count(ParserState *ps, TypeSpec *lhs_ts, Expr *count);
@@ -221,7 +227,8 @@ void kl_parse_ast_klass_func_meta(ParserState *ps);
 void kl_parse_ast_func_meta(ParserState *ps);
 void kl_parse_ast_klass_field_meta(ParserState *ps);
 void kl_parse_ast(ParserState *ps);
-Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps);
+Vector *infer_func_tp(FuncSymbol *fn, Vector *args, TypeSpec *recv_ts, ParserState *ps);
+Expr *call_arg_for_param(Vector *call_args, int index, const char *name);
 FuncSymbol *get_current_function(ParserState *ps);
 
 void init_parser(ParserModule *module);

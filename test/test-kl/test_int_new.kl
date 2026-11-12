@@ -17,7 +17,7 @@ func parse(s str) int64 = int64(s)
 // the syntax error is reported first
 // CHECK: expected expr, expr-list or ')'.
 // CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.
-// CHECK-NEXT: too many arguments in function call.
+// CHECK-NEXT: unexpected keyword argument: 'base'
 // CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.
 // CHECK-NEXT: too many arguments in function call.
 // CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.

@@ -1,0 +1,135 @@
+// RUN: ! koalac %s | filecheck %s
+
+// A keyword argument whose name is not a parameter of the callee is rejected.
+// The name is matched against the callee's parameter list only: a field, a
+// local variable, another function's parameter and a different capitalisation
+// all fail to match.
+//
+// One error per call: the unknown name is reported and the rest of that call's
+// argument checks are skipped.
+
+func sub(a int, b int) int {
+    return a - b
+}
+
+func va(v int, xs ...int) int {
+    var s = v
+    for x in xs {
+        s = s + x
+    }
+    return s
+}
+
+// unknown name alongside valid ones
+sub(a = 10, b = 3, c = 1)
+// CHECK: unexpected keyword argument: 'c'
+
+// unknown name first in an out-of-order keyword list
+sub(c = 1, b = 3, a = 10)
+// CHECK: unexpected keyword argument: 'c'
+
+// unknown name as the only argument
+sub(z = 1)
+// CHECK: unexpected keyword argument: 'z'
+
+// parameter names are case sensitive
+sub(A = 10, b = 3)
+// CHECK: unexpected keyword argument: 'A'
+
+// unknown name after every parameter was already filled positionally
+sub(10, 3, z = 1)
+// CHECK: unexpected keyword argument: 'z'
+
+// a name that belongs to another function's parameter list
+sub(a = 10, b = 3, v = 1)
+// CHECK: unexpected keyword argument: 'v'
+
+// a local variable is not a parameter name
+func with_local() int {
+    let q = 1
+    return sub(a = 10, b = 3, q = q)
+}
+// CHECK: unexpected keyword argument: 'q'
+
+func nop() int {
+    return 0
+}
+
+// a callee with no parameters at all
+nop(x = 1)
+// CHECK: unexpected keyword argument: 'x'
+
+func all_dfl(a = 1, b = 2) int {
+    return a + b
+}
+
+// every parameter has a default, so only the name can be wrong
+all_dfl(z = 9)
+// CHECK: unexpected keyword argument: 'z'
+all_dfl(a = 1, z = 9)
+// CHECK: unexpected keyword argument: 'z'
+
+// unknown name after the variadic slot
+va(1, 2, z = 3)
+// CHECK: unexpected keyword argument: 'z'
+va(v = 1, z = 3)
+// CHECK: unexpected keyword argument: 'z'
+
+func pick2[T](a T, b T) T {
+    return a
+}
+
+pick2[int](a = 7, b = 8, c = 9)
+// CHECK: unexpected keyword argument: 'c'
+
+class Point {
+    pub var px int
+    pub var py int
+
+    pub func __init__(a int, b int) {
+        px = a
+        py = b
+    }
+
+    pub func diff(dx int, dy int) int {
+        return dx - dy
+    }
+}
+
+// a field name is not a parameter name
+Point(1, 2, px = 3)
+// CHECK: unexpected keyword argument: 'px'
+Point(a = 1, b = 2, py = 3)
+// CHECK: unexpected keyword argument: 'py'
+
+// unknown name on a method
+Point(1, 2).diff(dx = 9, dy = 4, dz = 1)
+// CHECK: unexpected keyword argument: 'dz'
+
+trait Shape {
+    func area(w int, h int) int
+}
+
+class Rect : Shape {
+    pub func area(w int, h int) int {
+        return w * h
+    }
+}
+
+// unknown name on a trait method
+func use_shape() int {
+    let s Shape = Rect()
+    return s.area(w = 3, h = 4, z = 5)
+}
+// CHECK: unexpected keyword argument: 'z'
+
+// these stay valid
+sub(b = 3, a = 10)
+sub(10, b = 3)
+all_dfl(b = 20)
+va(1, 2, 3)
+pick2[int](b = 8, a = 7)
+Point(b = 2, a = 1)
+Point(1, 2).diff(dy = 4, dx = 9)
+
+// CHECK-NOT: {{.}}

@@ -81,7 +81,7 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
 
         TypeSpec *ts = arg->ts;
 
-        Expr *exp = vector_get(call_args, i__);
+        Expr *exp = call_arg_for_param(call_args, i__, arg->name);
         if (!exp) {
             // no more arguments passed
             if (type_is_valist(ts)) {
@@ -94,6 +94,14 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
                          vector_size(params), fn_sym->name, i__);
                 goto error;
             }
+        }
+
+        /* a lambda argument is resolved from the parameter type after inference,
+           so it has no type yet and cannot contribute one; when a type parameter
+           is left uninferred the loop below reports it */
+        if (!exp->ts) {
+            log_info("argument %d has no type yet, skip it for inference.", i__);
+            continue;
         }
 
         if (ts->kind == TYPE_GENERIC_VAR) {

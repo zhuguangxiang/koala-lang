@@ -1,0 +1,144 @@
+/*
+ * func_type.kl — 函数类型（func type）示例。
+ *
+ * 函数在 koala 里是普通的值：可以放进 list、dict、tuple，可以作为参数、
+ * 返回值和字段。用法和 C 的函数指针一样，但类型是完整的 `func(args) ret`。
+ */
+
+type Transform = func(str) str
+type BinOp = func(int, int) int
+type Predicate = func(int) bool
+
+/* 具名函数本身就是函数值，和 lambda 可以混在同一个容器里 */
+func trim(s str) str { return s.strip() }
+func shout(s str) str { return s.upper() }
+func bang(s str) str { return s + "!" }
+
+func add_op(a int, b int) int { return a + b }
+func mul_op(a int, b int) int { return a * b }
+
+func max_op(a int, b int) int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+func min_op(a int, b int) int {
+    if a < b {
+        return a
+    }
+    return b
+}
+
+func is_even(n int) bool { return n % 2 == 0 }
+func plus_two(n int) int { return n + 2 }
+
+/* 1. 行为列表：同一份驱动代码，换一组函数就是换一种行为 */
+func pipeline(input str, steps list[Transform]) str {
+    var out = input
+    for step in steps {
+        out = step(out)
+    }
+    return out
+}
+
+/* 2. 高阶函数：行为作为参数传入 */
+func count_if(xs list[int], ok Predicate) int {
+    var n = 0
+    for x in xs {
+        if ok(x) {
+            n = n + 1
+        }
+    }
+    return n
+}
+
+/* 3. 返回一个函数：由调用方在运行时决定采用哪种行为 */
+func reducer(want_max bool) BinOp {
+    if want_max {
+        return max_op
+    }
+    return min_op
+}
+
+func reduce(xs list[int], op BinOp) int {
+    var acc = xs[0]
+    for x in xs[1:] {
+        acc = op(acc, x)
+    }
+    return acc
+}
+
+/* 4. 行为作为字段：对象自己携带一段可替换的逻辑 */
+class Counter {
+    pub var step func(int) int = { |n| n + 1 }
+    pub var total int = 0
+
+    pub func __init__() {
+    }
+
+    pub func bump() {
+        total = step(total)
+    }
+}
+
+func main() {
+    // 1. list[func]：管道
+    let quiet list[Transform] = [trim]
+    print(pipeline("  hello  ", quiet))
+
+    let loud list[Transform] = [trim, shout, bang]
+    print(pipeline("  hello  ", loud))
+
+    // 列表是活的，可以在运行时增删行为
+    let steps list[Transform] = [trim, { |s| s.replace("koala", "KOALA") }]
+    print(pipeline("  i love koala  ", steps))
+    steps.append(shout)
+    steps.append({ |s| "<" + s + ">" })
+    print(pipeline("  i love koala  ", steps))
+
+    //-----------------------------------------------------------------
+
+    // 2. dict[str, func]：按名字选行为，等价于 C 里的函数指针表
+    let ops dict[str, BinOp] = {
+        "add": add_op,
+        "sub": { |a, b| a - b },
+        "mul": mul_op
+    }
+    let names list[str] = ["add", "sub", "mul"]
+    for name in names {
+        print(name, ops[name](6, 7))
+    }
+
+    //-----------------------------------------------------------------
+
+    // 3. 高阶函数：同一份数据，不同的判定行为
+    let xs list[int] = [1, 2, 3, 4, 5, 6]
+    print(count_if(xs, is_even))
+    print(count_if(xs, { |n| n > 3 }))
+    print(count_if(xs, { |n| n % 3 == 0 }))
+
+    //-----------------------------------------------------------------
+
+    // 4. 返回函数：reducer(true)/reducer(false) 给出两种不同的行为
+    print(reduce(xs, reducer(true)))
+    print(reduce(xs, reducer(false)))
+    print(reduce(xs, add_op))
+    print(reduce(xs, { |a, b| a * b }))
+
+    //-----------------------------------------------------------------
+
+    // 5. 字段上的行为：换一个 step，同一个 bump 就是另一种计数方式
+    let c = Counter()
+    c.bump()
+    c.bump()
+    print(c.total)
+    c.step = { |n| n * 10 }
+    c.bump()
+    print(c.total)
+    // 具名函数和 lambda 一样可以直接赋给字段
+    c.step = plus_two
+    c.bump()
+    print(c.total)
+}

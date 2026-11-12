@@ -7,8 +7,8 @@ func fn1(v int, valist ...) int {
 fn1(10)
 fn1(1, 2, 3)
 fn1(1, 2, v = 1, v2 = 2)
-// CHECK: unexpected keyword argument: 'v'
-// CHECK-NEXT: unexpected keyword argument: 'v2'
+// 'v' is already filled by the positional prefix; the first bad keyword stops the call
+// CHECK: duplicate argument for parameter 'v'
 
 func fn2(v int, v1 = 1, v2 = 2) int {
     return v + 10
@@ -27,7 +27,7 @@ fn2(10, 100, 200, 300)
 
 fn2(10, 100, v2 = 200)
 fn2(10, 100, v1 = 200)
-// CHECK-NEXT: unexpected keyword argument: 'v1'
+// CHECK-NEXT: duplicate argument for parameter 'v1'
 
 // fn2(10, v1 = 100, 200) // grammar error: positional argument follows keyword argument
 
@@ -38,7 +38,7 @@ fn2(10, v3 = 100)
 // CHECK-NEXT: unexpected keyword argument: 'v3'
 
 fn2(v1 = 100)
-// CHECK-NEXT: require a positional argument, but got a keyword argument: 'v1'
+// CHECK-NEXT: missing argument for parameter 'v'
 
 func fn3(v int, valist ..., msg = "hello") int {
     return v + 30

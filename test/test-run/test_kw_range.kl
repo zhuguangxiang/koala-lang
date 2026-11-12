@@ -1,0 +1,88 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+
+// The range constructor fills in the parameters the caller left out: range(stop)
+// means range(0, stop, 1) and range(start, stop) means range(start, stop, 1).
+// That transform is positional, so a keyword suffix in any order has to be
+// collected into the parameter slots before it runs.
+//
+// One loop per function on purpose: two consecutive `for i in range(...)` loops
+// accumulating into a mutable variable in the same function lose the first
+// result under --ssa. That is a separate pre-existing defect, unrelated to
+// keyword arguments (it reproduces with range(0, 3, 1) written positionally).
+
+func kw_end() int {
+    var s = 0
+    for i in range(_end = 3) { s = s + i }
+    return s
+}
+
+func kw_start_end() int {
+    var s = 0
+    for i in range(_start = 1, _end = 4) { s = s + i }
+    return s
+}
+
+func pos_then_kw() int {
+    var s = 0
+    for i in range(1, _end = 4) { s = s + i }
+    return s
+}
+
+func kw_end_step() int {
+    var s = 0
+    for i in range(_end = 6, _step = 2) { s = s + i }
+    return s
+}
+
+func kw_all_three() int {
+    var s = 0
+    for i in range(_start = 2, _end = 8, _step = 3) { s = s + i }
+    return s
+}
+
+func kw_empty() int {
+    var s = 0
+    for i in range(_end = 0) { s = s + i }
+    return s
+}
+
+// the positional forms keep working
+func pos_stop() int {
+    var s = 0
+    for i in range(3) { s = s + i }
+    return s
+}
+
+func pos_start_stop() int {
+    var s = 0
+    for i in range(1, 4) { s = s + i }
+    return s
+}
+
+func pos_all_three() int {
+    var s = 0
+    for i in range(0, 6, 2) { s = s + i }
+    return s
+}
+
+func main() {
+    print(kw_end())
+    // CHECK: 3
+    print(kw_start_end())
+    // CHECK-NEXT: 6
+    print(pos_then_kw())
+    // CHECK-NEXT: 6
+    print(kw_end_step())
+    // CHECK-NEXT: 6
+    print(kw_all_three())
+    // CHECK-NEXT: 7
+    print(kw_empty())
+    // CHECK-NEXT: 0
+    print(pos_stop())
+    // CHECK-NEXT: 3
+    print(pos_start_stop())
+    // CHECK-NEXT: 6
+    print(pos_all_three())
+    // CHECK-NEXT: 6
+}
