@@ -981,8 +981,8 @@ Fields are declared with `var`, and `__init__` is the initializer:
 class Counter {
     var count int = 0
 
-    func __init__(start int) {
-        count = start
+    func __init__(count int) {
+        self.count = count
     }
 
     func incr() {
@@ -994,6 +994,17 @@ let c = Counter(10)
 c.incr()
 print(c.count)          // 11
 ```
+
+Inside a method, fields and methods are reached by their bare name or through `self`
+(`self.count`, `self.incr()`). A bare name is looked up from the innermost scope outwards: block
+locals, then parameters, then the fields and methods of the class, then module globals. So a
+parameter may be named like a field and shadows it — the bare name is the parameter, `self.count`
+the field. Parameters are immutable, which makes the slip `count = count` a compile error rather
+than a silent no-op.
+
+`self` is not available in a static method (calling a static method through `self` is an error
+too), and a lambda cannot capture it yet. A `let` field may be assigned only in `__init__`, and
+only on the object being built (`x = v` or `self.x = v`, not `other.x = v`).
 
 Classes may also take type parameters; see [Generics](#generics).
 

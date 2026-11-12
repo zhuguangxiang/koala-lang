@@ -1,0 +1,72 @@
+// RUN: koala %s | filecheck %s
+
+// An optional function type is written via an alias: `type F = func(int)int`
+// then `F?`. The `?` suffix cannot attach to a func type directly:
+// `func(int)int?` makes the *return* optional, and `(func(int)int)?` is an
+// optional one-element tuple, not an optional function.
+//
+// Covered positions: global variable, local variable, parameter, return value.
+
+type F = func(int)int
+
+func inc(x int) int { return x + 1 }
+
+// --- global variable ---
+
+// a function value and nil both assign to the optional function type
+var g F? = inc
+var h F? = nil
+
+// unwrap into a non-optional variable, then call
+var k F = g!
+// CHECK: 11
+print(k(10))
+
+// the optional is mutable: nil and a function can be reassigned
+g = nil
+g = inc
+var k2 F = g!
+// CHECK: 21
+print(k2(20))
+
+// --- local variable ---
+
+func local() int {
+    var f F? = inc
+    var unwrapped F = f!
+    return unwrapped(1)
+}
+// CHECK: 2
+print(local())
+
+// --- parameter ---
+
+func apply(cb F?, v int) int {
+    var f F = cb!
+    return f(v)
+}
+// CHECK: 31
+print(apply(inc, 30))
+
+// nil argument: guarded by a nil check before the unwrap
+func apply_or(cb F?, v int) int {
+    if cb == nil { return v }
+    var f F = cb
+    return f(v)
+}
+// CHECK: 40
+print(apply_or(nil, 40))
+// CHECK: 41
+print(apply_or(inc, 40))
+
+// --- return value ---
+
+func pick(flag bool) F? {
+    if flag { return inc }
+    return nil
+}
+var p F = pick(true)!
+// CHECK: 11
+print(p(10))
+// CHECK: true
+print(pick(false) == nil)

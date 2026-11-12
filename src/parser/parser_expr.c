@@ -485,6 +485,12 @@ static void parse_self(ParserState *ps, Expr *exp)
 {
     ASSERT(exp->ctx == EXPR_CTX_LOAD);
 
+    FuncSymbol *fn_sym = get_current_function(ps);
+    if (fn_sym && (fn_sym->flags & SYM_FLAGS_STATIC)) {
+        kl_error(exp->loc, "'self' cannot be used in static method '%s'", fn_sym->name);
+        return;
+    }
+
     for (ParserScope *sc = ps->scope; sc && sc->kind != SCOPE_FUNC; sc = sc->next) {
         if (sc->kind == SCOPE_ANONY) {
             kl_error(exp->loc, "capturing 'self' in a lambda is not implemented yet");
@@ -495,12 +501,6 @@ static void parse_self(ParserState *ps, Expr *exp)
     Symbol *sym = get_current_klass(ps);
     if (!sym || sym->kind != SYM_CLASS) {
         kl_error(exp->loc, "'self' can only be used in class.");
-        return;
-    }
-
-    FuncSymbol *fn_sym = get_current_function(ps);
-    if (fn_sym && (fn_sym->flags & SYM_FLAGS_STATIC)) {
-        kl_error(exp->loc, "'self' cannot be used in static method '%s'", fn_sym->name);
         return;
     }
 
@@ -593,8 +593,8 @@ static void parse_list(ParserState *ps, Expr *exp)
         e->ctx = EXPR_CTX_LOAD;
         /* a lambda element takes its parameter types from the expected element type,
            and a nested literal takes it too so it can pass it on to its own elements */
-        int nested_literal = e->kind == EXPR_LIST_KIND || e->kind == EXPR_MAP_KIND ||
-                             e->kind == EXPR_TUPLE_KIND;
+        int nested_literal =
+            e->kind == EXPR_LIST_KIND || e->kind == EXPR_MAP_KIND || e->kind == EXPR_TUPLE_KIND;
         if (expected_elem && (lambda_needs_infer(e) || nested_literal)) e->expected = expected_elem;
         parser_visit_expr(ps, e);
         if (!e->ts) return;
@@ -1155,6 +1155,9 @@ static int check_arg_type(ParserState *ps, ArgInfo *param, Expr *e)
         if (!e->ts) return -1;
     }
 
+    /* the parameter already errored at its declaration; no type to check against */
+    if (!param->ts) return 0;
+
     if (check_int_to_enum(ps, e->loc, param->ts, e->ts)) return 1;
     if (!type_spec_compatible(param->ts, e->ts)) {
         kl_error_incompatible_type(e->loc, param->ts, e->ts);
@@ -1228,8 +1231,7 @@ static int find_param_by_name(Vector *params, const char *name)
  * va_list, when present, sits at index `nreq` and swallows the whole positional
  * tail: a defaulted parameter after it can only be passed by keyword.
  */
-static void check_call_args_kw(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc,
-                               int npos)
+static void check_call_args_kw(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc, int npos)
 {
     int param_size = vector_size(params);
     int expr_size = vector_size(exprs);
@@ -1251,7 +1253,7 @@ static void check_call_args_kw(Vector *params, Vector *exprs, ParserState *ps, L
         ArgInfo *arg = vector_get(params, i);
         if (arg->has_dfl_val) {
             ndfl++;
-        } else if (type_is_valist(arg->ts)) {
+        } else if (arg->ts && type_is_valist(arg->ts)) {
             valist_index = i;
         } else {
             nreq++;
@@ -1355,7 +1357,8 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
 
         Expr *e = vector_get(exprs, j__++);
 
-        if (!type_is_valist(arg->ts)) {
+        // a NULL ts means the parameter already errored at its declaration
+        if (!arg->ts || !type_is_valist(arg->ts)) {
             // required param, caller must pass value
             if (!e) {
                 kl_error(fn_loc, "too few arguments in function call.");
@@ -2820,11 +2823,6 @@ static void parse_dot(ParserState *ps, Expr *exp)
     // '?.' is disabled for now: it type-checks but irgen cannot emit it yet
     if (opt_or_bang == DOT_OPTIONAL) {
         kl_error(exp->loc, "'?.' is not supported yet, use 'if let' or '!.'.");
-        return;
-    }
-
-    if (lhs->kind == EXPR_SELF_KIND) {
-        kl_error(lhs->loc, "cannot access field/method by self.");
         return;
     }
 
@@ -4301,7 +4299,9 @@ static void parse_bang(ParserState *ps, Expr *exp)
     }
 
     exp->ts = e->ts->opt.src;
-    exp->sym = e->sym;
+    /* An unwrapped function value is callable by its prototype, not by the
+       optional variable symbol that held it. */
+    exp->sym = (exp->ctx == EXPR_CTX_CALL && type_is_proto(exp->ts)) ? NULL : e->sym;
     log_info("bang operator resolved, unwrap optional type.");
     log_type_spec(exp->ts);
 }

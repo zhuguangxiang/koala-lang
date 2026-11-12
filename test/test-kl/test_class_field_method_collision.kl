@@ -1,0 +1,18 @@
+// RUN: not koalac %s 2>&1 | filecheck %s
+//
+// Fields and methods share a class symbol table. A collision must be diagnosed
+// during declaration and must not leave a null symbol to be dereferenced later.
+
+class FieldFirst {
+    var value int
+    func value() int { return 1 }
+}
+// CHECK: test_class_field_method_collision.kl:8:10:
+// CHECK-SAME: redefinition of 'value'
+
+// The automatically added hash method must also handle a field named `hash`.
+class RootMethodCollision {
+    var hash int
+}
+// CHECK: test_class_field_method_collision.kl:0:0:
+// CHECK-SAME: redefinition of 'hash'

@@ -1,0 +1,27 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
+// RUN: koalac %s --cgen --dump=lir,code | filecheck %s --check-prefix=LIR
+
+// A bang unwraps an optional function before the call.
+
+type F = func(int)int
+func inc(x int) int { return x + 1 }
+
+func main() {
+    var g F? = inc
+    print(g!(10))
+}
+
+// CHECK: 11
+
+// IR-LABEL: func @main() <NO-TYPE> {
+// IR: %g = local (func(int64)int64)?
+// IR-NEXT: move %g (func(int64)int64)?, @inc func(int64)int64
+// IR-NEXT: %0 = cast %g (func(int64)int64)? to func(int64)int64
+// IR-NEXT: %1 = call %0 func(int64)int64, 10 int64
+
+// LIR-LABEL: func @main() <NO-TYPE> {
+// LIR: %0 = nil_check %g (func(int64)int64)? to func(int64)int64
+// LIR: %2 = call %0 func(int64)int64, nargs=1
+// LIR: 3:  nil_check r0, r0
+// LIR: 5:  call flg=2, r1, #1

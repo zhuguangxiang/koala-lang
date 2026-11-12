@@ -1,0 +1,13 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// The incompatible-type diagnostic prints an optional function type with
+// parens: `(func(...)...)?`, not the ambiguous `func(...)...?`.
+
+type F = func(int)int
+
+func takes(cb F?) int = 0
+
+func main() {
+    print(takes(10))
+    // CHECK: Incompatible type: expected '(func(int64)int64)?', but got 'int64'.
+}

@@ -1401,7 +1401,11 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         if (!ts->opt.src) {
             buf_write_str(buf, "_?");
         } else {
+            /* without parens `func(int)int?` would read as an optional return type */
+            int need_paren = (ts->opt.src->kind == TYPE_PROTO);
+            if (need_paren) buf_write_char(buf, '(');
             type_spec_print(ts->opt.src, buf);
+            if (need_paren) buf_write_char(buf, ')');
             buf_write_char(buf, '?');
         }
     } else if (ts->kind == TYPE_PACKAGE) {

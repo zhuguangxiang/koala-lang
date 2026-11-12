@@ -1,0 +1,8 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func bad(n = 1 + 2) int = n
+// CHECK: parameter 'n' needs a literal or const default value
+
+func main() {
+    print(bad())
+}

@@ -1,0 +1,68 @@
+// RUN: not koalac %s 2>&1 | filecheck %s
+//
+// `self.member` errors, and assigning a parameter to itself when it is named like a field.
+
+class A {
+    var x int = 0
+    let k int
+
+    func __init__(x int, k int, other A) {
+        // same name: the bare `x` on both sides is the parameter, which is immutable
+        x = x
+        // CHECK: test_self_dot_error.kl:11:9:
+        // CHECK-SAME: cannot assign to immutable variable 'x'
+        k = k
+        // CHECK: test_self_dot_error.kl:14:9:
+        // CHECK-SAME: cannot assign to immutable variable 'k'
+        self.k = k
+        self.x = x
+        // `__init__` sets the immutable fields of its own object only
+        other.k = 1
+        // CHECK: test_self_dot_error.kl:20:9:
+        // CHECK-SAME: cannot assign to immutable variable 'k'
+        other.x = 2
+    }
+
+    func m(x int) {
+        x = x
+        // CHECK: test_self_dot_error.kl:27:9:
+        // CHECK-SAME: cannot assign to immutable variable 'x'
+    }
+
+    func n() int { return self.nope }
+    // CHECK: test_self_dot_error.kl:32:32:
+    // CHECK-SAME: 'nope' is not found in class 'A'
+
+    func p() { self.nope() }
+    // CHECK: test_self_dot_error.kl:36:21:
+    // CHECK-SAME: 'nope' is not found in class 'A'
+
+    // a `let` field is immutable outside `__init__`, through `self` too
+    func q() { self.k = 3 }
+    // CHECK: test_self_dot_error.kl:41:16:
+    // CHECK-SAME: cannot assign to immutable variable 'k'
+
+    func r() func() int { return { || self.x } }
+    // CHECK: test_self_dot_error.kl:45:39:
+    // CHECK-SAME: capturing 'self' in a lambda is not implemented yet
+
+    static func sm() int { return 0 }
+
+    func call_static() int { return self.sm() }
+    // CHECK: test_self_dot_error.kl:51:42:
+    // CHECK-SAME: static method 'sm' cannot be called by instance object
+
+    func helper() int { return 1 }
+
+    static func st() int { return self.x }
+    // CHECK: test_self_dot_error.kl:57:35:
+    // CHECK-SAME: 'self' cannot be used in static method 'st'
+
+    static func st2() int { return self.helper() }
+    // CHECK: test_self_dot_error.kl:61:36:
+    // CHECK-SAME: 'self' cannot be used in static method 'st2'
+
+    static func st3() int { return helper() }
+    // CHECK: test_self_dot_error.kl:65:36:
+    // CHECK-SAME: 'helper' is not found
+}

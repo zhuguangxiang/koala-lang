@@ -1,0 +1,134 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+// RUN: koalac %s --cgen --ssa --fusion --tail-call --write-klc -o %t.opt.klc && koala %t.opt.klc | filecheck %s
+//
+// `self.member` reads/writes a field and calls a method, and a parameter may be named
+// like a field: inside the method the bare name is the parameter, `self.name` the field.
+
+func size() int { return -1 }
+let total int = 999
+
+class Counter {
+    var count int = 0
+    let name str
+
+    // the usual initializer: parameters named like the fields they set
+    func __init__(name str, count int) {
+        self.name = name
+        self.count = count
+    }
+
+    func incr(count int) Counter {
+        self.count += count
+        return self
+    }
+
+    func get() int { return self.count }
+
+    func twice() int { return self.get() * 2 }
+
+    // bare `count` is the parameter, `self.count` the field
+    func shadow(count int) int { return count * 1000 + self.count }
+}
+
+// a `let` field set through `self` in a generic class
+class Box[T] {
+    let value T
+    var n int = 0
+
+    func __init__(value T) {
+        self.value = value
+    }
+
+    func get() T { return self.value }
+
+    func bump(n int) int {
+        self.n = self.n + n
+        return self.n
+    }
+}
+
+// name lookup: block local > parameter > field/method > module global
+class Shape {
+    var size int = 5
+    var w int = 0
+    var total int = 7
+
+    func __init__(w int) {
+        self.w = w * 10
+    }
+
+    // no shadowing: bare names are the fields
+    func area() int { return size * w }
+
+    func scale(size int) int {
+        if size > 0 {
+            // a block local shadows the parameter, the field is still `self.size`
+            let size = 100
+            return size + self.size
+        }
+        return size + self.size
+    }
+
+    // writing the field leaves the parameter alone
+    func set(size int) {
+        self.size = size + 1
+        print(size)
+        print(self.size)
+    }
+
+    func wv(w int) int { return w }
+
+    // a parameter named like the field, the method called through `self`
+    func call_wv(w int) int { return self.wv(w + 1) + self.w }
+
+    // the field shadows the module global
+    func glob() int { return total }
+
+    // a bare method name calls the method of this object, as `self.area()` does
+    func area_twice() int { return self.area() + area() }
+}
+
+func main() {
+    let c = Counter("c", 10)
+    print(c.name)
+    print(c.incr(1).incr(2).get())
+    print(c.twice())
+    print(c.shadow(7))
+
+    let b = Box[str]("hi")
+    print(b.get())
+    print(b.bump(3))
+    print(b.bump(4))
+
+    let s = Shape(2)
+    print(s.area())
+    print(s.scale(1))
+    print(s.scale(-3))
+    s.set(4)
+    print(s.size)
+    print(s.call_wv(1))
+    print(s.glob())
+    print(s.area_twice())
+    print(size())
+    print(total)
+}
+
+// CHECK: c
+// CHECK-NEXT: 13
+// CHECK-NEXT: 26
+// CHECK-NEXT: 7013
+// CHECK-NEXT: hi
+// CHECK-NEXT: 3
+// CHECK-NEXT: 7
+// CHECK-NEXT: 100
+// CHECK-NEXT: 105
+// CHECK-NEXT: 2
+// CHECK-NEXT: 4
+// CHECK-NEXT: 5
+// CHECK-NEXT: 5
+// CHECK-NEXT: 22
+// CHECK-NEXT: 7
+// CHECK-NEXT: 200
+// CHECK-NEXT: -1
+// CHECK-NEXT: 999

@@ -1895,32 +1895,6 @@ exit:
     }
 }
 
-static void check_param_name_with_field_name(ParserState *ps, Vector *params)
-{
-    if (!params || vector_size(params) == 0) return;
-
-    ParserScope *sc = ps->scope;
-    if (!sc || sc->kind != SCOPE_CLASS) return;
-
-    Symbol *sym = sc->sym;
-    if (!sym || sym->kind != SYM_CLASS) return;
-
-    KlassSymbol *kls_sym = (KlassSymbol *)sym;
-
-    VarSymbol *field;
-    vector_foreach(field, kls_sym->fields) {
-        if (!field) continue;
-        ParamDecl *param;
-        vector_foreach(param, params) {
-            if (!param) continue;
-            if (strcmp(field->name, param->id.name) == 0) {
-                kl_error(param->id.loc, "parameter '%s' conflicts with field name in class '%s'",
-                         param->id.name, kls_sym->name);
-            }
-        }
-    }
-}
-
 static void parse_single_expr_stmt(ParserState *ps, Stmt *stmt, FuncSymbol *fn)
 {
     ASSERT(fn != NULL);
@@ -1985,12 +1959,6 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     log_info("parse func '%s' body", sym->name);
-
-    // native funcs (including auto-generated __eq__/__ne__/fmt) have no Koala body,
-    // so a param named like a field can't create ambiguity
-    if (!is_native_func(fn) && !is_intrinsic_func(fn)) {
-        check_param_name_with_field_name(ps, fn->args);
-    }
 
     sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
@@ -2859,6 +2827,7 @@ static void add_root_method(ParserState *ps, KlassDeclStmt *kls, Stmt *stmt)
 
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
     Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt, 0);
+    if (!fn) return;
     fn->parent = sym;
     vector_push_back(sym->funcs, &fn);
 }
@@ -3516,6 +3485,8 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
     vector_foreach(s, kls->stmts) {
         if (!s) continue;
         if (s->flags.st.flag) continue;
+        if (s->kind == STMT_FUNC_KIND && !((FuncDeclStmt *)s)->sym) continue;
+        if (s->kind == STMT_VAR_KIND && !((VarDeclStmt *)s)->sym) continue;
         parse_stmt(ps, s);
     }
 
@@ -3573,7 +3544,13 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
     if (lhs_sym->kind == SYM_VAR) {
         VarSymbol *var_sym = (VarSymbol *)lhs_sym;
         FuncSymbol *fn_sym = get_current_function(ps);
-        if ((var_sym->scope != VAR_SCOPE_FIELD) || strcmp(fn_sym->name, "__init__")) {
+        // `__init__` may set the immutable fields of the object it builds: `x = v` or
+        // `self.x = v`, never those of another object (`other.x = v`)
+        int own_field = var_sym->scope == VAR_SCOPE_FIELD &&
+                        (lhs->kind == EXPR_ID_KIND ||
+                         (lhs->kind == EXPR_DOT_KIND &&
+                          ((DotExpr *)lhs)->lhs->kind == EXPR_SELF_KIND));
+        if (!own_field || !fn_sym || strcmp(fn_sym->name, "__init__")) {
             if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
                 kl_error(assign->loc, "cannot assign to immutable variable '%s'", lhs_sym->name);
                 return -1;
@@ -4329,7 +4306,8 @@ static void parse_klass_member_meta(ParserState *ps, KlassDeclStmt *kls)
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
         if (stmt->kind == STMT_FUNC_KIND) {
-            parse_func_meta(ps, (FuncDeclStmt *)stmt, 0);
+            FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+            if (fn->sym) parse_func_meta(ps, fn, 0);
         }
     }
 
@@ -4354,7 +4332,8 @@ static void parse_klass_field_meta(ParserState *ps, KlassDeclStmt *kls)
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
         if (stmt->kind == STMT_VAR_KIND) {
-            parse_var_decl(ps, stmt);
+            VarDeclStmt *var = (VarDeclStmt *)stmt;
+            if (var->sym) parse_var_decl(ps, stmt);
         }
     }
 
