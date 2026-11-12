@@ -4,8 +4,8 @@
 // that reaches the IR is the expanded one, never the alias name.
 //
 // CHECK: func @apply(%cb func(int64)int64, %v int64) int64 {
-// CHECK: func @first(%xs std/builtin.list<{{.*}}>) int64 {
-// CHECK: func @a_fnlist(%xs std/builtin.list<{{.*}}>) int64 {
+// CHECK: func @first(%xs std/builtin.list[int64]) int64 {
+// CHECK: func @a_fnlist(%xs std/builtin.list[func(int64)int64]) int64 {
 // CHECK: func @a_opt(%cb (func(int64)int64)?) int64 {
 // CHECK: func @a_forward(%f func(int64, str)bool) bool {
 

@@ -74,18 +74,18 @@ print(port_plus_one(""))
 // nil goes to the else block, otherwise the tuple is unpacked
 // CHECK-LABEL: func @connect(%url str) str? {
 // CHECK: %0 = call @split_host_port, %url str
-// CHECK-NEXT: %1 = cmpne %0 std/builtin.tuple<uj>?, nil
+// CHECK-NEXT: %1 = cmpne %0 std/builtin.tuple[str, int64]?, nil
 // CHECK-NEXT: branch %1 bool, label %bb2, label %bb1
 // CHECK: %bb1(let-else):
 // CHECK-NEXT: ret nil
 // CHECK: %bb2(let-ok):
-// CHECK-NEXT: %2 = local [immutable] std/builtin.tuple<uj>
-// CHECK-NEXT: move %2 std/builtin.tuple<uj>, %0 std/builtin.tuple<uj>?
+// CHECK-NEXT: %2 = local [immutable] std/builtin.tuple[str, int64]
+// CHECK-NEXT: move %2 std/builtin.tuple[str, int64], %0 std/builtin.tuple[str, int64]?
 // CHECK-NEXT: %host = local [immutable] str
-// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple<uj>, 0 int64
+// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple[str, int64], 0 int64
 // CHECK-NEXT: move %host str, %3 str
 // CHECK-NEXT: %port = local [immutable] int64
-// CHECK-NEXT: %4 = seq.get %2 std/builtin.tuple<uj>, 1 int64
+// CHECK-NEXT: %4 = seq.get %2 std/builtin.tuple[str, int64], 1 int64
 // CHECK-NEXT: move %port int64, %4 int64
 
 // CHECK: {{^}}example.com:80{{$}}

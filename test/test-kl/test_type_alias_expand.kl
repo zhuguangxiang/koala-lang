@@ -5,8 +5,8 @@
 //
 // CHECK: func @via_alias_fn(%cb func(int64)int64) int64 {
 // CHECK: func @direct_fn(%cb func(int64)int64) int64 {
-// CHECK: func @via_alias_list(%xs std/builtin.list<{{.*}}>) int64 {
-// CHECK: func @direct_list(%xs std/builtin.list<{{.*}}>) int64 {
+// CHECK: func @via_alias_list(%xs std/builtin.list[int64]) int64 {
+// CHECK: func @direct_list(%xs std/builtin.list[int64]) int64 {
 
 type IntFn = func(int) int
 type IntList = list[int]

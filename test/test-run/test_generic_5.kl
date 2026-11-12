@@ -96,14 +96,14 @@ func foo_bar() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @ListNode:getNext(%self z.ListNode[ListNode:T, ListNode:W]) z.ListNode[ListNode:T, int64]?
 // CHECK-LABEL: %bb0(entry):
-// CHECK: %0 = new @z.ListNode<jj>
-// CHECK: call @ListNode:__init__, %0 z.ListNode<jj>, 0 int64
-// CHECK: %n = local [immutable] z.ListNode<jj>
-// CHECK: move %n z.ListNode<jj>, %0 z.ListNode<jj>
-// CHECK: %1 = call @ListNode:getValue, %n z.ListNode<jj>
+// CHECK: %0 = new @z.ListNode[int64, int64]
+// CHECK: call @ListNode:__init__, %0 z.ListNode[int64, int64], 0 int64
+// CHECK: %n = local [immutable] z.ListNode[int64, int64]
+// CHECK: move %n z.ListNode[int64, int64], %0 z.ListNode[int64, int64]
+// CHECK: %1 = call @ListNode:getValue, %n z.ListNode[int64, int64]
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %1 int64
-// CHECK: call @ListNode:setValue, %n z.ListNode<jj>, %v int64
+// CHECK: call @ListNode:setValue, %n z.ListNode[int64, int64], %v int64
 // CHECK: %2 = get_field %self z.ListNode[ListNode:T, ListNode:W], value(index=0)
 
 // CHECK: %3 = new @z.ListNode[ListNode:T, int64]

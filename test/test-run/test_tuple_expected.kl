@@ -58,13 +58,13 @@ func main() {
 }
 
 // CHECK-LABEL: func @maybe()
-// CHECK: ret tuple(nil, 1) std/builtin.tuple<j?j>
+// CHECK: ret tuple(nil, 1) std/builtin.tuple[int64?, int64]
 
 // CHECK-LABEL: func @some()
-// CHECK: ret tuple(1, 2) std/builtin.tuple<j?j>
+// CHECK: ret tuple(1, 2) std/builtin.tuple[int64?, int64]
 
 // CHECK-LABEL: func @small()
-// CHECK: ret tuple(1, nil) std/builtin.tuple<cj?>
+// CHECK: ret tuple(1, nil) std/builtin.tuple[int8, int64?]
 
 // CHECK: {{^}}nil 1{{$}}
 // CHECK-NEXT: {{^}}1 2{{$}}

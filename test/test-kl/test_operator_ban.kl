@@ -40,20 +40,20 @@ func trait_param(a Arithmetic[int], b Comparable[int], c Sequence[int]) int {
 // Operators live on concrete types and generic 'T : Trait' bounds only.
 func t_arith(a Arithmetic[int], b Arithmetic[int]) Arithmetic[int] {
     return a + b - a * b / b % a
-    // CHECK: argument type mismatch for operator '+' of type 'Arithmetic<j>'.
-    // CHECK: argument type mismatch for operator '*' of type 'Arithmetic<j>'.
+    // CHECK: argument type mismatch for operator '+' of type 'Arithmetic[int64]'.
+    // CHECK: argument type mismatch for operator '*' of type 'Arithmetic[int64]'.
 }
 
 func t_bit(a Bitwise[int], b Bitwise[int]) Bitwise[int] {
     return a & b | a ^ b << b >> a
-    // CHECK: argument type mismatch for operator '&' of type 'Bitwise<j>'.
-    // CHECK: argument type mismatch for operator '<<' of type 'Bitwise<j>'.
+    // CHECK: argument type mismatch for operator '&' of type 'Bitwise[int64]'.
+    // CHECK: argument type mismatch for operator '<<' of type 'Bitwise[int64]'.
 }
 
 func t_cmp(a Comparable[int], b Comparable[int]) bool {
     return a < b && a <= b && a > b && a >= b && a == b && a != b
-    // CHECK: argument type mismatch for operator '<' of type 'Comparable<j>'.
-    // CHECK: argument type mismatch for operator '<=' of type 'Comparable<j>'.
+    // CHECK: argument type mismatch for operator '<' of type 'Comparable[int64]'.
+    // CHECK: argument type mismatch for operator '<=' of type 'Comparable[int64]'.
 }
 
 // concrete -> trait widening requires the conformance to carry exactly the

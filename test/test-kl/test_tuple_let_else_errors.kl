@@ -50,7 +50,7 @@ func no_block() int {
 
 // the syntax error is reported first, then the semantic errors
 // CHECK: expected '{' after 'else' in let-else.
-// CHECK-NEXT: 'let-else' requires an optional value, but got 'std/builtin.tuple<jj>'.
+// CHECK-NEXT: 'let-else' requires an optional value, but got 'std/builtin.tuple[int64, int64]'.
 // CHECK-NEXT: cannot destructure non-tuple type 'int64?'.
 // CHECK-NEXT: 3 names cannot destructure a tuple of 2 elements.
 // CHECK-NEXT: 'let-else' block must exit the current scope (use return, break, continue, panic or unreachable).

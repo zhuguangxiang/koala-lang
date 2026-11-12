@@ -27,31 +27,31 @@ func main() {
 // CHECK-LABEL: func @main()
 // CHECK: %bb0(entry):
 // CHECK: %0 = build_intern @list
-// CHECK: %l0 = local [immutable] std/builtin.list<o>
-// CHECK: move %l0 std/builtin.list<o>, %0 std/builtin.list<o>
-// CHECK: %1 = build_intern @tuple, %l0 std/builtin.list<o>
-// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple<Lstd/builtin.list<o>;>, ' ' str, '\n' str
+// CHECK: %l0 = local [immutable] std/builtin.list[any]
+// CHECK: move %l0 std/builtin.list[any], %0 std/builtin.list[any]
+// CHECK: %1 = build_intern @tuple, %l0 std/builtin.list[any]
+// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[std/builtin.list[any]], ' ' str, '\n' str
 // CHECK: %2 = build_intern @list, 1 int64, 2 int64, 3 int64
-// CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, %2 std/builtin.list<j>
-// CHECK: %3 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %l = local [immutable] std/builtin.list[int64]
+// CHECK: move %l std/builtin.list[int64], %2 std/builtin.list[int64]
+// CHECK: %3 = call @list:len [path = 'std/builtin'], %l std/builtin.list[int64]
 // CHECK: %4 = build_intern @tuple, 'length of l:' str, %3 int64
-// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple<uj>, ' ' str, '\n' str
-// CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
-// CHECK: %5 = build_intern @tuple, %l std/builtin.list<j>
-// CHECK: call @print [path = 'std/prelude'], %5 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
-// CHECK: %6 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple[str, int64], ' ' str, '\n' str
+// CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list[int64], 4 int64
+// CHECK: %5 = build_intern @tuple, %l std/builtin.list[int64]
+// CHECK: call @print [path = 'std/prelude'], %5 std/builtin.tuple[std/builtin.list[int64]], ' ' str, '\n' str
+// CHECK: %6 = call @list:len [path = 'std/builtin'], %l std/builtin.list[int64]
 // CHECK: %7 = build_intern @tuple, 'length of l:' str, %6 int64
-// CHECK: call @print [path = 'std/prelude'], %7 std/builtin.tuple<uj>, ' ' str, '\n' str
-// CHECK: %t = local [immutable] std/builtin.tuple<jj_?>
-// CHECK: move %t std/builtin.tuple<jj_?>, tuple(1, 2, nil) std/builtin.tuple<jj_?>
-// CHECK: %8 = build_intern @tuple, %t std/builtin.tuple<jj_?>
-// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple<Lstd/builtin.tuple<jj_?>;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %7 std/builtin.tuple[str, int64], ' ' str, '\n' str
+// CHECK: %t = local [immutable] std/builtin.tuple[int64, int64, _?]
+// CHECK: move %t std/builtin.tuple[int64, int64, _?], tuple(1, 2, nil) std/builtin.tuple[int64, int64, _?]
+// CHECK: %8 = build_intern @tuple, %t std/builtin.tuple[int64, int64, _?]
+// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple[std/builtin.tuple[int64, int64, _?]], ' ' str, '\n' str
 // CHECK: %9 = call @new_list [const], 300 int64
-// CHECK: %l2 = local [immutable] std/builtin.list<j>
-// CHECK: move %l2 std/builtin.list<j>, %9 std/builtin.list<j>
-// CHECK: %10 = build_intern @tuple, %l2 std/builtin.list<j>
-// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
+// CHECK: %l2 = local [immutable] std/builtin.list[int64]
+// CHECK: move %l2 std/builtin.list[int64], %9 std/builtin.list[int64]
+// CHECK: %10 = build_intern @tuple, %l2 std/builtin.list[int64]
+// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple[std/builtin.list[int64]], ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: @main[9,64]:

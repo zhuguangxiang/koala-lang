@@ -56,17 +56,17 @@ func main() {
 
 // CHECK-LABEL: func @probe_int64(%x int64, %y int64) int64 {
 // CHECK: build_intern @list, %x int64, %y int64
-// CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: %s = local [immutable] std/builtin.Sequence<j>
-// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
-// CHECK: [[C:%[0-9]+]] = new @test_specialized_generic_intf.Cell<j>
-// CHECK: call @Cell:__init__, [[C]] test_specialized_generic_intf.Cell<j>, %x int64
-// CHECK: %g = local [immutable] test_specialized_generic_intf.Getter<j>
-// CHECK: make_intf %c test_specialized_generic_intf.Cell<j> [intf-table-index = 4] to test_specialized_generic_intf.Getter
-// CHECK: [[IT:%[0-9]+]] = make_intf %l std/builtin.list<j> [intf-table-index = 4] to std/builtin.Iterable
+// CHECK: %l = local [immutable] std/builtin.list[int64]
+// CHECK: %s = local [immutable] std/builtin.Sequence[int64]
+// CHECK: make_intf %l std/builtin.list[int64] [intf-table-index = 6] to std/builtin.Sequence
+// CHECK: [[C:%[0-9]+]] = new @test_specialized_generic_intf.Cell[int64]
+// CHECK: call @Cell:__init__, [[C]] test_specialized_generic_intf.Cell[int64], %x int64
+// CHECK: %g = local [immutable] test_specialized_generic_intf.Getter[int64]
+// CHECK: make_intf %c test_specialized_generic_intf.Cell[int64] [intf-table-index = 4] to test_specialized_generic_intf.Getter
+// CHECK: [[IT:%[0-9]+]] = make_intf %l std/builtin.list[int64] [intf-table-index = 4] to std/builtin.Iterable
 // CHECK: call @count, [[IT]] std/builtin.Iterable
-// CHECK: call @std/builtin.Sequence<j>:len [intf-index = 1], %s std/builtin.Sequence<j>
-// CHECK: call @Getter:fetch [intf-index = 0], %g test_specialized_generic_intf.Getter<j>
+// CHECK: call @std/builtin.Sequence[int64]:len [intf-index = 1], %s std/builtin.Sequence[int64]
+// CHECK: call @Getter:fetch [intf-index = 0], %g test_specialized_generic_intf.Getter[int64]
 // CHECK: ret %8 int64
 
 // CHECK: {{^}}2 2{{$}}

@@ -207,7 +207,7 @@ func main() {
 // CHECK: call @Shape:area [intf-index = 0], %v test_intf_optional.Shape
 // `Getter[int]?` as a parameter type dispatches through Getter's slot table
 // CHECK-LABEL: func @get_or(
-// CHECK: call @Getter:get [intf-index = 0], %v test_intf_optional.Getter<j>
+// CHECK: call @Getter:get [intf-index = 0], %v test_intf_optional.Getter[int64]
 
 // CHECK-LABEL: func @main()
 // CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to test_intf_optional.Shape
@@ -217,11 +217,11 @@ func main() {
 // CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to Doubler:T
 // generic instances are wrapped with the canonical type spec of the origin trait
 // CHECK: make_intf {{%[0-9]+}} test_intf_optional.IntGetter [intf-table-index = 4] to test_intf_optional.Getter
-// CHECK: call @Getter:get [intf-index = 0], %g test_intf_optional.Getter<j>
+// CHECK: call @Getter:get [intf-index = 0], %g test_intf_optional.Getter[int64]
 // CHECK: make_intf {{%[0-9]+}} test_intf_optional.CountDown [intf-table-index = 4] to std/builtin.Iterator
-// CHECK: call @std/builtin.Iterator<j>:has_next [intf-index = 0], %it std/builtin.Iterator<j>
-// CHECK: call @std/builtin.Iterator<j>:next_strict [intf-index = 1], %it std/builtin.Iterator<j>
-// CHECK: call @std/builtin.Iterator<j>:next [intf-index = 2], %i std/builtin.Iterator<j>
+// CHECK: call @std/builtin.Iterator[int64]:has_next [intf-index = 0], %it std/builtin.Iterator[int64]
+// CHECK: call @std/builtin.Iterator[int64]:next_strict [intf-index = 1], %it std/builtin.Iterator[int64]
+// CHECK: call @std/builtin.Iterator[int64]:next [intf-index = 2], %i std/builtin.Iterator[int64]
 // the value already carries its trait's itable, so merely adding nullability
 // (`Shape` -> `Shape?`, `Getter[int]` -> `Getter[int]?`) must not emit an
 // upcast: that would swap the itable for one of its parent slots
@@ -235,8 +235,8 @@ func main() {
 // CHECK: make_intf {{%[0-9]+}} test_intf_optional.IntGetter [intf-table-index = 4] to test_intf_optional.Getter
 // CHECK: call @Getter:get [intf-index = 0], nargs=1
 // CHECK: make_intf {{%[0-9]+}} test_intf_optional.CountDown [intf-table-index = 4] to std/builtin.Iterator
-// CHECK: call @std/builtin.Iterator<j>:has_next [intf-index = 0], nargs=1
-// CHECK: call @std/builtin.Iterator<j>:next_strict [intf-index = 1], nargs=1
+// CHECK: call @std/builtin.Iterator[int64]:has_next [intf-index = 0], nargs=1
+// CHECK: call @std/builtin.Iterator[int64]:next_strict [intf-index = 1], nargs=1
 // CHECK-NOT: upcast_intf
 
 // runtime

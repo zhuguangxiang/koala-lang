@@ -30,30 +30,30 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @test_5() <NO-TYPE> {
 // CHECK: cast %n any? to any
-// CHECK: std/builtin.tuple<o>, ' ' str
+// CHECK: std/builtin.tuple[any], ' ' str
 
 // no-opt IR: no cast for the optional itself, tuple<o?>
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @test_6() <NO-TYPE> {
 // CHECK-NOT: cast
-// CHECK: std/builtin.tuple<o?>, ' ' str
+// CHECK: std/builtin.tuple[any?], ' ' str
 
 // no-opt IR: uint8? unwrap, tuple<C>
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @test_7() <NO-TYPE> {
 // CHECK: cast %u uint8? to uint8
-// CHECK: std/builtin.tuple<C>, ' ' str
+// CHECK: std/builtin.tuple[uint8], ' ' str
 
 // optimized IR: the casts are folded away, both any? prints load -3 int64
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_5] ---
 // CHECK: build_intern @tuple, -3 int64
-// CHECK: std/builtin.tuple<o>, ' ' str
+// CHECK: std/builtin.tuple[any], ' ' str
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_6] ---
 // CHECK: build_intern @tuple, -3 int64
-// CHECK: std/builtin.tuple<o?>, ' ' str
+// CHECK: std/builtin.tuple[any?], ' ' str
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_7] ---
 // CHECK: build_intern @tuple, 200 uint8
-// CHECK: std/builtin.tuple<C>, ' ' str
+// CHECK: std/builtin.tuple[uint8], ' ' str
 
 // output
 // CHECK: {{^}}-3{{$}}

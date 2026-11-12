@@ -101,7 +101,7 @@ flag(f = 1)
 
 // a list literal of the wrong element type
 take(xs = ["a", "b"], n = 1)
-// CHECK: Incompatible type: expected 'std/builtin.list<j>', but got 'std/builtin.list<u>'.
+// CHECK: Incompatible type: expected 'std/builtin.list[int64]', but got 'std/builtin.list[str]'.
 
 // the scalar parameter beside a correct list literal
 take(xs = [1, 2], n = "x")
@@ -109,7 +109,7 @@ take(xs = [1, 2], n = "x")
 
 // a dict literal of the wrong value type
 lookup(d = {"a": "b"}, k = "a")
-// CHECK: Incompatible type: expected 'std/builtin.dict<uj>', but got 'std/builtin.dict<uu>'.
+// CHECK: Incompatible type: expected 'std/builtin.dict[str, int64]', but got 'std/builtin.dict[str, str]'.
 
 // a str is not an optional int
 opt(v = "x")

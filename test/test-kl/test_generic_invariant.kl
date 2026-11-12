@@ -42,18 +42,18 @@ func main() {
 }
 
 // CHECK: Types of two sides are not matched.
-// CHECK-NEXT: lhs: std/builtin.list<Ltest_generic_invariant.Animal;> =/= rhs: std/builtin.list<Ltest_generic_invariant.Dog;>
-// CHECK-NEXT: Incompatible type: expected 'std/builtin.list<Ltest_generic_invariant.Animal;>', but got 'std/builtin.list<Ltest_generic_invariant.Dog;>'.
+// CHECK-NEXT: lhs: std/builtin.list[test_generic_invariant.Animal] =/= rhs: std/builtin.list[test_generic_invariant.Dog]
+// CHECK-NEXT: Incompatible type: expected 'std/builtin.list[test_generic_invariant.Animal]', but got 'std/builtin.list[test_generic_invariant.Dog]'.
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: std/builtin.Iterable<Ltest_generic_invariant.Animal;> =/= rhs: std/builtin.list<Ltest_generic_invariant.Dog;>
+// CHECK-NEXT: lhs: std/builtin.Iterable[test_generic_invariant.Animal] =/= rhs: std/builtin.list[test_generic_invariant.Dog]
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: std/builtin.dict<uLtest_generic_invariant.Animal;> =/= rhs: std/builtin.dict<uLtest_generic_invariant.Dog;>
+// CHECK-NEXT: lhs: std/builtin.dict[str, test_generic_invariant.Animal] =/= rhs: std/builtin.dict[str, test_generic_invariant.Dog]
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: std/builtin.list<Ltest_generic_invariant.Foo<Ltest_generic_invariant.Animal;>;> =/= rhs: std/builtin.list<Ltest_generic_invariant.Foo<Ltest_generic_invariant.Dog;>;>
+// CHECK-NEXT: lhs: std/builtin.list[test_generic_invariant.Foo[test_generic_invariant.Animal]] =/= rhs: std/builtin.list[test_generic_invariant.Foo[test_generic_invariant.Dog]]
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: test_generic_invariant.Foo<Ltest_generic_invariant.Animal;> =/= rhs: test_generic_invariant.Foo<Ltest_generic_invariant.Dog;>
+// CHECK-NEXT: lhs: test_generic_invariant.Foo[test_generic_invariant.Animal] =/= rhs: test_generic_invariant.Foo[test_generic_invariant.Dog]
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: std/builtin.list<Lstd/builtin.list<Ltest_generic_invariant.Animal;>;> =/= rhs: std/builtin.list<Lstd/builtin.list<Ltest_generic_invariant.Dog;>;>
+// CHECK-NEXT: lhs: std/builtin.list[std/builtin.list[test_generic_invariant.Animal]] =/= rhs: std/builtin.list[std/builtin.list[test_generic_invariant.Dog]]
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: std/builtin.tuple<Ltest_generic_invariant.Animal;j> =/= rhs: std/builtin.tuple<Ltest_generic_invariant.Dog;j>
+// CHECK-NEXT: lhs: std/builtin.tuple[test_generic_invariant.Animal, int64] =/= rhs: std/builtin.tuple[test_generic_invariant.Dog, int64]
 // CHECK-NOT: {{.}}

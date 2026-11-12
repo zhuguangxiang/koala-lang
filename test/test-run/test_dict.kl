@@ -19,16 +19,16 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
 // CHECK: %0 = build_intern @map
-// CHECK: %d0 = local [immutable] std/builtin.dict<oo>
-// CHECK: move %d0 std/builtin.dict<oo>, %0 std/builtin.dict<oo>
+// CHECK: %d0 = local [immutable] std/builtin.dict[any, any]
+// CHECK: move %d0 std/builtin.dict[any, any], %0 std/builtin.dict[any, any]
 // CHECK: %2 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
-// CHECK: %d = local [immutable] std/builtin.dict<jj>
-// CHECK: move %d std/builtin.dict<jj>, %2 std/builtin.dict<jj>
+// CHECK: %d = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: move %d std/builtin.dict[int64, int64], %2 std/builtin.dict[int64, int64]
 // CHECK: %x = local [immutable] int64
 // CHECK: move %x int64, 5 int64
 // CHECK: %4 = build_intern @map, 1 int64, %x int64, 3 int64, 4 int64
-// CHECK: %d2 = local [immutable] std/builtin.dict<jj>
-// CHECK: move %d2 std/builtin.dict<jj>, %4 std/builtin.dict<jj>
+// CHECK: %d2 = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: move %d2 std/builtin.dict[int64, int64], %4 std/builtin.dict[int64, int64]
 // CHECK: ret void
 
 // Every map is built at run time: `{1: x, 3: 4}` gets x's value 5 by const

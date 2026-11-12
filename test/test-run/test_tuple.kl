@@ -23,26 +23,26 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
 // CHECK-LABEL: %bb0(entry):
-// CHECK: %t = local [immutable] std/builtin.tuple<jjj>
-// CHECK: move %t std/builtin.tuple<jjj>, tuple(1, 2, 3) std/builtin.tuple<jjj>
-// CHECK: %0 = call @tuple:to_list [path = 'std/builtin'], %t std/builtin.tuple<jjj>
-// CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
-// CHECK: %t1 = local [immutable] std/builtin.tuple<juz>
-// CHECK: move %t1 std/builtin.tuple<juz>, tuple(1, 'a', true) std/builtin.tuple<juz>
-// CHECK: %1 = call @tuple:to_list [path = 'std/builtin'], %t1 std/builtin.tuple<juz>
-// CHECK: %l1 = local [immutable] std/builtin.list<o>
-// CHECK: move %l1 std/builtin.list<o>, %1 std/builtin.list<o>
-// CHECK: %2 = build_intern @tuple, %t1 std/builtin.tuple<juz>, %l1 std/builtin.list<o>
-// CHECK: call @print [path = 'std/prelude'], %2 std/builtin.tuple<Lstd/builtin.tuple<juz>;Lstd/builtin.list<o>;>, ' ' str, '\n' str
-// CHECK: %3 = call @foo [const], 4 int64, 5 int64, tuple(6, 7) std/builtin.tuple<jj>
-// CHECK: %t2 = local [immutable] std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>
-// CHECK: move %t2 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>, %3 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>
-// CHECK: %4 = build_intern @tuple, %t2 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>
-// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple<Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;>, ' ' str, '\n' str
-// CHECK: %5 = build_intern @tuple, %t std/builtin.tuple<jjj>, %t2 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>, 6 int64
-// CHECK: %t3 = local [immutable] std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;j>
-// CHECK: move %t3 std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;j>, %5 std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;j>
+// CHECK: %t = local [immutable] std/builtin.tuple[int64, int64, int64]
+// CHECK: move %t std/builtin.tuple[int64, int64, int64], tuple(1, 2, 3) std/builtin.tuple[int64, int64, int64]
+// CHECK: %0 = call @tuple:to_list [path = 'std/builtin'], %t std/builtin.tuple[int64, int64, int64]
+// CHECK: %l = local [immutable] std/builtin.list[int64]
+// CHECK: move %l std/builtin.list[int64], %0 std/builtin.list[int64]
+// CHECK: %t1 = local [immutable] std/builtin.tuple[int64, str, bool]
+// CHECK: move %t1 std/builtin.tuple[int64, str, bool], tuple(1, 'a', true) std/builtin.tuple[int64, str, bool]
+// CHECK: %1 = call @tuple:to_list [path = 'std/builtin'], %t1 std/builtin.tuple[int64, str, bool]
+// CHECK: %l1 = local [immutable] std/builtin.list[any]
+// CHECK: move %l1 std/builtin.list[any], %1 std/builtin.list[any]
+// CHECK: %2 = build_intern @tuple, %t1 std/builtin.tuple[int64, str, bool], %l1 std/builtin.list[any]
+// CHECK: call @print [path = 'std/prelude'], %2 std/builtin.tuple[std/builtin.tuple[int64, str, bool], std/builtin.list[any]], ' ' str, '\n' str
+// CHECK: %3 = call @foo [const], 4 int64, 5 int64, tuple(6, 7) std/builtin.tuple[int64, int64]
+// CHECK: %t2 = local [immutable] std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
+// CHECK: move %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], %3 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
+// CHECK: %4 = build_intern @tuple, %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
+// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple[std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]], ' ' str, '\n' str
+// CHECK: %5 = build_intern @tuple, %t std/builtin.tuple[int64, int64, int64], %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], 6 int64
+// CHECK: %t3 = local [immutable] std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], int64]
+// CHECK: move %t3 std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], int64], %5 std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], int64]
 
 // CHECK-LABEL: @main[9,44]:
 // CHECK: loadk r1, #3

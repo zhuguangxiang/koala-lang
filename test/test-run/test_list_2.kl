@@ -23,31 +23,31 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @new_list(%x int64) std/builtin.list<j>
+// CHECK-LABEL: func @new_list(%x int64) std/builtin.list[int64]
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %0 = build_intern @list, 100 int64, 200 int64
-// CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
-// CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list<j>, %x int64
-// CHECK: ret %l std/builtin.list<j>
+// CHECK: %l = local [immutable] std/builtin.list[int64]
+// CHECK: move %l std/builtin.list[int64], %0 std/builtin.list[int64]
+// CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list[int64], %x int64
+// CHECK: ret %l std/builtin.list[int64]
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
 // CHECK: %bb0(entry):
 // CHECK: %0 = call @new_list [const], 300 int64
-// CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
-// CHECK: %1 = build_intern @tuple, %l std/builtin.list<j>
-// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
-// CHECK: %2 = seq.get %l std/builtin.list<j>, 0 int64
+// CHECK: %l = local [immutable] std/builtin.list[int64]
+// CHECK: move %l std/builtin.list[int64], %0 std/builtin.list[int64]
+// CHECK: %1 = build_intern @tuple, %l std/builtin.list[int64]
+// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[std/builtin.list[int64]], ' ' str, '\n' str
+// CHECK: %2 = seq.get %l std/builtin.list[int64], 0 int64
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %2 int64
 // CHECK: %3 = build_intern @tuple, %v int64
-// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK: jmp label %bb1
 
 // CHECK: %bb1(loop-header):                              ;; preds = %bb0
-// CHECK: %4 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %4 = call @list:len [path = 'std/builtin'], %l std/builtin.list[int64]
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
 // CHECK: jmp label %bb2
@@ -60,11 +60,11 @@ func main() {
 // CHECK: branch %8 bool, label %bb3, label %bb5
 
 // CHECK: %bb3(loop-body):                                ;; preds = %bb2
-// CHECK: %9 = seq.get %l std/builtin.list<j>, %i int64
+// CHECK: %9 = seq.get %l std/builtin.list[int64], %i int64
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %9 int64
 // CHECK: %10 = build_intern @tuple, %v int64
-// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK: jmp label %bb4
 
 // CHECK: %bb4(loop-cond-incr):                           ;; preds = %bb3
@@ -76,7 +76,7 @@ func main() {
 // CHECK: %r = local [immutable] std/builtin.range
 // CHECK: move %r std/builtin.range, range(0, 10, 1) std/builtin.range
 // CHECK: %12 = build_intern @tuple, %r std/builtin.range
-// CHECK: call @print [path = 'std/prelude'], %12 std/builtin.tuple<Lstd/builtin.range;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %12 std/builtin.tuple[std/builtin.range], ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK: [100, 200, 300]

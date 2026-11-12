@@ -75,50 +75,50 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = new @z.Duck<ju>
-// CHECK: call @Duck:__init__, %0 z.Duck<ju>, 42 int64, 'hello' str
-// CHECK: %d = local [immutable] z.Duck<ju>
-// CHECK: move %d z.Duck<ju>, %0 z.Duck<ju>
-// CHECK: %fly = local [immutable] z.Fly<j>
-// CHECK: %1 = make_intf %d z.Duck<ju> [intf-table-index = 4] to z.Fly
-// CHECK: move %fly z.Fly<j>, %1 z.Fly
-// CHECK: %swim = local [immutable] z.Swim<u>
-// CHECK: %2 = make_intf %d z.Duck<ju> [intf-table-index = 6] to z.Swim
-// CHECK: move %swim z.Swim<u>, %2 z.Swim
-// CHECK: %bird = local [immutable] z.Bird<j>
-// CHECK: %3 = make_intf %d z.Duck<ju> [intf-table-index = 5] to z.Bird
-// CHECK: move %bird z.Bird<j>, %3 z.Bird
-// CHECK: %fish = local [immutable] z.Fish<u>
-// CHECK: %4 = make_intf %d z.Duck<ju> [intf-table-index = 7] to z.Fish
-// CHECK: move %fish z.Fish<u>, %4 z.Fish
-// CHECK: %5 = call @Fly:fly [intf-index = 0], %fly z.Fly<j>
+// CHECK: %0 = new @z.Duck[int64, str]
+// CHECK: call @Duck:__init__, %0 z.Duck[int64, str], 42 int64, 'hello' str
+// CHECK: %d = local [immutable] z.Duck[int64, str]
+// CHECK: move %d z.Duck[int64, str], %0 z.Duck[int64, str]
+// CHECK: %fly = local [immutable] z.Fly[int64]
+// CHECK: %1 = make_intf %d z.Duck[int64, str] [intf-table-index = 4] to z.Fly
+// CHECK: move %fly z.Fly[int64], %1 z.Fly
+// CHECK: %swim = local [immutable] z.Swim[str]
+// CHECK: %2 = make_intf %d z.Duck[int64, str] [intf-table-index = 6] to z.Swim
+// CHECK: move %swim z.Swim[str], %2 z.Swim
+// CHECK: %bird = local [immutable] z.Bird[int64]
+// CHECK: %3 = make_intf %d z.Duck[int64, str] [intf-table-index = 5] to z.Bird
+// CHECK: move %bird z.Bird[int64], %3 z.Bird
+// CHECK: %fish = local [immutable] z.Fish[str]
+// CHECK: %4 = make_intf %d z.Duck[int64, str] [intf-table-index = 7] to z.Fish
+// CHECK: move %fish z.Fish[str], %4 z.Fish
+// CHECK: %5 = call @Fly:fly [intf-index = 0], %fly z.Fly[int64]
 // CHECK: %6 = build_intern @tuple, %5 int64
-// CHECK: call @print [path = 'std/prelude'], %6 std/builtin.tuple<j>, ' ' str, '\n' str
-// CHECK: %7 = call @Swim:swim [intf-index = 0], %swim z.Swim<u>
+// CHECK: call @print [path = 'std/prelude'], %6 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK: %7 = call @Swim:swim [intf-index = 0], %swim z.Swim[str]
 // CHECK: %8 = build_intern @tuple, %7 str
-// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple<u>, ' ' str, '\n' str
-// CHECK: %9 = call @Bird:bird [intf-index = 1], %bird z.Bird<j>
+// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK: %9 = call @Bird:bird [intf-index = 1], %bird z.Bird[int64]
 // CHECK: %10 = build_intern @tuple, %9 int64
-// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple<j>, ' ' str, '\n' str
-// CHECK: %11 = call @Fish:fish [intf-index = 1], %fish z.Fish<u>
+// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK: %11 = call @Fish:fish [intf-index = 1], %fish z.Fish[str]
 // CHECK: %12 = build_intern @tuple, %11 str
-// CHECK: call @print [path = 'std/prelude'], %12 std/builtin.tuple<u>, ' ' str, '\n' str
-// CHECK: %fly2 = local [immutable] z.Fly<j>
-// CHECK: %13 = upcast_intf %bird z.Bird<j> [intf-table-index = 1] to z.Fly
-// CHECK: move %fly2 z.Fly<j>, %13 z.Fly
-// CHECK: %14 = call @Fly:fly [intf-index = 0], %fly2 z.Fly<j>
+// CHECK: call @print [path = 'std/prelude'], %12 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK: %fly2 = local [immutable] z.Fly[int64]
+// CHECK: %13 = upcast_intf %bird z.Bird[int64] [intf-table-index = 1] to z.Fly
+// CHECK: move %fly2 z.Fly[int64], %13 z.Fly
+// CHECK: %14 = call @Fly:fly [intf-index = 0], %fly2 z.Fly[int64]
 // CHECK: %15 = build_intern @tuple, %14 int64
-// CHECK: call @print [path = 'std/prelude'], %15 std/builtin.tuple<j>, ' ' str, '\n' str
-// CHECK: call @print_int_fly, %fly2 z.Fly<j>
-// CHECK: %16 = upcast_intf %bird z.Bird<j> [intf-table-index = 1] to z.Fly
+// CHECK: call @print [path = 'std/prelude'], %15 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK: call @print_int_fly, %fly2 z.Fly[int64]
+// CHECK: %16 = upcast_intf %bird z.Bird[int64] [intf-table-index = 1] to z.Fly
 // CHECK: call @print_int_fly, %16 z.Fly
-// CHECK: %swim2 = local [immutable] z.Swim<u>
-// CHECK: %17 = upcast_intf %fish z.Fish<u> [intf-table-index = 1] to z.Swim
-// CHECK: move %swim2 z.Swim<u>, %17 z.Swim
-// CHECK: %18 = call @Swim:swim [intf-index = 0], %swim2 z.Swim<u>
+// CHECK: %swim2 = local [immutable] z.Swim[str]
+// CHECK: %17 = upcast_intf %fish z.Fish[str] [intf-table-index = 1] to z.Swim
+// CHECK: move %swim2 z.Swim[str], %17 z.Swim
+// CHECK: %18 = call @Swim:swim [intf-index = 0], %swim2 z.Swim[str]
 // CHECK: %19 = build_intern @tuple, %18 str
-// CHECK: call @print [path = 'std/prelude'], %19 std/builtin.tuple<u>, ' ' str, '\n' str
-// CHECK: call @print_str_swim, %swim2 z.Swim<u>
-// CHECK: %20 = upcast_intf %fish z.Fish<u> [intf-table-index = 1] to z.Swim
+// CHECK: call @print [path = 'std/prelude'], %19 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK: call @print_str_swim, %swim2 z.Swim[str]
+// CHECK: %20 = upcast_intf %fish z.Fish[str] [intf-table-index = 1] to z.Swim
 // CHECK: call @print_str_swim, %20 z.Swim
 // CHECK: ret void

@@ -50,7 +50,7 @@ func optional_rhs() {
     var b = 2
     (a, b) = maybe_pair()
 }
-// CHECK: cannot destructure optional type 'std/builtin.tuple<jj>?', unwrap it first.
+// CHECK: cannot destructure optional type 'std/builtin.tuple[int64, int64]?', unwrap it first.
 
 func wrong_count() {
     var a = 1

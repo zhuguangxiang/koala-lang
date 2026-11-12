@@ -18,9 +18,8 @@ func const_map() dict[int, int] {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@const_map] ---
 // CHECK: %0 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
-// CHECK-NOT: dict[
-// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
+// CHECK: ret %m std/builtin.dict[int64, int64]
 
 func build_map(x int) dict[int, int] {
     let m = {1: x}
@@ -29,8 +28,7 @@ func build_map(x int) dict[int, int] {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@build_map] ---
 // CHECK: %0 = build_intern @map, 1 int64, %x int64
-// CHECK-NOT: dict[
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: ret %m std/builtin.dict[int64, int64]
 
 // the map built in each branch is kept, cfg-bb-opt neither merges nor drops it
 func branches(x bool) dict[int, int] {
@@ -44,12 +42,12 @@ func branches(x bool) dict[int, int] {
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@branches] ---
 // CHECK: %bb0(entry):
 // CHECK: %0 = build_intern @map, 1 int64, 2 int64
-// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 // CHECK: %bb1(if-then):
 // CHECK: %1 = build_intern @map, 3 int64, 4 int64
-// CHECK: move %m std/builtin.dict<jj>, %1 std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %1 std/builtin.dict[int64, int64]
 // CHECK: %bb2(if-end):
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: ret %m std/builtin.dict[int64, int64]
 
 // after const propagation turns %k into 1, every operand is a constant, but
 // it stays build_intern @map: a dict is mutable, so each evaluation builds one.
@@ -61,8 +59,7 @@ func prop_key() dict[int, int] {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@prop_key] ---
 // CHECK: %0 = build_intern @map, 1 int64, 2 int64
-// CHECK-NOT: dict[
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: ret %m std/builtin.dict[int64, int64]
 
 func dead_map(x int) int {
     let m = {1: x}

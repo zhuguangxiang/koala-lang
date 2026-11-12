@@ -27,13 +27,13 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @foo(%x std/builtin.list<j>, %out std/builtin.list<j>)
+// CHECK-LABEL: func @foo(%x std/builtin.list[int64], %out std/builtin.list[int64])
 // CHECK: %bb0(entry):
 // CHECK: jmp label %bb1
 
 // CHECK: %bb1(loop-header):                              ;; preds = %bb0
 // CHECK: %seq.index = local int64
-// CHECK: %0 = len %x std/builtin.list<j>
+// CHECK: %0 = len %x std/builtin.list[int64]
 // CHECK: move %seq.index int64, 0 int64
 // CHECK: jmp label %bb2
 
@@ -43,9 +43,9 @@ func main() {
 
 // CHECK: %bb3(loop-body):                                ;; preds = %bb2
 // CHECK: %v = local int64
-// CHECK: %2 = seq.get %x std/builtin.list<j>, %seq.index int64
+// CHECK: %2 = seq.get %x std/builtin.list[int64], %seq.index int64
 // CHECK: move %v int64, %2 int64
-// CHECK: call @list:append [path = 'std/builtin'], %out std/builtin.list<j>, %v int64
+// CHECK: call @list:append [path = 'std/builtin'], %out std/builtin.list[int64], %v int64
 // CHECK: jmp label %bb4
 
 // CHECK: %bb4(loop-cond-incr):                           ;; preds = %bb3

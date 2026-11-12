@@ -50,21 +50,21 @@ func main() {
 
 // CHECK-LABEL: func @probe_int64(%x int64, %y int64) int64 {
 // CHECK: build_intern @list, %x int64, %y int64
-// CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: seq.get %l std/builtin.list<j>, 0 int64
+// CHECK: %l = local [immutable] std/builtin.list[int64]
+// CHECK: seq.get %l std/builtin.list[int64], 0 int64
 // CHECK: %e = local int64
-// CHECK: %t = local [immutable] std/builtin.tuple<jj>
-// CHECK: [[C:%[0-9]+]] = new @test_specialized_types.Cell<j>
-// CHECK: call @Cell:__init__, [[C]] test_specialized_types.Cell<j>, %x int64
-// CHECK: %m = local [immutable] std/builtin.dict<jj>
-// CHECK: [[B:%[0-9]+]] = new @test_pkg/pkg3.Box<j>
-// CHECK: call @Box:__init__ [path = 'test_pkg/pkg3'], [[B]] test_pkg/pkg3.Box<j>, %y int64
-// CHECK: %ll = local [immutable] std/builtin.list<Lstd/builtin.list<j>;>
-// CHECK: %o = local std/builtin.list<j>?
-// CHECK: call @Cell:get, %c test_specialized_types.Cell<j>
-// CHECK: call @Box:get_value [path = 'test_pkg/pkg3'], %b test_pkg/pkg3.Box<j>
-// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 5] to std/builtin.Sized
-// CHECK: call @first, %l std/builtin.list<j>
+// CHECK: %t = local [immutable] std/builtin.tuple[int64, int64]
+// CHECK: [[C:%[0-9]+]] = new @test_specialized_types.Cell[int64]
+// CHECK: call @Cell:__init__, [[C]] test_specialized_types.Cell[int64], %x int64
+// CHECK: %m = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: [[B:%[0-9]+]] = new @test_pkg/pkg3.Box[int64]
+// CHECK: call @Box:__init__ [path = 'test_pkg/pkg3'], [[B]] test_pkg/pkg3.Box[int64], %y int64
+// CHECK: %ll = local [immutable] std/builtin.list[std/builtin.list[int64]]
+// CHECK: %o = local std/builtin.list[int64]?
+// CHECK: call @Cell:get, %c test_specialized_types.Cell[int64]
+// CHECK: call @Box:get_value [path = 'test_pkg/pkg3'], %b test_pkg/pkg3.Box[int64]
+// CHECK: make_intf %l std/builtin.list[int64] [intf-table-index = 5] to std/builtin.Sized
+// CHECK: call @first, %l std/builtin.list[int64]
 // CHECK: ret %total int64
 
 // CHECK: [3, 4] (3, 4) 3 {3: 4} 4 {{\[\[}}3, 4], [4]] [3, 4] 2 3

@@ -43,7 +43,7 @@ func main() {
 // CHECK: call @takes_ts, [[Y]] std/builtin.ToString
 // CHECK: call @std/builtin.ToString:to_str [intf-index = 0], %t std/builtin.ToString
 
-// CHECK-LABEL: func @as_eq_int64(%x int64) std/builtin.Equatable<j> {
+// CHECK-LABEL: func @as_eq_int64(%x int64) std/builtin.Equatable[int64] {
 // CHECK: make_intf %x int64 [intf-table-index = 3] to std/builtin.Equatable
 
 // CHECK: {{^}}334{{$}}

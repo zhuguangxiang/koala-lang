@@ -8,15 +8,15 @@ func take_opt(p (int?, int)) {}
 func nil_for_plain() {
     take((nil, 1))
 }
-// CHECK: Incompatible type: expected 'std/builtin.tuple<jj>', but got 'std/builtin.tuple<_?j>'.
+// CHECK: Incompatible type: expected 'std/builtin.tuple[int64, int64]', but got 'std/builtin.tuple[_?, int64]'.
 
 func wrong_type() {
     take_opt(("x", 1))
 }
-// CHECK: Incompatible type: expected 'std/builtin.tuple<j?j>', but got 'std/builtin.tuple<uj>'.
+// CHECK: Incompatible type: expected 'std/builtin.tuple[int64?, int64]', but got 'std/builtin.tuple[str, int64]'.
 
 func wrong_size() {
     take((1, 2, 3))
 }
-// CHECK: Incompatible type: expected 'std/builtin.tuple<jj>', but got 'std/builtin.tuple<jjj>'.
+// CHECK: Incompatible type: expected 'std/builtin.tuple[int64, int64]', but got 'std/builtin.tuple[int64, int64, int64]'.
 // CHECK-NOT: error:

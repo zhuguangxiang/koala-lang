@@ -24,8 +24,8 @@ func main() {
 // CHECK: set_field %r test_pkg/pkg_field.Rec, a(index=1), 42 int64
 // CHECK: get_field %r test_pkg/pkg_field.Rec, a(index=1)
 // CHECK: get_field %r test_pkg/pkg_field.Rec, b(index=3)
-// CHECK: set_field %c test_pkg/pkg_field.Cell<j>, value(index=1), 9 int64
-// CHECK: get_field %c test_pkg/pkg_field.Cell<j>, value(index=1)
+// CHECK: set_field %c test_pkg/pkg_field.Cell[int64], value(index=1), 9 int64
+// CHECK: get_field %c test_pkg/pkg_field.Cell[int64], value(index=1)
 
 // CHECK: hidden: 100 a: 42 hidden2: secret b: changed
 // CHECK-NEXT: 42 changed

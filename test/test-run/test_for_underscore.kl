@@ -81,36 +81,36 @@ for_dict_values()
 // iterator path, single '_': next_strict is still called, its result is unused
 // CHECK-LABEL: func @for_iter() <NO-TYPE> {
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %4 = call @std/builtin.Iterator<Lstd/builtin.tuple<uj>;>:next_strict [intf-index = 1], %2 std/builtin.Iterator<Lstd/builtin.tuple<uj>;>
+// CHECK-NEXT: %4 = call @std/builtin.Iterator[std/builtin.tuple[str, int64]]:next_strict [intf-index = 1], %2 std/builtin.Iterator[std/builtin.tuple[str, int64]]
 // CHECK-NEXT: %5 = add %count int64, 1 int64
 
 // '_' in multiple vars: only the bound fields are unpacked
 // CHECK-LABEL: func @for_pairs() <NO-TYPE> {
 // (n, _): only field 0
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list[std/builtin.tuple[int64, str]], %seq.index int64
 // CHECK-NEXT: %n = local int64
-// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple[int64, str], 0 int64
 // CHECK-NEXT: move %n int64, %4 int64
 // CHECK-NEXT: %5 = build_intern @tuple, %n int64
 // _, s: only field 1
 // CHECK: %bb8(loop-body):
-// CHECK-NEXT: %9 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %9 = seq.get %pairs std/builtin.list[std/builtin.tuple[int64, str]], %seq.index int64
 // CHECK-NEXT: %s = local str
-// CHECK-NEXT: %10 = seq.get %9 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: %10 = seq.get %9 std/builtin.tuple[int64, str], 1 int64
 // CHECK-NEXT: move %s str, %10 str
 // CHECK-NEXT: %11 = build_intern @tuple, %s str
 // (_, _): the element is fetched, no field is unpacked
 // CHECK: %bb13(loop-body):
-// CHECK-NEXT: %15 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %15 = seq.get %pairs std/builtin.list[std/builtin.tuple[int64, str]], %seq.index int64
 // CHECK-NEXT: %16 = add %count int64, 1 int64
 
 // '_' in multiple vars, iterator path: only field 1
 // CHECK-LABEL: func @for_dict_values() <NO-TYPE> {
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %4 = call @std/builtin.Iterator<Lstd/builtin.tuple<uj>;>:next_strict [intf-index = 1], %2 std/builtin.Iterator<Lstd/builtin.tuple<uj>;>
+// CHECK-NEXT: %4 = call @std/builtin.Iterator[std/builtin.tuple[str, int64]]:next_strict [intf-index = 1], %2 std/builtin.Iterator[std/builtin.tuple[str, int64]]
 // CHECK-NEXT: %v = local int64
-// CHECK-NEXT: %5 = seq.get %4 std/builtin.tuple<uj>, 1 int64
+// CHECK-NEXT: %5 = seq.get %4 std/builtin.tuple[str, int64], 1 int64
 // CHECK-NEXT: move %v int64, %5 int64
 // CHECK-NEXT: %6 = add %total int64, %v int64
 

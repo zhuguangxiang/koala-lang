@@ -52,7 +52,7 @@ func main() {
 // the call result is indexed directly, no temporary local is needed
 // CHECK-LABEL: func @main()
 // CHECK: %0 = call @nums
-// CHECK-NEXT: %1 = seq.get %0 std/builtin.list<j>, 1 int64
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.list[int64], 1 int64
 
 // CHECK: {{^}}fn: 20{{$}}
 // CHECK-NEXT: {{^}}str: k{{$}}

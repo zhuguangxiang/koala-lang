@@ -94,10 +94,10 @@ from_call()
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %0 = call @divmod [const], 7 int64, 2 int64
 // CHECK-NEXT: %q = local [immutable] int64
-// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple[int64, int64], 0 int64
 // CHECK-NEXT: move %q int64, %1 int64
 // CHECK-NEXT: %r = local [immutable] int64
-// CHECK-NEXT: %2 = seq.get %0 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: %2 = seq.get %0 std/builtin.tuple[int64, int64], 1 int64
 // CHECK-NEXT: move %r int64, %2 int64
 
 // CHECK: {{^}}1 200{{$}}

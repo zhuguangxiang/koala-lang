@@ -25,5 +25,5 @@ func main() {
 // CHECK-DAG: warning: {{.*}}'@specialized' on class 'Holder' is not supported and is ignored: generic classes use type erasure.
 // CHECK-DAG: warning: {{.*}}'@specialized' on method 'get' is not supported and is ignored: only top-level generic functions are specialized.
 // CHECK-NOT: func @{{.*}}_int64
-// CHECK: call @Holder:get, %h test_specialized_ignored_warnings.Holder<j>
+// CHECK: call @Holder:get, %h test_specialized_ignored_warnings.Holder[int64]
 // CHECK: {{^}}5{{$}}

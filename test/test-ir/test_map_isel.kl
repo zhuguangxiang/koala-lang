@@ -18,9 +18,8 @@ func const_map() dict[int, int] {
 // CHECK: load_int_imm %0 int64, 1 int64
 // CHECK: load_int_imm %3 int64, 4 int64
 // CHECK: %4 = build_intern @map, nargs=4
-// CHECK-NOT: dict[
-// CHECK: move %m std/builtin.dict<jj>, %4 std/builtin.dict<jj>
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %4 std/builtin.dict[int64, int64]
+// CHECK: ret %m std/builtin.dict[int64, int64]
 
 func empty_map() dict[int, int] {
     let m dict[int, int] = {:}
@@ -29,7 +28,7 @@ func empty_map() dict[int, int] {
 
 // CHECK-LABEL: --- IR Dump After isel [@empty_map] ---
 // CHECK: %0 = build_intern @map
-// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 
 func build_map(x int) dict[int, int] {
     let m = {1: x}
@@ -42,8 +41,7 @@ func build_map(x int) dict[int, int] {
 // CHECK: %1 = local int64
 // CHECK: move %1 int64, %x int64
 // CHECK: %2 = build_intern @map, nargs=2
-// CHECK-NOT: dict[
-// CHECK: move %m std/builtin.dict<jj>, %2 std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %2 std/builtin.dict[int64, int64]
 
 func mixed(x int) dict[int, dict[int, int]] {
     let m = {x: {1: 2}}

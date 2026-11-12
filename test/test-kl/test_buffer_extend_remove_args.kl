@@ -9,9 +9,9 @@
 func main() {
     let b = Buffer()
     b.extend(123)
-    // CHECK: Incompatible type: expected 'std/builtin.Iterable<C>', but got 'int64'.
+    // CHECK: Incompatible type: expected 'std/builtin.Iterable[uint8]', but got 'int64'.
     b.extend([1, 2, 3])
-    // CHECK-NEXT: Incompatible type: expected 'std/builtin.Iterable<C>', but got 'std/builtin.list<j>'.
+    // CHECK-NEXT: Incompatible type: expected 'std/builtin.Iterable[uint8]', but got 'std/builtin.list[int64]'.
     b.remove("x")
     // CHECK-NEXT: Incompatible type: expected 'uint8', but got 'str'.
 }

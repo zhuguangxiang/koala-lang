@@ -1318,6 +1318,225 @@ TypeSpec *type_spec_from_str(const char *s)
     return __to_typespec((char **)&s);
 }
 
+/* Decode one mangled type (see type_spec_to_str) into its source-level form.
+   Display only: the mangled spelling stays the symbol identity. */
+static void __friendly_type_print(char **str, Buffer *buf)
+{
+    char *s = *str;
+    int is_func = (*s == '(');
+    BUF(tmp);
+
+    switch (*s) {
+        case 'c':
+            buf_write_str(&tmp, "int8");
+            s++;
+            break;
+        case 'C':
+            buf_write_str(&tmp, "uint8");
+            s++;
+            break;
+        case 's':
+            buf_write_str(&tmp, "int16");
+            s++;
+            break;
+        case 'S':
+            buf_write_str(&tmp, "uint16");
+            s++;
+            break;
+        case 'i':
+            buf_write_str(&tmp, "int32");
+            s++;
+            break;
+        case 'I':
+            buf_write_str(&tmp, "uint32");
+            s++;
+            break;
+        case 'j':
+            buf_write_str(&tmp, "int64");
+            s++;
+            break;
+        case 'J':
+            buf_write_str(&tmp, "uint64");
+            s++;
+            break;
+        case 'h':
+            buf_write_str(&tmp, "float16");
+            s++;
+            break;
+        case 'f':
+            buf_write_str(&tmp, "float32");
+            s++;
+            break;
+        case 'd':
+            buf_write_str(&tmp, "float64");
+            s++;
+            break;
+        case 'b':
+            buf_write_str(&tmp, "bfloat16");
+            s++;
+            break;
+        case 'u':
+            buf_write_str(&tmp, "str");
+            s++;
+            break;
+        case 'z':
+            buf_write_str(&tmp, "bool");
+            s++;
+            break;
+        case 'o':
+            buf_write_str(&tmp, "any");
+            s++;
+            break;
+        case 'L':
+        case 'E': {
+            s++;
+            char *k = s;
+            while (*s != ';' && *s != '<' && *s != '\0') s++;
+            buf_write_nstr(&tmp, k, s - k);
+            if (*s == '<') {
+                buf_write_char(&tmp, '[');
+                s++;
+                int i = 0;
+                while (*s != '>' && *s != '\0') {
+                    if (i != 0) buf_write_str(&tmp, ", ");
+                    __friendly_type_print(&s, &tmp);
+                    i++;
+                }
+                if (*s == '>') {
+                    buf_write_char(&tmp, ']');
+                    s++;
+                }
+            }
+            if (*s == ';') s++;
+            break;
+        }
+        case 'T': {
+            s++;
+            while (*s != ':' && *s != '\0') s++;
+            if (*s == ':') s++;
+            char *k = s;
+            while (*s != ';' && *s != '\0') s++;
+            buf_write_nstr(&tmp, k, s - k);
+            if (*s == ';') s++;
+            break;
+        }
+        case 'U': {
+            s++;
+            int i = 0;
+            while (*s != ';' && *s != '\0') {
+                if (i != 0) buf_write_str(&tmp, " | ");
+                __friendly_type_print(&s, &tmp);
+                i++;
+            }
+            if (*s == ';') s++;
+            break;
+        }
+        case '(': {
+            s++;
+            buf_write_str(&tmp, "func(");
+            int i = 0;
+            while (*s != ')' && *s != '\0') {
+                if (i != 0) buf_write_str(&tmp, ", ");
+                __friendly_type_print(&s, &tmp);
+                i++;
+            }
+            if (*s == ')') {
+                buf_write_char(&tmp, ')');
+                s++;
+            }
+            __friendly_type_print(&s, &tmp);
+            break;
+        }
+        case 'P': {
+            s++;
+            char *k = s;
+            while (*s != ';' && *s != '\0') s++;
+            buf_write_nstr(&tmp, k, s - k);
+            if (*s == ';') s++;
+            break;
+        }
+        case '.': {
+            if (!strncmp(s, "...", 3)) {
+                buf_write_str(&tmp, "...");
+                s += 3;
+                __friendly_type_print(&s, &tmp);
+            }
+            break;
+        }
+        default: {
+            buf_write_char(&tmp, *s);
+            s++;
+            break;
+        }
+    }
+
+    int optional = 0;
+    if (*s == '?') {
+        optional = 1;
+        s++;
+    }
+
+    /* `func(int)int?` would read as an optional return; parenthesize the func */
+    if (optional && is_func) buf_write_char(buf, '(');
+    buf_write_str(buf, BUF_STR(tmp));
+    if (optional && is_func) buf_write_char(buf, ')');
+    if (optional) buf_write_char(buf, '?');
+
+    FINI_BUF(tmp);
+    *str = s;
+}
+
+/* A klass name may carry mangled generic arguments, e.g. `list<j>` or
+   `tuple<Lstd/builtin.list<j>;>`; print them as `list[int64]`,
+   `tuple[list[int64]]`. A plain name is printed unchanged. */
+void type_spec_name_print(const char *name, Buffer *buf)
+{
+    const char *lt = strchr(name, '<');
+    if (!lt) {
+        buf_write_str(buf, name);
+        return;
+    }
+
+    buf_write_nstr(buf, name, lt - name);
+    buf_write_char(buf, '[');
+    char *s = (char *)lt + 1;
+    int i = 0;
+    while (*s != '>' && *s != '\0') {
+        if (i != 0) buf_write_str(buf, ", ");
+        __friendly_type_print(&s, buf);
+        i++;
+    }
+    buf_write_char(buf, ']');
+    /* a func name may carry a suffix after the args, e.g. `Iterator<j>:has_next` */
+    if (*s == '>') s++;
+    buf_write_str(buf, s);
+}
+
+/* Friendly rendering of a mangled symbol name for diagnostics; returns an
+   interned string. A name without generic args is returned unchanged. */
+char *type_spec_friendly_name(const char *name)
+{
+    if (!name || !strchr(name, '<')) return (char *)name;
+    BUF(buf);
+    type_spec_name_print(name, &buf);
+    char *s = atom_str(BUF_STR(buf));
+    FINI_BUF(buf);
+    return s;
+}
+
+/* Friendly rendering of a full mangled type signature for diagnostics;
+   returns an interned string. */
+char *type_spec_friendly_signature(const char *sig)
+{
+    if (!sig || !*sig) return (char *)sig;
+    BUF(buf);
+    char *s = (char *)sig;
+    __friendly_type_print(&s, &buf);
+    char *r = atom_str(BUF_STR(buf));
+    FINI_BUF(buf);
+    return r;
+}
+
 void type_spec_print(TypeSpec *ts, Buffer *buf)
 {
     if (!ts) return;
@@ -1386,7 +1605,7 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
             buf_write_str(buf, ts->klass_type.pkg);
             buf_write_char(buf, '.');
         }
-        buf_write_str(buf, ts->klass_type.name);
+        type_spec_name_print(ts->klass_type.name, buf);
     } else if (ts->kind == TYPE_PROTO) {
         buf_write_str(buf, "func(");
         TypeSpec *arg;

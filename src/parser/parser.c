@@ -2393,7 +2393,8 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         kl_error(it->loc,
                  "iterable element type '%s' for '%s' is not tuple for multiple vars of "
                  "for loop",
-                 elem_ts->signature, it->ts->signature);
+                 type_spec_friendly_signature(elem_ts->signature),
+                 type_spec_friendly_signature(it->ts->signature));
     } else {
         Ident *id = vector_get_ptr(ids, 0);
         IdentType id_type = { *id, elem_ts };
@@ -3546,10 +3547,10 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
         FuncSymbol *fn_sym = get_current_function(ps);
         // `__init__` may set the immutable fields of the object it builds: `x = v` or
         // `self.x = v`, never those of another object (`other.x = v`)
-        int own_field = var_sym->scope == VAR_SCOPE_FIELD &&
-                        (lhs->kind == EXPR_ID_KIND ||
-                         (lhs->kind == EXPR_DOT_KIND &&
-                          ((DotExpr *)lhs)->lhs->kind == EXPR_SELF_KIND));
+        int own_field =
+            var_sym->scope == VAR_SCOPE_FIELD &&
+            (lhs->kind == EXPR_ID_KIND ||
+             (lhs->kind == EXPR_DOT_KIND && ((DotExpr *)lhs)->lhs->kind == EXPR_SELF_KIND));
         if (!own_field || !fn_sym || strcmp(fn_sym->name, "__init__")) {
             if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
                 kl_error(assign->loc, "cannot assign to immutable variable '%s'", lhs_sym->name);

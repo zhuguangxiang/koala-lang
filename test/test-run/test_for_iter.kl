@@ -76,10 +76,10 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %1 = call @Bar:iter, %0 test_for_iter.Bar
-// CHECK: %2 = call @std/builtin.Iterator<j>:has_next [intf-index = 0], %1 std/builtin.Iterator<j>
+// CHECK: %2 = call @std/builtin.Iterator[int64]:has_next [intf-index = 0], %1 std/builtin.Iterator[int64]
 // CHECK: branch %2 bool, label %bb3, label %bb5
 // CHECK: %i = local int64
-// CHECK: %3 = call @std/builtin.Iterator<j>:next_strict [intf-index = 1], %1 std/builtin.Iterator<j>
+// CHECK: %3 = call @std/builtin.Iterator[int64]:next_strict [intf-index = 1], %1 std/builtin.Iterator[int64]
 // CHECK: move %i int64, %3 int64
 // CHECK: jmp label %bb4
 

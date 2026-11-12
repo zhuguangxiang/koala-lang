@@ -90,41 +90,41 @@ func f_list_default(l list[Foo]?) list[Foo] { return l ?? list[Foo]() }
 // CHECK: ret %coalesce test_ir_coalesce_param.Foo
 
 // list[Foo]? parameter: generic instantiation flows through the diamond.
-// CHECK-LABEL: func @f_list(%l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?, %d std/builtin.list<Ltest_ir_coalesce_param.Foo;>) std/builtin.list<Ltest_ir_coalesce_param.Foo;> {
+// CHECK-LABEL: func @f_list(%l std/builtin.list[test_ir_coalesce_param.Foo]?, %d std/builtin.list[test_ir_coalesce_param.Foo]) std/builtin.list[test_ir_coalesce_param.Foo] {
 // CHECK: %bb0(entry):
-// CHECK: %coalesce = local std/builtin.list<Ltest_ir_coalesce_param.Foo;>
-// CHECK: %0 = cmpne %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?, nil
+// CHECK: %coalesce = local std/builtin.list[test_ir_coalesce_param.Foo]
+// CHECK: %0 = cmpne %l std/builtin.list[test_ir_coalesce_param.Foo]?, nil
 // CHECK: branch %0 bool, label %bb1, label %bb2
 //
 // CHECK: %bb1(coalesce-unwrap):
-// CHECK: %1 = cast %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>? to std/builtin.list<Ltest_ir_coalesce_param.Foo;>
-// CHECK: move %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>, %1 std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: %1 = cast %l std/builtin.list[test_ir_coalesce_param.Foo]? to std/builtin.list[test_ir_coalesce_param.Foo]
+// CHECK: move %coalesce std/builtin.list[test_ir_coalesce_param.Foo], %1 std/builtin.list[test_ir_coalesce_param.Foo]
 // CHECK: jmp label %bb3
 //
 // CHECK: %bb2(coalesce-rhs):
-// CHECK: move %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>, %d std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: move %coalesce std/builtin.list[test_ir_coalesce_param.Foo], %d std/builtin.list[test_ir_coalesce_param.Foo]
 // CHECK: jmp label %bb3
 //
 // CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
-// CHECK: ret %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: ret %coalesce std/builtin.list[test_ir_coalesce_param.Foo]
 
 // list[Foo]() default: the empty-list build sits in the rhs block.
-// CHECK-LABEL: func @f_list_default(%l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?) std/builtin.list<Ltest_ir_coalesce_param.Foo;> {
+// CHECK-LABEL: func @f_list_default(%l std/builtin.list[test_ir_coalesce_param.Foo]?) std/builtin.list[test_ir_coalesce_param.Foo] {
 // CHECK: %bb0(entry):
-// CHECK: %0 = cmpne %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?, nil
+// CHECK: %0 = cmpne %l std/builtin.list[test_ir_coalesce_param.Foo]?, nil
 // CHECK: branch %0 bool, label %bb1, label %bb2
 //
 // CHECK: %bb1(coalesce-unwrap):
-// CHECK: %1 = cast %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>? to std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: %1 = cast %l std/builtin.list[test_ir_coalesce_param.Foo]? to std/builtin.list[test_ir_coalesce_param.Foo]
 // CHECK: jmp label %bb3
 //
 // CHECK: %bb2(coalesce-rhs):
 // CHECK: %2 = build_intern @list
-// CHECK: move %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>, %2 std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: move %coalesce std/builtin.list[test_ir_coalesce_param.Foo], %2 std/builtin.list[test_ir_coalesce_param.Foo]
 // CHECK: jmp label %bb3
 //
 // CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
-// CHECK: ret %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: ret %coalesce std/builtin.list[test_ir_coalesce_param.Foo]
 
 // ===== Stage 2: ir (first dump, after const-copy-prop Iter 1) =====
 

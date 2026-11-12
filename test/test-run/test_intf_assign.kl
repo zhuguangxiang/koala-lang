@@ -115,7 +115,7 @@ locals()
 // a list element: converted to __setitem__'s value type
 // CHECK: call @list:append
 // CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
-// CHECK-NEXT: seq.set %l std/builtin.list<Ltest_intf_assign.Fly;>, 0 int64, %{{[0-9]+}} test_intf_assign.Fly
+// CHECK-NEXT: seq.set %l std/builtin.list[test_intf_assign.Fly], 0 int64, %{{[0-9]+}} test_intf_assign.Fly
 // a field assigned from outside
 // CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
 // CHECK-NEXT: set_field %c test_intf_assign.Cage, pet(index=0), %{{[0-9]+}} test_intf_assign.Fly
@@ -123,8 +123,8 @@ locals()
 // globals: the initializer and a later assignment are both converted
 // CHECK-LABEL: func @__init__()
 // CHECK: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
-// CHECK-NEXT: make_intf %0 std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
-// CHECK-NEXT: global_set @g_seq std/builtin.Sequence<j>, %{{[0-9]+}} std/builtin.Sequence
+// CHECK-NEXT: make_intf %0 std/builtin.list[int64] [intf-table-index = 6] to std/builtin.Sequence
+// CHECK-NEXT: global_set @g_seq std/builtin.Sequence[int64], %{{[0-9]+}} std/builtin.Sequence
 // CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
 // CHECK-NEXT: global_set @g_fly test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
 // CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly

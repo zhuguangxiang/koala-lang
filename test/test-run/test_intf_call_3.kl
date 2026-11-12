@@ -45,17 +45,17 @@ func main() {
 // CHECK: %4 = call @Foo:has_next, %foo test_intf_call_3.Foo
 
 // CHECK-LABEL: %bb3(while-end):
-// CHECK: %it = local [immutable] std/builtin.Iterator<j>
+// CHECK: %it = local [immutable] std/builtin.Iterator[int64]
 // CHECK: %5 = make_intf %foo test_intf_call_3.Foo [intf-table-index = 4] to std/builtin.Iterator
-// CHECK: move %it std/builtin.Iterator<j>, %5 std/builtin.Iterator
+// CHECK: move %it std/builtin.Iterator[int64], %5 std/builtin.Iterator
 
 // CHECK-LABEL: %bb4(while-cond):
-// CHECK: %6 = call @std/builtin.Iterator<j>:has_next [intf-index = 0], %it std/builtin.Iterator<j>
+// CHECK: %6 = call @std/builtin.Iterator[int64]:has_next [intf-index = 0], %it std/builtin.Iterator[int64]
 
 // CHECK-LABEL: %bb5(while-body):
-// CHECK: %7 = call @std/builtin.Iterator<j>:next [intf-index = 2], %it std/builtin.Iterator<j>
+// CHECK: %7 = call @std/builtin.Iterator[int64]:next [intf-index = 2], %it std/builtin.Iterator[int64]
 // CHECK: %8 = build_intern @tuple, %7 int64
-// CHECK: %9 = call @std/builtin.Iterator<j>:has_next [intf-index = 0], %it std/builtin.Iterator<j>
+// CHECK: %9 = call @std/builtin.Iterator[int64]:has_next [intf-index = 0], %it std/builtin.Iterator[int64]
 
 
 // CHECK: 1

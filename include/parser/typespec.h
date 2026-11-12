@@ -227,6 +227,9 @@ TypeSpec *type_spec_from_str(const char *s);
 
 void type_spec_print(TypeSpec *ts, Buffer *buf);
 void type_spec_str_print(char *s, Buffer *buf);
+void type_spec_name_print(const char *name, Buffer *buf);
+char *type_spec_friendly_name(const char *name);
+char *type_spec_friendly_signature(const char *sig);
 
 void typespec_init(void);
 void typespec_fini(void);

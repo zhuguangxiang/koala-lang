@@ -53,23 +53,23 @@ for_dict_items()
 // sequence path: get the tuple element once, then unpack each field
 // CHECK-LABEL: func @for_list() <NO-TYPE> {
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list[std/builtin.tuple[int64, str]], %seq.index int64
 // CHECK-NEXT: %n = local int64
-// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple[int64, str], 0 int64
 // CHECK-NEXT: move %n int64, %4 int64
 // CHECK-NEXT: %s = local str
-// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple[int64, str], 1 int64
 // CHECK-NEXT: move %s str, %5 str
 // CHECK-NEXT: %6 = build_intern @tuple, %n int64, %s str
 
 // CHECK-LABEL: func @for_list_no_paren() <NO-TYPE> {
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list[std/builtin.tuple[int64, str]], %seq.index int64
 // CHECK-NEXT: %n = local int64
-// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple[int64, str], 0 int64
 // CHECK-NEXT: move %n int64, %4 int64
 // CHECK-NEXT: %s = local str
-// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple[int64, str], 1 int64
 // CHECK-NEXT: move %s str, %5 str
 // CHECK-NEXT: %6 = build_intern @tuple, %s str, %n int64
 
@@ -77,24 +77,24 @@ for_dict_items()
 // CHECK-LABEL: func @for_tuple() <NO-TYPE> {
 // CHECK: %0 = cmpge %seq.index int64, 2 int64
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %1 = seq.get %t std/builtin.tuple<Lstd/builtin.tuple<jj>;Lstd/builtin.tuple<jj>;>, %seq.index int64
+// CHECK-NEXT: %1 = seq.get %t std/builtin.tuple[std/builtin.tuple[int64, int64], std/builtin.tuple[int64, int64]], %seq.index int64
 // CHECK-NEXT: %a = local int64
-// CHECK-NEXT: %2 = seq.get %1 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: %2 = seq.get %1 std/builtin.tuple[int64, int64], 0 int64
 // CHECK-NEXT: move %a int64, %2 int64
 // CHECK-NEXT: %b = local int64
-// CHECK-NEXT: %3 = seq.get %1 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: %3 = seq.get %1 std/builtin.tuple[int64, int64], 1 int64
 // CHECK-NEXT: move %b int64, %3 int64
 // CHECK-NEXT: %4 = add %a int64, %b int64
 
 // continue jumps to loop-cond-incr, break jumps to loop-end
 // CHECK-LABEL: func @for_jump() <NO-TYPE> {
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %3 = seq.get %pairs std/builtin.list[std/builtin.tuple[int64, str]], %seq.index int64
 // CHECK-NEXT: %n = local int64
-// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple[int64, str], 0 int64
 // CHECK-NEXT: move %n int64, %4 int64
 // CHECK-NEXT: %s = local str
-// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple[int64, str], 1 int64
 // CHECK-NEXT: move %s str, %5 str
 // CHECK: %bb6(if-then):
 // CHECK-NEXT: jmp label %bb4
@@ -104,12 +104,12 @@ for_dict_items()
 // iterator path: get the tuple element from next_strict, then unpack
 // CHECK-LABEL: func @for_dict_items() <NO-TYPE> {
 // CHECK: %bb3(loop-body):
-// CHECK-NEXT: %4 = call @std/builtin.Iterator<Lstd/builtin.tuple<uj>;>:next_strict [intf-index = 1], %2 std/builtin.Iterator<Lstd/builtin.tuple<uj>;>
+// CHECK-NEXT: %4 = call @std/builtin.Iterator[std/builtin.tuple[str, int64]]:next_strict [intf-index = 1], %2 std/builtin.Iterator[std/builtin.tuple[str, int64]]
 // CHECK-NEXT: %k = local str
-// CHECK-NEXT: %5 = seq.get %4 std/builtin.tuple<uj>, 0 int64
+// CHECK-NEXT: %5 = seq.get %4 std/builtin.tuple[str, int64], 0 int64
 // CHECK-NEXT: move %k str, %5 str
 // CHECK-NEXT: %v = local int64
-// CHECK-NEXT: %6 = seq.get %4 std/builtin.tuple<uj>, 1 int64
+// CHECK-NEXT: %6 = seq.get %4 std/builtin.tuple[str, int64], 1 int64
 // CHECK-NEXT: move %v int64, %6 int64
 // CHECK-NEXT: %7 = add %total int64, %v int64
 

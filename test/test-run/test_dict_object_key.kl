@@ -22,13 +22,13 @@ func main() {
 // CHECK-LABEL: func @main()
 // CHECK: %0 = build_intern @list
 // CHECK: %1 = build_intern @list
-// CHECK: %2 = build_intern @map, %0 std/builtin.list<j>, 'hi' str, %1 std/builtin.list<j>, 'bye' str
-// CHECK: %l = local [immutable] std/builtin.dict<Lstd/builtin.list<j>;u>
-// CHECK: move %l std/builtin.dict<Lstd/builtin.list<j>;u>, %2 std/builtin.dict<Lstd/builtin.list<j>;u>
+// CHECK: %2 = build_intern @map, %0 std/builtin.list[int64], 'hi' str, %1 std/builtin.list[int64], 'bye' str
+// CHECK: %l = local [immutable] std/builtin.dict[std/builtin.list[int64], str]
+// CHECK: move %l std/builtin.dict[std/builtin.list[int64], str], %2 std/builtin.dict[std/builtin.list[int64], str]
 // CHECK: %4 = new @test_dict_object_key.Key
 // CHECK: call @Key:__init__, %4 test_dict_object_key.Key
 // CHECK: %7 = build_intern @map, %4 test_dict_object_key.Key, 'bar' str, %5 test_dict_object_key.Key, 'baz' str, %6 test_dict_object_key.Key, 'qux' str
-// CHECK: %k = local [immutable] std/builtin.dict<Ltest_dict_object_key.Key;u>
+// CHECK: %k = local [immutable] std/builtin.dict[test_dict_object_key.Key, str]
 // CHECK: ret void
 
 // CHECK-LABEL: @main[0,36]:

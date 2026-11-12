@@ -25,9 +25,10 @@ func opt_ret() int? {
     return nil
 }
 
-// nested in a generic argument: the specialized klass name carries the
-// mangled type argument, so it is wildcarded as in test_type_alias.kl
-// CHECK: func @boxed(%xs std/builtin.list<{{.*}}>) int64 {
+// nested in a generic argument: the specialized klass name carries the mangled
+// type argument. An optional func mangles to `(j)j?`, which is ambiguous with a
+// func returning optional, so the decoded argument is wildcarded here.
+// CHECK: func @boxed(%xs std/builtin.list[{{.*}}]) int64 {
 func boxed(xs list[OptFn]) int {
     return 0
 }

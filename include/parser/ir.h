@@ -6,6 +6,7 @@
 #ifndef _KOALA_IR_H_
 #define _KOALA_IR_H_
 
+#include <string.h>
 #include "hashmap.h"
 #include "list.h"
 #include "loc.h"
@@ -1033,7 +1034,16 @@ char *klr_block_name(KlrBasicBlock *bb);
 /* print a value's name */
 static inline void klr_print_value_name(KlrValue *val, FILE *fp)
 {
-    fprintf(fp, "%s", klr_value_name(val));
+    const char *name = klr_value_name(val);
+    /* a value name may embed mangled generic args, e.g. %list<j>; decode for display */
+    if (strchr(name, '<')) {
+        BUF(buf);
+        type_spec_name_print(name, &buf);
+        fprintf(fp, "%s", BUF_STR(buf));
+        FINI_BUF(buf);
+    } else {
+        fprintf(fp, "%s", name);
+    }
 }
 
 /* update tags and then print */

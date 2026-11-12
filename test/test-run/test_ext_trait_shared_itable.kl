@@ -20,12 +20,12 @@ import "test_pkg/pkg4" as p4
 
 // list[int] boxed with its Sequence itable, then called by slot index
 // IR-LABEL: func @main()
-// IR: make_intf %l std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
-// IR: call @std/builtin.Sequence<j>:len [intf-index = 1], %s std/builtin.Sequence<j>
-// IR: seq.get %s std/builtin.Sequence<j>, 1 int64
-// IR: call @std/builtin.Sequence<j>:iter [intf-index = 0], %s std/builtin.Sequence<j>, 1 int64
-// IR: call @std/builtin.Sequence<j>:index [intf-index = 4], %s std/builtin.Sequence<j>, 30 int64, 0 int64, -1 int64
-// IR: call @std/builtin.Sequence<j>:count [intf-index = 5], %s std/builtin.Sequence<j>, 10 int64, 0 int64, -1 int64
+// IR: make_intf %l std/builtin.list[int64] [intf-table-index = 6] to std/builtin.Sequence
+// IR: call @std/builtin.Sequence[int64]:len [intf-index = 1], %s std/builtin.Sequence[int64]
+// IR: seq.get %s std/builtin.Sequence[int64], 1 int64
+// IR: call @std/builtin.Sequence[int64]:iter [intf-index = 0], %s std/builtin.Sequence[int64], 1 int64
+// IR: call @std/builtin.Sequence[int64]:index [intf-index = 4], %s std/builtin.Sequence[int64], 30 int64, 0 int64, -1 int64
+// IR: call @std/builtin.Sequence[int64]:count [intf-index = 5], %s std/builtin.Sequence[int64], 10 int64, 0 int64, -1 int64
 func main() {
     let l = [10, 20, 30]
     let s Sequence[int] = l

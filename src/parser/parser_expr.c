@@ -3047,7 +3047,8 @@ static void parse_dot(ParserState *ps, Expr *exp)
         prefix = "package";
     }
 
-    kl_error(ident->loc, "'%s' is not found in %s '%s'", ident->name, prefix, lhs_ts_sym->name);
+    kl_error(ident->loc, "'%s' is not found in %s '%s'", ident->name, prefix,
+             type_spec_friendly_name(lhs_ts_sym->name));
 }
 
 static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
@@ -4170,7 +4171,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
      */
     if ((op == BINARY_AND || op == BINARY_OR) && !type_is_bool(lhs_op_ts)) {
         kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.", get_binary_op_str(op),
-                 sym->name);
+                 type_spec_friendly_name(sym->name));
         return;
     }
 
@@ -4181,7 +4182,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
         fn = get_func_from_tp(ps, (TypeParamSymbol *)sym, op_name);
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined for type parameter '%s'.",
-                     get_binary_op_str(op), sym->name);
+                     get_binary_op_str(op), type_spec_friendly_name(sym->name));
             return;
         }
 
@@ -4190,7 +4191,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
         if (is_auto_trait_func(ps, fn)) {
             if (!type_spec_compatible(lhs_op_ts, rhs_op_ts)) {
                 kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
-                         get_binary_op_str(op), sym->name);
+                         get_binary_op_str(op), type_spec_friendly_name(sym->name));
                 return;
             }
             exp->ts = bool_type_spec();
@@ -4203,7 +4204,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
-                     get_binary_op_str(op), sym->name);
+                     get_binary_op_str(op), type_spec_friendly_name(sym->name));
             return;
         }
     } else {
@@ -4212,7 +4213,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
-                     get_binary_op_str(op), sym->name);
+                     get_binary_op_str(op), type_spec_friendly_name(sym->name));
             return;
         }
     }
@@ -4222,7 +4223,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     Vector *args = fn_sym->params;
     if (vector_size(args) != 1) {
         kl_error(bin->op_loc, "expected %d argument for operator '%s' of type '%s', but got 1.",
-                 vector_size(args), get_binary_op_str(op), sym->name);
+                 vector_size(args), get_binary_op_str(op), type_spec_friendly_name(sym->name));
         return;
     }
 
@@ -4232,7 +4233,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     TypeSpec *arg_ts = arg_info->ts;
     if (!type_spec_compatible(arg_ts, rhs_op_ts)) {
         kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
-                 get_binary_op_str(op), sym->name);
+                 get_binary_op_str(op), type_spec_friendly_name(sym->name));
         log_info("expected type:");
         log_type_spec(arg_ts);
         log_info("actual type:");

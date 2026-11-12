@@ -37,9 +37,8 @@ func main() {
 // CHECK: %4 = build_intern @map, 1 int64, 'a' str, 1.500000 float64, 'f' str, 2 int64, 'b' str, 1 int64, 'c' str
 // CHECK: %6 = build_intern @map, 1.500000 float64, 'a' str, 2.500000 float64, 'b' str, 1.500000 float64, 'c' str
 // CHECK: %8 = build_intern @map, 0.000000 float64, 'a' str, -0.000000 float64, 'b' str
-// CHECK: %10 = build_intern @map, tuple(1, 2) std/builtin.tuple<jj>, 'a' str, tuple(3, 4) std/builtin.tuple<jj>, 'b' str, tuple(1, 2) std/builtin.tuple<jj>, 'c' str
+// CHECK: %10 = build_intern @map, tuple(1, 2) std/builtin.tuple[int64, int64], 'a' str, tuple(3, 4) std/builtin.tuple[int64, int64], 'b' str, tuple(1, 2) std/builtin.tuple[int64, int64], 'c' str
 // CHECK: %12 = build_intern @map, range(0, 3, 1) std/builtin.range, 'a' str, range(0, 5, 1) std/builtin.range, 'b' str, range(0, 3, 1) std/builtin.range, 'c' str
-// CHECK-NOT: dict[
 // CHECK: ret void
 
 // Seven build_intern of 3, 3, 4, 3, 2, 3 and 3 entries (6, 6, 8, 6, 4, 6 and

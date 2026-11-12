@@ -143,10 +143,10 @@ let aa A = c
 
 let aa1 A = b
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: foo.A =/= rhs: foo.B<j>
+// CHECK-NEXT: lhs: foo.A =/= rhs: foo.B[int64]
 
 let bb1 B[int] = a
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: foo.B<j> =/= rhs: foo.A
+// CHECK-NEXT: lhs: foo.B[int64] =/= rhs: foo.A
 
 // CHECK-NOT: {{.}}

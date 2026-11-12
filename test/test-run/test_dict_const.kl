@@ -13,12 +13,11 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
 // CHECK: %0 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
-// CHECK: %a = local [immutable] std/builtin.dict<jj>
-// CHECK: move %a std/builtin.dict<jj>, %0 std/builtin.dict<jj>
+// CHECK: %a = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: move %a std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 // CHECK: %1 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
-// CHECK: %b = local [immutable] std/builtin.dict<jj>
-// CHECK: move %b std/builtin.dict<jj>, %1 std/builtin.dict<jj>
-// CHECK-NOT: dict[
+// CHECK: %b = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: move %b std/builtin.dict[int64, int64], %1 std/builtin.dict[int64, int64]
 // CHECK: ret void
 
 // Two separate build_intern: the literals were not folded together.

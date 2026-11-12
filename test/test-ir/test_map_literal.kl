@@ -9,31 +9,31 @@
 // a fresh object.
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @new_map(%x int64) std/builtin.dict<jj>
+// CHECK-LABEL: func @new_map(%x int64) std/builtin.dict[int64, int64]
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %0 = build_intern @map, 100 int64, 200 int64, %x int64, 300 int64
-// CHECK: %m = local [immutable] std/builtin.dict<jj>
-// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: %m = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
+// CHECK: ret %m std/builtin.dict[int64, int64]
 func new_map(x int) dict[int, int] {
     let m = {100: 200, x: 300}
     return m
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @const_map() std/builtin.dict<jj>
+// CHECK-LABEL: func @const_map() std/builtin.dict[int64, int64]
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %0 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
-// CHECK: %m = local [immutable] std/builtin.dict<jj>
-// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
-// CHECK: ret %m std/builtin.dict<jj>
+// CHECK: %m = local [immutable] std/builtin.dict[int64, int64]
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
+// CHECK: ret %m std/builtin.dict[int64, int64]
 func const_map() dict[int, int] {
     let m = {1: 2, 3: 4}
     return m
 }
 
 // a non-constant key keeps the build_intern path, operands in source order
-// CHECK-LABEL: func @var_key(%x int64) std/builtin.dict<jj>
+// CHECK-LABEL: func @var_key(%x int64) std/builtin.dict[int64, int64]
 // CHECK: %0 = build_intern @map, %x int64, 2 int64
 func var_key(x int) dict[int, int] {
     let m = {x: 2}
@@ -41,27 +41,27 @@ func var_key(x int) dict[int, int] {
 }
 
 // an empty map is built too
-// CHECK-LABEL: func @empty_map() std/builtin.dict<jj>
+// CHECK-LABEL: func @empty_map() std/builtin.dict[int64, int64]
 // CHECK: %0 = build_intern @map
-// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 func empty_map() dict[int, int] {
     let m dict[int, int] = {:}
     return m
 }
 
-// CHECK-LABEL: func @nested_mixed(%x int64) std/builtin.dict<jLstd/builtin.dict<jj>;>
+// CHECK-LABEL: func @nested_mixed(%x int64) std/builtin.dict[int64, std/builtin.dict[int64, int64]]
 // CHECK: %0 = build_intern @map, %x int64, 2 int64
-// CHECK: %1 = build_intern @map, 1 int64, %0 std/builtin.dict<jj>
+// CHECK: %1 = build_intern @map, 1 int64, %0 std/builtin.dict[int64, int64]
 func nested_mixed(x int) dict[int, dict[int, int]] {
     let m = {1: {x: 2}}
     return m
 }
 
 // an all-constant nested map: the inner map is built first
-// CHECK-LABEL: func @nested_const() std/builtin.dict<jLstd/builtin.dict<jj>;>
+// CHECK-LABEL: func @nested_const() std/builtin.dict[int64, std/builtin.dict[int64, int64]]
 // CHECK: %0 = build_intern @map, 2 int64, 3 int64
-// CHECK: %1 = build_intern @map, 1 int64, %0 std/builtin.dict<jj>
-// CHECK: move %m std/builtin.dict<jLstd/builtin.dict<jj>;>, %1 std/builtin.dict<jLstd/builtin.dict<jj>;>
+// CHECK: %1 = build_intern @map, 1 int64, %0 std/builtin.dict[int64, int64]
+// CHECK: move %m std/builtin.dict[int64, std/builtin.dict[int64, int64]], %1 std/builtin.dict[int64, std/builtin.dict[int64, int64]]
 func nested_const() dict[int, dict[int, int]] {
     let m = {1: {2: 3}}
     return m
@@ -71,7 +71,7 @@ func nested_const() dict[int, dict[int, int]] {
 // the same as any other dict value.
 // CHECK-LABEL: func @map_to_trait() <NO-TYPE> {
 // CHECK: %0 = build_intern @map, 1 int64, 2 int64
-// CHECK: %1 = make_intf %0 std/builtin.dict<jj> [intf-table-index = {{[0-9]+}}] to std/builtin.Map
+// CHECK: %1 = make_intf %0 std/builtin.dict[int64, int64] [intf-table-index = {{[0-9]+}}] to std/builtin.Map
 func map_to_trait() {
     let m Map[int, int] = {1: 2}
 }

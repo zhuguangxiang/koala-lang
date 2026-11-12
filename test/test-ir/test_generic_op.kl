@@ -105,16 +105,16 @@ func t_upcast_ret(v int) Arithmetic[int] {
 // CHECK: %bb10(logical-end):
 // CHECK: ret %land bool
 
-// CHECK-LABEL: func @t_add_lit(%a std/builtin.Arithmetic<j>) int64 {
-// CHECK: %0 = add %a std/builtin.Arithmetic<j>, 100 int64
+// CHECK-LABEL: func @t_add_lit(%a std/builtin.Arithmetic[int64]) int64 {
+// CHECK: %0 = add %a std/builtin.Arithmetic[int64], 100 int64
 // CHECK: ret {{%[0-9]+}} int64
 
-// CHECK-LABEL: func @t_arith(%a std/builtin.Arithmetic<j>, %b int64) int64 {
-// CHECK: %0 = add %a std/builtin.Arithmetic<j>, %b int64
+// CHECK-LABEL: func @t_arith(%a std/builtin.Arithmetic[int64], %b int64) int64 {
+// CHECK: %0 = add %a std/builtin.Arithmetic[int64], %b int64
 // CHECK: ret {{%[0-9]+}} int64
 
-// CHECK-LABEL: func @t_arith2(%a std/builtin.Arithmetic<j>, %b int64) std/builtin.Arithmetic<j> {
-// CHECK: %0 = add %a std/builtin.Arithmetic<j>, %b int64
+// CHECK-LABEL: func @t_arith2(%a std/builtin.Arithmetic[int64], %b int64) std/builtin.Arithmetic[int64] {
+// CHECK: %0 = add %a std/builtin.Arithmetic[int64], %b int64
 // CHECK: %1 = make_intf %0 int64 [intf-table-index = {{[0-9]+}}] to std/builtin.Arithmetic
 // CHECK: ret %1 std/builtin.Arithmetic
 
@@ -122,7 +122,7 @@ func t_upcast_ret(v int) Arithmetic[int] {
 // CHECK: %0 = make_intf 5 int64 [intf-table-index = {{[0-9]+}}] to std/builtin.Arithmetic
 // CHECK: ret void
 
-// CHECK-LABEL: func @t_upcast_ret(%v int64) std/builtin.Arithmetic<j> {
+// CHECK-LABEL: func @t_upcast_ret(%v int64) std/builtin.Arithmetic[int64] {
 // CHECK: %0 = make_intf %v int64 [intf-table-index = {{[0-9]+}}] to std/builtin.Arithmetic
 // CHECK: ret %0 std/builtin.Arithmetic
 

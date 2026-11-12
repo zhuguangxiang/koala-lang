@@ -36,13 +36,13 @@ func str_nil_banned() {
 func list_to_str_dead_native() {
     let l = [1, 2]
     print(l.to_str())
-    // CHECK: 'to_str' is not found in instance of class 'list<j>'
+    // CHECK: 'to_str' is not found in instance of class 'list[int64]'
 }
 
 func tuple_to_str_dead_native() {
     let t = (1, 2)
     print(t.to_str())
-    // CHECK: 'to_str' is not found in instance of class 'tuple<jj>'
+    // CHECK: 'to_str' is not found in instance of class 'tuple[int64, int64]'
 }
 
 import "std/time"

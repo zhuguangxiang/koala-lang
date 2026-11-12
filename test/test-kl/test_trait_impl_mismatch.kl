@@ -10,7 +10,7 @@ class WrongParamType : Sequence[uint8] {
 
 class WrongReturnType : Iterable[uint8] {
     pub func iter(step = 1) Iterator[int] { return list[int]().iter(step) }
-    // CHECK-NEXT: method 'iter' does not match trait 'Iterable': return type expected 'std/builtin.Iterator<C>', but got 'std/builtin.Iterator<j>'.
+    // CHECK-NEXT: method 'iter' does not match trait 'Iterable': return type expected 'std/builtin.Iterator[uint8]', but got 'std/builtin.Iterator[int64]'.
 }
 
 class WrongParamCount : Iterable[uint8] {
@@ -48,14 +48,14 @@ trait Merger { func merge(x Set[int]) }
 
 class NarrowerParam : Merger {
     pub func merge(x hashset[int]) { }
-    // CHECK-NEXT: method 'merge' does not match trait 'Merger': parameter 1 expected 'std/builtin.Set<j>', but got 'std/builtin.hashset<j>'.
+    // CHECK-NEXT: method 'merge' does not match trait 'Merger': parameter 1 expected 'std/builtin.Set[int64]', but got 'std/builtin.hashset[int64]'.
 }
 
 trait Taker { func take(x hashset[int]) int }
 
 class ParamToTrait : Taker {
     pub func take(x Set[int]) int { return x.len() }
-    // CHECK-NEXT: method 'take' does not match trait 'Taker': parameter 1 expected 'std/builtin.hashset<j>', but got 'std/builtin.Set<j>'.
+    // CHECK-NEXT: method 'take' does not match trait 'Taker': parameter 1 expected 'std/builtin.hashset[int64]', but got 'std/builtin.Set[int64]'.
 }
 
 trait TakesOptional { func o(x int?) }
@@ -69,7 +69,7 @@ trait Maker { func make() hashset[int] }
 
 class WiderReturn : Maker {
     pub func make() Set[int] { return hashset[int]() }
-    // CHECK-NEXT: method 'make' does not match trait 'Maker': return type expected 'std/builtin.hashset<j>', but got 'std/builtin.Set<j>'.
+    // CHECK-NEXT: method 'make' does not match trait 'Maker': return type expected 'std/builtin.hashset[int64]', but got 'std/builtin.Set[int64]'.
 }
 
 trait Widens { func w(x int) }
@@ -92,7 +92,7 @@ class TypeVarReturn[T: Set[int]] : Getter {
     let v T
     pub func __init__(_v T) { v = _v }
     pub func get() T { return v }
-    // CHECK-NEXT: method 'get' does not match trait 'Getter': return type expected 'std/builtin.Set<j>', but got 'TypeVarReturn:T'.
+    // CHECK-NEXT: method 'get' does not match trait 'Getter': return type expected 'std/builtin.Set[int64]', but got 'TypeVarReturn:T'.
 }
 
 class FieldNotMethod : Sized {
@@ -130,7 +130,7 @@ trait SetMaker { func make() Set[int] }
 
 class NarrowerReturn : SetMaker {
     pub func make() hashset[int] { return hashset[int]() }
-    // CHECK-NEXT: method 'make' does not match trait 'SetMaker': return type expected 'std/builtin.Set<j>', but got 'std/builtin.hashset<j>'.
+    // CHECK-NEXT: method 'make' does not match trait 'SetMaker': return type expected 'std/builtin.Set[int64]', but got 'std/builtin.hashset[int64]'.
 }
 
 trait IntTaker { func take(x int) int }

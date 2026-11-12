@@ -28,6 +28,16 @@ static void print_type2(TypeSpec *ty, FILE *fp)
 
 #define print_value_type(val, fp) print_type((val)->ts, fp)
 
+/* a symbol name may embed mangled generic args, e.g. `Iterator<j>:has_next`;
+   decode them for display only, the symbol itself is unchanged */
+static void print_symbol_name(const char *name, FILE *fp)
+{
+    BUF(buf);
+    type_spec_name_print(name, &buf);
+    fprintf(fp, "%s", BUF_STR(buf));
+    FINI_BUF(buf);
+}
+
 static void print_const(KlrConst *v, FILE *fp);
 
 static void print_const_item(KlrValue *item, FILE *fp)
@@ -145,14 +155,16 @@ static void print_operand(KlrOper *oper, FILE *fp)
 
     if (klr_is_func(val)) {
         KlrFunc *fn = (KlrFunc *)val;
-        fprintf(fp, "@%s", fn->name);
+        fprintf(fp, "@");
+        print_symbol_name(fn->name, fp);
         print_type(fn->proto, fp);
         return;
     }
 
     if (klr_is_extfunc(val)) {
         KlrExtFunc *fn = (KlrExtFunc *)val;
-        fprintf(fp, "@%s", fn->name);
+        fprintf(fp, "@");
+        print_symbol_name(fn->name, fp);
         print_type(fn->proto, fp);
         return;
     }
@@ -330,9 +342,13 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
         KlrExtFunc *f = (KlrExtFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s:%s", f->klass->name, f->name);
+            fprintf(fp, "@");
+            print_symbol_name(f->klass->name, fp);
+            fprintf(fp, ":");
+            print_symbol_name(f->name, fp);
         } else {
-            fprintf(fp, "@%s", fn->name);
+            fprintf(fp, "@");
+            print_symbol_name(fn->name, fp);
         }
 
         KlrExtModule *m = ((KlrExtFunc *)fn)->module;
@@ -345,9 +361,13 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     } else if (fn->kind == KLR_VALUE_FUNC) {
         KlrFunc *f = (KlrFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s:%s", f->klass->name, f->name);
+            fprintf(fp, "@");
+            print_symbol_name(f->klass->name, fp);
+            fprintf(fp, ":");
+            print_symbol_name(f->name, fp);
         } else {
-            fprintf(fp, "@%s", fn->name);
+            fprintf(fp, "@");
+            print_symbol_name(fn->name, fp);
         }
 
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -355,12 +375,16 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         }
     } else if (fn->kind == KLR_VALUE_INTF) {
         KlrIntf *intf = (KlrIntf *)fn;
-        fprintf(fp, "@%s:%s", intf->trait->name, intf->name);
+        fprintf(fp, "@");
+        print_symbol_name(intf->trait->name, fp);
+        fprintf(fp, ":%s", intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     } else if (fn->kind == KLR_VALUE_EXT_INTF) {
         KlrExtIntf *intf = (KlrExtIntf *)fn;
         KlrExtModule *ext_m = intf->module;
-        fprintf(fp, "@%s.%s:%s", ext_m->name, intf->trait->name, intf->name);
+        fprintf(fp, "@%s.", ext_m->name);
+        print_symbol_name(intf->trait->name, fp);
+        fprintf(fp, ":%s", intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     } else if (fn->ts && type_is_proto(fn->ts)) {
         // the callee is a function value, e.g. the `cb` in `cb(v)`
@@ -394,9 +418,13 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
         KlrExtFunc *f = (KlrExtFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s:%s", f->klass->name, f->name);
+            fprintf(fp, "@");
+            print_symbol_name(f->klass->name, fp);
+            fprintf(fp, ":");
+            print_symbol_name(f->name, fp);
         } else {
-            fprintf(fp, "@%s", fn->name);
+            fprintf(fp, "@");
+            print_symbol_name(fn->name, fp);
         }
 
         KlrExtModule *m = ((KlrExtFunc *)fn)->module;
@@ -409,9 +437,13 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     } else if (fn->kind == KLR_VALUE_FUNC) {
         KlrFunc *f = (KlrFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s:%s", f->klass->name, f->name);
+            fprintf(fp, "@");
+            print_symbol_name(f->klass->name, fp);
+            fprintf(fp, ":");
+            print_symbol_name(f->name, fp);
         } else {
-            fprintf(fp, "@%s", fn->name);
+            fprintf(fp, "@");
+            print_symbol_name(fn->name, fp);
         }
 
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -419,12 +451,16 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         }
     } else if (fn->kind == KLR_VALUE_INTF) {
         KlrIntf *intf = (KlrIntf *)fn;
-        fprintf(fp, "@%s:%s", intf->trait->name, intf->name);
+        fprintf(fp, "@");
+        print_symbol_name(intf->trait->name, fp);
+        fprintf(fp, ":%s", intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     } else if (fn->kind == KLR_VALUE_EXT_INTF) {
         KlrExtIntf *intf = (KlrExtIntf *)fn;
         KlrExtModule *ext_m = intf->module;
-        fprintf(fp, "@%s.%s:%s", ext_m->name, intf->trait->name, intf->name);
+        fprintf(fp, "@%s.", ext_m->name);
+        print_symbol_name(intf->trait->name, fp);
+        fprintf(fp, ":%s", intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     } else if (fn->ts && type_is_proto(fn->ts)) {
         klr_print_value_name(fn, fp);
@@ -509,10 +545,11 @@ static void print_new(const char *name, KlrInsn *insn, FILE *fp)
 
     if (ts->kind == TYPE_KLASS) {
         if (ts->klass_type.pkg) {
-            fprintf(fp, " = %s @%s.%s", name, ts->klass_type.pkg, ts->klass_type.name);
+            fprintf(fp, " = %s @%s.", name, ts->klass_type.pkg);
         } else {
-            fprintf(fp, " = %s @%s", name, ts->klass_type.name);
+            fprintf(fp, " = %s @", name);
         }
+        print_symbol_name(ts->klass_type.name, fp);
     } else {
         ASSERT(ts->kind == TYPE_GENERIC_REF);
         if (ts->generic_ref.pkg) {
@@ -1427,11 +1464,15 @@ void klr_print_func(KlrFunc *func, FILE *fp)
     KlrKlass *kls = func->klass;
     if (kls) {
         if (func->self)
-            fprintf(fp, "  func @%s:%s", kls->name, func->name);
+            fprintf(fp, "  func @");
         else
-            fprintf(fp, "  static func @%s:%s", kls->name, func->name);
+            fprintf(fp, "  static func @");
+        print_symbol_name(kls->name, fp);
+        fprintf(fp, ":");
+        print_symbol_name(func->name, fp);
     } else {
-        fprintf(fp, "  func @%s", func->name);
+        fprintf(fp, "  func @");
+        print_symbol_name(func->name, fp);
     }
 
     fprintf(fp, "(");
