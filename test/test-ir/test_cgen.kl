@@ -12,10 +12,10 @@ func foo(n int) int {
 // CHECK: load_int_imm r1, ti=0xb, #500
 // CHECK: int.add r0, r0, r1
 // CHECK: int.add_imm r0, r0, #1
-// CHECK: int.add_imm r1, r0, #2
-// CHECK: int.add_imm r0, r1, #3
-// CHECK: move r1, r0
-// CHECK: ret r0
+// CHECK: int.add_imm r0, r0, #2
+// CHECK: int.add_imm r1, r0, #3
+// CHECK: move r0, r1
+// CHECK: ret r1
 
 
 func fib(n int) int {

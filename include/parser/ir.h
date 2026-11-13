@@ -503,8 +503,9 @@ typedef struct _KlrRawOper {
 /* The forced unwrap of a nil value is warned, only once. */
 #define KLR_INSN_FLAGS_NIL_WARNED 8
 
-/* Cloned by inlining: a constant operand may come from an argument, which is a variable for the
- * language, so an invalid constant cast or shift count is left to the runtime, not reported. */
+/* Cloned by inlining or unrolling: a constant operand may come from an argument or a loop
+ * counter, which is a variable for the language, so an invalid constant cast or shift count is
+ * left to the runtime, not reported. */
 #define KLR_INSN_FLAGS_INLINED 16
 
 /* instruction */

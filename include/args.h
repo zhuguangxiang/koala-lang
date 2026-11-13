@@ -21,6 +21,7 @@ typedef struct KoalaOptions {
     int strip_lineinfo;          // --strip-lineinfo
     int disable_inline;          // --no-inline
     int enable_domtree;          // --domtree
+    int enable_unroll;           // --unroll
     char *dump;                  // --dump=<list>
     const char *output;          // -o <file>
     const char *input;           // input file

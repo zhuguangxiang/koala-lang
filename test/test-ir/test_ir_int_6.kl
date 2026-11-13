@@ -58,9 +58,9 @@ func main() {
 // CHECK: load_int_imm %0 int8, 110 int8
 // CHECK: %1 = call @test_int_2 [const], nargs=1        [fixedslot = 0(next)]
 
-// CHECK-LABEL: ====== Linearization @test_int_2(start_pc: 1, insns: 9) ======
+// CHECK-LABEL: ====== Linearization @test_int_2(start_pc: 1, insns: 8) ======
 // CHECK: int.cast r0, r1, ti=0x8, mode=0
 // CHECK: ret r0
 
-// CHECK-LABEL: ====== Linearization @main(start_pc: 10, insns: 9) ======
+// CHECK-LABEL: ====== Linearization @main(start_pc: 9, insns: 9) ======
 // CHECK: load_int_imm r0, ti=0x8, #110

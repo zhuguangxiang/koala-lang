@@ -54,6 +54,9 @@ void klr_domtree_print(KlrDomTree *kdt, FILE *fp);
 /* Free `fn->domtree`, e.g. after a pass changes the CFG. */
 void klr_func_free_domtree(KlrFunc *fn);
 
+/* (Re)build `fn->domtree`. */
+void klr_func_build_domtree(KlrFunc *fn);
+
 /* --domtree pass: build `fn->domtree` of every function, replacing a stale one, and print
    them with --dump=domtree. */
 void kl_domtree(KlrModule *m);

@@ -16,7 +16,8 @@ func main() {
 // CHECK: add %x int64, 1 int64
 
 // CHECK-LABEL: --- IR Dump After normalize (Iter 1) [@main] ---
-// CHECK: add b"ab" std/builtin.bytes, %q std/builtin.bytes
+// CHECK: build_intern @bytes, b"ab" std/builtin.bytes
+// CHECK-NEXT: add %{{[0-9]+}} std/builtin.bytes, %q std/builtin.bytes
 
 // CHECK: {{^}}b"abcd"
 // CHECK-NEXT: abcd

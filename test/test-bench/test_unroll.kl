@@ -1,0 +1,75 @@
+// Loop unrolling: compare
+//   koala test/test-bench/test_unroll.kl ++ --test
+//   koala test/test-bench/test_unroll.kl ++ --test --domtree --unroll
+// The inner loops are unrolled, the outer loops (100000 trips) are not.
+
+import "std/ut"
+
+// folded to a constant after unrolling
+func sum15() int {
+    var s = 0
+    for i in range(15) { s = s + i }
+    return s
+}
+
+// the counter is a constant in every copy
+func poly(x int) int {
+    var s = 0
+    for i in range(8) { s = s * x + i }
+    return s
+}
+
+// a rotated while loop
+func dot4(a int, b int) int {
+    var s = 0
+    var i = 0
+    while i < 4 { s = s + (a + i) * (b - i); i = i + 1 }
+    return s
+}
+
+// early exit, every copy keeps its exit
+func find(x int) int {
+    for i in range(10) {
+        if i * i == x { return i }
+    }
+    return -1
+}
+
+// nested loops, unrolled in two rounds
+func grid() int {
+    var s = 0
+    for i in range(4) {
+        for j in range(4) { s = s + i * j }
+    }
+    return s
+}
+
+@bench(warmup=3, runs=10)
+func bench_sum15() {
+    var t = 0
+    for k in range(100000) { t = t + sum15() }
+}
+
+@bench(warmup=3, runs=10)
+func bench_poly() {
+    var t = 0
+    for k in range(100000) { t = t + poly(k) }
+}
+
+@bench(warmup=3, runs=10)
+func bench_dot4() {
+    var t = 0
+    for k in range(100000) { t = t + dot4(k, 7) }
+}
+
+@bench(warmup=3, runs=10)
+func bench_find() {
+    var t = 0
+    for k in range(100000) { t = t + find(49) }
+}
+
+@bench(warmup=3, runs=10)
+func bench_grid() {
+    var t = 0
+    for k in range(100000) { t = t + grid() }
+}

@@ -35,12 +35,14 @@ set(PARSER_SRC
     parser/klr/ssa.c
     parser/klr/domtree.c
     parser/backend/isel.c
+    parser/backend/liveness.c
     parser/backend/lsra.c
     parser/backend/lower_operands.c
     parser/backend/cgen.c
     parser/opt/const_copy_prop.c
     parser/opt/dce.c
     parser/opt/inline.c
+    parser/opt/unroll.c
     parser/opt/cfg_bb_opt.c
     parser/opt/normalize.c
     parser/opt/lvn.c

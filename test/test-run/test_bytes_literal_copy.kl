@@ -1,0 +1,45 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
+
+// bytes are mutable: each evaluation of a bytes literal is a new object, the constant
+// in the module const pool is only copied (build_intern @bytes), never handed out.
+
+let G = b"glob"
+
+func mk() bytes { return b"hello" }
+func dflt(x = b"dd") bytes { return x }
+
+func main() {
+    let a = mk()
+    a[0] = 72
+    print(a, mk())
+
+    for i in range(2) {
+        let c = b"xyz"
+        print(c)
+        c[0] = 65
+    }
+
+    let s1 = b"same"
+    let s2 = b"same"
+    s1[0] = 83
+    print(s1, s2)
+
+    let d = dflt()
+    d[0] = 68
+    print(dflt())
+
+    G[0] = 71
+    print(G, b"".len())
+}
+
+// CHECK: b"Hello" b"hello"
+// CHECK-NEXT: b"xyz"
+// CHECK-NEXT: b"xyz"
+// CHECK-NEXT: b"Same" b"same"
+// CHECK-NEXT: b"dd"
+// CHECK-NEXT: b"Glob" 0
+
+// IR-LABEL: func @mk() std/builtin.bytes {
+// IR: %0 = build_intern @bytes, b"hello" std/builtin.bytes
+// IR-NEXT: ret %0 std/builtin.bytes

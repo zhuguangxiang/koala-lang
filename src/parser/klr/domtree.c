@@ -160,7 +160,7 @@ void klr_func_free_domtree(KlrFunc *fn)
     fn->domtree = NULL;
 }
 
-static void build_func(KlrFunc *fn)
+void klr_func_build_domtree(KlrFunc *fn)
 {
     klr_func_free_domtree(fn);
     fn->domtree = mm_alloc_obj(fn->domtree);
@@ -194,7 +194,7 @@ static void foreach_func(KlrModule *m, void (*cb)(KlrFunc *))
 
 void kl_domtree(KlrModule *m)
 {
-    foreach_func(m, build_func);
+    foreach_func(m, klr_func_build_domtree);
     if (dump_domtree_enabled()) foreach_func(m, dump_func);
 }
 

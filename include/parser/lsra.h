@@ -17,17 +17,36 @@ extern "C" {
 #define MAX_REGS 256
 
 /* single range, the span from first definition to last use */
+/* a half-open live range [start, end) */
+typedef struct _KlrRange {
+    int start;
+    int end;
+} KlrRange;
+
 typedef struct _KlrInterval {
     /* The associated IR value (Insn/Param) */
     KlrValue *val;
 
-    /* First definition position (pos) */
+    /* start of the first range */
     int start;
-    /* Last use position (pos) */
+    /* end of the last range */
     int end;
+
+    /* sorted, disjoint and non-adjacent live ranges; the gaps are holes where the register
+     * holds nothing and may be given to another interval */
+    KlrRange *ranges;
+    int nranges;
+    int cap;
+    /* index of the range the scan is at */
+    int cursor;
 
     /* the allocated flag used to control free register */
     int allocated;
+
+    /* take the register of this value if it is free, so a move or cast between them is dropped */
+    KlrValue *hint;
+    /* share the register of this local, whose value is dead over the interval */
+    KlrValue *alias;
 } KlrInterval;
 
 /* LSRA Context for liveness analysis and register mapping */
@@ -42,6 +61,11 @@ typedef struct _KlrLSRAContext {
     int last_pos;
     /* fixedslot insns */
     Vector fixed;
+    /* the values that may get a register, indexed by the id kept in their tag */
+    KlrValue **vals;
+    int nids;
+    /* id -> index of its interval, -1 if none */
+    int *imap;
 } KlrLSRAContext;
 
 void kl_do_lsra(KlrModule *m);

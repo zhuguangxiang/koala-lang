@@ -17,5 +17,41 @@ func ack(m int, n int) int {
 
 print(ack(2, 10))
 
+// The arguments are assigned to the parameters in parallel: (b e) and (c d) are cycles.
+func shuffle(a int, b int, c int, d int, e int) int {
+    if a <= 0 { return e }
+    return shuffle(a - 1, e, d, c, b)
+}
+
+print(shuffle(3, 1, 2, 3, 4), shuffle(4, 1, 2, 3, 4))
+
+// a 3-cycle
+func rot(n int, a int, b int, c int) int {
+    if n == 0 { return a * 100 + b * 10 + c }
+    return rot(n - 1, b, c, a)
+}
+
+print(rot(1, 1, 2, 3), rot(2, 1, 2, 3))
+
+// `y + x` may not be computed straight into the slot of x: `x * 2` reads x after it
+func mix(n int, x int, y int) int {
+    if n == 0 { return x * 1000 + y }
+    return mix(n - 1, y + x, x * 2)
+}
+
+print(mix(3, 1, 2))
+
+// b is read by both new values
+func fib2(n int, a int, b int) int {
+    if n == 0 { return a * 1000 + b }
+    return fib2(n - 1, b, a + b)
+}
+
+print(fib2(5, 0, 1))
+
 // CHECK: 5050
 // CHECK: 23
+// CHECK: 1 4
+// CHECK: 231 312
+// CHECK: 11010
+// CHECK: 5008

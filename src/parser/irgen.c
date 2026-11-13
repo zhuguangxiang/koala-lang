@@ -451,11 +451,20 @@ static KlrValue *_add_literal(ParserState *ps, Literal *lit)
         }
         case LIT_STR:
             return klr_const_str(lit->sval, lit->len, MOD);
+        case LIT_BYTES:
+            return klr_const_bytes(lit->sval, lit->len, MOD);
         case LIT_NONE:
             return klr_const_none(MOD);
         default:
             UNREACHABLE();
     }
+}
+
+// bytes are mutable: an evaluation of a bytes constant copies it, like a list literal
+static KlrValue *copy_if_bytes(KlrBuilder *bldr, KlrValue *val)
+{
+    if (!klr_is_const(val) || ((KlrConst *)val)->which != CONST_BYTES) return val;
+    return klr_build_intern(bldr, &val, 1, val->ts, INTERN_BYTES, "");
 }
 
 static void emit_ir_ident(ParserState *ps, Expr *exp)
@@ -510,7 +519,12 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
     switch (sym->kind) {
         case SYM_VAR: {
             VarSymbol *var_sym = (VarSymbol *)sym;
-            if (exp->ctx == EXPR_CTX_LOAD || exp->ctx == EXPR_CTX_LOAD_STORE) {
+            if (exp->ctx == EXPR_CTX_LOAD && (sym->flags & SYM_FLAGS_CONST) &&
+                var_sym->scope != VAR_SCOPE_FIELD) {
+                // a const is read as its literal; its module global is never loaded
+                KlrValue *val = klr_is_const(sym->ir_val) ? sym->ir_val : _add_literal(ps, var_sym->lit);
+                exp->ir_val = copy_if_bytes(&bldr, val);
+            } else if (exp->ctx == EXPR_CTX_LOAD || exp->ctx == EXPR_CTX_LOAD_STORE) {
                 if (var_sym->scope == VAR_SCOPE_GLOBAL) {
                     exp->ir_val = klr_build_get_global(&bldr, sym->ir_val);
                     if (exp->ctx == EXPR_CTX_LOAD_STORE) exp->arg = sym->ir_val;
@@ -628,6 +642,12 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
         }
         case LIT_EXPR_BYTES: {
             exp->ir_val = klr_const_bytes(lit->sval, lit->len, m);
+            if (ps->scope && ps->scope->bb) {
+                SET_IR_LOC(exp->ir_val, exp);
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                exp->ir_val = copy_if_bytes(&bldr, exp->ir_val);
+            }
             break;
         }
         case LIT_EXPR_NONE: {
@@ -1624,7 +1644,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             KlrValue *global_val = get_ext_global_value(dot->id.name, lhs->sym, ps);
             KlrValue *val;
             if (klr_is_const(global_val)) {
-                val = global_val;
+                val = copy_if_bytes(&bldr, global_val);
             } else {
                 val = klr_build_get_global(&bldr, global_val);
             }
@@ -2092,6 +2112,10 @@ static void emit_ir_unary(ParserState *ps, Expr *exp)
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
 
+    /* '-' and '~' work on the return type of `__neg__` / `__bitnot__` (std/builtin/number.kl):
+     * int8 and uint8 -> int64, float32 -> float64, so the operand is cast to it first */
+    TypeSpec *operand_ts = type_is_number(exp->ts) ? exp->ts : NULL;
+
     switch (op) {
         case UNARY_PLUS: {
             // unary plus is a no-op, just return the value
@@ -2099,19 +2123,18 @@ static void emit_ir_unary(ParserState *ps, Expr *exp)
             break;
         }
         case UNARY_NEG: {
-            res = klr_build_unary(&bldr, e->ir_val, OP_UNARY_NEG, "", "neg");
+            KlrValue *val = cast_number_operand(&bldr, e->ir_val, operand_ts);
+            res = klr_build_unary(&bldr, val, OP_UNARY_NEG, "", "neg");
             break;
         }
         case UNARY_BIT_NOT: {
-            res = klr_build_unary(&bldr, e->ir_val, OP_UNARY_NOT, "", "bit_not");
+            KlrValue *val = cast_number_operand(&bldr, e->ir_val, operand_ts);
+            res = klr_build_unary(&bldr, val, OP_UNARY_NOT, "", "bit_not");
             break;
         }
         case UNARY_NOT: {
-            if (unary->skip) {
-                res = e->ir_val;
-            } else {
-                res = klr_build_unary(&bldr, e->ir_val, OP_LNOT, "", "not");
-            }
+            // '!' on a comparison is folded by the optimizer (const-copy-prop), see fold_lnot()
+            res = klr_build_unary(&bldr, e->ir_val, OP_LNOT, "", "not");
             break;
         }
         default: {

@@ -1595,6 +1595,12 @@ static struct jmp_invert jmp_invert_map[] = {
     { OP_JMP_FLOAT_LE, FORMAT_RROff }, { OP_JMP_FLOAT_LT, FORMAT_RROff },
 };
 
+/*
+ * `!(a < b)` is not `a >= b` for floats: both are false when a or b is NaN. So a
+ * float lt/le/gt/ge jump is never inverted; the false edge needs an extra `jmp`.
+ */
+static int float_ordered_jmp(OpCode op) { return op >= OP_JMP_FLOAT_LT && op <= OP_JMP_FLOAT_GE; }
+
 static void lower_fused_jmp(KlMachInsn *mi)
 {
     KlMachBlock *mb = mi->bb;
@@ -1610,7 +1616,7 @@ static void lower_fused_jmp(KlMachInsn *mi)
     KlrBasicBlock *bb_true = insn_oper_value_as_bb(insn, 2);
     KlrBasicBlock *bb_false = insn_oper_value_as_bb(insn, 3);
 
-    int fallthrough = (next && next->origin == bb_true);
+    int fallthrough = (next && next->origin == bb_true) && !float_ordered_jmp(op);
 
     if (fallthrough) {
         // if (!cond) goto false(invert jmp-op)
@@ -1866,6 +1872,33 @@ static void process_fused_jumps(KlMachFunc *mfn)
             // If the offset fits in 8 bits, no need to insert a new `jmp` instruction.
             if (offset_fits_8bits(offset)) continue;
 
+            if (is_fused && float_ordered_jmp(mi->op)) {
+                /* Not invertible (NaN): keep the condition and jump over a `jmp +1`
+                 * to the far `jmp`; the false path skips the far `jmp`:
+                 *
+                 *   jmp_float_lt r1, r2, far   ==>   jmp_float_lt r1, r2, 1
+                 *                                    jmp 1                ; inserted
+                 *                                    jmp far              ; inserted
+                 */
+                KlMachBlock *far_target = mi->target;
+                mi->target = NULL;
+                mi->opers[2] = 1;
+
+                KlMachInsn *jmp_skip = build_mach_insn(OP_JMP, mi->origin, mb);
+                jmp_skip->target = NULL;
+                jmp_skip->opers[0] = 1;
+                vector_insert(&mb->insns, i + 1, &jmp_skip);
+
+                KlMachInsn *jmp_far = build_mach_insn(OP_JMP, mi->origin, mb);
+                jmp_far->target = far_target;
+                vector_insert(&mb->insns, i + 2, &jmp_far);
+
+                mfn->changed = 1;
+                check_no_fused_branch(mb, i + 3);
+                done = 1;
+                continue;
+            }
+
             /* Out of range:
              * invert the condition and insert a `jmp` to the original far target right after it.
              */
@@ -1926,7 +1959,11 @@ static void patch_branches(KlMachFunc *mfn)
         vector_foreach(mi, &mb->insns) {
             if (mach_insn_is(mi, OP_JMP)) {
                 ASSERT(mi->format == FORMAT_JMP);
-                ASSERT(mi->target);
+                if (!mi->target) {
+                    /* the `jmp 1` inserted by process_fused_jumps() */
+                    ASSERT(mi->opers[0] == 1);
+                    continue;
+                }
                 int target_pc = mi->target->start_pc;
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (current + 1) */

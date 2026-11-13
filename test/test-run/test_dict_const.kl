@@ -21,11 +21,9 @@ func main() {
 // CHECK: ret void
 
 // Two separate build_intern: the literals were not folded together.
-// CHECK-LABEL: @main[0,24]:
+// CHECK-LABEL: @main[0,22]:
 // CHECK: build_intern r0, @map, #4
-// CHECK-NEXT: move r1, r0
-// CHECK: build_intern r0, @map, #4
-// CHECK-NEXT: move r2, r0
+// CHECK: build_intern r1, @map, #4
 
 // CHECK-LABEL: Constant Pool:
 // CHECK-NEXT: [000] str     = " "

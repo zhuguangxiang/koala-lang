@@ -121,7 +121,8 @@ func main() {
 // CHECK: make_intf %c test_intf_ext_inherit.MemConn [intf-table-index = 7] to test_intf_ext_inherit.Conn
 // CHECK: call @Conn:kind [intf-index = 5], %conn test_intf_ext_inherit.Conn
 // CHECK: call @Conn:write_str [intf-index = 3], %conn test_intf_ext_inherit.Conn, 'hello' str
-// CHECK: call @Conn:write [intf-index = 2], %conn test_intf_ext_inherit.Conn, b"bytes" std/builtin.bytes
+// CHECK: build_intern @bytes, b"bytes" std/builtin.bytes
+// CHECK-NEXT: call @Conn:write [intf-index = 2], %conn test_intf_ext_inherit.Conn, %{{[0-9]+}} std/builtin.bytes
 // CHECK: call @Conn:flush [intf-index = 4], %conn test_intf_ext_inherit.Conn
 // CHECK: call @Conn:read [intf-index = 0], %conn test_intf_ext_inherit.Conn
 // CHECK: call @Conn:close [intf-index = 1], %conn test_intf_ext_inherit.Conn

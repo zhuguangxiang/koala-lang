@@ -2104,11 +2104,10 @@ Tests: `test/test-run/test_const_mutable_fresh.kl` (runtime, fails on the old co
 
 **Open**:
 
-1. **bytes literals are still shared.** `b"ab"` is a const-pool bytes object loaded with `OP_LOADK`;
-   `bytes` is writable, so `mk_bytes()[0] = 120` changes what the next `mk_bytes()` returns
-   (`b"xb"`). A tuple holding bytes is now built at run time, but the bytes item inside is still the
-   shared one. To decide: make `bytes` immutable, as in Python (with a mutable counterpart for
-   writes), or build a bytes literal afresh (e.g. an `INTERN_BYTES` that copies the pool data).
+1. ~~**bytes literals are still shared.**~~ Fixed (see §83): irgen wraps a `bytes` literal in
+   `build_intern @bytes` (`INTERN_BYTES`), which the VM evaluates as a copy of the pool data, so
+   `mk_bytes()[0] = 120` no longer changes what the next `mk_bytes()` returns. A `bytes` const reads
+   back the same way. Test: `test/test-run/test_bytes_literal_copy.kl`.
 2. **`const_copy_prop.c` (OP_IR_CALL fold).** A constant call to the `list` class is still folded
    with `klr_const_list`, and a `tuple(...)` call with `klr_const_tuple` without the immutability
    check. No known input reaches it (irgen lowers `list[T](...)` itself, without a call); decide
@@ -2613,7 +2612,7 @@ so every fix below is a per-pass type whitelist.
   reordering needs no extra type check.
 - `dce.c` `is_value_insn()`: in `has_side_effect()`, an operator is removable only on int / float /
   bfloat16 / bool / str / optional (`x != nil`); on bytes / list / user class it is kept.
-- `backend/lsra.c` `unused_needs_reg()`: a kept `OP_NUM_*` with an unused result used to get no
+- `backend/lsra.c` `unused_needs_reg()` (now in `backend/liveness.c`, §105): a kept `OP_NUM_*` with an unused result used to get no
   interval and was emitted as `num.add r255, ...` (VM assertion `rd < max_regs`); the 16
   `OP_NUM_*` codes now get a one-position interval. Calls still get none (`vreg -1` = no return
   register, `call flg=0, #1`). This one is a stop-gap, see 47.3.
@@ -2625,7 +2624,7 @@ work-around in `test/test-ut/test_bytes.kl` can now go back to a plain `+`.
 
 ### 47.3 `lsra` register for an unused `OP_NUM_*` (stop-gap, to discuss)
 
-The `lsra.c` `unused_needs_reg()` change in 47.2 works but is not a good design; revisit later.
+The `unused_needs_reg()` change in 47.2 (`liveness.c` since §105) works but is not a good design; revisit later.
 
 Why a register is needed at all: every `OP_NUM_*` handler in `include/runtime/vm_ops.h` decodes `rd`,
 checks it with `CHECK_REG_ID(rd)` (`src/runtime/eval.c:110`, `ASSERT((id) < max_regs)`) and writes
@@ -2699,7 +2698,7 @@ When this is implemented, the unary path must match the binary one end to end:
   `is_value_insn()`, so a user-class operand is neither numbered nor deleted. `OP_LNOT` does not:
   `dce` `has_side_effect()` returns 0 for it, so an unused `!c` on a user class would be deleted —
   it needs the same whitelist case.
-- `lsra.c` `unused_needs_reg()`: add the object unary code, or a kept unused `-c` writes `r255`.
+- `liveness.c` `unused_needs_reg()`: add the object unary code, or a kept unused `-c` writes `r255`.
 - Test: the case above in `test_dce_klass_op.kl` (unused `-c`, then `print(-c)` prints `20`).
 
 ---
@@ -3314,9 +3313,10 @@ instruction). `_int_neg` / `_int_bitnot` / `_float_neg` have not run yet.
 `Arithmetic`, and nothing reports the missing method (see §57). `intobj.c` registers `__neg__` only
 because `int64` and `uint64` share a method table; `uint64` code never reaches it.
 
-**3. To decide: division differs on the two paths.** The natives raise `division by zero` and wrap
-`INT64_MIN / -1` to `INT64_MIN`. `OP_INT_DIV` / `OP_INT_MOD` check nothing, so the same operations in
-statically typed code are a `SIGFPE`. Shifts no longer differ, see §64.
+**3. ~~Division differs on the two paths.~~** Fixed (2026-11-13): `OP_INT_DIV` / `OP_INT_MOD` /
+`OP_UINT_DIV` / `OP_UINT_MOD` now raise `division by zero` and wrap `INT64_MIN / -1` to `INT64_MIN`
+(`INT64_MIN % -1` is 0), as the natives do; a constant zero divisor is a compile error (design doc
+§5.1). Tests: `test-kl/test_div_by_zero_error.kl`, `test-ut/test_div_by_zero.kl`. Shifts, see §64.
 
 **4. Regression tests.** Only shifts on a trait value have one (`test-run/test_shift_trait.kl`); the
 arithmetic, comparison and `& | ^` operators do not.
@@ -3557,7 +3557,7 @@ The line is the last branch of `emit_type_call`. `bfloat16(float64(1.5))` fails 
 
 ---
 
-## 75. Unary operators still promote automatically (2026-11-07, to fix)
+## 75. Unary operators still promote automatically (2026-11-07, fixed 2026-11-14)
 
 The binary promotion was removed: a narrow number type's methods in `libs/std/builtin/number.kl` declare
 what it promotes to. `-a` and `~a` do not follow that yet. `parse_unary` hard-codes the result type as
@@ -3575,6 +3575,17 @@ func main() {
 To do: declare `__neg__` and `__bitnot__` on the narrow types, and make the unary operators follow the
 declaration as the binary operators do. `emit_ir_unary` does not cast its operand, so the tag above
 stays `uint8`; that has to follow the declaration too.
+
+Fixed (2026-11-14):
+
+- `number.kl`: int8/16/32 and uint8/16/32 declare `__neg__() int64` and `__bitnot__() int64`, like
+  their binary operators; float16/32 and bfloat16 declare `__neg__() float64`. uint64 keeps only
+  `__bitnot__() uint64`: it has no `__neg__`, so `-x` on a uint64 is a compile error.
+- `parse_unary` takes the result type from the declaration (`number_unary_ret()`), and reports
+  `operator '-' is not defined in type 'uint64'.` when there is none.
+- `emit_ir_unary` casts the operand to the result type before `neg` / `not`: `~uint8(5)` is `-6`
+  of type `int64`, `~uint64(5)` is `18446744073709551610` of type `uint64`.
+- Tests: `test/test-run/test_unary.kl`, `test/test-kl/test_unary_neg_uint64.kl`.
 
 ---
 
@@ -3820,7 +3831,7 @@ To decide. If accepted: the checker gives `as!` the type `T`, irgen emits `as` p
 a panic that carries the two types; tests for success, a wrong type, and an optional source (an
 error).
 
-## 83. A `const` cannot hold `bytes`, and reads it back wrong at run time (2026-11-08, to fix)
+## 83. A `const` cannot hold `bytes`, and reads it back wrong at run time (2026-11-08, fixed)
 
 Found while writing the tests for `koala/zipfile`.
 
@@ -3846,6 +3857,23 @@ A `str` constant of the same shape is fine (`pub const RFC_4122 = "specified in 
 `bytes` works as well, so the fault is in how a `bytes` constant is materialised into the module
 globals and then loaded from them: the loader expects a `global_type` object where it finds
 something else.
+
+Root cause: the `const` global is not a real global. opt's DCE drops its
+`global_set` (`dce.c`, `g->konst`), and const-copy-prop only replaces a `global_get` of a const
+global by its value when `type_allowed_to_prop` accepts the type, which excludes `bytes`
+(mutable). The `bytes` `global_get` is left reading a global that no longer exists.
+
+Fixed: irgen reads a const of this module as its literal, as it already did for an imported one
+(`emit_ir_ident`; no `global_get` is emitted for a const), and `_add_literal` gained `LIT_BYTES`
+(an imported `pub const` bytes hit `UNREACHABLE`). A `bytes` const, local or imported (`pkg.C`),
+is wrapped in `build_intern @bytes`, so each read is a fresh copy. Test:
+`test/test-run/test_const_bytes.kl` (with `test/test_pkg/pkg_const_bytes`).
+
+Related, fixed: every evaluation of a `bytes` literal returned the same object from the module
+const pool (`OP_LOADK` copies only the pointer), so `let a = mk(); a[0] = 72` also changed what
+the next `mk()` returned, and a literal in a loop kept the previous iteration's writes. irgen now
+wraps a `bytes` literal inside a function body in `build_intern @bytes` (`INTERN_BYTES`), which
+the VM evaluates as a copy (`kl_bytes_from_data`). Test: `test/test-run/test_bytes_literal_copy.kl`.
 
 Two smaller findings from the same session, both worth a decision rather than a fix:
 
@@ -4564,7 +4592,7 @@ include/runtime/vm_ops.h:85: _eval_frame: Assertion
 
 ---
 
-## 94. 一元运算符（unary）语义未整改：uint64 `~x` 得 int64、NEG/NOT tag 不一致、JIT 镜像分歧（2026-11-13，待修）
+## 94. 一元运算符（unary）语义未整改：uint64 `~x` 得 int64、NEG/NOT tag 不一致、JIT 镜像分歧（2026-11-13，语言侧已修 2026-11-14）
 
 JIT int 类型覆盖设计时排查 unary，确认 §75（unary 仍自动提升）至今未整改，并顺带核出
 若干精确机制问题。本条汇总存档；**JIT 暂不扩展 unary 覆盖**，待语言侧整改后再镜像。
@@ -4607,12 +4635,31 @@ func main() {
 
 ### 94.4 待办
 
-- [ ] 语言侧按 §75 整改：窄类型声明 `__neg__`/`__bitnot__`，unary 结果类型与操作数 cast 跟随声明。
-- [ ] 明确 uint64 是否需要 `__neg__`（number.kl 现未声明）；统一 NEG/NOT 的 tag 语义。
-- [ ] 整改后回归 `test/test-run/test_unary.kl`（既有 worklist），并补 uint64 `~x`/`-x` 用例。
+- [x] 语言侧按 §75 整改：窄类型声明 `__neg__`/`__bitnot__`，unary 结果类型与操作数 cast 跟随声明。
+- [x] uint64 不声明 `__neg__`（无符号没有负数），`-x` 编译报错。`~uint64(5)` 现为
+      `18446744073709551610 <class 'uint64'>`。
+- [x] ~~NOT 保留的源 tag 就是结果类型~~：此判断有误，已修，见 94.5。
+- [x] 回归 `test/test-run/test_unary.kl`，补 uint64 `~x` 用例和 `test/test-kl/test_unary_neg_uint64.kl`。
 - [ ] JIT 侧按 §94.3 镜像 NOT 的 tag 行为，再纳入 unary 覆盖。
 
-### 94.5 关联条目
+### 94.5 解释器里窄类型 `~x` 的 tag 错误（2026-11-14 发现，已修）
+
+irgen 的 `cast int8 → int64` 在运行期是空操作（§5「扩宽后的值保留自身类型」），值仍带窄 tag；
+`OP_INT_NOT` 再原样复制源 tag，于是结果没有变成声明的 int64：
+
+```kl
+func f(a int8)  { print(~a, typeof(~a)) }   // 解释器：-6 <class 'int8'>，应为 int64
+func g(a uint8) { print(~a, typeof(~a)) }   // 解释器：18446744073709551610 <class 'uint8'>，应为 -6 int64
+```
+
+- JIT 打开时（默认阈值 1）结果正确，因为 JIT 的 NOT 写死 INT64，所以 `test_unary.kl` 没测出来；
+  `KOALA_JIT=0` 可复现。NEG 写死 INT64，不受影响。
+- [x] 修复：`OP_INT_NOT`（`include/runtime/vm_ops.h`）的结果 tag 为：源是 `TAG_UINT64` 时为 `TAG_UINT64`，
+  其余一律 `TAG_INT64`，与声明一致。解释器与 JIT 结果相同（JIT 对 uint64 `~x` 仍写 INT64，见 94.3）。
+- 测试：`test/test-run/test_unary.kl` 加 `env KOALA_JIT=0 koala %s ++ --no-inline` RUN
+  （要关内联，否则实参是常量，`~` 被折叠，运行期不执行 NOT）。
+
+### 94.6 关联条目
 
 - §75（unary 仍自动提升）是本条的上游根因；§63（trait 值上的运算符、移位与 unary）、
   §47.5（用户类上的 unary 待实现）同属 unary 整改面。
@@ -4795,7 +4842,7 @@ v1 = **Drop Bear**（基线），v2 = **Yowie**（优化），v3 = **Bunyip**（
 
 - [ ] **拆箱**：字节码静态 tag 数据流（每个 def 的 tag 由 opcode 确定）。int/bool 留 GPR、
       float 留 XMM，仅在逃逸点（call 参数、ret、field/global 写、cast、intf 装箱）物化 TValue。
-- [ ] **机器 RA**：字节码 CFG 重算 liveness + 线性扫描（复用 `src/parser/backend/lsra.c` 的 interval 机制）。
+- [ ] **机器 RA**：字节码 CFG 重算 liveness + 线性扫描（复用 `src/parser/backend/liveness.c` 的数据流与带洞区间，见 §105）。
 - [ ] **JIT→JIT 直调**：非自递归调用绕过 helper / `kl_call_code`，可 patch 调用点（W^X 双映射）。
 - [ ] **peephole**：冗余 tag 写、mov 链。
 - 验收：fib/tak/ack/loop-sum ≥5× 解释器；`bench-all.sh` 对标 luajit（开 JIT）；lit 差分绿。
@@ -4847,15 +4894,15 @@ print(typeof(r))        // 不内联：int8；--inline：int64
 ```
 
 - irgen 对 `return v` 的隐式扩宽生成 `cast %v int8 to int64`。运行期 isel 的 `int_need_cast` 判定扩宽无需转换，
-  值保留 `int8` tag（符合 §5.1「扩宽后的值运行期保留自身类型」）。
+  值保留 `int8` tag（符合设计文档 §5「A widened value keeps its own type at run time」）。
 - 内联后 cast 的输入成了常量 `-5 int8`，const-copy-prop 把它折叠成 `-5 int64`，`typeof` 变成 `int64`。
 - 不内联也存在：`int64(int8(-5))`（常量折叠）是 `int64`，`int64(a)`（运行期）是 `int8`。
 
 ### 101.2 可选方案（未定）
 
 - [ ] A. 只让 `cast` 指令（显式 `int64(x)`、return 的隐式扩宽）在运行期真正改 tag；传参 / let / list 仍保留窄 tag。
-- [ ] B. 所有隐式扩宽都改为目标类型（`typeof` 恒等于声明类型），需推翻 §5.1 的设计，改动大。
-- [ ] C. 维持 §5.1：const-copy-prop 不折叠运行期无效果的整数扩宽 cast，两条路径都是 `int8`。
+- [ ] B. 所有隐式扩宽都改为目标类型（`typeof` 恒等于声明类型），需推翻设计文档 §5 的这条规则，改动大。
+- [ ] C. 维持设计文档 §5：const-copy-prop 不折叠运行期无效果的整数扩宽 cast，两条路径都是 `int8`。
 
 ### 101.3 测试
 
@@ -4864,7 +4911,7 @@ print(typeof(r))        // 不内联：int8；--inline：int64
 
 ---
 
-## 102. float 比较分支取反在 NaN 下语义错误（VM/编译器 bug，JIT 排查中发现）（2026-11-14，待修）
+## 102. float 比较分支取反在 NaN 下语义错误（VM/编译器 bug，JIT 排查中发现）（2026-11-14，已修）
 
 ### 102.1 现象
 
@@ -4893,6 +4940,23 @@ bool 求值路径 `OP_FLOAT_LT` 直接用 `<`，正确。
   按「VM bug 只报告不在 JIT 侧修」原则，此条仅报告。
 - 影响所有 float 取反分支（`<`/`<=`/`>`/`>=` 互为取反下降时）在 NaN 下的行为。
 - 修复方向（待作者定）：分支下降保留原比较方向并处理 unordered，或取反时用 unordered-aware 条件码。
+
+### 102.5 修复
+
+- `src/parser/backend/cgen.c`：float 的 lt/le/gt/ge 跳转不再取反（`float_ordered_jmp()`）。
+  - `lower_fused_jmp()`：true 块是下一个块时，仍发 `jmp_float_lt → true`，再补一条 `jmp false`。
+  - `process_fused_jumps()`：超出 8 位偏移时改写为 `jmp_float_lt +1; jmp +1; jmp far`
+    （`jmp +1` 的 target 为 NULL，`patch_branches()` 跳过）。
+  - eq/ne 互为补集，取反仍然正确。
+- 测试：`test/test-run/test_float_nan_branch.kl`（4 种比较 × NaN 在左 / 右、else、while、远跳）。
+- 前端 `!` 折叠（2026-11-14 已修）：删除 `parser_expr.c` 的 `opt_negate_comparison()` 和
+  `UnaryExpr.skip`，irgen 对每个 `!` 都生成 `lnot`；折叠移到 const-copy-prop 的 `fold_lnot()`：
+  - `lnot (lnot x)` → `x`；
+  - `lnot (cmp a, b)` 且比较只有这一个 use → 翻转比较；float 只翻 `==`/`!=`，`<`/`<=`/`>`/`>=` 保留 `lnot`。
+  - `unwrap_optional()`（`parser.c`）自己数 `!` 的奇偶，`!(v == nil)` 仍按 `v != nil` 窄化。
+- 同期修 unary 的 `-`/`~`：irgen 先把操作数提升到表达式类型（int64 / uint64 / float64）再运算
+  （以前 `~(5 int8)` 按 int8 运算）；const-copy-prop 折叠常量时用指令类型（以前 `~` 写死 int8）。
+- 测试：`test/test-run/test_double_not.kl`（no-opt / opt IR + NaN 运行结果）、`test/test-run/test_unary.kl`。
 
 ### 102.4 关联
 
@@ -4959,6 +5023,24 @@ VanDrunen, Hosking, "Value-Based Partial Redundancy Elimination", CC 2004。
   EaC 第 9 章 B0..B8），以及不开 `--domtree` 时无输出。
 - GVN 前后的 IR dump，并补充 lit 测试。
 - 支配树也供循环识别（回边 = 跳到支配自己的块）、循环展开和递归内联使用（见 §96）。
+- ~~循环完全展开~~（已完成）：`src/parser/opt/unroll.c`，`--unroll` 开关（默认关闭，`koala` 和 `koalac`
+  都支持），需要 `--opt` 和 `--domtree`，否则打印 warning 并跳过。在 opt 之后运行，展开后重跑 opt，
+  最多 4 轮（内层循环先展开，opt 去掉残留循环后外层循环变成最内层，下一轮再展开）。
+  - 自然循环：头块 H 的回边来自 H 支配的前驱；只处理最内层循环，H 在循环外只有一个前驱 P，
+    循环里定义的值不在循环外使用。
+  - 计数：退出测试 `branch (cmp %i, C)` 所在块和唯一的 `move %i, (add|sub %i, C)` 所在块都支配所有回边，
+    `%i` 是有符号整数 local，初值是循环前的 `move %i, C`；模拟得到头块进入次数 K（不溢出），
+    K <= 16 且 K × 循环指令数 <= 256。
+  - 变换：剥离 K 份副本，P 跳到第 1 份，第 k 份的回边跳到第 k+1 份，最后一份跳回原循环；每份保留所有出口，
+    结果总是正确的。副本里对 `%i` 的读换成该趟的常量（opt 的 `var` 常量传播只在一个块内），
+    之后 opt 折叠最后一份的退出测试并删掉不可达的原循环。副本带 `KLR_INSN_FLAGS_INLINED`，
+    死代码里的常量除零 / 溢出留给运行时，不报编译错误。
+  - `--dump=unroll-ir` 打印展开后（重跑 opt 之前）的函数。
+  - 测试：`test/test-ir/test_unroll.kl`（while / range 提前 return、超过上限不展开、展开后无回边、
+    不开 `--domtree` 时 warning）、`test/test-run/test_unroll.kl`（与不展开的结果相同：break / continue /
+    嵌套 / 循环后读计数器 / 倒数 / 常量在左 / if-else / 0 趟 / 步长 / lambda / 死代码除零 / 接近 INT64_MAX）、
+    `test/test-run/test_unroll_traceback.kl`（展开后 traceback 行号不变）。
+  - 性能：`test/test-bench/test_unroll.kl`，结果见 `test/test-bench/README.md`。
 
 ### 103.5 参考（暂不实现）
 
@@ -4969,7 +5051,7 @@ VanDrunen, Hosking, "Value-Based Partial Redundancy Elimination", CC 2004。
 
 ---
 
-## 104. 尾调用参数并行移动丢环回边：shuffle 结果错误（编译器 bug，JIT 摸底中发现）（2026-11-14，待修）
+## 104. 尾调用参数并行移动丢环回边：shuffle 结果错误（编译器 bug，JIT 摸底中发现）（2026-11-14，已修）
 
 ### 104.1 现象（已实证）
 
@@ -5021,7 +5103,74 @@ func shuffle(a int, b int, c int, d int, e int) int {
 - 修复方向：尾调用参数下降改用正确的并行移动环消解（cycle breaking + 临时寄存器），
   不能对环内参数源用「直接定槽」省 move。
 
+### 104.5 修复
+
+- 实际根因：实参直接是参数（`%d`、`%c`、`%b`）时，旧代码把 `KlrParam` 强转成 `KlrInsn` 写
+  `fixedslot`（越界写，move 被丢掉）；另外按顺序发 move 也处理不了环。
+- `src/parser/backend/isel.c` `lower_tailcall_params()`：并行赋值。没有其他待发 move 读 pi 时才发
+  `pi <- si`；只剩环时把一个参数存到临时 local 再继续。实参指令直接算进参数槽
+  （`fixedslot = 2`）的条件收紧为：同一 bb、只用一次、不是 local/phi，且之后的指令和其他实参都不读该参数
+  （旧的 `allow_fixslot` 只看后面的实参）。
+- `src/parser/backend/lsra.c`：有尾调用时参数区间延长到最后一个 `tail_call`，参数槽不会被临时值复用
+  （否则临时值分到刚被 `a - 1` 写入的 r0）。§105 之后在 `liveness.c` 里给参数加 `[0, 最后一个 tail_call)` 段。
+- 测试：`test/test-run/test_tailcall.kl`（两个 2-环、3-环、`mix(n-1, y+x, x*2)`、`fib2(n-1, b, a+b)`）。
+
 ### 104.4 关联
 
 - JIT 摸底（Drop Bear v1）跑 `bench/shuffle.kl` 时排查发现；JIT 已支持 `OP_TAIL_CALL`
   （`jmp` 回函数体起点），本身无误，错在上游字节码。
+
+---
+
+## 105. LSRA 寄存器分配优化（2026-11-14，已完成）
+
+只处理非 SSA 路径（传统 opt 之后）；SSA 路径的 phi 合并见 §92，未动。
+cgen 的窥孔优化保持不变，优化都在 LSRA 里做。
+
+### 105.1 超过 256 个寄存器时报错（原为断言）
+
+- 寄存器操作数是 8 位。`klr_fixedslot_alloc` 之后若 `nlocals + max_call_args > MAX_REGS (256)`，
+  报 `function 'X' needs N registers (L locals + C call args), more than 256`，`m->errors++`。
+- 空闲位集按区间个数分配（同时活跃的值不会多于区间数），扫描本身不会用完。
+- `koalac.c`：只看 LSRA 期间新增的错误（之前就有错误但期望退出码 0 的用例，如 `test_int_cast_2`，不受影响）。
+- 测试：`test/test-kl/test_lsra_too_many_regs.kl`（300 个 `let`）。
+
+### 105.2 扫描 O(N²) → O(N log N)
+
+- `klr_scan_and_alloc`：区间按起点扫描，active 用按终点排序的最小堆，终点 <= 当前起点的先释放。
+- 5098 个函数的分配结果与旧实现逐字节相同；2 万语句的函数编译 25.6s → 3.5s。
+
+### 105.3 合并 move / cast（`klr_coalesce`）
+
+- A：`%x = local; move %x, %v` —— `%x` 优先用 `%v` 的寄存器（hint）。
+- B：保留的无操作 `cast %v` —— 结果优先用 `%v` 的寄存器（hint）。
+- C：`%v = op ..; move %x, %v`，`%v` 只用一次、`%x` 先声明、之间只有 `local` 且 `op` 不读 `%x` ——
+  `%v` 直接写进 `%x` 的寄存器（alias）。
+- D：`cast %v` 且 `%v` 不可变（不是 local；参数未被写且函数无尾调用；本身不是 alias）——
+  结果与 `%v` 共用寄存器（alias），`%v` 的区间并入结果的区间。
+- 一个写在最后一次读之后的 local（如死的 `move %x, 10`）也要占寄存器：写也计入活跃范围。
+- 剩下的 move 约 78% 是调用实参搬进固定槽，由 VM 调用约定决定（被调帧覆盖全部实参槽，
+  多次使用的值或 local 要在调用后继续存活），去不掉。
+- 测试：`test/test-run/test_lsra_coalesce.kl`、`test/test-run/test_lvn_local_write.kl`。
+
+### 105.4 带洞的精确活跃区间（`src/parser/backend/liveness.c`）
+
+- 给每个参数和非 fixedslot 指令编号（存在 `tag`），按块求 gen / kill，后向迭代到不动点得到
+  live-in / live-out；再按块逆序把每个值切成有序、不相交的段 `[start, end)`。
+  - 读在 p：段至少延到 p；写（`move` 的目标、指令自身的结果）在 p：段从 p 开始，没人读的写占 `[p, p+1)`
+    （`unused_needs_reg()` 的那些操作码，见 §47.3）；`local` 伪指令不算写，只截断活跃。
+  - 参数从 0 开始；有尾调用时加一段 `[0, 最后一个 tail_call)`（§104）。
+  - 不再需要循环拉伸（`klr_fix_stretch_loop` 已删除）：回边上的活跃由数据流得出。
+- 分配（`lsra.c`）：按起点扫描，维护 active 和 inactive（在洞里）。inactive 的寄存器只分给与它
+  不相交的区间，不拆分区间。alias（规则 C / D）的段在扫描前并入所属区间，扫描后取所属区间的寄存器。
+- `--dump=vreg` 的 `range:` 现在列出所有段，如 `%i: range: [2, 5) [6, 9) reg: 1`。
+- 效果（300 个 test-run 样例）：move 3214 → 3177，总指令 −37，`nlocals` 总和 4973 → 4858（约 −2.3%）；
+  2 万语句函数编译 3.5s → 3.6s，4000 个分支的函数 0.45s。
+- 测试：`test/test-ir/test_lsra.kl`（区间与洞），`test/test-run/test_lsra_holes.kl`（循环回边、if 两臂、
+  在洞里分配后值不被覆盖）。
+
+### 105.5 未做
+
+- SSA 路径（`--ssa`）。
+- 区间拆分 / spill：VM 有 256 个寄存器，超出直接报错（105.1）。
+- `src/parser/backend/simple_reg_alloc.c` 暂不在构建里，**保留**：留给以后不走 opt 的 debug 版本用（简单分配，不依赖活跃区间分析）。

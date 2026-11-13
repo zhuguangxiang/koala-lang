@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include <pthread.h>
+#include "bytesobj.h"
 #include "dictobj.h"
 #include "excobj.h"
 #include "jit/jit.h"
@@ -68,6 +69,13 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
         case INTERN_SLICE: {
             ASSERT(count == 3);
             return kl_new_slice(values);
+        }
+
+        case INTERN_BYTES: {
+            ASSERT(count == 1);
+            BytesObject *b = (BytesObject *)values[0].obj;
+            ASSERT(IS_BYTES(b));
+            return kl_bytes_from_data(b->data + b->offset, b->size);
         }
 
         default: {
@@ -268,7 +276,7 @@ static void _pop_frame(KoalaState *ks, CallFrame *cf)
 }
 
 /* JIT entry guard; defined with the other JIT runtime helpers at the end of file. */
-static inline int jit_params_scalar(TValue *regs, int nargs);
+static inline int jit_params_ok(TValue *regs, int nargs);
 
 TValue kl_call_code(Object *code, TValue *args, int nargs)
 {
@@ -294,7 +302,7 @@ TValue kl_call_code(Object *code, TValue *args, int nargs)
     }
 
     TValue result;
-    if (co->jit && jit_params_scalar(cf->locals, nargs)) {
+    if (co->jit && jit_params_ok(cf->locals, nargs)) {
         /* link the frame exactly like _eval_frame does: the raise path
            (_raise_exc_fmt) and kl_call_slot read ks->cf while native code runs */
         cf->back = ks->cf;
@@ -411,16 +419,16 @@ TValue kl_call_intf(TValue *args, int nargs, int intf_idx)
  * declaration, and the compile-once / native-dispatch block inside kl_call_code.
  * =========================================================================== */
 
-/* Baseline JIT entry guard: only run native code when every argument is a
- * scalar whose payload lives in the TValue's 8-byte slot (signed/unsigned int
- * of any width, bool, or float). Object arguments fall back to the interpreter.
- * This is the union of the interpreter's scalar-opcode operand checks; static
- * typing guarantees the actual tags, the guard only rejects object payloads. */
-static inline int jit_params_scalar(TValue *regs, int nargs)
+/* Baseline JIT entry guard: run native code when every argument is a value the
+ * compiled opcodes can handle — a scalar (int/uint/bool/float) or a reference
+ * (object / interface). The bytecode is statically typed, so this only rejects
+ * stray error/no-value tags; it is a safety net, not a type check. */
+static inline int jit_params_ok(TValue *regs, int nargs)
 {
     for (int i = 0; i < nargs; i++) {
         TValue *v = regs + i;
-        if (!is_int(v) && !is_uint(v) && !is_bool(v) && !is_float(v)) return 0;
+        if (!is_int(v) && !is_uint(v) && !is_bool(v) && !is_float(v) &&
+            !is_ref(v) && !is_intf(v)) return 0;
     }
     return 1;
 }
@@ -480,6 +488,133 @@ int64_t kl_jit_float_cmp(double a, double b, int op)
         case 5: return a >= b;
         default: return 0;
     }
+}
+
+/* Generic numeric protocol arithmetic (OP_NUM_ADD/SUB/...): dispatch through the
+ * slot table exactly like the interpreter's kl_call_add/etc. Records cf->pc and
+ * traces the JIT frame on error, like kl_jit_call_helper. */
+TValue kl_jit_num_arith(TValue *a, TValue *b, int slot, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    TValue args[] = { *a, *b };
+    TValue ret = kl_call_slot(args, 2, slot);
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+
+/* Generic numeric comparison (OP_NUM_EQ/NE/LT/...): mirror the interpreter's
+ * primitive fast paths (int/float/uint, plus bool for eq/ne) before falling back
+ * to the slot table. Builtins have no cmp slot, so the fast path is required for
+ * correctness, not just speed. */
+#define JIT_NUM_CMP_CASES(X, Y)                      \
+    switch (slot) {                                  \
+        case SLOT_EQ: return bool_value((X) == (Y)); \
+        case SLOT_NE: return bool_value((X) != (Y)); \
+        case SLOT_LT: return bool_value((X) < (Y));  \
+        case SLOT_LE: return bool_value((X) <= (Y)); \
+        case SLOT_GT: return bool_value((X) > (Y));  \
+        case SLOT_GE: return bool_value((X) >= (Y)); \
+    }
+
+TValue kl_jit_num_cmp(TValue *a, TValue *b, int slot, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    if (is_int(a) && is_int(b)) {
+        int64_t x = a->ival, y = b->ival;
+        JIT_NUM_CMP_CASES(x, y);
+    } else if (is_float(a) && is_float(b)) {
+        double x = a->fval, y = b->fval;
+        JIT_NUM_CMP_CASES(x, y);
+    } else if (is_uint(a) && is_uint(b)) {
+        uint64_t x = (uint64_t)a->ival, y = (uint64_t)b->ival;
+        JIT_NUM_CMP_CASES(x, y);
+    } else if (is_bool(a) && is_bool(b) && (slot == SLOT_EQ || slot == SLOT_NE)) {
+        int64_t x = a->ival, y = b->ival;
+        return bool_value(slot == SLOT_EQ ? x == y : x != y);
+    }
+    TValue args[] = { *a, *b };
+    TValue ret = kl_call_slot(args, 2, slot);
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+#undef JIT_NUM_CMP_CASES
+
+/* ---- A group: object / container / string / IO helpers ---- */
+
+/* Generic slot call with up to 3 args copied from the register file. Mirrors the
+ * interpreter's kl_call_get_item/set_item/len/contains/slice/str family. */
+TValue kl_jit_slot3(TValue *a0, TValue *a1, TValue *a2, int nargs, int slot,
+                    uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    TValue args[3];
+    args[0] = *a0;
+    if (nargs >= 2) args[1] = *a1;
+    if (nargs >= 3) args[2] = *a2;
+    TValue ret = kl_call_slot(args, nargs, slot);
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+
+TValue kl_jit_get_item_imm(TValue *obj, int64_t idx, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    TValue index = int64_value(idx);
+    TValue ret = kl_call_get_item(obj, &index);
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+
+TValue kl_jit_set_item_imm(TValue *obj, int64_t idx, TValue *val, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    TValue index = int64_value(idx);
+    TValue ret = kl_call_set_item(obj, &index, val);
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+
+TValue kl_jit_hash(TValue *obj, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    unsigned int h = kl_call_hash(obj);
+    if (ks->exc) { trace_here(ks->cf); return error_value; }
+    return int64_value(h);
+}
+
+TValue kl_jit_fmt(TValue *obj, TValue *fmt, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    kl_call_fmt(obj, (Formatter *)to_obj(fmt));
+    if (ks->exc) { trace_here(ks->cf); return error_value; }
+    return nil_value;
+}
+
+TValue kl_jit_print(int nargs, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    TValue ret = do_print(ks->stack_top, nargs);
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+
+TValue kl_jit_new(TypeObject *tp)
+{
+    return obj_value(kl_new_instance(tp));
+}
+
+TValue kl_jit_build_intern(int tag, int count)
+{
+    Object *obj = do_build_intern(__ks()->stack_top, tag, count);
+    return obj_value(obj);
 }
 
 #ifdef __cplusplus

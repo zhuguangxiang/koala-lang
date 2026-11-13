@@ -31,6 +31,9 @@ void kl_inline(KlrModule *m);
 
 void kl_optimize(KlrModule *m);
 
+/* Unroll small counted loops, returns the number of unrolled loops. */
+int kl_unroll(KlrModule *m);
+
 void kl_do_ssa(KlrModule *m);
 void kl_exit_ssa(KlrModule *m);
 

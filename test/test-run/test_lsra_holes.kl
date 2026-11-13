@@ -1,0 +1,68 @@
+// RUN: koala %s | filecheck %s
+//
+// LSRA live ranges with holes: a value is not live between its last read and
+// its next write, or in a branch that does not reach a read, so another value
+// may take its register there. The ranges themselves are checked by
+// test-ir/test_lsra.kl; these cases check that no value is clobbered.
+
+// The new `i` may take the register of the old one, dead from its read on.
+func count(n int) int {
+    var i = 0
+    while i < n {
+        i = i + 1
+    }
+    return i
+}
+
+// a and b are live around the back edge; t is live while a is in a hole.
+func fib(n int) int {
+    var a = 0
+    var b = 1
+    var i = 0
+    while i < n {
+        let t = a + b
+        a = b
+        b = t
+        i = i + 1
+    }
+    return a
+}
+
+// x is read in one arm only; y in the other arm may take its register, but z
+// is live while x is, so it may not.
+func arms(c bool, x int, k int) int {
+    var r = 0
+    if c {
+        r = x * 3
+    } else {
+        let y = k * 5
+        r = y + 1
+    }
+    let z = k + 7
+    return r * 100 + z
+}
+
+// s is in a hole from its read to its write; a value defined in the hole and
+// read after the write must not take its register.
+func hole(n int) int {
+    var s = 1
+    var acc = 0
+    var i = 0
+    while i < n {
+        let keep = s + 10
+        s = s * 2
+        acc = acc + keep + s
+        i = i + 1
+    }
+    return acc * 1000 + s
+}
+
+print("count", count(5))
+print("fib", fib(10))
+print("arms", arms(true, 4, 6), arms(false, 4, 6))
+print("hole", hole(4))
+
+// CHECK: count 5
+// CHECK-NEXT: fib 55
+// CHECK-NEXT: arms 1213 3113
+// CHECK-NEXT: hole 85016

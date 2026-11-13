@@ -1,0 +1,84 @@
+// RUN: koala --test %s
+// RUN: env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala --no-inline --test %s 2>&1 | filecheck %s --check-prefix=JIT
+//
+// Object / container / string / reference ops (A group): field & global access,
+// list indexing/slice/len/contains, str, nil checks. These pin the semantics the
+// JIT must match.
+
+import "std/ut"
+
+class Point {
+    var x int = 0
+    var y int = 0
+    func __init__(_x int, _y int) { x = _x; y = _y }
+    func sum() int = x + y
+}
+
+var g int = 0
+
+func field_sum(p Point) int {
+    p.x = p.x + 1      // get_field + set_field
+    return p.x + p.y
+}
+
+func list_work(l list[int]) int {
+    l[1] = 99          // seq_set_imm
+    var s = l[0] + l[1] + l[2]   // seq_get_imm
+    s = s + l.len()    // len
+    return s
+}
+
+func global_work() int {
+    g = g + 1          // global_set / global_get
+    return g
+}
+
+func is_nil(v int?) bool {
+    return v == nil    // ref_eq_null (no unwrap, so no nil_check)
+}
+
+@test
+func test_field() {
+    let p = Point(3, 4)
+    ut.assert_eq(p.x, 3)
+    ut.assert_eq(p.y, 4)
+    ut.assert_eq(p.sum(), 7)
+    ut.assert_eq(field_sum(p), 8)   // p.x becomes 4, 4+4=8
+    ut.assert_eq(p.x, 4)
+}
+
+@test
+func test_global() {
+    g = 41
+    ut.assert_eq(global_work(), 42)
+    ut.assert_eq(global_work(), 43)
+    ut.assert_eq(g, 43)
+}
+
+@test
+func test_list() {
+    let l = [10, 20, 30]
+    ut.assert_eq(l[0], 10)
+    ut.assert_eq(l[2], 30)
+    ut.assert_eq(list_work(l), 10 + 99 + 30 + 3)
+    ut.assert_eq(l[1], 99)
+    ut.assert_eq(l.len(), 3)
+    ut.assert_true(99 in l)
+    ut.assert_false(20 in l)
+    let sl = l[0:2]
+    ut.assert_eq(sl.len(), 2)
+    ut.assert_eq(sl[0], 10)
+}
+
+@test
+func test_str_nil() {
+    let s = 42.to_str()       // str
+    ut.assert_eq(s, "42")
+    ut.assert_true(is_nil(nil))
+    ut.assert_false(is_nil(7))
+}
+
+// JIT-DAG: [jit] func @field_sum
+// JIT-DAG: [jit] func @list_work
+// JIT-DAG: [jit] func @global_work
+// JIT-DAG: [jit] func @is_nil

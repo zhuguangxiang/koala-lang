@@ -14,6 +14,7 @@ koala -c --package-name=test_pkg/pkg_const_then_let test_pkg/pkg_const_then_let
 koala -c --package-name=test_pkg/pkg_bytes_default test_pkg/pkg_bytes_default
 koala -c --package-name=test_pkg/pkg_with test_pkg/pkg_with
 koala -c --package-name=test_pkg/enum_cross test_pkg/enum_cross
+koala -c --package-name=test_pkg/pkg_const_bytes test_pkg/pkg_const_bytes
 
 cd test_pkg
 gcc -fPIC -shared pkg1_native/pkg1_native_impl.c -o libpkg1_native.so -I../../include/runtime -I../../include/common -L../../build/DebugTest/lib/ -g

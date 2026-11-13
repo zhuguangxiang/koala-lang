@@ -5,6 +5,7 @@
 
 #include "lsra.h"
 #include "bitset.h"
+#include "liveness.h"
 #include "cmd.h"
 #include "log.h"
 
@@ -32,7 +33,10 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
         KlrValue *val = intv->val;
 
         fprintf(stdout, "\n%s: ", klr_value_name(val));
-        fprintf(stdout, "range: [%d, %d) ", intv->start, intv->end);
+        fprintf(stdout, "range: ");
+        for (int i = 0; i < intv->nranges; i++) {
+            fprintf(stdout, "[%d, %d) ", intv->ranges[i].start, intv->ranges[i].end);
+        }
         fprintf(stdout, "reg: %d", val->vreg);
         ASSERT(intv->start < intv->end);
         ASSERT(val->vreg >= 0);
@@ -129,203 +133,252 @@ static void klr_mark_back_edges(KlrFunc *fn)
     }
 }
 
-static int val_last_use_pos(KlrValue *val)
+/* a value whose register LSRA assigns: not a constant, not a fixed slot */
+static int has_interval(KlrValue *val)
 {
-    int max = 0;
+    if (klr_is_param(val)) return 1;
+    return klr_is_insn(val) && !((KlrInsn *)val)->fixedslot;
+}
 
+/* the move `move %dst, %val` that is the only use of `val`, or NULL */
+static KlrInsn *only_use_move(KlrValue *val)
+{
+    if (val->use_count != 1) return NULL;
     KlrUse *use;
     use_foreach(use, val) {
-        /* use is not sorted by insn's pos, so we need to find the max value */
         KlrInsn *insn = use->insn;
-        if (insn->pos > max) max = insn->pos;
+        if (insn->code != OP_MOVE || insn_oper_value(insn, 1) != val) return NULL;
+        return insn;
     }
-
-    return max;
+    return NULL;
 }
 
-/* Insns that always write a result register, even when the result is unused: an operator on a
- * user class is kept by dce for its side effects, a 'new' is kept, e.g. its uses are inlined
- * away. A call with an unused result needs none (vreg -1 means no return register). */
-static int unused_needs_reg(KlrInsn *insn)
+static int insn_reads(KlrInsn *insn, KlrValue *val)
 {
-    switch (insn->code) {
-        case OP_NEW:
-        case OP_NUM_ADD:
-        case OP_NUM_SUB:
-        case OP_NUM_MUL:
-        case OP_NUM_DIV:
-        case OP_NUM_MOD:
-        case OP_NUM_AND:
-        case OP_NUM_OR:
-        case OP_NUM_XOR:
-        case OP_NUM_SHL:
-        case OP_NUM_SHR:
-        case OP_NUM_EQ:
-        case OP_NUM_NE:
-        case OP_NUM_LT:
-        case OP_NUM_LE:
-        case OP_NUM_GT:
-        case OP_NUM_GE:
-            return 1;
-        default:
-            return 0;
+    KlrValue *_val;
+    insn_oper_value_foreach(_val, insn) {
+        if (_val == val) return 1;
     }
+    return 0;
 }
 
-static void klr_build_intervals(KlrLSRAContext *ctx)
-{
-    KlrFunc *fn = ctx->func;
-
-    KlrParam *param;
-    vector_foreach(param, &fn->params) {
-        KlrInterval intv;
-        intv.val = (KlrValue *)param;
-        intv.allocated = 0;
-        // parameters are defined at the beginning of the function
-        intv.start = 0;
-        int end = val_last_use_pos((KlrValue *)param);
-        // if never used, set end to 1 to avoid zero-length interval
-        intv.end = end > 0 ? end : 1;
-        // if (fn->has_tailcall) {
-        //     // plus 1 to make the interval inclusive of the last use
-        //     intv.end += 1;
-        // }
-        vector_push_back(&ctx->intervals, &intv);
-    }
-
-    KlrBasicBlock *bb;
-    basic_block_foreach(bb, fn) {
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            if (insn->fixedslot) {
-                vector_push_back(&ctx->fixed, &insn);
-                continue;
-            }
-
-            if (ir_has_value(insn)) {
-                KlrInterval intv;
-                intv.val = (KlrValue *)insn;
-                intv.allocated = 0;
-                intv.start = insn->pos;
-                intv.end = val_last_use_pos((KlrValue *)insn);
-                if (intv.start >= intv.end && unused_needs_reg(insn)) {
-                    // never used, but still writes its result: one-position interval
-                    intv.end = intv.start + 1;
-                }
-                if (intv.start < intv.end) {
-                    // If start >= end, it means this value is not used, skip interval
-                    vector_push_back(&ctx->intervals, &intv);
-                } else {
-                    log_info("Skipping interval for %s: [%d, %d) because start >= end",
-                             klr_value_name(intv.val), intv.start, intv.end);
-                }
-            }
-        }
-    }
-}
-
-/**
- * Internal helper to stretch intervals of values live across a loop.
- * Returns true if any interval was extended (used for fixed-point iteration).
+/*
+ * The interval of `val` if its register holds the same value over its whole life: an insn that
+ * is not a local (not written by moves) and does not share the register of a local, or a
+ * parameter that is never written (a self tail call writes the parameter slots).
  */
-static int klr_stretch_interval(KlrLSRAContext *ctx, int header_start, int loop_end)
+static KlrInterval *immutable_interval(KlrLSRAContext *ctx, KlrValue *val)
 {
-    int changed = 0;
+    if (klr_is_local(val)) return NULL;
+    if (klr_is_param(val) && (val->def_count > 0 || ctx->func->has_tailcall)) return NULL;
+    KlrInterval *intv = klr_value_interval(ctx, val);
+    return (intv && !intv->alias) ? intv : NULL;
+}
+
+/*
+ * Give the two sides of a move or a no-op cast the same register where it is safe, so cgen
+ * emits nothing for it:
+ *  A. `%x = local; move %x, %v`: %x is live from the move, where %v may end; it prefers the
+ *     register of %v.
+ *  B. `%c = cast %v` kept as a no-op cast: %c prefers the register of %v.
+ *  D. ... and when %v is never written, %c shares its register even if %v lives on: the
+ *     ranges of %c are added to %v.
+ *  C. `%v = op ..; move %x, %v` with %x declared before: %v is written straight into the register
+ *     of %x. The old value of %x is dead from %v on, as nothing but `local` lies in between and
+ *     `op` does not read %x; the ranges of %v are added to %x.
+ * A hint is only taken when the register is free, so A and B never change what is live.
+ * The intervals are in the order params then insns by pos, so a value is seen before its uses.
+ */
+static void klr_coalesce(KlrLSRAContext *ctx)
+{
     KlrInterval *intv;
     vector_foreach_ptr(intv, &ctx->intervals) {
-        /*
-         * Logic: If a variable is live at the loop header,
-         * stretch its lifetime to cover the entire loop body.
-         */
-        if (intv->start < header_start && intv->end >= header_start) {
-            if (intv->end < loop_end) {
-                log_info("Stretching interval for %s: [%d, %d) -> [%d, %d)",
-                         klr_value_name(intv->val), intv->start, intv->end, intv->start, loop_end);
-                intv->end = loop_end;
-                changed = 1;
+        if (!klr_is_insn(intv->val)) continue;
+        KlrInsn *insn = (KlrInsn *)intv->val;
+
+        if (klr_is_local((KlrValue *)insn)) {
+            KlrInsn *next = insn_next(insn, insn->bb);
+            if (next && next->code == OP_MOVE && insn_oper_value(next, 0) == (KlrValue *)insn) {
+                KlrValue *src = insn_oper_value(next, 1);
+                if (has_interval(src)) intv->hint = src;
             }
+            continue;
         }
-    }
-    return changed;
-}
-/**
- * Ensures intervals remain active across back-edges.
- * Uses reverse traversal to propagate liveness from inner to outer loops.
- */
-void klr_fix_stretch_loop(KlrLSRAContext *ctx)
-{
-    KlrFunc *fn = ctx->func;
-    int changed = 1;
 
-    /* Fixed-point iteration ensures nested loops are fully stretched */
-    while (changed) {
-        changed = 0;
-        KlrBasicBlock *bb;
-
-        /* Process blocks in reverse order to speed up liveness propagation */
-        bb_foreach_reverse(bb, fn) {
-            /* Optimization: Only check blocks marked with a back-edge */
-            if (!bb->has_back_edge) continue;
-
-            KlrBasicBlock *succ;
-            bb_succ_foreach(succ, bb) {
-                /* Detect back-edge: target index is less than or equal to current */
-                if (succ->index <= bb->index) {
-                    log_info("Stretching intervals across back-edge: %s -> %s", klr_block_name(bb),
-                             klr_block_name(succ));
-                    if (klr_stretch_interval(ctx, succ->first_pos, bb->last_pos)) {
-                        changed = 1;
-                    }
-                }
+        if (insn->code == OP_IR_CAST) {
+            KlrValue *src = insn_oper_value(insn, 0);
+            if (!has_interval(src)) continue;
+            intv->hint = src;
+            KlrInterval *sintv = immutable_interval(ctx, src);
+            if (sintv) {
+                /* D: both hold the same bits and neither is written again */
+                intv->alias = src;
+                klr_interval_union(sintv, intv);
             }
+            continue;
         }
+
+        if (klr_is_phi((KlrValue *)insn)) continue;
+
+        KlrInsn *move = only_use_move((KlrValue *)insn);
+        if (!move || move->bb != insn->bb) continue;
+        KlrValue *dst = insn_oper_value(move, 0);
+        if (!klr_is_local(dst) || ((KlrInsn *)dst)->fixedslot) continue;
+        if (((KlrInsn *)dst)->pos >= insn->pos || insn_reads(insn, dst)) continue;
+
+        KlrInsn *next = insn_next(insn, insn->bb);
+        while (next && next != move && klr_is_local((KlrValue *)next)) {
+            next = insn_next(next, insn->bb);
+        }
+        if (next != move) continue;
+
+        KlrInterval *dintv = klr_value_interval(ctx, dst);
+        if (!dintv) continue;
+
+        log_info("coalesce %s into %s", klr_value_name((KlrValue *)insn), klr_value_name(dst));
+        intv->alias = dst;
+        klr_interval_union(dintv, intv);
     }
 }
 
-static void __alloc_register(KlrLSRAContext *ctx, KlrValue *val)
+/* the interval that owns the register of `val` */
+static KlrInterval *owner_interval(KlrLSRAContext *ctx, KlrValue *val)
 {
-    int reg = bitset_ffs_and_clear(&ctx->bitset);
+    KlrInterval *intv = klr_value_interval(ctx, val);
+    if (intv && intv->alias) intv = klr_value_interval(ctx, intv->alias);
+    return intv;
+}
+
+static int interval_order(const void *a, const void *b)
+{
+    const KlrInterval *x = a, *y = b;
+    if (x->start != y->start) return x->start < y->start ? -1 : 1;
+    /* keep the build order (params, then insns by pos) for equal starts */
+    int ix = x->val->tag, iy = y->val->tag;
+    return ix < iy ? -1 : (ix > iy);
+}
+
+/* sort the intervals by start; the id -> interval map follows */
+static void klr_sort_intervals(KlrLSRAContext *ctx)
+{
+    int n = vector_size(&ctx->intervals);
+    if (n == 0) return;
+    qsort(vector_get_ptr(&ctx->intervals, 0), n, sizeof(KlrInterval), interval_order);
+    for (int i = 0; i < n; i++) {
+        KlrInterval *intv = vector_get_ptr(&ctx->intervals, i);
+        ctx->imap[intv->val->tag] = i;
+    }
+}
+
+/* advance the cursor of `intv` to the first range not ended at `pos`; true if it covers `pos` */
+static int interval_covers(KlrInterval *intv, int pos)
+{
+    while (intv->cursor < intv->nranges && intv->ranges[intv->cursor].end <= pos) intv->cursor++;
+    return intv->cursor < intv->nranges && intv->ranges[intv->cursor].start <= pos;
+}
+
+static void __alloc_register(KlrLSRAContext *ctx, KlrInterval *intv)
+{
+    int reg = -1;
+    KlrInterval *hint = intv->hint ? owner_interval(ctx, intv->hint) : NULL;
+    if (hint && hint->val->vreg >= 0 && bitset_test(&ctx->bitset, hint->val->vreg)) {
+        reg = hint->val->vreg;
+        bitset_clear(&ctx->bitset, reg);
+    } else {
+        reg = bitset_ffs_and_clear(&ctx->bitset);
+    }
     ASSERT(reg >= 0);
-    val->vreg = reg;
+    intv->val->vreg = reg;
     int max = MAX(ctx->func->nlocals, reg + 1);
     ctx->func->nlocals = max;
 }
 
-static void __free_register(KlrLSRAContext *ctx, KlrValue *val)
-{
-    ASSERT(val->vreg >= 0);
-    bitset_set(&ctx->bitset, val->vreg);
-}
-
+/*
+ * Linear scan over intervals with holes, without splitting. The intervals are taken by start;
+ * at the start of each one:
+ *  - active: the intervals covering the position, their registers are taken;
+ *  - inactive: the intervals in a hole, their registers are free but must not be given to an
+ *    interval that is live while they are.
+ * An interval that ends at the start gives its register back, so a def can take the register
+ * of an operand that dies there.
+ */
 static void klr_scan_and_alloc(KlrLSRAContext *ctx)
 {
-#define in_range(i, v) (((i) >= (v)->start) && ((i) < (v)->end))
+    int nintv = vector_size(&ctx->intervals);
+    if (nintv == 0) return;
 
-    int last_pos = ctx->last_pos;
-    /* scan intervals(linear position: [0, last_pos) */
-    for (int i = 0; i < last_pos; i++) {
-        int start = -1;
-        KlrInterval *intv;
-        vector_foreach_ptr(intv, &ctx->intervals) {
-            // TODO: sorted intervals:
-            // here assert, when it ocurs, it means the intervals are not sorted by start
-            // position, which may cause incorrect register allocation
-            ASSERT(intv->start >= start);
-            start = intv->start;
+    KlrInterval **active = mm_alloc(sizeof(KlrInterval *) * nintv);
+    KlrInterval **inactive = mm_alloc(sizeof(KlrInterval *) * nintv);
+    int *blocked = mm_alloc(sizeof(int) * nintv);
+    int nactive = 0, ninactive = 0;
 
-            /* Free registers for intervals that end at this position */
-            if (!in_range(i, intv) && intv->allocated) {
-                __free_register(ctx, intv->val);
-                intv->allocated = 0;
+    int start = -1;
+    KlrInterval *cur;
+    vector_foreach_ptr(cur, &ctx->intervals) {
+        if (cur->alias) continue;
+
+        int pos = cur->start;
+        ASSERT(pos >= start);
+        start = pos;
+
+        for (int i = 0; i < nactive;) {
+            KlrInterval *it = active[i];
+            if (it->end <= pos || !interval_covers(it, pos)) {
+                bitset_set(&ctx->bitset, it->val->vreg);
+                active[i] = active[--nactive];
+                if (it->end > pos) inactive[ninactive++] = it;
+                else it->allocated = 0;
+                continue;
             }
+            i++;
+        }
 
-            /* Allocate registers for intervals that start at this position */
-            if (in_range(i, intv) && !intv->allocated) {
-                __alloc_register(ctx, intv->val);
-                intv->allocated = 1;
+        for (int i = 0; i < ninactive;) {
+            KlrInterval *it = inactive[i];
+            if (it->end <= pos) {
+                it->allocated = 0;
+                inactive[i] = inactive[--ninactive];
+                continue;
+            }
+            if (interval_covers(it, pos)) {
+                ASSERT(bitset_test(&ctx->bitset, it->val->vreg));
+                bitset_clear(&ctx->bitset, it->val->vreg);
+                inactive[i] = inactive[--ninactive];
+                active[nactive++] = it;
+                continue;
+            }
+            i++;
+        }
+
+        /* the register of an inactive interval is not free if it is live again while cur is */
+        int nblocked = 0;
+        for (int i = 0; i < ninactive; i++) {
+            KlrInterval *it = inactive[i];
+            int reg = it->val->vreg;
+            if (bitset_test(&ctx->bitset, reg) && klr_interval_intersects(it, cur)) {
+                bitset_clear(&ctx->bitset, reg);
+                blocked[nblocked++] = reg;
             }
         }
+
+        __alloc_register(ctx, cur);
+        cur->allocated = 1;
+        active[nactive++] = cur;
+
+        for (int i = 0; i < nblocked; i++) bitset_set(&ctx->bitset, blocked[i]);
     }
+
+    /* an alias takes the register of its owner */
+    vector_foreach_ptr(cur, &ctx->intervals) {
+        if (!cur->alias) continue;
+        KlrInterval *owner = klr_value_interval(ctx, cur->alias);
+        ASSERT(owner && !owner->alias && owner->val->vreg >= 0);
+        cur->val->vreg = owner->val->vreg;
+    }
+
+    mm_free(active);
+    mm_free(inactive);
+    mm_free(blocked);
 }
 
 static void klr_fixedslot_alloc(KlrLSRAContext *ctx)
@@ -346,34 +399,54 @@ static void klr_fixedslot_alloc(KlrLSRAContext *ctx)
     }
 }
 
+
 /*
  * Linear Scan Register Allocation:
- * variable interval = first definition point and last used point.
+ * a value is live over a list of ranges, see liveness.c.
  */
 static void klr_lsra_run(KlrFunc *func)
 {
     KlrLSRAContext ctx;
 
     vector_init(&ctx.intervals, sizeof(KlrInterval));
-    init_bitset(&ctx.bitset, MAX_REGS);
     vector_init_ptr(&ctx.fixed);
     ctx.func = func;
-
-    // default all registers to free (1 means free, 0 means used)
-    bitset_set_all(&ctx.bitset);
 
     // assign coordinate for each instruction in RPO order,
     // which serves as the time-axis for live interval analysis
     klr_assign_coord(&ctx);
 
-    // mark back-edges for loop stretch
+    // mark back-edges, shown by the dump
     klr_mark_back_edges(func);
 
-    /* build intervals for all insns and params in function */
-    klr_build_intervals(&ctx);
+    /* the fixedslot insns get call slots, not registers */
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, func) {
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            if (insn->fixedslot) vector_push_back(&ctx.fixed, &insn);
+        }
+    }
 
-    /* fix back-edge info for loop stretch */
-    klr_fix_stretch_loop(&ctx);
+    /* live ranges of all insns and params in function */
+    klr_build_live_ranges(&ctx);
+
+    /* no more registers are live at once than there are intervals, so the scan never runs out;
+     * the encoding limit is checked after the allocation. A whole row avoids padding bits. */
+    int nbits = (vector_size(&ctx.intervals) + ROW_SIZE) / ROW_SIZE * ROW_SIZE;
+    init_bitset(&ctx.bitset, nbits);
+    // default all registers to free (1 means free, 0 means used)
+    bitset_set_all(&ctx.bitset);
+
+    /* share registers across moves and no-op casts */
+    klr_coalesce(&ctx);
+
+    klr_sort_intervals(&ctx);
+
+    KlrInterval *intv;
+    vector_foreach_ptr(intv, &ctx.intervals) {
+        intv->val->vreg = -1;
+    }
 
     /* perform linear scan register allocation */
     klr_scan_and_alloc(&ctx);
@@ -381,12 +454,29 @@ static void klr_lsra_run(KlrFunc *func)
     /* perform fixedslot insn register allocation */
     klr_fixedslot_alloc(&ctx);
 
+    /* a register operand is encoded in 8 bits */
+    int nregs = func->nlocals + func->max_call_args;
+    if (nregs > MAX_REGS) {
+        KlrModule *m = func->module;
+        KlrKlass *kls = func->klass;
+        printf(ERROR_PREFIX "function '%s%s%s' needs %d registers (%d locals + %d call args), "
+                            "more than %d\n",
+               kls ? kls->name : "", kls ? "::" : "", func->name, nregs, func->nlocals,
+               func->max_call_args, MAX_REGS);
+        m->errors++;
+    }
+
     if (dump_vreg_enabled()) {
         klr_lsra_dump(&ctx);
     }
 
     fini_bitset(&ctx.bitset);
+    vector_foreach_ptr(intv, &ctx.intervals) {
+        klr_interval_fini(intv);
+    }
     vector_fini(&ctx.intervals);
+    mm_free(ctx.vals);
+    mm_free(ctx.imap);
     vector_fini(&ctx.fixed);
 }
 

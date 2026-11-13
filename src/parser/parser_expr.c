@@ -3776,130 +3776,27 @@ static char *get_binary_op_str(BiOpKind op)
     }
 }
 
-static int binary_op_iscmp(BiOpKind op)
-{
-    switch (op) {
-        case BINARY_GT:
-        case BINARY_GE:
-        case BINARY_LT:
-        case BINARY_LE:
-        case BINARY_EQ:
-        case BINARY_NEQ:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-static BiOpKind bin_op_reverse(BiOpKind op)
-{
-    BiOpKind neg_op = 0;
-    switch (op) {
-        case BINARY_EQ:
-            neg_op = BINARY_NEQ;
-            break;
-        case BINARY_NEQ:
-            neg_op = BINARY_EQ;
-            break;
-        case BINARY_LT:
-            neg_op = BINARY_GE;
-            break;
-        case BINARY_LE:
-            neg_op = BINARY_GT;
-            break;
-        case BINARY_GT:
-            neg_op = BINARY_LE;
-            break;
-        case BINARY_GE:
-            neg_op = BINARY_LT;
-            break;
-        default:
-            UNREACHABLE();
-            break;
-    }
-    return neg_op;
-}
-
-/**
- * Optimize a chain of unary '!' operators applied on a comparison
- * expression, e.g. '!(a == b)' or '!!(a == b)'.
- *
- * Walks down consecutive UNARY_NOT nodes starting from 'unary'. If the
- * chain bottoms out on a comparison BinaryExpr, folds the negations away:
- *   - odd count:  flip the comparison operator (e.g. '==' -> '!=')
- *   - even count: negations cancel out, operator stays unchanged
- * In both cases every UnaryExpr node in the chain is marked 'skip' so
- * that emit_ir_unary does not emit redundant OP_LNOT instructions.
- *
- * Returns 1 if the optimization was applied, 0 otherwise (chain does not
- * end on a comparison expression, so 'unary' must be treated normally).
+/*
+ * The result type of `-x` / `~x` on a number: the return type of its `__neg__` / `__bitnot__`
+ * in `std/builtin/number.kl`, e.g. `int8.__neg__() int64`, `uint64.__neg__() uint64`.
  */
-static int opt_negate_comparison(UnaryExpr *unary)
+static TypeSpec *number_unary_ret(ParserState *ps, UnaryExpr *unary, TypeSpec *ts, char *op_name, char *op_str)
 {
-    ASSERT(unary->op == UNARY_NOT);
-
-    // Already processed as part of an outer '!' chain (this node sits
-    // in the middle of a chain that was folded starting from an
-    // ancestor unary node). Skip re-processing to avoid flipping the
-    // comparison operator twice.
-    if (unary->skip) return 1;
-
-    int count = 1;
-    Expr *e = unary->exp;
-
-    // Collect every UnaryExpr node in this consecutive '!' chain,
-    // starting with the outermost 'unary' itself.
-    Vector chain;
-    vector_init_ptr(&chain);
-    vector_push_back(&chain, &unary);
-
-    while (e->kind == EXPR_UNARY_KIND) {
-        UnaryExpr *inner_unary = (UnaryExpr *)e;
-        if (inner_unary->op != UNARY_NOT) {
-            // Chain broken by a non-'!' unary op (e.g. '-', '~').
-            // Give up the optimization for this chain.
-            vector_fini(&chain);
-            return 0;
-        }
-        // Double negation elimination: keep walking down the chain.
-        vector_push_back(&chain, &inner_unary);
-        e = inner_unary->exp;
-        count++;
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    FuncSymbol *fn = NULL;
+    if (sym && sym->kind == SYM_CLASS) {
+        fn = (FuncSymbol *)stbl_get(((KlassSymbol *)sym)->stbl, op_name);
     }
 
-    if (e->kind != EXPR_BINARY_KIND) {
-        vector_fini(&chain);
-        return 0;
+    if (!fn || fn->kind != SYM_FUNC || vector_size(fn->params) != 0 || !fn->ret) {
+        kl_error(unary->op_loc, "operator '%s' is not defined in type '%s'.", op_str,
+                 type_spec_friendly_name(sym ? sym->name : "?"));
+        return NULL;
     }
 
-    BinaryExpr *bin = (BinaryExpr *)e;
-    if (!binary_op_iscmp(bin->op)) {
-        vector_fini(&chain);
-        return 0;
-    }
-
-    if (count % 2 == 1) {
-        // Odd number of negations: fold them into the comparison
-        // operator by reversing it (e.g. '==' -> '!=').
-        bin->op = bin_op_reverse(bin->op);
-        log_info("optimize unary '!'(%d) on comparison operator to its negation.", count);
-    } else {
-        // Even number of negations: they cancel out, the comparison
-        // operator is kept as-is.
-        log_info("optimize unary '!'(%d) on comparison operator, double negation eliminated.",
-                 count);
-    }
-
-    // Regardless of parity, every '!' node in the chain becomes a no-op
-    // at IR generation time: its value is just the (possibly operator
-    // flipped) comparison result passed through unchanged.
-    UnaryExpr *item;
-    vector_foreach(item, &chain) {
-        item->skip = 1;
-    }
-
-    vector_fini(&chain);
-    return 1;
+    log_info("unary operator '%s' for type '%s' resolved.", op_str, sym->name);
+    log_type_spec(fn->ret);
+    return fn->ret;
 }
 
 static void parse_unary(ParserState *ps, Expr *exp)
@@ -3915,11 +3812,6 @@ static void parse_unary(ParserState *ps, Expr *exp)
 
     e->ctx = EXPR_CTX_LOAD;
 
-    // optimize unary '!' on comparison operator
-    if (op == UNARY_NOT) {
-        opt_negate_comparison(unary);
-    }
-
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
@@ -3927,8 +3819,6 @@ static void parse_unary(ParserState *ps, Expr *exp)
         kl_error(unary->op_loc, "enum does not support unary operators.");
         return;
     }
-
-    TypeSpec *orig_ts = e->ts;
 
     if (op == UNARY_PLUS) {
         if (e->ts->kind != TYPE_INT && e->ts->kind != TYPE_FLOAT) {
@@ -3942,34 +3832,14 @@ static void parse_unary(ParserState *ps, Expr *exp)
             return;
         }
 
-        if (e->ts->kind == TYPE_INT) {
-            if (e->ts->int_flt_info.sign) {
-                exp->ts = int64_type_spec();
-            } else {
-                exp->ts = uint64_type_spec();
-            }
-            log_info("promote integer type from %s%d to %s",
-                     orig_ts->int_flt_info.sign ? "int" : "uint", orig_ts->int_flt_info.width * 8,
-                     exp->ts->int_flt_info.sign ? "int64" : "uint64");
-        } else if (e->ts->kind == TYPE_FLOAT) {
-            exp->ts = float64_type_spec();
-            log_info("promote float type from float%d to float64", orig_ts->int_flt_info.width * 8);
-        }
+        exp->ts = number_unary_ret(ps, unary, e->ts, "__neg__", "-");
     } else if (op == UNARY_BIT_NOT) {
         if (e->ts->kind != TYPE_INT) {
             kl_error(unary->op_loc, "unary '~' operator requires int type.");
             return;
         }
 
-        if (e->ts->int_flt_info.sign) {
-            exp->ts = int64_type_spec();
-        } else {
-            exp->ts = uint64_type_spec();
-        }
-
-        log_info("promote integer type from %s%d to %s",
-                 orig_ts->int_flt_info.sign ? "int" : "uint", orig_ts->int_flt_info.width * 8,
-                 exp->ts->int_flt_info.sign ? "int64" : "uint64");
+        exp->ts = number_unary_ret(ps, unary, e->ts, "__bitnot__", "~");
     } else if (op == UNARY_NOT) {
         if (e->ts->kind != TYPE_BOOL) {
             kl_error(unary->op_loc, "unary '!' operator requires bool type.");
@@ -3981,8 +3851,6 @@ static void parse_unary(ParserState *ps, Expr *exp)
     } else {
         UNREACHABLE();
     }
-
-    // TODO: check _neg__ exists or not
 }
 
 /* The value of a literal, a negated literal or a literal `const`; returns 0 for anything else. */

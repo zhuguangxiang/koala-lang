@@ -30,6 +30,7 @@ static void print_usage(const char *prog)
         "  --ssa                Enable SSA construction stage.\n"
         "  --no-inline          Do not inline functions (inlined by default).\n"
         "  --domtree            Build the dominator tree.\n"
+        "  --unroll             Unroll small counted loops (needs --domtree).\n"
         "  --int-trap           Enable trap checking for integer cast.\n"
         "  --float-trap         Enable trap checking for float cast.\n"
         "  --dump=<list>        Dump internal information.\n"
@@ -39,6 +40,7 @@ static void print_usage(const char *prog)
         "                           ssa       - dump SSA IR\n"
         "                           ir        - optimized IR (after opt passes)\n"
         "                           domtree   - dominator tree info\n"
+        "                           unroll-ir - IR after loop unrolling\n"
         "                           lir       - LIR (after isel/regalloc)\n"
         "                           vreg      - dump virtual register info\n"
         "                           code      - codegen output\n"
@@ -132,6 +134,9 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
             case 9:
                 opt->enable_domtree = 1;
                 break;
+            case 10:
+                opt->enable_unroll = 1;
+                break;
             default:
                 return -1;
         }
@@ -191,6 +196,7 @@ int kl_parse_args(int argc, char *argv[])
         { "strip-lineinfo", no_argument, 0, 7 },
         { "no-inline", no_argument, 0, 8 },
         { "domtree", no_argument, 0, 9 },
+        { "unroll", no_argument, 0, 10 },
         { 0, 0, 0, 0 },
     };
 

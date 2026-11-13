@@ -68,13 +68,12 @@ func test_logic_short_circuit(a int, b int) bool {
 }
 
 // Short-circuit AND verified: 'b > 0' (r1) is evaluated only when 'a > 0' (r0)
-// is true; 'jmp_false r0, 2' skips the rhs block so the result stays false.
-// CHECK-LABEL: @test_logic_short_circuit[16,23]:
+// is true; 'jmp_false r0, 1' skips the rhs block so the result stays false.
+// CHECK-LABEL: @test_logic_short_circuit[16,22]:
 // CHECK: int.gt_imm r0, r0, #0
 // CHECK: move r2, r0
-// CHECK: jmp_false r0, 2
-// CHECK: int.gt_imm r0, r1, #0
-// CHECK: move r2, r0
+// CHECK: jmp_false r0, 1
+// CHECK: int.gt_imm r2, r1, #0
 // CHECK: jmp_false r2, 1
 // CHECK: ret_tag #true
 // CHECK: ret_tag #false

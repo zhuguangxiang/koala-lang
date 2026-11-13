@@ -1,0 +1,53 @@
+// RUN: koala --test %s
+//
+// Object / container (A group) performance. Compare interpreter vs JIT:
+//   KOALA_JIT=0 koala test/test-bench/test_obj.kl ++ --test
+//   KOALA_JIT=1 koala test/test-bench/test_obj.kl ++ --test
+//
+// field_loop exercises get_field/set_field (inline); list_loop exercises
+// seq_get_imm (slot dispatch). The hot functions take object arguments, so the
+// JIT entry guard must accept references.
+//
+// Measured (release, mean of 5): field 72.6->13.5 ms (~5.4x, inline field access
+// is a big win); list 79.6->58.2 ms (~1.4x, seq_get is slot dispatch, so the gain
+// is modest like the num.* ops — devirtualization would help, Yowie/Bunyip).
+
+import "std/ut"
+
+class Counter {
+    var n int = 0
+    func __init__(_n int) { n = _n }
+}
+
+func field_loop(c Counter, n int) int {
+    var i = 0
+    var s = 0
+    while i < n {
+        s = s + c.n        // get_field
+        c.n = c.n + 1      // get_field + set_field
+        i = i + 1
+    }
+    return s
+}
+
+func list_loop(l list[int], n int) int {
+    var i = 0
+    var s = 0
+    while i < n {
+        s = s + l[0]       // seq_get_imm
+        i = i + 1
+    }
+    return s
+}
+
+@bench(warmup=2, runs=5)
+func bench_field() {
+    let c = Counter(0)
+    for _ in range(100) { field_loop(c, 100000) }
+}
+
+@bench(warmup=2, runs=5)
+func bench_list() {
+    let l = [1, 2, 3]
+    for _ in range(100) { list_loop(l, 100000) }
+}

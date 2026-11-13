@@ -151,6 +151,10 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
         argv[n++] = "--domtree";
     }
 
+    if (opt->enable_unroll) {
+        argv[n++] = "--unroll";
+    }
+
     if (opt->dump) {
         snprintf(buf_2, sizeof(buf_2), "--dump=%s", opt->dump);
         argv[n++] = buf_2;

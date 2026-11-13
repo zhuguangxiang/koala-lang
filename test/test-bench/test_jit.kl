@@ -1,0 +1,67 @@
+// RUN: koala --test %s
+//
+// Drop Bear JIT benchmark suite. Compare the interpreter against the JIT by
+// toggling KOALA_JIT (the hot helpers below are JIT-eligible):
+//
+//   KOALA_JIT=0 koala test/test-bench/test_jit.kl ++ --test
+//   KOALA_JIT=1 koala test/test-bench/test_jit.kl ++ --test
+//
+// Each @bench wraps an outer loop so a round is millisecond-scale (low noise).
+
+import "std/ut"
+
+func isum(n int) int {
+    var s = 0
+    var i = 0
+    while i < n { s = s + i; i = i + 1 }
+    return s
+}
+
+func fsum(n int) float {
+    var s = 0.0
+    var i = 0
+    while i < n { s = s + 1.1; i = i + 1 }
+    return s
+}
+
+func usum(n uint) uint {
+    var s uint = 0
+    var i uint = 0
+    while i < n { s = s + i; i = i + 1 }
+    return s
+}
+
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+func tsum(n int, acc int) int {
+    if n <= 0 { return acc }
+    return tsum(n - 1, acc + n)
+}
+
+@bench(warmup=2, runs=5)
+func bench_int_loop() {
+    for _ in range(100) { isum(100000) }
+}
+
+@bench(warmup=2, runs=5)
+func bench_uint_loop() {
+    for _ in range(100) { usum(100000) }
+}
+
+@bench(warmup=2, runs=5)
+func bench_float_loop() {
+    for _ in range(100) { fsum(100000) }
+}
+
+@bench(warmup=2, runs=5)
+func bench_fib() {
+    for _ in range(3) { fib(30) }
+}
+
+@bench(warmup=2, runs=5)
+func bench_tail_recursion() {
+    for _ in range(100) { tsum(100000, 0) }
+}

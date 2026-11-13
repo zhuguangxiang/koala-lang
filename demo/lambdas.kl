@@ -1,0 +1,20 @@
+// First-class functions and expression lambdas. Parameter types are inferred
+// from the expected function type. Lambdas read module globals; capturing
+// locals is on the roadmap.
+//
+// Run: koala demo/lambdas.kl
+
+type IntFn = func(int) int
+
+func apply(f IntFn, x int) int = f(x)
+
+func main() {
+    let inc = { |x int| x + 1 }
+    let triple IntFn = { |x| x * 3 }   // x inferred as int from IntFn
+    print(apply(inc, 4))               // 5
+    print(triple(3))                   // 9
+    print(({ |x int| x * 2 })(21))     // 42  — immediately invoked
+
+    let ms = [{ |x int| x + 1 }, { |x int| x * 2 }]
+    print(ms[1](10))                   // 20  — lambdas in a list
+}

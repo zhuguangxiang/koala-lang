@@ -1,0 +1,47 @@
+// RUN: koala --test %s
+//
+// Generic numeric (OP_NUM_*) performance. Compare interpreter vs JIT:
+//   KOALA_JIT=0 koala test/test-bench/test_num.kl ++ --test
+//   KOALA_JIT=1 koala test/test-bench/test_num.kl ++ --test
+//
+// The hot loop lives INSIDE a trait-typed function, so the function itself runs
+// the num.* protocol dispatch and is JIT-eligible (the make_intf that widens the
+// argument happens once at the call site, not in the loop).
+//
+// Measured (release, mean of 5): JIT gives ~1.2x here (num_add 87.8->73.7 ms,
+// num_cmp 97.1->82.6 ms). The gain is modest because the bottleneck is the
+// runtime slot dispatch (kl_call_slot), which both JIT and interpreter pay; the
+// JIT only removes bytecode fetch/decode. Big wins for generic code need
+// devirtualization / inline caches (Yowie/Bunyip).
+
+import "std/ut"
+
+func nsum(a Arithmetic[int], n int) int {
+    var c = 0
+    var i = 0
+    while i < n {
+        if (a + i) > i { c = c + 1 }   // num.add then num.gt, no trait local
+        i = i + 1
+    }
+    return c
+}
+
+func ncount(a Comparable[int], n int) int {
+    var c = 0
+    var i = 0
+    while i < n {
+        if a < i { c = c + 1 }   // num.lt in the hot loop
+        i = i + 1
+    }
+    return c
+}
+
+@bench(warmup=2, runs=5)
+func bench_num_add() {
+    for _ in range(100) { nsum(0, 100000) }
+}
+
+@bench(warmup=2, runs=5)
+func bench_num_cmp() {
+    for _ in range(100) { ncount(0, 100000) }
+}

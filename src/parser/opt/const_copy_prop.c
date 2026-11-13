@@ -542,6 +542,108 @@ static int replace_uses_except_nil_unwrap(KlrValue *val, KlrValue *def)
     return changed;
 }
 
+/*
+ * `neg` and `not` (bitwise) of a constant. irgen casts the operand to the result type
+ * (int64, uint64 or float64, see emit_ir_unary()), so the constant is computed in that type
+ * and wraps like the VM: -INT64_MIN is INT64_MIN, -1 of uint64 is UINT64_MAX.
+ */
+static void fold_unary_int(KlrInsn *insn, KlrModule *m)
+{
+    KlrValue *val = insn_oper_value(insn, 0);
+    if (!klr_is_const(val)) return;
+
+    KlrConst *c = (KlrConst *)val;
+    TypeSpec *ts = insn->ts;
+    int neg = insn->code == OP_UNARY_NEG;
+    KlrValue *res = NULL;
+
+    if (c->which == CONST_FLT) {
+        ASSERT(neg);
+        res = klr_const_float(-c->fval, ts, m);
+    } else if (c->which == CONST_INT || c->which == CONST_UINT) {
+        uint64_t v = neg ? (uint64_t)0 - c->ival : ~c->ival;
+        int bits = ts->kind == TYPE_INT ? ts->int_flt_info.width * 8 : 64;
+        if (bits < 64) {
+            /* not promoted (should not happen): keep the value in range of its type */
+            uint64_t mask = (1ULL << bits) - 1;
+            v &= mask;
+            if (c->which == CONST_INT && (v >> (bits - 1)) & 1) v |= ~mask;
+        }
+        res = (c->which == CONST_INT) ? klr_const_int(v, ts, m) : klr_const_uint(v, ts, m);
+    } else {
+        return;
+    }
+
+    log_info("fold unary %s insn to const:", neg ? "neg" : "not");
+    log_insn(insn);
+    replace_all_uses_with(res, (KlrValue *)insn);
+}
+
+/*
+ * The comparison with the inverted result, or 0 when it has none: `!(a < b)` is not `a >= b`
+ * for floats, both are false when a or b is NaN; `==` and `!=` are inverses for any type.
+ */
+static OpCode invert_cmp(KlrInsn *cmp)
+{
+    if (cmp->num_opers != 2) return 0;
+    int is_float = type_is_float(insn_oper_ts(cmp, 0)) || type_is_float(insn_oper_ts(cmp, 1));
+    switch (cmp->code) {
+        case OP_BINARY_EQ:
+            return OP_BINARY_NE;
+        case OP_BINARY_NE:
+            return OP_BINARY_EQ;
+        case OP_BINARY_LT:
+            return is_float ? 0 : OP_BINARY_GE;
+        case OP_BINARY_LE:
+            return is_float ? 0 : OP_BINARY_GT;
+        case OP_BINARY_GT:
+            return is_float ? 0 : OP_BINARY_LE;
+        case OP_BINARY_GE:
+            return is_float ? 0 : OP_BINARY_LT;
+        default:
+            return 0;
+    }
+}
+
+/*
+ * Logical not:
+ *   lnot true          -> false
+ *   lnot (lnot %x)     -> %x
+ *   lnot (lt %a, %b)   -> ge %a, %b     (the comparison has no other use; not for floats)
+ */
+static void fold_lnot(KlrInsn *insn, KlrModule *m)
+{
+    KlrValue *val = insn_oper_value(insn, 0);
+    ASSERT(insn_oper_ts(insn, 0) == bool_type_spec());
+
+    if (klr_is_const(val)) {
+        KlrConst *c = (KlrConst *)val;
+        ASSERT(c->which == CONST_BOOL);
+        KlrValue *res = klr_const_bool(!c->bval, m);
+        replace_all_uses_with(res, (KlrValue *)insn);
+        return;
+    }
+
+    /* a dead `lnot` must not flip its comparison (again and again) */
+    if (insn->use_count == 0 || !klr_is_insn(val)) return;
+
+    KlrInsn *def = (KlrInsn *)val;
+    if (def->code == OP_LNOT) {
+        log_info("fold double lnot:");
+        log_insn(insn);
+        replace_all_uses_with(insn_oper_value(def, 0), (KlrValue *)insn);
+        return;
+    }
+
+    OpCode inv = invert_cmp(def);
+    if (inv && def->use_count == 1) {
+        log_info("fold lnot of a comparison:");
+        log_insn(insn);
+        def->code = inv;
+        replace_all_uses_with(val, (KlrValue *)insn);
+    }
+}
+
 static int do_fold(KlrInsn *insn, KlrFunc *fn)
 {
     KlrModule *m = fn->module;
@@ -835,58 +937,9 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_UNARY_NEG: {
-            // unary negation
-            KlrValue *val = insn_oper_value(insn, 0);
-            if (klr_is_const(val)) {
-                KlrConst *cval = (KlrConst *)val;
-                if (cval->which == CONST_INT) {
-                    log_info("fold unary neg insn to const int:");
-                    log_insn(insn);
-                    int64_t res = -(int64_t)cval->ival;
-                    KlrValue *const_res =
-                        klr_const_int((uint64_t)res, int64_type_spec(), fn->module);
-                    replace_all_uses_with(const_res, (KlrValue *)insn);
-                } else if (cval->which == CONST_UINT) {
-                    log_info("fold unary neg insn to const uint:");
-                    log_insn(insn);
-                    uint64_t res = -(uint64_t)cval->ival;
-                    KlrValue *const_res = klr_const_uint(res, uint64_type_spec(), fn->module);
-                    replace_all_uses_with(const_res, (KlrValue *)insn);
-                } else if (cval->which == CONST_FLT) {
-                    log_info("fold unary neg insn to const float:");
-                    log_insn(insn);
-                    double res = -(double)cval->fval;
-                    KlrValue *const_res = klr_const_float(res, float64_type_spec(), fn->module);
-                    replace_all_uses_with(const_res, (KlrValue *)insn);
-                } else {
-                    UNREACHABLE();
-                }
-            }
-            break;
-        }
-
+        case OP_UNARY_NEG:
         case OP_UNARY_NOT: {
-            // bitwise not
-            KlrValue *val = insn_oper_value(insn, 0);
-            if (klr_is_const(val)) {
-                KlrConst *cval = (KlrConst *)val;
-                unsigned int bit_width = cval->len * 8;
-                uint64_t mask = (bit_width >= 64) ? UINT64_MAX : ((1ULL << bit_width) - 1);
-                if (cval->which == CONST_INT) {
-                    log_info("fold unary not insn to const int:");
-                    log_insn(insn);
-                    uint64_t res = (~cval->ival) & mask;
-                    KlrValue *const_res = klr_const_int(res, int8_type_spec(), fn->module);
-                    replace_all_uses_with(const_res, (KlrValue *)insn);
-                } else if (cval->which == CONST_UINT) {
-                    log_info("fold unary not insn to const uint:");
-                    log_insn(insn);
-                    uint64_t res = (~cval->ival) & mask;
-                    KlrValue *const_res = klr_const_uint(res, uint64_type_spec(), fn->module);
-                    replace_all_uses_with(const_res, (KlrValue *)insn);
-                }
-            }
+            fold_unary_int(insn, fn->module);
             break;
         }
 
@@ -977,15 +1030,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
         }
 
         case OP_LNOT: {
-            KlrValue *val = insn_oper_value(insn, 0);
-            ASSERT(insn_oper_ts(insn, 0) == bool_type_spec());
-
-            if (klr_is_const(val)) {
-                KlrConst *c = (KlrConst *)val;
-                ASSERT(c->which == CONST_BOOL);
-                KlrValue *res = klr_const_bool(!c->bval, fn->module);
-                replace_all_uses_with(res, (KlrValue *)insn);
-            }
+            fold_lnot(insn, fn->module);
             break;
         }
 

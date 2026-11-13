@@ -1,0 +1,10 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// uint64 declares no `__neg__`, there is no negative uint64
+
+func f(x uint64) uint64 {
+    return -x
+}
+
+// CHECK: test_unary_neg_uint64.kl:6:12:
+// CHECK-SAME: operator '-' is not defined in type 'uint64'.

@@ -2688,8 +2688,9 @@ TARGET(OP_INT_NOT) {
 
     ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
+    /* a widened narrow operand keeps its own tag; '~' on it is int64 (number.kl) */
     regs[rd].ival = ~regs[rs].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = is_uint64(regs + rs) ? TAG_UINT64 : TAG_INT64;
 
     DISPATCH();
 }

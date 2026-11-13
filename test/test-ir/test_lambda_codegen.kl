@@ -32,6 +32,6 @@ func main() {
 // CHECK-LABEL: @choose[0,1]:
 // CHECK: load_func r0, #2
 // CHECK-NEXT: {{.*}}ret r0
-// CHECK-LABEL: @__lambda$0[14,15]:
+// CHECK-LABEL: @__lambda$0[13,14]:
 // CHECK: int.add_imm r0, r0, #1
 // CHECK-NEXT: {{.*}}ret r0

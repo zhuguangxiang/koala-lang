@@ -68,6 +68,26 @@ int kl_jit_shift_check(TValue *count, uint32_t pc);
  * Mirrors the interpreter's C-operator semantics (incl. NaN); returns 0/1. */
 int64_t kl_jit_float_cmp(double a, double b, int op);
 
+/* Generic numeric protocol ops (OP_NUM_*). Arithmetic dispatches via the slot
+ * table; comparisons mirror the interpreter's primitive fast paths first. Both
+ * take the call-site pc for traceback and return the result TValue (tag in rax,
+ * payload in rdx), setting TAG_ERROR on failure. */
+TValue kl_jit_num_arith(TValue *a, TValue *b, int slot, uint32_t pc);
+TValue kl_jit_num_cmp(TValue *a, TValue *b, int slot, uint32_t pc);
+
+/* A group: object / container / string / IO. Slot-dispatch helpers mirror the
+ * interpreter's kl_call_* family; all set cf->pc and trace on error, returning
+ * TAG_ERROR on failure. kl_jit_new/build_intern construct objects. */
+TValue kl_jit_slot3(TValue *a0, TValue *a1, TValue *a2, int nargs, int slot,
+                    uint32_t pc);
+TValue kl_jit_get_item_imm(TValue *obj, int64_t idx, uint32_t pc);
+TValue kl_jit_set_item_imm(TValue *obj, int64_t idx, TValue *val, uint32_t pc);
+TValue kl_jit_hash(TValue *obj, uint32_t pc);
+TValue kl_jit_fmt(TValue *obj, TValue *fmt, uint32_t pc);
+TValue kl_jit_print(int nargs, uint32_t pc);
+TValue kl_jit_new(TypeObject *tp);
+TValue kl_jit_build_intern(int tag, int count);
+
 /* Runtime switches (env: KOALA_JIT=0 disables, KOALA_JIT_THRESHOLD=<n>). */
 int kl_jit_enabled(void);
 uint32_t kl_jit_threshold(void);

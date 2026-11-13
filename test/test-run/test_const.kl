@@ -17,10 +17,11 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// a const of this module is read as its literal, like an imported one: no global_get
 // CHECK-LABEL: func @main() <NO-TYPE> {
-// CHECK: %0 = global_get @NAME str
-// CHECK: %2 = global_get @AGE int64
-// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple[str, int64]
+// CHECK-NOT: global_get
+// CHECK: call @print [path = 'std/prelude', const], tuple('Name:', 'Jerry') std/builtin.tuple[str, str]
+// CHECK: call @print [path = 'std/prelude', const], tuple('Age:', 30) std/builtin.tuple[str, int64]
 // CHECK: call @print [path = 'std/prelude', const], tuple('PI:', 3.141590) std/builtin.tuple[str, float64]
 // CHECK: call @print [path = 'std/prelude', const], tuple('E:', 2.718280) std/builtin.tuple[str, float64]
 // CHECK: call @print [path = 'std/prelude', const], tuple('GREETING:', 'Hello') std/builtin.tuple[str, str]
@@ -38,11 +39,10 @@ func main() {
 // CHECK: %bb0(entry):
 // CHECK: }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@main] ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@main] ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
-// CHECK: %0 = build_intern @tuple, 'Name:' str, 'Jerry' str
-// CHECK: %1 = build_intern @tuple, 'Age:' str, 30 int64
-// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[str, int64]
+// CHECK: call @print [path = 'std/prelude', const], tuple('Name:', 'Jerry') std/builtin.tuple[str, str]
+// CHECK: call @print [path = 'std/prelude', const], tuple('Age:', 30) std/builtin.tuple[str, int64]
 // CHECK: call @print [path = 'std/prelude', const], tuple('PI:', 3.141590) std/builtin.tuple[str, float64]
 // CHECK: call @print [path = 'std/prelude', const], tuple('E:', 2.718280) std/builtin.tuple[str, float64]
 // CHECK: call @print [path = 'std/prelude', const], tuple('GREETING:', 'Hello') std/builtin.tuple[str, str]

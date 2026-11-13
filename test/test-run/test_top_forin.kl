@@ -56,11 +56,11 @@ if n == 3 {
 // 9. loop as the LAST statement at top level (no trailing print)
 for v in l { print(v) }
 
-// CHECK-LABEL: ====== Linearization @__init__(start_pc: 0, insns: 199) ======
+// CHECK-LABEL: ====== Linearization @__init__(start_pc: 0, insns: 197) ======
 
 // CHECK-LABEL: %bb-1(loop-cond):
-// CHECK: jmp_int_ge r1, r2, 1
-// CHECK: jmp 180                      ;; -> %bb-1(loop-body)
+// CHECK: jmp_int_ge r2, r1, 1
+// CHECK: jmp 178                      ;; -> %bb-1(loop-body)
 
 // CHECK: 10
 // CHECK: 20

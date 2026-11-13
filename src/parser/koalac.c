@@ -33,6 +33,7 @@ static void usage(void)
         "  --ssa                Enable SSA construction stage.\n"
         "  --inline             Inline small functions of the current module.\n"
         "  --domtree            Build the dominator tree.\n"
+        "  --unroll             Unroll small counted loops (needs --opt and --domtree).\n"
         "  --opt                Enable optimization passes (default).\n"
         "  --isel               Enable instruction selection stage.\n"
         "  --lsra               Enable linear scan register allocator.\n"
@@ -50,6 +51,7 @@ static void usage(void)
         "                           ssa       - dump SSA IR\n"
         "                           ir        - optimized IR (after opt passes)\n"
         "                           domtree   - dominator tree info\n"
+        "                           unroll-ir - IR after loop unrolling\n"
         "                           lir       - LIR (after isel/regalloc)\n"
         "                           vreg      - dump virtual register info\n"
         "                           code      - codegen output\n"
@@ -126,6 +128,8 @@ static DumpFlags parse_dump_flags(const char *s)
             flags |= DUMP_IR;
         else if (str_equal(tok, "domtree"))
             flags |= DUMP_DOMTREE;
+        else if (str_equal(tok, "unroll-ir"))
+            flags |= DUMP_UNROLL_IR;
         else if (str_equal(tok, "lir"))
             flags |= DUMP_LIR;
         else if (str_equal(tok, "vreg"))
@@ -178,6 +182,7 @@ static void parse_command(int argc, char *argv[])
         { "strip-lineinfo", no_argument, 0, 15 },
         { "inline", no_argument, 0, 16 },
         { "domtree", no_argument, 0, 17 },
+        { "unroll", no_argument, 0, 18 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -272,6 +277,10 @@ static void parse_command(int argc, char *argv[])
 
             case 17:
                 cmd_opt.enable_domtree = 1;
+                break;
+
+            case 18:
+                cmd_opt.enable_unroll = 1;
                 break;
 
             case 'o': {
@@ -582,6 +591,15 @@ static int compile(ParserModule *pm)
         kl_optimize(m);
     }
 
+    // unrolling needs the dominator tree, re-optimize the unrolled loops
+    if (unroll_enabled()) {
+        if (!domtree_enabled() || !opt_enabled()) {
+            fprintf(stderr, "warning: --unroll needs --opt and --domtree, ignored\n");
+        } else {
+            for (int round = 0; round < 4 && kl_unroll(m); round++) kl_optimize(m);
+        }
+    }
+
     if (ssa_enabled()) {
         kl_ssa_opt(m);
     }
@@ -595,7 +613,12 @@ static int compile(ParserModule *pm)
     }
 
     if (lsra_enabled()) {
+        int errors = m ? m->errors : 0;
         kl_do_lsra(m);
+        if (m && m->errors > errors) {
+            errno = -1;
+            return -1;
+        }
     }
 
     if (cgen_enabled()) {

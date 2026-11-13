@@ -1,0 +1,31 @@
+// Generic classes are monomorphized; optionals bind with `if let`; `with` scopes
+// a resource between __enter__ / __exit__.
+//
+// Run: koala demo/generics.kl
+
+class Box[T] {
+    var value T
+    func __init__(_value T) { value = _value }
+    func get() T = value
+}
+
+func unwrap_or(v int?, d int) int {
+    if let x = v { return x }   // x is int, bound only in this branch
+    return d
+}
+
+class Guard : Withable {
+    func __enter__() { print("enter") }
+    func __exit__() { print("exit") }
+}
+
+func main() {
+    let bi = Box(42)            // Box[int]
+    let bs = Box("koala")       // Box[str]
+    print(bi.get())             // 42
+    print(bs.get())             // koala
+    print(unwrap_or(nil, 0))    // 0
+    with Guard() {
+        print("inside")         // enter → inside → exit
+    }
+}

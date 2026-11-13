@@ -48,16 +48,16 @@ func test_while(n int) {
 
 // CHECK-LABEL: =============== LSRA @test_while ===============
 // CHECK: %n: range: [0, 9) reg: 0
-// CHECK: %i: range: [1, 9) reg: 1
+// CHECK: %i: range: [2, 5) [6, 9) reg: 1
 // CHECK: %0: range: [3, 4) reg: 2
-// CHECK: %1: range: [5, 6) reg: 2
+// CHECK: %1: range: [5, 6) reg: 1
 // CHECK: %2: range: [7, 8) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
 // CHECK: 3: [R2] %0 = int.gt_imm %n int64, 0 int64
 // CHECK: 4: [...] branch %0 bool, label %bb1, label %bb2
-// CHECK: 5: [R2] %1 = int.add_imm %i int64, 1 int64
+// CHECK: 5: [R1] %1 = int.add_imm %i int64, 1 int64
 // CHECK: 6: [...] move %i int64, %1 int64
 // CHECK: 7: [R2] %2 = int.lt %i int64, %n int64
 // CHECK: 8: [...] branch %2 bool, label %bb1, label %bb2
@@ -73,9 +73,9 @@ func test_while2(n int) {
 // CHECK-LABEL: =============== LSRA @test_while2 ===============
 
 // CHECK: %n: range: [0, 16) reg: 0
-// CHECK: %i: range: [1, 16) reg: 1
+// CHECK: %i: range: [2, 12) [13, 16) reg: 1
 // CHECK: %0: range: [3, 4) reg: 2
-// CHECK: %5: range: [12, 13) reg: 2
+// CHECK: %5: range: [12, 13) reg: 1
 // CHECK: %6: range: [14, 15) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
@@ -85,7 +85,7 @@ func test_while2(n int) {
 
 // CHECK: 5: [R3] %1 = int.add_imm %i int64, 10 int64
 // CHECK: 11: [...] call @print [path = 'std/prelude'], nargs=3
-// CHECK: 12: [R2] %5 = int.add_imm %i int64, 1 int64
+// CHECK: 12: [R1] %5 = int.add_imm %i int64, 1 int64
 // CHECK: 13: [...] move %i int64, %5 int64
 // CHECK: 14: [R2] %6 = int.lt %i int64, %n int64
 // CHECK: 15: [...] branch %6 bool, label %bb1, label %bb2
@@ -105,9 +105,9 @@ func test_nested_loop(n int) {
 
 // CHECK-LABEL: =============== LSRA @test_nested_loop ===============
 // CHECK: %n: range: [0, 25) reg: 0
-// CHECK: %i: range: [1, 25) reg: 1
+// CHECK: %i: range: [2, 21) [22, 25) reg: 1
 // CHECK: %0: range: [3, 4) reg: 2
-// CHECK: %j: range: [5, 21) reg: 2
+// CHECK: %j: range: [6, 17) [18, 21) reg: 2
 // CHECK: %1: range: [7, 8) reg: 3
 
 // CHECK: 1: [R1] %i = local int64

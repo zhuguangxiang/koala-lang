@@ -68,14 +68,14 @@ func f_fold_lhs() int { return nil ?? 5 }
 // ===== Stage 4: code (linearized VM instructions) =====
 
 // Full diamond for the int? parameter: ne_null test, false-jump to the rhs
-// block, nil_check unwrap, join at the end block, single ret.
+// block, nil_check unwrap (written straight into the join register), join at
+// the end block, single ret.
 // CODE-CHECK-LABEL: ====== Linearization @f_param_int(
 // CODE: ref.ne_null
 // CODE: jmp_false
 // CODE: %bb-1(coalesce-unwrap):
 // CODE: nil_check
-// CODE: move
-// CODE: jmp
+// CODE-NEXT: jmp
 // CODE: %bb-1(coalesce-rhs):
 // CODE: move
 // CODE: %bb-1(coalesce-end):

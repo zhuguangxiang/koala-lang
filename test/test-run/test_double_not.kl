@@ -1,140 +1,113 @@
-// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
+// RUN: koalac %s --opt --dump=ir | filecheck %s --check-prefix=OPT
 
-// ---- Comparison operators with various '!' chain depths ----
+// irgen emits every '!' as lnot; const-copy-prop folds `!!x` to x and `!(a < b)`
+// to `a >= b`, but not for floats: when a or b is NaN both are false.
 
-func check_eq_1(v int?) bool {
-    return !(v == nil)          // count=1 (odd) -> flip to cmpne, no lnot
+func check_eq_1(v int?) bool { return !(v == nil) }
+func check_eq_2(v int?) bool { return !!(v == nil) }
+func check_eq_3(v int?) bool { return !!!(v == nil) }
+func check_ne_1(a int, b int) bool { return !(a != b) }
+func check_lt_1(a int, b int) bool { return !(a < b) }
+func check_le_1(a int, b int) bool { return !(a <= b) }
+func check_gt_1(a int, b int) bool { return !(a > b) }
+func check_ge_1(a int, b int) bool { return !(a >= b) }
+func check_plain_bool(flag bool) bool { return !flag }
+func check_plain_bool_double(flag bool) bool { return !!flag }
+
+func flt_lt_1(a float, b float) bool { return !(a < b) }
+func flt_le_1(a float, b float) bool { return !(a <= b) }
+func flt_gt_1(a float, b float) bool { return !(a > b) }
+func flt_ge_1(a float, b float) bool { return !(a >= b) }
+func flt_eq_1(a float, b float) bool { return !(a == b) }
+func flt_lt_3(a float, b float) bool { return !!!(a < b) }
+
+// the comparison is used twice, it must not be flipped
+func shared(a int, b int) bool {
+    let c = a < b
+    return !c == c
 }
-
-func check_eq_2(v int?) bool {
-    return !!(v == nil)         // count=2 (even) -> stays cmpeq, no lnot
-}
-
-func check_eq_3(v int?) bool {
-    return !!!(v == nil)        // count=3 (odd) -> flip to cmpne, no lnot
-}
-
-func check_eq_4(v int?) bool {
-    return !!!!(v == nil)       // count=4 (even) -> stays cmpeq, no lnot
-}
-
-func check_ne_1(a int, b int) bool {
-    return !(a != b)             // count=1 (odd) -> flip to cmpeq, no lnot
-}
-
-func check_lt_1(a int, b int) bool {
-    return !(a < b)              // count=1 (odd) -> flip to cmpge, no lnot
-}
-
-func check_le_1(a int, b int) bool {
-    return !(a <= b)             // count=1 (odd) -> flip to cmpgt, no lnot
-}
-
-func check_gt_1(a int, b int) bool {
-    return !(a > b)              // count=1 (odd) -> flip to cmple, no lnot
-}
-
-func check_ge_1(a int, b int) bool {
-    return !(a >= b)             // count=1 (odd) -> flip to cmplt, no lnot
-}
-
-// ---- Non-comparison unary '!' should NOT be folded (real lnot expected) ----
-
-func check_plain_bool(flag bool) bool {
-    return !flag                 // not a comparison chain, must emit lnot
-}
-
-func check_plain_bool_double(flag bool) bool {
-    return !!flag                // double negation on a plain bool, both lnot are real
-}
-
-// ---- Mixed chains: '!' broken by other unary ops should not be folded ----
-
-// TODO:
-// func check_mixed_bitnot(v int) bool {
-//     return !(~v == 0)            // outer '!' wraps a comparison (fine, count=1, flips to cmpne)
-// }
 
 func main() {
-    print(check_eq_1(nil))
-    print(check_eq_2(nil))
-    print(check_eq_3(nil))
-    print(check_eq_4(nil))
-    print(check_ne_1(1, 2))
-    print(check_lt_1(5, 10))
-    print(check_le_1(5, 5))
-    print(check_gt_1(10, 5))
-    print(check_ge_1(10, 10))
-    print(check_plain_bool(true))
-    print(check_plain_bool_double(true))
-    // print(check_mixed_bitnot(5))
+    print(check_eq_1(nil), check_eq_2(nil), check_eq_3(nil), check_ne_1(1, 2))
+    print(check_lt_1(5, 10), check_le_1(5, 5), check_gt_1(10, 5), check_ge_1(10, 10))
+    print(check_plain_bool(true), check_plain_bool_double(true))
+
+    var nan = 0.0 / 0.0
+    print(flt_lt_1(nan, 1.0), flt_le_1(1.0, nan), flt_gt_1(nan, nan), flt_ge_1(1.0, nan))
+    print(flt_eq_1(nan, nan), flt_lt_3(nan, 1.0))
+    print(flt_lt_1(1.0, 2.0), flt_ge_1(2.0, 1.0), flt_eq_1(1.0, 1.0))
+    print(shared(1, 2), shared(2, 1))
 }
 
-// ---- IR structural checks: comparison chains fold cleanly, no lnot ----
+// CHECK: false true false false
+// CHECK-NEXT: false false false false
+// CHECK-NEXT: false true
+// CHECK-NEXT: true true true true
+// CHECK-NEXT: true true
+// CHECK-NEXT: false false false
+// CHECK-NEXT: false false
 
-// CHECK-LABEL: func @check_eq_1(%v int64?) bool {
-// CHECK: %0 = cmpne %v int64?, nil
-// CHECK-NEXT: ret %0 bool
+// IR-LABEL: func @check_lt_1(%a int64, %b int64) bool {
+// IR: %0 = cmplt %a int64, %b int64
+// IR-NEXT: %1 = lnot %0 bool
+// IR-NEXT: ret %1 bool
 
-// CHECK-LABEL: func @check_eq_2(%v int64?) bool {
-// CHECK: %0 = cmpeq %v int64?, nil
-// CHECK-NEXT: ret %0 bool
+// IR-LABEL: func @check_plain_bool_double(%flag bool) bool {
+// IR: %0 = lnot %flag bool
+// IR-NEXT: %1 = lnot %0 bool
+// IR-NEXT: ret %1 bool
 
-// CHECK-LABEL: func @check_eq_3(%v int64?) bool {
-// CHECK: %0 = cmpne %v int64?, nil
-// CHECK-NEXT: ret %0 bool
+// OPT-LABEL: func @check_eq_1(%v int64?) bool {
+// OPT: %0 = cmpne %v int64?, nil
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_eq_2(%v int64?) bool {
+// OPT: %0 = cmpeq %v int64?, nil
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_eq_3(%v int64?) bool {
+// OPT: %0 = cmpne %v int64?, nil
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_ne_1(%a int64, %b int64) bool {
+// OPT: %0 = cmpeq %a int64, %b int64
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_lt_1(%a int64, %b int64) bool {
+// OPT: %0 = cmpge %a int64, %b int64
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_le_1(%a int64, %b int64) bool {
+// OPT: %0 = cmpgt %a int64, %b int64
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_gt_1(%a int64, %b int64) bool {
+// OPT: %0 = cmple %a int64, %b int64
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_ge_1(%a int64, %b int64) bool {
+// OPT: %0 = cmplt %a int64, %b int64
+// OPT: ret %0 bool
+// OPT-LABEL: func @check_plain_bool(%flag bool) bool {
+// OPT: %0 = lnot %flag bool
+// OPT-NEXT: ret %0 bool
+// OPT-LABEL: func @check_plain_bool_double(%flag bool) bool {
+// OPT: ret %flag bool
 
-// CHECK-LABEL: func @check_eq_4(%v int64?) bool {
-// CHECK: %0 = cmpeq %v int64?, nil
-// CHECK-NEXT: ret %0 bool
-
-// CHECK-LABEL: func @check_ne_1(%a int64, %b int64) bool {
-// CHECK: %0 = cmpeq %a int64, %b int64
-// CHECK-NEXT: ret %0 bool
-
-// CHECK-LABEL: func @check_lt_1(%a int64, %b int64) bool {
-// CHECK: %0 = cmpge %a int64, %b int64
-// CHECK-NEXT: ret %0 bool
-
-// CHECK-LABEL: func @check_le_1(%a int64, %b int64) bool {
-// CHECK: %0 = cmpgt %a int64, %b int64
-// CHECK-NEXT: ret %0 bool
-
-// CHECK-LABEL: func @check_gt_1(%a int64, %b int64) bool {
-// CHECK: %0 = cmple %a int64, %b int64
-// CHECK-NEXT: ret %0 bool
-
-// CHECK-LABEL: func @check_ge_1(%a int64, %b int64) bool {
-// CHECK: %0 = cmplt %a int64, %b int64
-// CHECK-NEXT: ret %0 bool
-
-// ---- Plain bool negation: real lnot IS expected here ----
-
-// CHECK-LABEL: func @check_plain_bool(%flag bool) bool {
-// CHECK: %0 = lnot %flag bool
-// CHECK-NEXT: ret %0 bool
-
-// CHECK-LABEL: func @check_plain_bool_double(%flag bool) bool {
-// CHECK: %0 = lnot %flag bool
-// CHECK-NEXT: %1 = lnot %0 bool
-// CHECK-NEXT: ret %1 bool
-
-// func @check_mixed_bitnot(%v int64) bool {
-// %0 = bit_not %v int64
-// %1 = cmpne %0 int64, 0 int64
-// ret %1 bool
-
-// ---- Runtime output ----
-
-// CHECK: false
-// CHECK: true
-// CHECK: false
-// CHECK: true
-// CHECK: false
-// CHECK: false
-// CHECK: false
-// CHECK: false
-// CHECK: false
-// CHECK: false
-// CHECK: true
-// true
+// OPT-LABEL: func @flt_lt_1(%a float64, %b float64) bool {
+// OPT: %0 = cmplt %a float64, %b float64
+// OPT-NEXT: %1 = lnot %0 bool
+// OPT-NEXT: ret %1 bool
+// OPT-LABEL: func @flt_le_1(%a float64, %b float64) bool {
+// OPT: %0 = cmple %a float64, %b float64
+// OPT-NEXT: %1 = lnot %0 bool
+// OPT-LABEL: func @flt_gt_1(%a float64, %b float64) bool {
+// OPT: %0 = cmpgt %a float64, %b float64
+// OPT-NEXT: %1 = lnot %0 bool
+// OPT-LABEL: func @flt_ge_1(%a float64, %b float64) bool {
+// OPT: %0 = cmpge %a float64, %b float64
+// OPT-NEXT: %1 = lnot %0 bool
+// OPT-LABEL: func @flt_eq_1(%a float64, %b float64) bool {
+// OPT: %0 = cmpne %a float64, %b float64
+// OPT: ret %0 bool
+// OPT-LABEL: func @flt_lt_3(%a float64, %b float64) bool {
+// OPT: %0 = cmplt %a float64, %b float64
+// OPT: lnot %0 bool
+// OPT-LABEL: func @shared(%a int64, %b int64) bool {
+// OPT: %0 = cmplt %a int64, %b int64
+// OPT: lnot %0 bool

@@ -1,0 +1,32 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
+// A `bytes` const aborted at its first read (`vm_ops.h: Assertion 'obj && ((obj)->_type ==
+// &global_type)'`): opt drops the const's `global_set`, and the `global_get` of a `bytes` const
+// was not replaced by its value. A const is now read as its literal, so a `bytes` const, local or
+// imported, is a fresh copy at each read, like a `bytes` literal.
+
+import "test_pkg/pkg_const_bytes" as pkg
+
+const DIGITS = b"0123456789"
+
+func main() {
+    print(DIGITS.len(), DIGITS)
+    let a = DIGITS
+    a[0] = 65
+    print(a, DIGITS)
+
+    let m = pkg.MAGIC
+    m[0] = 112
+    print(m, pkg.MAGIC, pkg.magic())
+}
+
+// CHECK: 10 b"0123456789"
+// CHECK-NEXT: b"A123456789" b"0123456789"
+// CHECK-NEXT: b"pK" b"PK" b"PK"
+// CHECK-NOT: {{.}}
+
+// IR-LABEL: func @main()
+// IR-NOT: global_get
+// IR: build_intern @bytes, b"0123456789" std/builtin.bytes
+// IR: build_intern @bytes, b"PK" std/builtin.bytes
+// IR: }

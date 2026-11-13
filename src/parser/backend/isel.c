@@ -570,65 +570,34 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
     klr_build_move(&bldr, local, arg); // copy original value
 }
 
-static int param_is_used(KlrValue *param, KlrValue *val)
+static int insn_reads(KlrInsn *insn, KlrValue *val)
 {
-    if (klr_is_const(val)) {
-        return 0;
-    }
-
-    if (klr_is_param(val)) {
-        return val == param;
-    }
-
     KlrValue *_val;
-    insn_oper_value_foreach(_val, (KlrInsn *)val) {
-        if (_val == param) {
-            return 1;
-        }
+    insn_oper_value_foreach(_val, insn) {
+        if (_val == val) return 1;
     }
-
     return 0;
 }
 
-static int allow_fixslot(KlrValue *param, KlrValue *val, KlrInsn *call)
+/*
+ * Can the argument `src` be computed straight into the slot of `param`?
+ * Then `param` is overwritten where `src` is defined, so nothing may read
+ * `param` after that: neither a later insn nor another argument of the call.
+ */
+static int allow_tailcall_fixslot(KlrValue *param, KlrValue *src, KlrInsn *call)
 {
-    int num_opers = call->num_opers;
-    KlrUse *use;
-    int i, j;
-    for (i = 1; i < num_opers; i++) {
-        use = &call->opers[i].use;
-        if (use->ref == val) break;
+    if (!klr_is_insn(src) || klr_is_local(src) || klr_is_phi(src)) return 0;
+
+    KlrInsn *def = (KlrInsn *)src;
+    if (def->use_count != 1 || def->fixedslot || def->bb != call->bb) return 0;
+
+    KlrInsn *next = insn_next(def, call->bb);
+    while (next && next != call) {
+        if (insn_reads(next, param)) return 0;
+        next = insn_next(next, call->bb);
     }
 
-    for (j = i + 1; j < num_opers; j++) {
-        use = &call->opers[j].use;
-        if (param_is_used(param, use->ref)) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
-static void lower_tailcall_fixslot(KlrValue *dst, KlrValue *src, int pos, KlrInsn *call,
-                                   KlrBuilder *bldr)
-{
-    if (!klr_is_const(src)) {
-        if (src->use_count == 1 && allow_fixslot(dst, src, call)) {
-            KlrInsn *_insn = (KlrInsn *)src;
-            _insn->fixedslot = 2;
-            _insn->slotindex = pos;
-            return;
-        }
-
-        klr_build_move(bldr, dst, src);
-        return;
-    }
-
-    KlrConst *c = (KlrConst *)src;
-    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
-    OpCode op = get_const_op(c, &R);
-    klr_build_load(bldr, dst, src, op);
+    return !insn_reads(call, param);
 }
 
 static void lower_tailcall_move(KlrValue *dst, KlrValue *src, KlrBuilder *bldr)
@@ -644,34 +613,87 @@ static void lower_tailcall_move(KlrValue *dst, KlrValue *src, KlrBuilder *bldr)
     klr_build_load(bldr, dst, src, op);
 }
 
-static void lower_tailcall_argument(KlrInsn *insn, KlrValue *arg, int index, KlrFunc *fn,
-                                    KlrInsn **last_local)
+/*
+ * A self tail call assigns its arguments to the parameters in parallel:
+ * (p0, .., pn-1) <- (s0, .., sn-1), where a source may be another parameter,
+ * e.g. `return f(a - 1, e, d, c, b)` has the cycles (b e) and (c d).
+ * A move pi <- si is emitted only when no pending move still reads pi; when only
+ * cycles are left, one parameter is saved to a temporary to break the cycle.
+ */
+static void lower_tailcall_params(KlrInsn *call, KlrValue **srcs, int n, KlrFunc *fn)
 {
-    int nparams = vector_size(&fn->params);
-    if (index < nparams) {
-        KlrBuilder bldr;
-        klr_builder_before(&bldr, insn);
-        KlrValue *param = vector_get(&fn->params, index);
-        lower_tailcall_fixslot(param, arg, index, insn, &bldr);
-        log_info("tailcall argument %d -> param %s", index, param->name);
-    } else {
-        KlrBuilder bldr;
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, call);
 
-        if (*last_local) {
-            klr_builder_at(&bldr, *last_local);
+    int pending = 0;
+    for (int i = 0; i < n; i++) {
+        KlrValue *param = vector_get(&fn->params, i);
+        if (srcs[i] == param) {
+            srcs[i] = NULL;
+        } else if (allow_tailcall_fixslot(param, srcs[i], call)) {
+            KlrInsn *def = (KlrInsn *)srcs[i];
+            def->fixedslot = 2;
+            def->slotindex = i;
+            srcs[i] = NULL;
         } else {
-            KlrBasicBlock *bb = first_basic_block(fn);
-            klr_builder_head(&bldr, bb);
+            pending++;
+        }
+    }
+
+    while (pending > 0) {
+        int progress = 0;
+        for (int i = 0; i < n; i++) {
+            if (!srcs[i]) continue;
+            KlrValue *param = vector_get(&fn->params, i);
+            int blocked = 0;
+            for (int j = 0; j < n; j++) {
+                if (j != i && srcs[j] == param) {
+                    blocked = 1;
+                    break;
+                }
+            }
+            if (blocked) continue;
+            lower_tailcall_move(param, srcs[i], &bldr);
+            srcs[i] = NULL;
+            pending--;
+            progress = 1;
         }
 
-        KlrValue *local = klr_build_local(&bldr, arg->ts, "");
-        lower_tailcall_move(local, arg, &bldr);
-        *last_local = (KlrInsn *)local;
-        log_info(
-            "tailcall arguments are more than parameters, argument %d will be moved "
-            "to a local variable",
-            index);
+        if (progress) continue;
+
+        // only cycles of parameters are left: save one parameter to a temporary
+        for (int i = 0; i < n; i++) {
+            if (!srcs[i]) continue;
+            KlrValue *param = vector_get(&fn->params, i);
+            KlrValue *tmp = klr_build_local_var(&bldr, param->ts, "");
+            klr_build_move(&bldr, tmp, param);
+            for (int j = 0; j < n; j++) {
+                if (srcs[j] == param) srcs[j] = tmp;
+            }
+            break;
+        }
     }
+}
+
+static void lower_tailcall_extra_argument(KlrValue *arg, int index, KlrFunc *fn,
+                                          KlrInsn **last_local)
+{
+    KlrBuilder bldr;
+
+    if (*last_local) {
+        klr_builder_at(&bldr, *last_local);
+    } else {
+        KlrBasicBlock *bb = first_basic_block(fn);
+        klr_builder_head(&bldr, bb);
+    }
+
+    KlrValue *local = klr_build_local(&bldr, arg->ts, "");
+    lower_tailcall_move(local, arg, &bldr);
+    *last_local = (KlrInsn *)local;
+    log_info(
+        "tailcall arguments are more than parameters, argument %d will be moved "
+        "to a local variable",
+        index);
 }
 
 static int is_tailcall(KlrInsn *insn, KlrFunc *cur_fn)
@@ -699,14 +721,22 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
         fn->has_tailcall = 1;
         KlrInsn *last_local = NULL;
         int nargs = insn->num_opers;
+        int nparams = vector_size(&fn->params);
+        KlrValue *srcs[nargs];
+        int nsrcs = 0;
         for (int i = 1; i < nargs; i++) {
             KlrValue *arg = insn_oper_value(insn, i);
             if (is_function_symbol(arg)) {
                 arg = lower_function_value(insn, arg);
                 set_operand_at(insn, i, arg);
             }
-            lower_tailcall_argument(insn, arg, i - 1, fn, &last_local);
+            if (i - 1 < nparams) {
+                srcs[nsrcs++] = arg;
+            } else {
+                lower_tailcall_extra_argument(arg, i - 1, fn, &last_local);
+            }
         }
+        lower_tailcall_params(insn, srcs, nsrcs, fn);
 
         for (int i = 1; i < nargs; i++) {
             clear_operand_at(insn, i);

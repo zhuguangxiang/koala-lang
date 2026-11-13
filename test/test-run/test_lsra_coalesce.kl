@@ -1,0 +1,83 @@
+// RUN: koala %s ++ --dump=code | filecheck %s
+//
+// LSRA move coalescing: the two sides of a move or a no-op cast share one
+// register, so cgen emits no `move` for them.
+
+// A: `let l = [n]` -> the local takes the register of the list value.
+// C: `l = [i, n]` -> the list is built straight into the register of `l`.
+func lists(n int) list[int] {
+    var l = [n]
+    var i = 0
+    while i < n {
+        l = [i, n]
+        i = i + 1
+    }
+    return l
+}
+
+// CHECK-LABEL: ====== Linearization @lists(
+// CHECK: %bb-1(entry):
+// CHECK: build_intern r[[L:[0-9]+]], @list, #1
+// CHECK-NOT: move
+// CHECK: %bb-1(while-body):
+// CHECK: build_intern r[[L]], @list, #2
+// CHECK-NOT: move
+// CHECK: End of Linearization @lists
+
+// B: the widening cast of `e` keeps the register of `e`, although r0 is free.
+func widen(unused int, n int64, e uint8) int {
+    return n + e
+}
+
+// CHECK-LABEL: ====== Linearization @widen(
+// CHECK-NEXT: {{^$}}
+// CHECK-NEXT: %bb-1(entry):
+// CHECK-NEXT: int.add r0, r1, r2
+// CHECK-NEXT: ret r0
+
+// D: `n` lives on after its widening casts, which still share its register.
+func live_src(n int8, a int8, b int16) int {
+    return (n + a) * 1000 + (n + b)
+}
+
+// CHECK-LABEL: ====== Linearization @live_src(
+// CHECK-NOT: move
+// CHECK: int.add r1, r0, r1
+// CHECK-NOT: move
+// CHECK: int.add r0, r0, r2
+// CHECK-NOT: move
+// CHECK: End of Linearization @live_src
+
+// A self tail call writes the parameter slots: the casts of `n` keep their own register.
+func tail(n int8, one int8, acc int) int {
+    if n == 0 { return acc }
+    let w = acc + n
+    return tail(int8(n - one), one, w * 10 + n)
+}
+
+// A local written after its last read keeps its register up to that write:
+// `i = 10` must not clobber `a`.
+func straight(n int) int {
+    var i = n
+    let a = i + 1
+    i = 10
+    let b = i + 1
+    return a * 100 + b
+}
+
+func dead_write_loop(n int) int {
+    var s = 0
+    var last = 0
+    var i = 0
+    while i < n {
+        let t = i * 2
+        s = s + t
+        last = t
+        i = i + 1
+    }
+    return s
+}
+
+print(lists(3), widen(0, 1, 2), straight(1), dead_write_loop(4), live_src(1, 2, 3), tail(4, 1, 0))
+
+// CHECK: [2, 3] 3 211 12 3004 47531

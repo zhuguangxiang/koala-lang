@@ -23,6 +23,7 @@ typedef enum _DumpFlags {
     DUMP_ITABLE = 1 << 6,
     DUMP_INLINE_IR = 1 << 7,
     DUMP_DOMTREE = 1 << 8,
+    DUMP_UNROLL_IR = 1 << 9,
     DUMP_ALL = 0xFFFFFFFF,
 } DumpFlags;
 
@@ -31,6 +32,7 @@ typedef struct _CompileOptions {
     int enable_ssa;
     int enable_inline;
     int enable_domtree;
+    int enable_unroll;
     int enable_opt;
     int enable_isel;
     int enable_lsra;
@@ -53,6 +55,7 @@ extern CompileOptions cmd_opt;
 #define inline_enabled()    (cmd_opt.enable_inline)
 #define opt_enabled()       (cmd_opt.enable_opt)
 #define domtree_enabled()   (cmd_opt.enable_domtree)
+#define unroll_enabled()    (cmd_opt.enable_unroll)
 #define isel_enabled()      (cmd_opt.enable_isel)
 #define fusion_enabled()    (cmd_opt.enable_fusion)
 #define lsra_enabled()      (cmd_opt.enable_lsra)
@@ -73,6 +76,7 @@ extern CompileOptions cmd_opt;
 #define dump_itable_enabled()    ((cmd_opt.dump & DUMP_ITABLE) != 0)
 #define dump_inline_ir_enabled() ((cmd_opt.dump & DUMP_INLINE_IR) != 0)
 #define dump_domtree_enabled()   ((cmd_opt.dump & DUMP_DOMTREE) != 0)
+#define dump_unroll_ir_enabled() ((cmd_opt.dump & DUMP_UNROLL_IR) != 0)
 
 #ifdef __cplusplus
 }

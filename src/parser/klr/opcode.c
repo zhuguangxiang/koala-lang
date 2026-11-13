@@ -33,6 +33,7 @@ char *intern_tag_name[] = {
     [INTERN_RANGE] = "range",
     [INTERN_SLICE] = "slice",
     [INTERN_LIST] = "list",
+    [INTERN_BYTES] = "bytes",
     [INTERN_MAP] = "map",
 };
 

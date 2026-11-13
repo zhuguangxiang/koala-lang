@@ -1,0 +1,161 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --domtree --unroll | filecheck %s
+
+// The unrolled loops give the same results as the loops.
+
+func sum_range(n int) int {
+    var s = 0
+    for i in range(4) { s = s + i * n }
+    return s
+}
+
+func with_break() int {
+    var s = 0
+    for i in range(10) {
+        if i == 4 { break }
+        s = s + i
+    }
+    return s
+}
+
+func with_continue() int {
+    var s = 0
+    for i in range(6) {
+        if i % 2 == 0 { continue }
+        s = s + i
+    }
+    return s
+}
+
+// the inner loop is unrolled first, then the outer one
+func nested() int {
+    var s = 0
+    for i in range(3) {
+        for j in range(2) { s = s * 10 + i * 2 + j }
+    }
+    return s
+}
+
+// the counter is read after the loop
+func var_after() int {
+    var i = 0
+    var s = 1
+    while i < 5 { s = s * 2; i = i + 1 }
+    return i * 100 + s
+}
+
+func countdown() int {
+    var r = 0
+    var i = 5
+    while i > 0 { r = r * 10 + i; i = i - 2 }
+    return r
+}
+
+func const_lhs() int {
+    var i = 0
+    var s = 0
+    while 4 > i { s = s + 1; i += 1 }
+    return s
+}
+
+func if_else() int {
+    var s = 0
+    for i in range(5) {
+        if i < 2 { s = s + 1 } else { s = s + 10 }
+    }
+    return s
+}
+
+func zero_trip() int {
+    var s = 7
+    for i in range(0) { s = s + i }
+    return s
+}
+
+func step_range() int {
+    var s = 0
+    for i in range(1, 10, 3) { s = s * 10 + i }
+    return s
+}
+
+func call_lambda() int {
+    let f = { |x int, y int| x * 3 + y }
+    var s = 0
+    for i in range(3) { s = f(s, i) }
+    return s
+}
+
+// not unrolled: too many trips
+func too_many() int {
+    var s = 0
+    for i in range(100) { s = s + i }
+    return s
+}
+
+// not unrolled: the counter is defined twice in the loop
+func two_defs() int {
+    var s = 0
+    var i = 0
+    while i < 8 {
+        if i == 2 { i = i + 3 } else { i = i + 1 }
+        s = s + i
+    }
+    return s
+}
+
+func early_ret(x int) int {
+    for i in range(5) {
+        if i == x { return i * 11 }
+    }
+    return -1
+}
+
+// the body of the last copy is dead, its '30 / 0' is not a compile error
+func dead_div() int {
+    var s = 0
+    for i in range(3) { s = s + 30 / (i - 3) }
+    return s
+}
+
+func near_max() int {
+    var i = 9223372036854775804
+    var n = 0
+    while i < 9223372036854775807 { n += 1; i += 1 }
+    return n
+}
+
+print(sum_range(3))
+print(with_break())
+print(with_continue())
+print(nested())
+print(var_after())
+print(countdown())
+print(const_lhs())
+print(if_else())
+print(zero_trip())
+print(step_range())
+print(call_lambda())
+print(too_many())
+print(two_defs())
+print(early_ret(3))
+print(early_ret(9))
+print(dead_div())
+print(near_max())
+
+// CHECK: 18
+// CHECK-NEXT: 6
+// CHECK-NEXT: 9
+// CHECK-NEXT: 12345
+// CHECK-NEXT: 532
+// CHECK-NEXT: 531
+// CHECK-NEXT: 4
+// CHECK-NEXT: 32
+// CHECK-NEXT: 7
+// CHECK-NEXT: 147
+// CHECK-NEXT: 5
+// CHECK-NEXT: 4950
+// CHECK-NEXT: 29
+// CHECK-NEXT: 33
+// CHECK-NEXT: -1
+// CHECK-NEXT: -55
+// CHECK-NEXT: 3

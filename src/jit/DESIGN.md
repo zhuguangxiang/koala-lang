@@ -205,6 +205,16 @@ ret
 | `OP_FLOAT_CAST/FLOAT_TO_INT/INT_TO_FLOAT` | 浮点相关 cast | 调 `do_float_cast`/`do_float_to_int`/`do_int_to_float` |
 | `OP_LAND/LOR` | rd = rs && / \|\| rt（bool） | bool payload 0/1，`and/or rax,[rt.val]`，tag BOOL |
 | `OP_LNOT` | rd = !rs（bool） | `xor rax,1`，tag BOOL |
+| `OP_NUM_*`（16 个） | 泛型数值协议（trait/any 操作数） | 调 `kl_jit_num_arith`/`kl_jit_num_cmp`（slot 分派），见 §5.6 |
+| `OP_GET_FIELD/SET_FIELD` | 对象字段读写 | **内联**：obj=payload，`fields[off]` 在 obj+16+off*16，见 §5.7 |
+| `OP_GLOBAL_GET/SET` | 全局读写 | **内联**：编译期解析 `&values[idx]`（含外部全局），load/store |
+| `OP_NEW` | 建对象 | 调 `kl_jit_new(tp)`（tp 编译期解析） |
+| `OP_BUILD_INTERN` | 建 tuple/list/dict 等 | 调 `kl_jit_build_intern(tag,count)`（用 stack_top） |
+| `OP_SEQ_GET/SET`（含 `_IMM`/`_SLICE`） | 容器索引/切片 | 调 `kl_jit_slot3`/`kl_jit_*_item_imm`（slot 分派） |
+| `OP_LEN/CONTAINS/STR` | 协议方法 | 调 `kl_jit_slot3`（SLOT_LEN/CONTAINS/STR） |
+| `OP_HASH/FMT/PRINT` | hash/格式化/打印 | 调 `kl_jit_hash`/`kl_jit_fmt`/`kl_jit_print` |
+| `OP_REF_EQ_NULL/NE_NULL`、`OP_JMP_REF_*_NULL` | nil 检查 | **内联**：`cmp tag,0; setcc/jcc` |
+| `OP_MOVE_TRUE` | 条件 move | **内联**：`cmp [rs.val],0; je skip; copy` |
 
 比较条件码映射：有符号 EQ→`CC_E`、NE→`CC_NE`、LT→`CC_L`、LE→`CC_LE`、
 GT→`CC_G`、GE→`CC_GE`；无符号 LT→`CC_B`、LE→`CC_BE`、GT→`CC_A`、
@@ -280,6 +290,53 @@ TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs,
   （与 `OP_INT_CAST` 同 5 参约定，trap 模式 abort）。
 - **已知 VM bug（仅镜像不修）**：float 取反分支在 NaN 下语义错误（Koala_TODO §102），
   JIT 差分与解释器一致；测试不钉该 quirks。
+
+### 5.6 泛型数值协议（OP_NUM_*）
+
+操作数是 trait/any 类型（非具体内建）时，isel 发射 `OP_NUM_*`（16 个：算术 10 + 比较 6），
+运行期按 slot 分派。JIT 镜像：
+
+- **算术**（add/sub/mul/div/mod/shl/shr/and/or/xor）调 `kl_jit_num_arith(a, b, slot, pc)`
+  → `kl_call_slot(args, 2, slot)`，与解释器 `kl_call_add` 等一致。
+- **比较**（eq/ne/lt/le/gt/ge）调 `kl_jit_num_cmp(a, b, slot, pc)`，**先镜像解释器的
+  primitive 快速路径**（int/float/uint，bool 仅 eq/ne），再回退 slot。快速路径是正确性必需：
+  内建类型没有 cmp slot，直接走 slot 会 raise。
+- 两个 helper 都写 `cf->pc` 并在出错时 `trace_here`（同 `kl_jit_call_helper`），native 侧
+  检查 TAG_ERROR 跳错误尾声。
+
+**性能结论（实测）**：v1 下 OP_NUM_* 仅 ~1.2× 加速（`test/test-bench/test_num.kl`：
+num_add 87.8→73.7ms、num_cmp 97.1→82.6ms）。瓶颈是运行期 slot 分派（`kl_call_slot`），
+JIT 与解释器都要付；JIT 只省了字节码 fetch/decode。泛型代码的大幅提速需去虚化 /
+inline cache（Yowie/Bunyip）。
+
+**测试注意**：koala 默认开 inline，trait helper 会被内联进调用方；验证 OP_NUM_* 独立 JIT
+需 `--no-inline`（见 `test/test-run/test_num_ops.kl` 的 JIT-DAG RUN）。含 trait 局部累加
+或调用点 widening 会引入 `make_intf`（B 组，尚未覆盖），bench 用「num 结果立即被比较消费」
+的写法避开。
+
+### 5.7 对象 / 容器 / 字符串 / 引用（A 组）
+
+- **入口守卫放宽**：`jit_params_ok` 现接受 scalar + ref + intf（对象参数），否则取对象的
+  热函数会被守卫挡回解释器。静态类型保证实参类型，守卫只挡 error/no-value 杂散 tag。
+- **字段访问内联**：`to_obj()` 对 ref/intf 都返回 payload（obj 指针），`InstObject.fields[off]`
+  在 `obj + 16 + off*16`（OBJECT_HEAD = _type + _nfields 共 16 字节）。GET/SET_FIELD 直接
+  load/store，无 call——这是 A 组最大的收益点。
+- **全局访问内联**：编译期解析 `&m->values[idx]`（idx≥num_globals 时经 GlobalObject 解析到
+  外部模块的 values），嵌地址 load/store。全局数组运行期不 resize，地址稳定。
+- **构造**：NEW 调 `kl_jit_new(tp)`（tp 编译期从 types[idx] 解析）；BUILD_INTERN 调
+  `kl_jit_build_intern`（用 `ks->stack_top` 上的参数）。
+- **容器/协议**：SEQ_*/LEN/CONTAINS/STR/HASH/FMT/PRINT 走 slot 分派 helper（`kl_jit_slot3`
+  通用 3 参 + 专用 imm/hash/fmt/print），都带 cf->pc + 出错 trace。
+- **nil 检查内联**：REF_EQ_NULL/NE_NULL 即 `cmp tag,0; setcc`；JMP_REF_*_NULL 即 `cmp; jcc`。
+  MOVE_TRUE 内联条件 move（本地 fixup 跳过 copy）。
+- **排除**：`OP_REF_EQ/NE` 在解释器里是 `OP_NYI`（会 abort），非真实运行 opcode，不覆盖。
+
+**性能结论（实测，`test/test-bench/test_obj.kl`）**：字段循环 72.6→13.5ms（**~5.4×**，内联
+字段访问收益大）；list 索引循环 79.6→58.2ms（~1.4×，seq_get 走 slot 分派，收益温和，同
+OP_NUM_*——去虚化可进一步提速）。
+
+**测试注意**：可选类型 `return v`（解包）会发 `nil_check`（B 组），故 nil 检查的 JIT 用例
+用 `return v == nil`（只发 ref_eq_null，不解包）避开。见 `test/test-run/test_obj_ops.kl`。
 
 ## 6. 两遍汇编与跳转回填
 
@@ -452,3 +509,95 @@ diff /tmp/off.txt /tmp/on.txt        # 应无差异
 KOALA_JIT=0 koala bench/test_arith.kl   # ~1.29s
 KOALA_JIT=1 koala bench/test_arith.kl   # ~0.43s
 ```
+
+## 13. 性能基线（vs LuaJIT）与 Yowie 优化靶子
+
+实测环境：release 构建，hyperfine（warmup 2 / min-runs 5），2026-11-14。
+单位 ms（均值）。`vs luajit` 列 >1 表示 luajit 更快。**所有落后项的热点函数均已 JIT**
+（trace 确认无 bail），落后是 v1 代码质量问题，非回退解释器。
+
+| bench | koala JIT | koala 解释 | luajit | luajit -joff | JIT 加速 | vs luajit |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| tak | 136 | 533 | 147 | 348 | 3.9× | **koala 胜 1.08×** |
+| fib | 786 | 3256 | 686 | 3265 | 4.1× | 平手（luajit 1.14×） |
+| loop-sum | 68 | 290 | 46 | 247 | 4.3× | luajit 1.47× |
+| test_logic_chain | 438 | 1310 | 340 | 1241 | 3.0× | luajit 1.29× |
+| sum | 96 | 569 | 46 | 952 | 5.9× | luajit 2.07× |
+| shuffle | 42 | 136 | 20 | 456 | 3.2× | luajit 2.12× |
+| ack | 233 | 600 | 78 | 378 | 2.6× | luajit 2.99× |
+| test_float_arith | 179 | 260 | 46 | 337 | 1.5× | luajit 3.88× |
+| test_float_logic | 284 | 576 | 64 | 577 | 2.0× | luajit 4.46× |
+| test_arith | 484 | 1418 | — | — | 2.9× | N/A（Lua 5.4 位运算语法） |
+| test_bitwise | 206 | 924 | — | — | 4.5× | N/A |
+| test_uint_arith | 463 | 1355 | — | — | 2.9× | N/A |
+
+> 3 个位运算基准的 `.lua` 用 Lua 5.4 位运算语法（`|`/`~`/`<<`），LuaJIT（5.1 基）不支持，
+> 不做模拟对照。koala 解释器 ≈ luajit -joff（fib 3.26s vs 3.27s），差距全在 JIT 质量。
+
+### 13.1 落后归因 → Yowie(v2) 靶子
+
+| 落后项 | 根因（v1 限制） | Yowie 对策 |
+| --- | --- | --- |
+| test_float_logic（4.46×） | 浮点比较 `if res>=50.0` 每迭代调 `kl_jit_float_cmp` C helper | 内联 `ucomisd`（处理 PF/NaN） |
+| test_float_arith（3.88×） | TValue 镜像：每迭代 movsd 读内存→addsd→写内存+写 tag | 拆箱 + RA，值留 XMM |
+| ack（2.99×） | 嵌套非尾调用每次 helper→`kl_call_code` 建帧开销 | JIT→JIT 直调 |
+| sum / shuffle（~2×） | 尾循环 TValue 每迭代 load/store + tag 写 | 拆箱 + RA |
+| loop-sum / logic_chain（1.3–1.5×） | TValue 镜像 load/store + tag 写（已较接近） | 拆箱 + RA |
+
+结论：v1 已把可 JIT 的都 JIT 了，剩余差距集中在**代码质量**而非覆盖，对应 Yowie 三项
+（拆箱+RA、内联浮点比较、JIT 直调，见 Koala_TODO §100）。此表作为 Yowie 的优化对照基线。
+
+> 注：shuffle 的结果受尾调用编译器 bug 影响（Koala_TODO §104，40M 输入恰好掩盖），
+> 性能数仍有效（同样跑 40M 次循环）。
+
+## 14. GC root 枚举（前瞻）
+
+GC 尚未落地（半自动内存模型是设计目标）。本节锁定 JIT 侧的 root 枚举约定，供 GC 实现时遵循。
+**核心结论：v1 的 TValue 镜像让 root 枚举几乎白送——JIT 帧与解释器帧对 GC 完全同构。**
+
+### 14.1 v1：保守扫 VM 栈 + 全局
+
+值始终驻留 `cf->locals`（VM 栈上的 TValue 寄存器文件），GC 无需区分原生帧/解释帧，只扫两块：
+
+```
+1. 全局：遍历每个 module->values[0..num_values]，is_ref / is_intf 即 root。
+2. VM 栈：把 [ks->stack_base, ks->stack_top) 整段当 TValue[] 扫，is_ref / is_intf 即 root。
+```
+
+依据：
+- `_new_frame` 中 `cf->locals = stack_top; stack_top += nlocals`，各帧 locals + 调用参数窗口
+  在 VM 栈上连续排布，活跃区 `[stack_base, stack_top)` 恰好覆盖所有帧的活值。
+- **JIT 原生栈（rbp/rsp、返回地址）里没有对象引用**——值都在 VM 栈的 `cf->locals`。
+  故 GC **不扫原生栈**，只扫 VM 栈。这是镜像模型最大的便利。
+- 帧链（`cf->back` / `ks->cf` / `cf->pc`，见 §7）已就位：可按 cf 链逐帧扫 `nlocals`
+  （精确到帧），或直接扫整段栈（更简单）。两者皆可。
+
+**保守 vs 精确**：v1 用**保守扫描**——`nlocals` 个槽全当潜在 root（含已死寄存器残值）。
+代价是少量漂浮垃圾（对象多活一会儿），但绝对安全、零额外元数据。精确扫描需每 PC 的活跃
+槽位图（LSRA 已有 liveness，可选导出），v1 不必。
+
+**Safepoint = 调用点**：GC 只在 call 处触发（此时 `cf->pc` 已设、值已 spill 到 `cf->locals`
+与参数窗口）。镜像模型下值本就在内存，任何调用点状态都一致，无需额外 spill。
+
+### 14.2 v2（拆箱）：stack map
+
+拆箱后活引用可能留在机器寄存器/原生栈，不在 `cf->locals`，扫 VM 栈会漏根。两条路：
+
+| 方案 | 做法 | 取舍 |
+| --- | --- | --- |
+| safepoint spill | 每个调用点把活引用 spill 回 `cf->locals` | GC 扫描保持统一简单；每 call 多 spill 开销 |
+| **stack map** | 每个 safepoint 发射元数据：哪些寄存器/栈槽是 ref | 高效无多余 spill；需生成/维护 stack map，GC 解析原生帧 |
+
+LuaJIT/V8 走 stack map。建议 v2 用 **stack map**（性能优先），但**现在就锁定 safepoint 约定**
+（call 点 `cf->pc` 有效、活引用位置可枚举）。v1 先按"全在 cf->locals"实现 GC，v2 再扩展。
+
+### 14.3 C 扩展侧 root
+
+C 扩展的 root 用设计文档的 TraceStack 机制（与 JIT 无关，另行处理）；JIT  helper 调用
+C 函数期间，活值已在 VM 栈/参数窗口，C 侧临时 root 由 TraceStack 覆盖。
+
+### 14.4 落地建议
+
+- v1 GC 直接保守扫 VM 栈 + 全局，**零 JIT 侧改动**（镜像模型已就位），先跑通半自动内存模型。
+- 现在锁定 safepoint 约定，为 v2 stack map 留接口。
+- 关联：Koala_TODO §100（Yowie 拆箱）、内存管理设计目标（Koala_Language_Manual.md）。

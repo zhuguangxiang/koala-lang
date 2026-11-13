@@ -1,0 +1,126 @@
+// RUN: koala %s | filecheck %s
+
+// A float comparison in a branch must not be inverted: `!(a < b)` is not
+// `a >= b` when a or b is NaN, both are false.
+
+func lt(a float, b float) int { if a < b { return 1 } return 0 }
+func le(a float, b float) int { if a <= b { return 1 } return 0 }
+func gt(a float, b float) int { if a > b { return 1 } return 0 }
+func ge(a float, b float) int { if a >= b { return 1 } return 0 }
+func eq(a float, b float) int { if a == b { return 1 } return 0 }
+func ne(a float, b float) int { if a != b { return 1 } return 0 }
+
+func lt_else(a float, b float) int {
+    var r = 0
+    if a < b { r = 1 } else { r = 2 }
+    return r
+}
+
+func while_lt(a float, b float) int {
+    var n = 0
+    while a < b {
+        n = n + 1
+        if n > 3 { break }
+    }
+    return n
+}
+
+// the loop body is longer than an 8-bit jump offset: the backward
+// `jmp_float_lt` at the bottom is expanded with a far `jmp`; `v` becomes `c`
+// at the end of the first trip, so with c = NaN the bottom test exits
+func far(a float, b float, c float, x int) int {
+    var s = 0
+    var n = 0
+    var v = a
+    while v < b {
+        n = n + 1
+        if n > 2 { break }
+        s = s + 1 * x
+        s = s + 2 * x
+        s = s + 3 * x
+        s = s + 4 * x
+        s = s + 5 * x
+        s = s + 6 * x
+        s = s + 7 * x
+        s = s + 8 * x
+        s = s + 9 * x
+        s = s + 10 * x
+        s = s + 11 * x
+        s = s + 12 * x
+        s = s + 13 * x
+        s = s + 14 * x
+        s = s + 15 * x
+        s = s + 16 * x
+        s = s + 17 * x
+        s = s + 18 * x
+        s = s + 19 * x
+        s = s + 20 * x
+        s = s + 21 * x
+        s = s + 22 * x
+        s = s + 23 * x
+        s = s + 24 * x
+        s = s + 25 * x
+        s = s + 26 * x
+        s = s + 27 * x
+        s = s + 28 * x
+        s = s + 29 * x
+        s = s + 30 * x
+        s = s + 31 * x
+        s = s + 32 * x
+        s = s + 33 * x
+        s = s + 34 * x
+        s = s + 35 * x
+        s = s + 36 * x
+        s = s + 37 * x
+        s = s + 38 * x
+        s = s + 39 * x
+        s = s + 40 * x
+        s = s + 41 * x
+        s = s + 42 * x
+        s = s + 43 * x
+        s = s + 44 * x
+        s = s + 45 * x
+        s = s + 46 * x
+        s = s + 47 * x
+        s = s + 48 * x
+        s = s + 49 * x
+        s = s + 50 * x
+        s = s + 51 * x
+        s = s + 52 * x
+        s = s + 53 * x
+        s = s + 54 * x
+        s = s + 55 * x
+        s = s + 56 * x
+        s = s + 57 * x
+        s = s + 58 * x
+        s = s + 59 * x
+        s = s + 60 * x
+        s = s + 61 * x
+        s = s + 62 * x
+        s = s + 63 * x
+        s = s + 64 * x
+        s = s + 65 * x
+        s = s + 66 * x
+        s = s + 67 * x
+        s = s + 68 * x
+        s = s + 69 * x
+        s = s + 70 * x
+        v = c
+    }
+    return s
+}
+
+var z = 0.0
+var nan = z / z
+
+print(lt(nan, 1.0), le(nan, 1.0), gt(nan, 1.0), ge(nan, 1.0), eq(nan, nan), ne(nan, nan))
+print(lt(1.0, nan), le(1.0, nan), gt(1.0, nan), ge(1.0, nan))
+print(lt_else(nan, 1.0), while_lt(nan, 1.0), far(nan, 1.0, 1.0, 1), far(1.0, 2.0, nan, 1))
+print(lt(1.0, 2.0), le(2.0, 2.0), gt(3.0, 2.0), ge(2.0, 2.0), lt_else(1.0, 2.0), while_lt(1.0, 2.0), far(1.0, 2.0, 1.0, 1))
+print(lt(2.0, 1.0), le(3.0, 2.0), gt(2.0, 3.0), ge(1.0, 2.0), lt_else(2.0, 1.0), while_lt(2.0, 1.0), far(2.0, 1.0, 1.0, 1))
+
+// CHECK: 0 0 0 0 0 1
+// CHECK-NEXT: 0 0 0 0
+// CHECK-NEXT: 2 0 0 2485
+// CHECK-NEXT: 1 1 1 1 1 4 4970
+// CHECK-NEXT: 0 0 0 0 2 0 0

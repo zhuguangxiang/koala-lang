@@ -1,0 +1,88 @@
+// RUN: koalac %s --opt --domtree --unroll --dump=unroll-ir | filecheck %s
+// RUN: koalac %s --opt --domtree --unroll --dump=domtree | filecheck --check-prefix=DOM %s
+// RUN: koalac %s --opt --unroll --dump=unroll-ir 2>&1 | filecheck --check-prefix=OFF %s
+
+// --unroll needs the --domtree pass
+// OFF: warning: --unroll needs --opt and --domtree, ignored
+// OFF-NOT: IR Dump After unroll
+
+// a rotated while loop, the exit test is after the step: 3 trips, the reads of %i in every copy
+// are its constant value, the last copy jumps to the original loop
+func g() int {
+    var s = 0
+    var i = 0
+    while i < 3 { s = s + i; i = i + 1 }
+    return s
+}
+
+// CHECK-LABEL: --- IR Dump After unroll ---
+// CHECK-NEXT:   func @g() int64 {
+// CHECK:        move %i int64, 0 int64
+// CHECK-NEXT:   jmp label %bb1
+// CHECK:      %bb1(while-body):                               ;; preds = %bb0
+// CHECK-NEXT:   %0 = add %s int64, 0 int64
+// CHECK-NEXT:   move %s int64, %0 int64
+// CHECK-NEXT:   %1 = add 0 int64, 1 int64
+// CHECK-NEXT:   move %i int64, %1 int64
+// CHECK-NEXT:   %2 = cmplt 1 int64, 3 int64
+// CHECK-NEXT:   branch %2 bool, label %bb2, label %bb5
+// CHECK:      %bb2(while-body):                               ;; preds = %bb1
+// CHECK-NEXT:   %3 = add %s int64, 1 int64
+// CHECK:        %5 = cmplt 2 int64, 3 int64
+// CHECK-NEXT:   branch %5 bool, label %bb3, label %bb5
+// CHECK:      %bb3(while-body):                               ;; preds = %bb2
+// CHECK-NEXT:   %6 = add %s int64, 2 int64
+// CHECK:        %8 = cmplt 3 int64, 3 int64
+// CHECK-NEXT:   branch %8 bool, label %bb4, label %bb5
+// CHECK:      %bb4(while-body):                               ;; preds = %bb4, %bb3
+// CHECK-NEXT:   %9 = add %s int64, %i int64
+// CHECK:        branch %11 bool, label %bb4, label %bb5
+// CHECK:      %bb5(while-end):                                ;; preds = %bb4, %bb1, %bb2, %bb3
+// CHECK-NEXT:   ret %s int64
+
+// a range loop with an early exit, the exit test is before the step: 4 trips, the exits of
+// every copy are kept
+func early_ret(x int) int {
+    for i in range(3) {
+        if i == x { return i * 11 }
+    }
+    return -1
+}
+
+// CHECK-LABEL: --- IR Dump After unroll ---
+// CHECK-NEXT:   func @early_ret(%x int64) int64 {
+// CHECK:      %bb1(loop-cond):                                ;; preds = %bb0
+// CHECK-NEXT:   %0 = cmplt 0 int64, 3 int64
+// CHECK-NEXT:   branch %0 bool, label %bb2, label %bb16
+// CHECK:      %bb2(loop-body):                                ;; preds = %bb1
+// CHECK-NEXT:   %1 = cmpeq 0 int64, %x int64
+// CHECK-NEXT:   branch %1 bool, label %bb17, label %bb3
+// CHECK:      %bb3(loop-cond-incr):                           ;; preds = %bb2
+// CHECK-NEXT:   %2 = add 0 int64, 1 int64
+// CHECK-NEXT:   move %i int64, %2 int64
+// CHECK-NEXT:   jmp label %bb4
+// CHECK:      %bb10(loop-cond):                               ;; preds = %bb9
+// CHECK-NEXT:   %9 = cmplt 3 int64, 3 int64
+// CHECK-NEXT:   branch %9 bool, label %bb11, label %bb16
+// CHECK:      %bb13(loop-cond):                               ;; preds = %bb15, %bb12
+// CHECK-NEXT:   %12 = cmplt %i int64, 3 int64
+// CHECK:      %bb16(loop-end):                                ;; preds = %bb13, %bb1, %bb4, %bb7, %bb10
+// CHECK:      %bb17(if-then):                                 ;; preds = %bb14, %bb2, %bb5, %bb8, %bb11
+// CHECK-NEXT:   %15 = mul %i int64, 11 int64
+
+// 18 trips, more than UNROLL_MAX_TRIPS: not unrolled
+func too_many() int {
+    var s = 0
+    for i in range(17) { s = s + i }
+    return s
+}
+
+// CHECK-NOT: func @too_many
+
+// the opt removes the original loops after unrolling
+// DOM-LABEL: func @g
+// DOM-NOT: back edges
+// DOM-LABEL: func @early_ret
+// DOM-NOT: back edges
+// DOM-LABEL: func @too_many
+// DOM: back edges: bb2(loop-body) -> bb1(loop-cond)

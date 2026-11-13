@@ -98,6 +98,10 @@ pub class int8 : Comparable[int64] & ToString {
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
     /// Returns `self << rhs`.
     @intrinsic
     pub func __shl__(rhs int64) int64 {}
@@ -117,6 +121,10 @@ pub class int8 : Comparable[int64] & ToString {
     /// Returns `self ^ rhs`.
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
+
+    /// Bitwise NOT (`~self`).
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     /// Format the `int8` value for display.
     @native
@@ -180,6 +188,10 @@ pub class int16 : Comparable[int64] & ToString {
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
     /// Returns `self << rhs`.
     @intrinsic
     pub func __shl__(rhs int64) int64 {}
@@ -199,6 +211,10 @@ pub class int16 : Comparable[int64] & ToString {
     /// Returns `self ^ rhs`.
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
+
+    /// Bitwise NOT (`~self`).
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     /// Format the `int16` value for display.
     @native
@@ -262,6 +278,10 @@ pub class int32 : Comparable[int64] & ToString {
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
     /// Returns `self << rhs`.
     @intrinsic
     pub func __shl__(rhs int64) int64 {}
@@ -281,6 +301,10 @@ pub class int32 : Comparable[int64] & ToString {
     /// Returns `self ^ rhs`.
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
+
+    /// Bitwise NOT (`~self`).
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     /// Format the `int32` value for display.
     @native
@@ -469,6 +493,10 @@ pub class uint8 : Comparable[int64] & ToString {
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
     /// Returns `self << rhs`.
     @intrinsic
     pub func __shl__(rhs int64) int64 {}
@@ -488,6 +516,10 @@ pub class uint8 : Comparable[int64] & ToString {
     /// Returns `self ^ rhs`.
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
+
+    /// Bitwise NOT (`~self`).
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     /// Format the `uint8` value for display.
     @native
@@ -551,6 +583,10 @@ pub class uint16 : Comparable[int64] & ToString {
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
     /// Returns `self << rhs`.
     @intrinsic
     pub func __shl__(rhs int64) int64 {}
@@ -570,6 +606,10 @@ pub class uint16 : Comparable[int64] & ToString {
     /// Returns `self ^ rhs`.
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
+
+    /// Bitwise NOT (`~self`).
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     /// Format the `uint16` value for display.
     @native
@@ -633,6 +673,10 @@ pub class uint32 : Comparable[int64] & ToString {
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
     /// Returns `self << rhs`.
     @intrinsic
     pub func __shl__(rhs int64) int64 {}
@@ -652,6 +696,10 @@ pub class uint32 : Comparable[int64] & ToString {
     /// Returns `self ^ rhs`.
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
+
+    /// Bitwise NOT (`~self`).
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     /// Format the `uint32` value for display.
     @native
@@ -836,6 +884,10 @@ pub class float16 : Comparable[float64] & ToString {
     @intrinsic
     pub func __mod__(rhs float64) float64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() float64 {}
+
     /// Format the `float16` value for display.
     @native
     pub func fmt(f Formatter) {}
@@ -898,6 +950,10 @@ pub class float32 : Comparable[float64] & ToString {
     /// Returns `self % rhs`.
     @intrinsic
     pub func __mod__(rhs float64) float64 {}
+
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() float64 {}
 
     /// Format the `float32` value for display.
     @native
@@ -1051,6 +1107,10 @@ pub class bfloat16 : Comparable[float64] & ToString {
     /// Returns `self % rhs`.
     @intrinsic
     pub func __mod__(rhs float64) float64 {}
+
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() float64 {}
 
     /// Format the `bfloat16` value for display.
     @native

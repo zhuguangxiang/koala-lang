@@ -1,0 +1,28 @@
+// A taste of Koala: generics with inference, operator overloading, null safety,
+// expression-bodied functions and tuple unpacking.
+//
+// Run: koala demo/tour.kl
+
+func max[T : Comparable](a T, b T) T = if a >= b { a } else { b }
+
+class Point {
+    var x int = 0
+    var y int = 0
+    func __init__(_x int, _y int) { x = _x; y = _y }
+    func __add__(o Point) Point = Point(x + o.x, y + o.y)
+    func fmt(f Formatter) { f.write_fmt("Point({}, {})", x, y) }
+}
+
+func describe(msg str?) str {
+    if msg == nil { return "nothing" }
+    return msg          // msg is str here, not str?
+}
+
+func main() {
+    print(max(3, 7))                  // 7
+    print(max("a", "b"))              // b
+    print(Point(1, 2) + Point(3, 4))  // Point(4, 6)
+    print(describe(nil))              // nothing
+
+    for (n, s) in [(1, "a"), (2, "b")] { print(n, s) }   // tuple unpacking
+}

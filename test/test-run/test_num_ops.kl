@@ -1,0 +1,96 @@
+// RUN: koala --test %s
+// RUN: env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala --no-inline --test %s 2>&1 | filecheck %s --check-prefix=JIT
+//
+// Generic numeric protocol ops (OP_NUM_*). Trait-typed operands are not a
+// concrete builtin, so isel emits the runtime-dispatch num.* family instead of
+// the specialized int/float ops. These checks pin the semantics; the JIT must
+// match the interpreter (including the primitive fast paths in comparisons).
+
+import "std/ut"
+
+func n_add(a Arithmetic[int], b int) int = a + b
+func n_sub(a Arithmetic[int], b int) int = a - b
+func n_mul(a Arithmetic[int], b int) int = a * b
+func n_div(a Arithmetic[int], b int) int = a / b
+func n_mod(a Arithmetic[int], b int) int = a % b
+func n_and(a Bitwise[int], b int) int = a & b
+func n_or(a Bitwise[int], b int) int = a | b
+func n_xor(a Bitwise[int], b int) int = a ^ b
+func n_shl(a Bitwise[int], b int) int = a << b
+func n_shr(a Bitwise[int], b int) int = a >> b
+func n_lt(a Comparable[int], b int) bool = a < b
+func n_le(a Comparable[int], b int) bool = a <= b
+func n_gt(a Comparable[int], b int) bool = a > b
+func n_ge(a Comparable[int], b int) bool = a >= b
+func n_eq(a Comparable[int], b int) bool = a == b
+func n_ne(a Comparable[int], b int) bool = a != b
+
+func f_add(a Arithmetic[float], b float) float = a + b
+func f_lt(a Comparable[float], b float) bool = a < b
+func f_ge(a Comparable[float], b float) bool = a >= b
+func u_add(a Arithmetic[uint], b uint) uint = a + b
+func u_lt(a Comparable[uint], b uint) bool = a < b
+
+@test
+func test_num_arith() {
+    ut.assert_eq(n_add(10, 3), 13)
+    ut.assert_eq(n_sub(10, 3), 7)
+    ut.assert_eq(n_mul(10, 3), 30)
+    ut.assert_eq(n_div(10, 3), 3)
+    ut.assert_eq(n_mod(10, 3), 1)
+}
+
+@test
+func test_num_bitwise() {
+    ut.assert_eq(n_and(12, 10), 8)
+    ut.assert_eq(n_or(12, 10), 14)
+    ut.assert_eq(n_xor(12, 10), 6)
+    ut.assert_eq(n_shl(1, 4), 16)
+    ut.assert_eq(n_shr(256, 2), 64)
+}
+
+@test
+func test_num_cmp() {
+    ut.assert_true(n_lt(3, 5))
+    ut.assert_true(n_le(5, 5))
+    ut.assert_true(n_gt(7, 5))
+    ut.assert_true(n_ge(5, 5))
+    ut.assert_true(n_eq(5, 5))
+    ut.assert_true(n_ne(5, 6))
+    ut.assert_false(n_lt(5, 3))
+    ut.assert_false(n_eq(5, 6))
+    ut.assert_false(n_ne(5, 5))
+}
+
+@test
+func test_num_float_uint() {
+    ut.assert_eq(f_add(1.5, 2.25), 3.75)
+    ut.assert_true(f_lt(1.5, 2.5))
+    ut.assert_true(f_ge(2.5, 2.5))
+    ut.assert_false(f_lt(2.5, 1.5))
+    ut.assert_eq(u_add(uint(100), uint(200)), uint(300))
+    ut.assert_true(u_lt(uint(100), uint(200)))
+    ut.assert_false(u_lt(uint(200), uint(100)))
+}
+
+// With --no-inline the helpers stay separate functions and must JIT (OP_NUM_*).
+// JIT-DAG: [jit] func @n_add
+// JIT-DAG: [jit] func @n_sub
+// JIT-DAG: [jit] func @n_mul
+// JIT-DAG: [jit] func @n_div
+// JIT-DAG: [jit] func @n_mod
+// JIT-DAG: [jit] func @n_and
+// JIT-DAG: [jit] func @n_or
+// JIT-DAG: [jit] func @n_xor
+// JIT-DAG: [jit] func @n_shl
+// JIT-DAG: [jit] func @n_shr
+// JIT-DAG: [jit] func @n_lt
+// JIT-DAG: [jit] func @n_le
+// JIT-DAG: [jit] func @n_gt
+// JIT-DAG: [jit] func @n_ge
+// JIT-DAG: [jit] func @n_eq
+// JIT-DAG: [jit] func @n_ne
+// JIT-DAG: [jit] func @f_add
+// JIT-DAG: [jit] func @f_lt
+// JIT-DAG: [jit] func @u_add
+// JIT-DAG: [jit] func @u_lt

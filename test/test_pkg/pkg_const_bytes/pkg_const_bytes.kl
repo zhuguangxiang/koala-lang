@@ -1,0 +1,5 @@
+// A package exporting a `bytes` const, for test-run/test_const_bytes.kl.
+
+pub const MAGIC = b"PK"
+
+pub func magic() bytes = MAGIC

@@ -1,0 +1,31 @@
+// Traits give polymorphism with static dispatch: a compile-time intf-table means
+// a trait call is one indirect slot call — O(1), no dynamic lookup.
+//
+// Run: koala demo/traits.kl
+
+trait Shape {
+    func area() float
+}
+
+class Circle : Shape {
+    var r float
+    func __init__(_r float) { r = _r }
+    func area() float = 3.14159 * r * r
+}
+
+class Square : Shape {
+    var side float
+    func __init__(_s float) { side = _s }
+    func area() float = side * side
+}
+
+func total(shapes list[Shape]) float {
+    var sum = 0.0
+    for s in shapes { sum += s.area() }   // O(1) intf-table slot call
+    return sum
+}
+
+func main() {
+    let shapes list[Shape] = [Circle(1.0), Square(2.0)]
+    print(total(shapes))      // 7.14159
+}

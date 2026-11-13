@@ -1,0 +1,24 @@
+// RUN: ! koala %s ++ --test --domtree --unroll 2>&1 | filecheck %s
+
+// a panic in an unrolled loop shows the line of the loop body
+
+func boom(n int) int {
+    var s = 0
+    for i in range(3) {
+        if i == n { panic("boom") }
+        s = s + i
+    }
+    return s
+}
+
+@test
+func test_boom() {
+    print(boom(1))
+}
+
+// CHECK: Failure in func 'boom'
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 8, in boom
+// CHECK-NEXT:     if i == n { panic("boom") }
+// CHECK-NEXT:   File "{{.*}}", line 16, in test_boom
+// CHECK-NEXT:     print(boom(1))

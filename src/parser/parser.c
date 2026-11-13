@@ -2005,14 +2005,17 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
     if (!exp) return;
 
     Expr *e = exp;
+    int negated = 0;
 
     while (e->kind == EXPR_UNARY_KIND) {
         UnaryExpr *unary = (UnaryExpr *)e;
         if (unary->op != UNARY_NOT) {
             // restore original expr
             e = exp;
+            negated = 0;
             break;
         }
+        negated = !negated;
         e = unary->exp;
     }
 
@@ -2022,6 +2025,9 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
     BiOpKind op = bexp->op;
 
     if (op != BINARY_EQ && op != BINARY_NEQ) return;
+
+    // `!(v == nil)` narrows like `v != nil`
+    if (negated) op = (op == BINARY_EQ) ? BINARY_NEQ : BINARY_EQ;
 
     Expr *lhs = bexp->lhs;
     Expr *rhs = bexp->rhs;

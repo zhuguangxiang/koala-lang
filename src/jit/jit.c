@@ -419,6 +419,260 @@ static void emit_cast_call(JitCtx *j, int rd, int rs, int mode, int dst_ti, void
     emit_add_rsp_imm32(b, 8);
 }
 
+/* OP_NUM_* -> slot id; *is_cmp set for the comparison family. -1 if not a num op. */
+static int num_slot(OpCode op, int *is_cmp)
+{
+    *is_cmp = 0;
+    switch (op) {
+        case OP_NUM_ADD: return SLOT_ADD;
+        case OP_NUM_SUB: return SLOT_SUB;
+        case OP_NUM_MUL: return SLOT_MUL;
+        case OP_NUM_DIV: return SLOT_DIV;
+        case OP_NUM_MOD: return SLOT_MOD;
+        case OP_NUM_SHL: return SLOT_SHL;
+        case OP_NUM_SHR: return SLOT_SHR;
+        case OP_NUM_AND: return SLOT_BIT_AND;
+        case OP_NUM_OR: return SLOT_BIT_OR;
+        case OP_NUM_XOR: return SLOT_BIT_XOR;
+        case OP_NUM_EQ: *is_cmp = 1; return SLOT_EQ;
+        case OP_NUM_NE: *is_cmp = 1; return SLOT_NE;
+        case OP_NUM_LT: *is_cmp = 1; return SLOT_LT;
+        case OP_NUM_LE: *is_cmp = 1; return SLOT_LE;
+        case OP_NUM_GT: *is_cmp = 1; return SLOT_GT;
+        case OP_NUM_GE: *is_cmp = 1; return SLOT_GE;
+        default: return -1;
+    }
+}
+
+/* Generic numeric protocol op: call kl_jit_num_arith/cmp(&regs[rs], &regs[rt],
+ * slot, pc). The helper returns a TValue (tag in rax, payload in rdx); on
+ * TAG_ERROR jump to the error epilogue (the helper already traced this frame),
+ * otherwise store the result into regs[rd]. */
+static void emit_num_binop(JitCtx *j, int rd, int rs, int rt, int slot, int is_cmp,
+                           int pc_abs)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_reg(b, RDI, RBX);
+    emit_alu_reg_imm32(b, ALU_ADD, RDI, rs * 16);
+    emit_mov_reg_reg(b, RSI, RBX);
+    emit_alu_reg_imm32(b, ALU_ADD, RSI, rt * 16);
+    emit_mov_reg_imm32(b, RDX, slot);
+    emit_mov_reg_imm32(b, RCX, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    void *fn = is_cmp ? (void *)kl_jit_num_cmp : (void *)kl_jit_num_arith;
+    emit_mov_reg_imm64(b, RAX, (uint64_t)(uintptr_t)fn);
+    emit_call_reg(b, RAX);
+    emit_add_rsp_imm32(b, 8);
+    emit_alu_reg_imm32(b, ALU_CMP, RAX, TAG_ERROR);
+    emit_jump(j, CC_E, JIT_ERR_TARGET);
+    emit_mov_mem_reg(b, RBX, TAG_DISP(rd), RAX);
+    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RDX);
+}
+
+/* ---- A group: object / container / string / IO ---- */
+
+/* dst = &regs[vm] */
+static void emit_reg_addr(JitCtx *j, int dst, int vm)
+{
+    emit_mov_reg_reg(&j->buf, dst, RBX);
+    emit_alu_reg_imm32(&j->buf, ALU_ADD, dst, vm * 16);
+}
+/* store a returned TValue (rax=tag, rdx=payload) into regs[rd] */
+static void emit_store_ret(JitCtx *j, int rd)
+{
+    emit_mov_mem_reg(&j->buf, RBX, TAG_DISP(rd), RAX);
+    emit_mov_mem_reg(&j->buf, RBX, VAL_DISP(rd), RDX);
+}
+/* rax == TAG_ERROR -> error epilogue */
+static void emit_err_check(JitCtx *j)
+{
+    emit_alu_reg_imm32(&j->buf, ALU_CMP, RAX, TAG_ERROR);
+    emit_jump(j, CC_E, JIT_ERR_TARGET);
+}
+static void emit_call_abs(JitCtx *j, void *fn)
+{
+    emit_mov_reg_imm64(&j->buf, RAX, (uint64_t)(uintptr_t)fn);
+    emit_call_reg(&j->buf, RAX);
+}
+
+/* Generic slot call: kl_jit_slot3(&regs[a0], &regs[a1], &regs[a2], nargs, slot, pc).
+ * a1/a2 < 0 pass NULL. store=1 writes the result to regs[rd]. */
+static void emit_slot3(JitCtx *j, int rd, int a0, int a1, int a2, int nargs,
+                       int slot, int pc_abs, int store)
+{
+    EmitBuf *b = &j->buf;
+    emit_reg_addr(j, RDI, a0);
+    if (a1 >= 0) emit_reg_addr(j, RSI, a1); else emit_mov_reg_imm32(b, RSI, 0);
+    if (a2 >= 0) emit_reg_addr(j, RDX, a2); else emit_mov_reg_imm32(b, RDX, 0);
+    emit_mov_reg_imm32(b, RCX, nargs);
+    emit_mov_reg_imm32(b, R8, slot);
+    emit_mov_reg_imm32(b, R9, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_slot3);
+    emit_add_rsp_imm32(b, 8);
+    emit_err_check(j);
+    if (store && rd != 0xFFF) emit_store_ret(j, rd);
+}
+
+static void emit_get_item_imm(JitCtx *j, int rd, int rs, int imm, int pc_abs)
+{
+    EmitBuf *b = &j->buf;
+    emit_reg_addr(j, RDI, rs);
+    emit_mov_reg_imm64(b, RSI, (uint64_t)(int64_t)imm);
+    emit_mov_reg_imm32(b, RDX, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_get_item_imm);
+    emit_add_rsp_imm32(b, 8);
+    emit_err_check(j);
+    if (rd != 0xFFF) emit_store_ret(j, rd);
+}
+
+static void emit_set_item_imm(JitCtx *j, int rd, int rs, int imm, int pc_abs)
+{
+    EmitBuf *b = &j->buf;
+    emit_reg_addr(j, RDI, rd);
+    emit_mov_reg_imm64(b, RSI, (uint64_t)(int64_t)imm);
+    emit_reg_addr(j, RDX, rs);
+    emit_mov_reg_imm32(b, RCX, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_set_item_imm);
+    emit_add_rsp_imm32(b, 8);
+    emit_err_check(j);
+}
+
+static void emit_hash(JitCtx *j, int rd, int rs, int pc_abs)
+{
+    EmitBuf *b = &j->buf;
+    emit_reg_addr(j, RDI, rs);
+    emit_mov_reg_imm32(b, RSI, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_hash);
+    emit_add_rsp_imm32(b, 8);
+    emit_err_check(j);
+    if (rd != 0xFFF) emit_store_ret(j, rd);
+}
+
+static void emit_fmt(JitCtx *j, int rs, int rt, int pc_abs)
+{
+    EmitBuf *b = &j->buf;
+    emit_reg_addr(j, RDI, rs);
+    emit_reg_addr(j, RSI, rt);
+    emit_mov_reg_imm32(b, RDX, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_fmt);
+    emit_add_rsp_imm32(b, 8);
+    emit_err_check(j);
+}
+
+static void emit_print(JitCtx *j, int nargs, int pc_abs)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_imm32(b, RDI, nargs);
+    emit_mov_reg_imm32(b, RSI, pc_abs);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_print);
+    emit_add_rsp_imm32(b, 8);
+    emit_err_check(j);
+}
+
+static void emit_new(JitCtx *j, int rd, TypeObject *tp)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_imm64(b, RDI, (uint64_t)(uintptr_t)tp);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_new);
+    emit_add_rsp_imm32(b, 8);
+    emit_store_ret(j, rd);
+}
+
+static void emit_build_intern(JitCtx *j, int rd, int tag, int count)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_imm32(b, RDI, tag);
+    emit_mov_reg_imm32(b, RSI, count);
+    emit_sub_rsp_imm32(b, 8);
+    emit_call_abs(j, (void *)kl_jit_build_intern);
+    emit_add_rsp_imm32(b, 8);
+    if (rd != 0xFFF) emit_store_ret(j, rd);
+}
+
+/* fields[off] lives at obj + 16 + off*16 (InstObject: _type, _nfields, then
+ * TValue fields[]). to_obj() yields the payload pointer for both ref and intf. */
+static void emit_get_field(JitCtx *j, int rd, int rs, int off)
+{
+    EmitBuf *b = &j->buf;
+    int fd = 16 + off * 16;
+    emit_mov_reg_mem(b, RAX, RBX, VAL_DISP(rs));
+    emit_mov_reg_mem(b, RDX, RAX, fd);
+    emit_mov_reg_mem(b, RCX, RAX, fd + 8);
+    emit_mov_mem_reg(b, RBX, TAG_DISP(rd), RDX);
+    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RCX);
+}
+
+static void emit_set_field(JitCtx *j, int rd, int rs, int off)
+{
+    EmitBuf *b = &j->buf;
+    int fd = 16 + off * 16;
+    emit_mov_reg_mem(b, RAX, RBX, VAL_DISP(rd));
+    emit_mov_reg_mem(b, RDX, RBX, TAG_DISP(rs));
+    emit_mov_reg_mem(b, RCX, RBX, VAL_DISP(rs));
+    emit_mov_mem_reg(b, RAX, fd, RDX);
+    emit_mov_mem_reg(b, RAX, fd + 8, RCX);
+}
+
+static void emit_global_get(JitCtx *j, int rs, TValue *addr)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_imm64(b, RAX, (uint64_t)(uintptr_t)addr);
+    emit_mov_reg_mem(b, RDX, RAX, 0);
+    emit_mov_reg_mem(b, RCX, RAX, 8);
+    emit_mov_mem_reg(b, RBX, TAG_DISP(rs), RDX);
+    emit_mov_mem_reg(b, RBX, VAL_DISP(rs), RCX);
+}
+
+static void emit_global_set(JitCtx *j, int rs, TValue *addr)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_imm64(b, RAX, (uint64_t)(uintptr_t)addr);
+    emit_mov_reg_mem(b, RDX, RBX, TAG_DISP(rs));
+    emit_mov_reg_mem(b, RCX, RBX, VAL_DISP(rs));
+    emit_mov_mem_reg(b, RAX, 0, RDX);
+    emit_mov_mem_reg(b, RAX, 8, RCX);
+}
+
+/* rd = (regs[rs].tag == TAG_NIL) ? 1 : 0  (cc = CC_E for eq_null, CC_NE for ne) */
+static void emit_ref_null(JitCtx *j, int rd, int rs, int cc)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_mem(b, RAX, RBX, TAG_DISP(rs));
+    emit_alu_reg_imm32(b, ALU_CMP, RAX, TAG_NIL);
+    emit_setcc_reg(b, cc, RAX);
+    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
+    emit_store_tag(j, rd, TAG_BOOL);
+}
+
+static void emit_jmp_ref_null(JitCtx *j, int rs, int cc, int target)
+{
+    EmitBuf *b = &j->buf;
+    emit_mov_reg_mem(b, RAX, RBX, TAG_DISP(rs));
+    emit_alu_reg_imm32(b, ALU_CMP, RAX, TAG_NIL);
+    emit_jump(j, cc, target);
+}
+
+/* if (regs[rs].ival) regs[rd] = regs[rt] */
+static void emit_move_true(JitCtx *j, int rd, int rs, int rt)
+{
+    EmitBuf *b = &j->buf;
+    emit_alu_mem_imm32(b, ALU_CMP, RBX, VAL_DISP(rs), 0);
+    size_t jcc = emit_pos(b);
+    emit_jcc_rel32(b, CC_E, 0);
+    emit_mov_reg_mem(b, RAX, RBX, TAG_DISP(rt));
+    emit_mov_reg_mem(b, RDX, RBX, VAL_DISP(rt));
+    emit_mov_mem_reg(b, RBX, TAG_DISP(rd), RAX);
+    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RDX);
+    emit_patch_i32(b, jcc + 2, (int32_t)(emit_pos(b) - (jcc + 6)));
+}
+
 /* Ordinary call (flag=0) through the runtime helper kl_jit_call_helper, which
  * mirrors the interpreter's OP_CALL: IS_CFUNC -> kl_call_cfunc, else kl_call_code
  * (which itself dispatches to native when the callee is JIT-compiled, interpreter
@@ -1071,7 +1325,171 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             emit_jump(j, -1, 0);
             break;
 
+        case OP_GET_FIELD:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            off = I_VAL(insn, 0, 8);
+            emit_get_field(j, rd, rs, off);
+            break;
+
+        case OP_SET_FIELD:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            off = I_VAL(insn, 0, 8);
+            emit_set_field(j, rd, rs, off);
+            break;
+
+        case OP_NEW: {
+            rd = I_VAL(insn, 16, 8);
+            int idx = I_VAL(insn, 0, 16);
+            TypeObject **types = VECTOR_ITEMS(&m->types, TypeObject *);
+            emit_new(j, rd, types[idx]);
+            break;
+        }
+
+        case OP_BUILD_INTERN:
+            rd = I_VAL(insn, 16, 8);
+            off = I_VAL(insn, 8, 8);   /* tag */
+            imm = I_VAL(insn, 0, 8);   /* count */
+            emit_build_intern(j, rd, off, imm);
+            break;
+
+        case OP_GLOBAL_GET:
+        case OP_GLOBAL_SET: {
+            rs = I_VAL(insn, 12, 12);
+            int idx = I_VAL(insn, 0, 12);
+            TValue *addr;
+            if (idx < m->num_globals) {
+                addr = &m->values[idx];
+            } else {
+                GlobalObject *g = (GlobalObject *)vector_get(&m->globals, idx);
+                addr = &((ModuleObject *)g->module)->values[g->index];
+            }
+            if (op == OP_GLOBAL_GET) emit_global_get(j, rs, addr);
+            else emit_global_set(j, rs, addr);
+            break;
+        }
+
+        case OP_SEQ_GET:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            rt = I_VAL(insn, 0, 8);
+            emit_slot3(j, rd, rs, rt, -1, 2, SLOT_GET_ITEM, code->cs.start_pc + pc, 1);
+            break;
+
+        case OP_SEQ_SET:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            rt = I_VAL(insn, 0, 8);
+            emit_slot3(j, rd, rd, rt, rs, 3, SLOT_SET_ITEM, code->cs.start_pc + pc, 0);
+            break;
+
+        case OP_SEQ_GET_IMM:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            imm = sval(I_VAL(insn, 0, 8), 8);
+            emit_get_item_imm(j, rd, rs, imm, code->cs.start_pc + pc);
+            break;
+
+        case OP_SEQ_SET_IMM:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            imm = sval(I_VAL(insn, 0, 8), 8);
+            emit_set_item_imm(j, rd, rs, imm, code->cs.start_pc + pc);
+            break;
+
+        case OP_SEQ_GET_SLICE:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            rt = I_VAL(insn, 0, 8);
+            emit_slot3(j, rd, rs, rt, -1, 2, SLOT_GET_SLICE, code->cs.start_pc + pc, 1);
+            break;
+
+        case OP_SEQ_SET_SLICE:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            rt = I_VAL(insn, 0, 8);
+            emit_slot3(j, rd, rd, rt, rs, 3, SLOT_SET_SLICE, code->cs.start_pc + pc, 0);
+            break;
+
+        case OP_LEN:
+            rd = I_VAL(insn, 12, 12);
+            rs = I_VAL(insn, 0, 12);
+            emit_slot3(j, rd, rs, -1, -1, 1, SLOT_LEN, code->cs.start_pc + pc, 1);
+            break;
+
+        case OP_CONTAINS:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            rt = I_VAL(insn, 0, 8);
+            emit_slot3(j, rd, rs, rt, -1, 2, SLOT_CONTAINS, code->cs.start_pc + pc, 1);
+            break;
+
+        case OP_STR:
+            rd = I_VAL(insn, 12, 12);
+            rs = I_VAL(insn, 0, 12);
+            emit_slot3(j, rd, rs, -1, -1, 1, SLOT_STR, code->cs.start_pc + pc, 1);
+            break;
+
+        case OP_HASH:
+            rd = I_VAL(insn, 12, 12);
+            rs = I_VAL(insn, 0, 12);
+            emit_hash(j, rd, rs, code->cs.start_pc + pc);
+            break;
+
+        case OP_FMT:
+            rs = I_VAL(insn, 12, 12);
+            rt = I_VAL(insn, 0, 12);
+            emit_fmt(j, rs, rt, code->cs.start_pc + pc);
+            break;
+
+        case OP_PRINT:
+            imm = I_VAL(insn, 0, 8);
+            emit_print(j, imm, code->cs.start_pc + pc);
+            break;
+
+        case OP_REF_EQ_NULL:
+            rd = I_VAL(insn, 12, 12);
+            rs = I_VAL(insn, 0, 12);
+            emit_ref_null(j, rd, rs, CC_E);
+            break;
+
+        case OP_REF_NE_NULL:
+            rd = I_VAL(insn, 12, 12);
+            rs = I_VAL(insn, 0, 12);
+            emit_ref_null(j, rd, rs, CC_NE);
+            break;
+
+        case OP_JMP_REF_EQ_NULL:
+            rs = I_VAL(insn, 16, 8);
+            off = sval(I_VAL(insn, 0, 16), 16);
+            emit_jmp_ref_null(j, rs, CC_E, pc + 1 + off);
+            break;
+
+        case OP_JMP_REF_NE_NULL:
+            rs = I_VAL(insn, 16, 8);
+            off = sval(I_VAL(insn, 0, 16), 16);
+            emit_jmp_ref_null(j, rs, CC_NE, pc + 1 + off);
+            break;
+
+        case OP_MOVE_TRUE:
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            rt = I_VAL(insn, 0, 8);
+            emit_move_true(j, rd, rs, rt);
+            break;
+
         default: {
+            int is_cmp;
+            int slot = num_slot(op, &is_cmp);
+            if (slot >= 0) {
+                /* OP_NUM_*: FORMAT_RRR (rd@16, rs@8, rt@0), runtime dispatch. */
+                rd = I_VAL(insn, 16, 8);
+                rs = I_VAL(insn, 8, 8);
+                rt = I_VAL(insn, 0, 8);
+                emit_num_binop(j, rd, rs, rt, slot, is_cmp, code->cs.start_pc + pc);
+                break;
+            }
             int alu = arith_alu(op);
             int cc = cmp_cc(op);
             int uns = is_unsigned_op(op);
