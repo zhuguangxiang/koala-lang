@@ -551,8 +551,10 @@ void klr_erase_block(KlrBasicBlock *bb)
         klr_remove_edge(edge);
     }
 
-    KlrInsn *insn, *nxt_i;
-    insn_foreach_reverse_safe(insn, nxt_i, bb) {
+    // erasing the last def of a local also erases the local, which may be the previous insn,
+    // so re-fetch the last insn each time instead of caching it
+    while (!list_empty(&bb->insn_list)) {
+        KlrInsn *insn = insn_last(bb);
         log_info("[erase-block] remove insn in block '%%%s'", klr_block_name(bb));
         log_insn(insn);
         klr_erase_insn(insn);

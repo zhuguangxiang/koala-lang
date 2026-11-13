@@ -1,0 +1,271 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+// 'T?' with 'T' bound to an optional type is not nested, 'T? (T = int?)' is 'int?'
+
+class Box[T] {
+    var v T
+    var o T?
+    func __init__(v T) { self.v = v; self.o = nil }
+    func get() T { return self.v }
+    func get_o() T? { return self.o }
+    func set_o(v T) { self.o = v }
+}
+
+func or_nil[T](x T, flag bool) T? {
+    if flag { return x }
+    return nil
+}
+
+class Foo {
+    var n int
+    func __init__(n int) { self.n = n }
+}
+
+// 'T' bound to a non-interned optional, the result type of 'as'
+func run_as() {
+    var a any = Foo(4)
+    var b = Box(a as Foo)
+    print(b.get()!.n)
+    print(or_nil(a as Foo, true)!.n)
+    var c = Box(a as str)
+    print(c.get() ?? "nil")
+}
+
+func run() {
+    var i = Box[int?](nil)
+    print(i.get_o() ?? 8)
+    print(i.get() ?? 9)
+    i.set_o(5)
+    print(i.get_o() ?? 8)
+
+    var j = Box[int?](3)
+    print(j.get_o() ?? 7)
+    j.set_o(nil)
+    print(j.get_o())
+
+    var s = Box[str?]("a")
+    s.set_o("b")
+    print(s.get_o() ?? "c")
+
+    let n int? = 6
+    print(or_nil[int?](n, true) ?? 0)
+    print(or_nil[int?](n, false) ?? 0)
+}
+
+run()
+run_as()
+
+// CHECK: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @Box:get_o(%self test_generic_nested_optional.Box[Box:T]) Box:T? {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = get_field %self test_generic_nested_optional.Box[Box:T], o(index=1)
+// CHECK-NEXT: ret %0 Box:T?
+// CHECK-NEXT: }
+
+// CHECK: func @run_as() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_generic_nested_optional.Foo
+// CHECK-NEXT: call @Foo:__init__, %0 test_generic_nested_optional.Foo, 4 int64
+// CHECK-NEXT: %a = local any
+// CHECK-NEXT: move %a any, %0 test_generic_nested_optional.Foo
+// CHECK-NEXT: %1 = as %a any, test_generic_nested_optional.Foo
+// CHECK-NEXT: %2 = new @test_generic_nested_optional.Box[test_generic_nested_optional.Foo?]
+// CHECK-NEXT: call @Box:__init__, %2 test_generic_nested_optional.Box[test_generic_nested_optional.Foo?], %1 test_generic_nested_optional.Foo?
+// CHECK-NEXT: %b = local test_generic_nested_optional.Box[test_generic_nested_optional.Foo?]
+// CHECK-NEXT: move %b test_generic_nested_optional.Box[test_generic_nested_optional.Foo?], %2 test_generic_nested_optional.Box[test_generic_nested_optional.Foo?]
+// CHECK-NEXT: %3 = call @Box:get, %b test_generic_nested_optional.Box[test_generic_nested_optional.Foo?]
+// CHECK-NEXT: %4 = cast %3 test_generic_nested_optional.Foo? to test_generic_nested_optional.Foo
+// CHECK-NEXT: %5 = get_field %4 test_generic_nested_optional.Foo, n(index=0)
+// CHECK-NEXT: %6 = build_intern @tuple, %5 int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %6 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %7 = as %a any, test_generic_nested_optional.Foo
+// CHECK-NEXT: %8 = call @or_nil, %7 test_generic_nested_optional.Foo?, true bool
+// CHECK-NEXT: %9 = cast %8 test_generic_nested_optional.Foo? to test_generic_nested_optional.Foo
+// CHECK-NEXT: %10 = get_field %9 test_generic_nested_optional.Foo, n(index=0)
+// CHECK-NEXT: %11 = build_intern @tuple, %10 int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %11 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %12 = as %a any, str
+// CHECK-NEXT: %13 = new @test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: call @Box:__init__, %13 test_generic_nested_optional.Box[str?], %12 str?
+// CHECK-NEXT: %c = local test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: move %c test_generic_nested_optional.Box[str?], %13 test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: %14 = call @Box:get, %c test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: %coalesce = local str
+// CHECK-NEXT: %15 = cmpne %14 str?, nil
+// CHECK-NEXT: branch %15 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(coalesce-unwrap):                          ;; preds = %bb0
+// CHECK-NEXT: %16 = cast %14 str? to str
+// CHECK-NEXT: move %coalesce str, %16 str
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(coalesce-rhs):                             ;; preds = %bb0
+// CHECK-NEXT: move %coalesce str, 'nil' str
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK-NEXT: %17 = build_intern @tuple, %coalesce str
+// CHECK-NEXT: call @print [path = 'std/prelude'], %17 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @run() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: call @Box:__init__, %0 test_generic_nested_optional.Box[int64?], nil
+// CHECK-NEXT: %i = local test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: move %i test_generic_nested_optional.Box[int64?], %0 test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %1 = call @Box:get_o, %i test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %2 = cmpne %1 int64?, nil
+// CHECK-NEXT: branch %2 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(coalesce-unwrap):                          ;; preds = %bb0
+// CHECK-NEXT: %3 = cast %1 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %3 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(coalesce-rhs):                             ;; preds = %bb0
+// CHECK-NEXT: move %coalesce int64, 8 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK-NEXT: %4 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %4 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %5 = call @Box:get, %i test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %6 = cmpne %5 int64?, nil
+// CHECK-NEXT: branch %6 bool, label %bb4, label %bb5
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(coalesce-unwrap):                          ;; preds = %bb3
+// CHECK-NEXT: %7 = cast %5 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %7 int64
+// CHECK-NEXT: jmp label %bb6
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(coalesce-rhs):                             ;; preds = %bb3
+// CHECK-NEXT: move %coalesce int64, 9 int64
+// CHECK-NEXT: jmp label %bb6
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb6(coalesce-end):                             ;; preds = %bb4, %bb5
+// CHECK-NEXT: %8 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %8 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: call @Box:set_o, %i test_generic_nested_optional.Box[int64?], 5 int64
+// CHECK-NEXT: %9 = call @Box:get_o, %i test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %10 = cmpne %9 int64?, nil
+// CHECK-NEXT: branch %10 bool, label %bb7, label %bb8
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb7(coalesce-unwrap):                          ;; preds = %bb6
+// CHECK-NEXT: %11 = cast %9 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %11 int64
+// CHECK-NEXT: jmp label %bb9
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb8(coalesce-rhs):                             ;; preds = %bb6
+// CHECK-NEXT: move %coalesce int64, 8 int64
+// CHECK-NEXT: jmp label %bb9
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb9(coalesce-end):                             ;; preds = %bb7, %bb8
+// CHECK-NEXT: %12 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %12 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %13 = new @test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: call @Box:__init__, %13 test_generic_nested_optional.Box[int64?], 3 int64
+// CHECK-NEXT: %j = local test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: move %j test_generic_nested_optional.Box[int64?], %13 test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %14 = call @Box:get_o, %j test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %15 = cmpne %14 int64?, nil
+// CHECK-NEXT: branch %15 bool, label %bb10, label %bb11
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb10(coalesce-unwrap):                         ;; preds = %bb9
+// CHECK-NEXT: %16 = cast %14 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %16 int64
+// CHECK-NEXT: jmp label %bb12
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb11(coalesce-rhs):                            ;; preds = %bb9
+// CHECK-NEXT: move %coalesce int64, 7 int64
+// CHECK-NEXT: jmp label %bb12
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb12(coalesce-end):                            ;; preds = %bb10, %bb11
+// CHECK-NEXT: %17 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %17 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: call @Box:set_o, %j test_generic_nested_optional.Box[int64?], nil
+// CHECK-NEXT: %18 = call @Box:get_o, %j test_generic_nested_optional.Box[int64?]
+// CHECK-NEXT: %19 = build_intern @tuple, %18 int64?
+// CHECK-NEXT: call @print [path = 'std/prelude'], %19 std/builtin.tuple[int64?], ' ' str, '\n' str
+// CHECK-NEXT: %20 = new @test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: call @Box:__init__, %20 test_generic_nested_optional.Box[str?], 'a' str
+// CHECK-NEXT: %s = local test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: move %s test_generic_nested_optional.Box[str?], %20 test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: call @Box:set_o, %s test_generic_nested_optional.Box[str?], 'b' str
+// CHECK-NEXT: %21 = call @Box:get_o, %s test_generic_nested_optional.Box[str?]
+// CHECK-NEXT: %coalesce = local str
+// CHECK-NEXT: %22 = cmpne %21 str?, nil
+// CHECK-NEXT: branch %22 bool, label %bb13, label %bb14
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb13(coalesce-unwrap):                         ;; preds = %bb12
+// CHECK-NEXT: %23 = cast %21 str? to str
+// CHECK-NEXT: move %coalesce str, %23 str
+// CHECK-NEXT: jmp label %bb15
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb14(coalesce-rhs):                            ;; preds = %bb12
+// CHECK-NEXT: move %coalesce str, 'c' str
+// CHECK-NEXT: jmp label %bb15
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb15(coalesce-end):                            ;; preds = %bb13, %bb14
+// CHECK-NEXT: %24 = build_intern @tuple, %coalesce str
+// CHECK-NEXT: call @print [path = 'std/prelude'], %24 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK-NEXT: %n = local [immutable] int64?
+// CHECK-NEXT: move %n int64?, 6 int64
+// CHECK-NEXT: %25 = call @or_nil, %n int64?, true bool
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %26 = cmpne %25 int64?, nil
+// CHECK-NEXT: branch %26 bool, label %bb16, label %bb17
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb16(coalesce-unwrap):                         ;; preds = %bb15
+// CHECK-NEXT: %27 = cast %25 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %27 int64
+// CHECK-NEXT: jmp label %bb18
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb17(coalesce-rhs):                            ;; preds = %bb15
+// CHECK-NEXT: move %coalesce int64, 0 int64
+// CHECK-NEXT: jmp label %bb18
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb18(coalesce-end):                            ;; preds = %bb16, %bb17
+// CHECK-NEXT: %28 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %28 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %29 = call @or_nil, %n int64?, false bool
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %30 = cmpne %29 int64?, nil
+// CHECK-NEXT: branch %30 bool, label %bb19, label %bb20
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb19(coalesce-unwrap):                         ;; preds = %bb18
+// CHECK-NEXT: %31 = cast %29 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %31 int64
+// CHECK-NEXT: jmp label %bb21
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb20(coalesce-rhs):                            ;; preds = %bb18
+// CHECK-NEXT: move %coalesce int64, 0 int64
+// CHECK-NEXT: jmp label %bb21
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb21(coalesce-end):                            ;; preds = %bb19, %bb20
+// CHECK-NEXT: %32 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %32 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @__init__() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @run
+// CHECK-NEXT: call @run_as
+// CHECK-NEXT: }
+// CHECK-NEXT: 8
+// CHECK-NEXT: 9
+// CHECK-NEXT: 5
+// CHECK-NEXT: 7
+// CHECK-NEXT: nil
+// CHECK-NEXT: b
+// CHECK-NEXT: 6
+// CHECK-NEXT: 0
+// CHECK-NEXT: 4
+// CHECK-NEXT: 4
+// CHECK-NEXT: nil

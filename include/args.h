@@ -19,6 +19,7 @@ typedef struct KoalaOptions {
     int enable_float_trap;       // --float-trap
     int test_mode;               // --test
     int strip_lineinfo;          // --strip-lineinfo
+    int disable_inline;          // --no-inline
     char *dump;                  // --dump=<list>
     const char *output;          // -o <file>
     const char *input;           // input file

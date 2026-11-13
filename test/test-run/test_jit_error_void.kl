@@ -1,0 +1,38 @@
+// RUN: ! koala %s ++ --test 2>&1 | filecheck %s
+// RUN: ! koala %s ++ --test --strip-lineinfo 2>&1 | filecheck %s --check-prefix=STRIP
+// RUN: ! env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala %s ++ --test --no-inline 2>&1 | filecheck %s --check-prefix=JIT
+
+// A void call (rd=0xFFF) from JIT code must propagate TAG_ERROR exactly like
+// the interpreter: the panic unwinds through both JIT frames.
+
+func boom(x int) int {
+    panic("jit void boom")
+    return x
+}
+
+func jit_void_caller(x int) {
+    boom(x)
+}
+
+@test
+func test_jit_error_void() {
+    jit_void_caller(1)
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 9, in boom
+// CHECK-NEXT:     panic("jit void boom")
+// CHECK-NEXT:   File "{{.*}}", line 14, in jit_void_caller
+// CHECK-NEXT:     boom(x)
+// CHECK-NEXT:   File "{{.*}}", line 19, in test_jit_error_void
+// CHECK-NEXT:     jit_void_caller(1)
+// CHECK: {{.*}}Error{{.*}}: jit void boom
+
+// STRIP: Traceback (most recent call last):
+// STRIP-NEXT:   [pc {{[0-9]+}}] in boom
+// STRIP-NEXT:   [pc {{[0-9]+}}] in jit_void_caller
+// STRIP-NEXT:   [pc {{[0-9]+}}] in test_jit_error_void
+// STRIP: {{.*}}Error{{.*}}: jit void boom
+
+// JIT-DAG: [jit] func @test_jit_error_void
+// JIT-DAG: [jit] func @jit_void_caller

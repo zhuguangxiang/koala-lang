@@ -500,6 +500,26 @@ static Object *_load_module(char *path)
         // printf("  PC: %u, File \"%s\", line %d\n", line.pc, line.filename, line.lineno);
     }
 
+    // process inlined sites for traceback
+
+    KlcInlineSite *_site;
+    vector_foreach(_site, klc->objs + ITEM_INLINE_SITE) {
+        if (!_site) continue;
+        InlineSite site;
+        site.funcname = klc_get_str(klc, _site->func_index);
+        site.filename = _site->file_index ? klc_get_str(klc, _site->file_index) : NULL;
+        site.lineno = _site->line;
+        site.parent = _site->parent;
+        vector_push_back(&mo->inline_sites, &site);
+    }
+
+    KlcInlinePc *_ipc;
+    vector_foreach(_ipc, klc->objs + ITEM_INLINE_PC) {
+        if (!_ipc) continue;
+        InlinePc ipc = { .pc = _ipc->pc, .site = _ipc->site };
+        vector_push_back(&mo->inline_pcs, &ipc);
+    }
+
     // process global variables
 
     Vector *globals = klc->objs + ITEM_VAR;

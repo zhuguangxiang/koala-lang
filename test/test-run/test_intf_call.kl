@@ -108,10 +108,10 @@ func main() {
 // CHECK: %a2 = local [immutable] any
 // CHECK: move %a2 any, %foo foo.Foo
 
-// CHECK-LABEL: @main[17,102]:
+// CHECK-LABEL: @main[20,128]:
 
 // CHECK: make_intf r0, r0, #4
-// CHECK: upcast_intf r4, r1, #1
+// CHECK: upcast_intf r5, r1, #1
 
 // CHECK: 1 2
 // CHECK: This is a Foo instance.

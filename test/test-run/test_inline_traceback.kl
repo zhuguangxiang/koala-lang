@@ -1,0 +1,69 @@
+// RUN: ! koala %s ++ --test 2>&1 | filecheck %s
+// RUN: ! koala %s ++ --test --strip-lineinfo 2>&1 | filecheck %s --check-prefix=STRIP
+
+// The traceback shows the frames of the inlined functions, as without inlining: a method inlined
+// into 'run', and 'apply' and the lambda passed to it inlined into 'run2'.
+class Box {
+    var v int? = nil
+    func get() int { return self.v! }
+}
+
+func bad(x int) int {
+    panic("bad")
+    return x
+}
+
+func apply(fn func(int) int, x int) int { return fn(x) }
+
+func run() {
+    let b = Box()
+    print(b.get())
+}
+
+func run2() {
+    print(apply({ |x int| bad(x) + 1 }, 1))
+}
+
+@test
+func test_method() {
+    run()
+}
+
+@test
+func test_nested() {
+    run2()
+}
+
+// CHECK: Failure in func 'Box$get'
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 8, in Box$get
+// CHECK-NEXT:     func get() int { return self.v! }
+// CHECK-NEXT:   File "{{.*}}", line 20, in run
+// CHECK-NEXT:     print(b.get())
+// CHECK-NEXT:   File "{{.*}}", line 29, in test_method
+// CHECK-NEXT:     run()
+// CHECK: Error: forced unwrap (`!`) of a nil value
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 12, in bad
+// CHECK-NEXT:     panic("bad")
+// CHECK-NEXT:   File "{{.*}}", line 24, in __lambda$0
+// CHECK-NEXT:     print(apply({ |x int| bad(x) + 1 }, 1))
+// CHECK-NEXT:   File "{{.*}}", line 16, in apply
+// CHECK-NEXT:     func apply(fn func(int) int, x int) int { return fn(x) }
+// CHECK-NEXT:   File "{{.*}}", line 24, in run2
+// CHECK-NEXT:     print(apply({ |x int| bad(x) + 1 }, 1))
+// CHECK-NEXT:   File "{{.*}}", line 34, in test_nested
+// CHECK-NEXT:     run2()
+// CHECK: Error: bad
+
+// STRIP: Traceback (most recent call last):
+// STRIP-NEXT:   [pc {{[0-9]+}}] in Box$get
+// STRIP-NEXT:   [pc {{[0-9]+}}] in run
+// STRIP-NEXT:   [pc {{[0-9]+}}] in test_method
+// STRIP: Traceback (most recent call last):
+// STRIP-NEXT:   [pc {{[0-9]+}}] in bad
+// STRIP-NEXT:   [pc {{[0-9]+}}] in __lambda$0
+// STRIP-NEXT:   [pc {{[0-9]+}}] in apply
+// STRIP-NEXT:   [pc {{[0-9]+}}] in run2
+// STRIP-NEXT:   [pc {{[0-9]+}}] in test_nested

@@ -1,0 +1,26 @@
+// RUN: koala %s ++ --no-inline | filecheck %s
+// RUN: koala %s | filecheck %s
+
+// A number moved into a local of another number type is not propagated: the
+// operations on the local keep the local's type.
+
+func take_int64(v int64) { print(v, typeof(v), v + 1, typeof(v + 1)) }
+func pass_int64(v int64) int64 { return v }
+
+func run() {
+    let v int64 = int8(-5)
+    print(v, typeof(v), v + 1, typeof(v + 1))
+    // CHECK: -5 <class 'int8'> -4 <class 'int64'>
+
+    var w int64 = uint8(5)
+    print(w == 5, w + 1, typeof(w + 1))
+    // CHECK-NEXT: true 6 <class 'int64'>
+
+    // inlined: the 'int64' parameter is given an 'int8' / 'uint8'
+    take_int64(int8(-5))
+    // CHECK-NEXT: -5 <class 'int8'> -4 <class 'int64'>
+    print(pass_int64(uint8(5)) == 5)
+    // CHECK-NEXT: true
+}
+
+run()

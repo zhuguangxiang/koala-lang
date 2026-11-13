@@ -144,11 +144,12 @@ static int val_last_use_pos(KlrValue *val)
 }
 
 /* Insns that always write a result register, even when the result is unused: an operator on a
- * user class is kept by dce for its side effects. A call with an unused result needs none
- * (vreg -1 means no return register). */
+ * user class is kept by dce for its side effects, a 'new' is kept, e.g. its uses are inlined
+ * away. A call with an unused result needs none (vreg -1 means no return register). */
 static int unused_needs_reg(KlrInsn *insn)
 {
     switch (insn->code) {
+        case OP_NEW:
         case OP_NUM_ADD:
         case OP_NUM_SUB:
         case OP_NUM_MUL:

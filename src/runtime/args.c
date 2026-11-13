@@ -28,11 +28,13 @@ static void print_usage(const char *prog)
         "  -c                   Compile only (supports .kl file or directory as module)\n"
         "  -o <file>            Output .klc file\n"
         "  --ssa                Enable SSA construction stage.\n"
+        "  --no-inline          Do not inline functions (inlined by default).\n"
         "  --int-trap           Enable trap checking for integer cast.\n"
         "  --float-trap         Enable trap checking for float cast.\n"
         "  --dump=<list>        Dump internal information.\n"
         "                       <list> is a comma-separated list of:\n"
         "                           no-opt-ir - dump no-opt IR\n"
+        "                           inline-ir - IR after generic specialization and inlining\n"
         "                           ssa       - dump SSA IR\n"
         "                           ir        - optimized IR (after opt passes)\n"
         "                           lir       - LIR (after isel/regalloc)\n"
@@ -122,6 +124,9 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
             case 7:
                 opt->strip_lineinfo = 1;
                 break;
+            case 8:
+                opt->disable_inline = 1;
+                break;
             default:
                 return -1;
         }
@@ -179,6 +184,7 @@ int kl_parse_args(int argc, char *argv[])
         { "ssa", no_argument, 0, 5 },
         { "test", no_argument, 0, 6 },
         { "strip-lineinfo", no_argument, 0, 7 },
+        { "no-inline", no_argument, 0, 8 },
         { 0, 0, 0, 0 },
     };
 

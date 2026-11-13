@@ -349,6 +349,8 @@ typedef struct _CFuncObject {
     void *priv;
 } CFuncObject;
 
+struct _JitEntry;
+
 typedef struct _CodeObject {
     OBJECT_HEAD
     Object *owner;
@@ -356,6 +358,10 @@ typedef struct _CodeObject {
 #define CODE_FLAG_PUB  (1 << 0)
 #define CODE_FLAG_METH (1 << 1)
     CodeSpec cs;
+    /* baseline JIT (v1): cached native code + hotness bookkeeping */
+    struct _JitEntry *jit;
+    uint32_t jit_hotness;
+    uint8_t jit_tried;
 } CodeObject;
 
 extern TypeObject cfunc_type;

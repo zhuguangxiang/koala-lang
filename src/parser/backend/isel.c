@@ -332,9 +332,26 @@ static void isel_lower_binary(KlrInsn *insn)
     int c1 = klr_is_const(lhs);
     int c2 = klr_is_const(rhs);
 
-    // constant folding hook (optional)
+    // an inlined insn whose folding overflows is left to the runtime, so both sides may be
+    // constant; an invalid constant shift count or an integer divisor 0 or -1 must take the reg
+    // form to be checked at runtime
+    int no_imm = 0;
+    if (c2 && (insn->code == OP_BINARY_SHL || insn->code == OP_BINARY_SHR)) {
+        KlrConst *rc = (KlrConst *)rhs;
+        no_imm = (rc->which == CONST_INT && (int64_t)rc->ival < 0) || (uint64_t)rc->ival >= 64;
+    }
+    if (c2 && (insn->code == OP_BINARY_DIV || insn->code == OP_BINARY_MOD)) {
+        KlrConst *rc = (KlrConst *)rhs;
+        no_imm = (rc->which == CONST_INT || rc->which == CONST_UINT) &&
+                 (rc->ival == 0 || (rc->which == CONST_INT && (int64_t)rc->ival == -1));
+    }
+
     if (c1 && c2) {
-        UNREACHABLE();
+        ASSERT(insn->flags & KLR_INSN_FLAGS_INLINED);
+        KlrValue *v = lower_const(insn, (KlrConst *)lhs);
+        set_operand_at(insn, 0, v);
+        lhs = v;
+        c1 = 0;
     }
 
     // commutative swap: imm op reg -> reg op imm
@@ -352,7 +369,7 @@ static void isel_lower_binary(KlrInsn *insn)
     if (c2) {
         KlrConst *rc = (KlrConst *)rhs;
 
-        if (R->allow_imm) {
+        if (R->allow_imm && !no_imm) {
             if (rc->which == CONST_BOOL) {
                 // special case for bool: always use imm form, no need to materialize
                 insn->code = R->imm_op;
@@ -1082,6 +1099,15 @@ static void isel_lower_cast(KlrInsn *insn)
         }
     } else {
         UNREACHABLE();
+    }
+
+    // an inlined numeric cast whose folding overflows keeps its constant operand, it is checked
+    // (trap) or wrapped at runtime from a register
+    int numeric = insn->code == OP_INT_CAST || insn->code == OP_FLOAT_CAST ||
+                  insn->code == OP_FLOAT_TO_INT || insn->code == OP_INT_TO_FLOAT;
+    if (numeric && klr_is_const(src)) {
+        KlrValue *_src = lower_const(insn, (KlrConst *)src);
+        set_operand_at(insn, 0, _src);
     }
 }
 

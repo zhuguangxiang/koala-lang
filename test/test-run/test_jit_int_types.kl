@@ -1,0 +1,91 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// RUN: env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala %s ++ --no-inline 2>&1 | filecheck %s --check-prefix=JIT
+
+// Int-type coverage for the baseline JIT — the uint64 family (unsigned div/mod,
+// logical shr, unsigned comparisons), narrow-type truncation casts, large
+// constants (loadk / ret_const) and register-form shifts. Every helper below is
+// JIT-eligible; the JIT-DAG checks at the bottom pin that they really compile.
+// Output must be identical with the JIT on (default) and off (KOALA_JIT=0).
+
+func u_add(a uint64, b uint64) uint64 { return a + b }
+func u_sub(a uint64, b uint64) uint64 { return a - b }
+func u_mul(a uint64, b uint64) uint64 { return a * b }
+func u_div(a uint64, b uint64) uint64 { return a / b }
+func u_mod(a uint64, b uint64) uint64 { return a % b }
+func u_and(a uint64, b uint64) uint64 { return a & b }
+func u_or(a uint64, b uint64) uint64 { return a | b }
+func u_xor(a uint64, b uint64) uint64 { return a ^ b }
+func u_shl(a uint64, n uint64) uint64 { return a << n }
+func u_shr(a uint64, n uint64) uint64 { return a >> n }
+func u_lt(a uint64, b uint64) bool { return a < b }
+func u_ge(a uint64, b uint64) bool { return a >= b }
+func u_eq(a uint64, b uint64) bool { return a == b }
+func s_shr(a int, n int) int { return a >> n }
+func s_shl(a int, n int) int { return a << n }
+func narrow8(x int) int { return int8(x) }
+func narrow16(x int) int { return int16(x) }
+func unarrow8(x uint64) uint64 { return uint8(x) }
+func big() int { return 1000000 + 2000000 }
+
+func main() {
+    var high uint64 = uint64(1) << 63
+    print(u_add(100, 7))
+    print(u_sub(100, 7))
+    print(u_mul(100, 7))
+    print(u_div(100, 7))
+    print(u_mod(100, 7))
+    print(u_and(100, 7))
+    print(u_or(100, 7))
+    print(u_xor(100, 7))
+    // high-bit discriminators: signed lowering would give different results
+    print(u_div(high, uint64(2)))
+    print(u_mod(high, uint64(3)))
+    print(u_lt(uint64(1), high))
+    print(u_ge(uint64(1), high))
+    print(u_eq(high, high))
+    print(u_shr(high, uint64(63)))
+    print(u_shl(uint64(1), uint64(40)))
+    print(s_shr(-1024, 3))
+    print(s_shl(1, 40))
+    print(narrow8(300))
+    print(narrow8(200))
+    print(narrow16(70000))
+    print(unarrow8(uint64(300)))
+    print(big())
+}
+
+// CHECK: 107
+// CHECK-NEXT: 93
+// CHECK-NEXT: 700
+// CHECK-NEXT: 14
+// CHECK-NEXT: 2
+// CHECK-NEXT: 4
+// CHECK-NEXT: 103
+// CHECK-NEXT: 99
+// CHECK-NEXT: 4611686018427387904
+// CHECK-NEXT: 2
+// CHECK-NEXT: true
+// CHECK-NEXT: false
+// CHECK-NEXT: true
+// CHECK-NEXT: 1
+// CHECK-NEXT: 1099511627776
+// CHECK-NEXT: -128
+// CHECK-NEXT: 1099511627776
+// CHECK-NEXT: 44
+// CHECK-NEXT: -56
+// CHECK-NEXT: 4464
+// CHECK-NEXT: 44
+// CHECK-NEXT: 3000000
+
+// JIT-DAG: [jit] func @u_div
+// JIT-DAG: [jit] func @u_mod
+// JIT-DAG: [jit] func @u_shr
+// JIT-DAG: [jit] func @u_shl
+// JIT-DAG: [jit] func @u_lt
+// JIT-DAG: [jit] func @s_shr
+// JIT-DAG: [jit] func @s_shl
+// JIT-DAG: [jit] func @narrow8
+// JIT-DAG: [jit] func @narrow16
+// JIT-DAG: [jit] func @unarrow8
+// JIT-DAG: [jit] func @big

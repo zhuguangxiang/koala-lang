@@ -1,0 +1,23 @@
+// RUN: ! koala %s ++ --test 2>&1 | filecheck %s
+// RUN: ! env KOALA_JIT=0 koala %s ++ --test 2>&1 | filecheck %s
+// RUN: ! env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala %s ++ --test --no-inline 2>&1 | filecheck %s --check-prefix=JIT
+
+// Register-form shift with an out-of-range count raises TAG_ERROR. The JIT
+// shift-check helper (kl_jit_shift_check) must propagate it and trace the JIT
+// frame exactly like the interpreter's kl_check_shift_count + SAVE_PC path.
+
+func sh(a int, n int) int { return a << n }
+
+@test
+func test_jit_shift_error() {
+    print(sh(1, 64))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 9, in sh
+// CHECK-NEXT:     func sh(a int, n int) int { return a << n }
+// CHECK-NEXT:   File "{{.*}}", line 13, in test_jit_shift_error
+// CHECK-NEXT:     print(sh(1, 64))
+// CHECK: {{.*}}Error{{.*}}: shift count out of range
+
+// JIT-DAG: [jit] func @sh

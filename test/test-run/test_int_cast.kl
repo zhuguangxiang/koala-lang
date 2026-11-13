@@ -32,13 +32,26 @@ func main() {
 
 // CHECK: %0 = int.cast %n int16 to uint32
 // CHECK: %0 = int.cast %n int64 to int8
-// CHECK: load_int_imm %0 int16, 123 int16
-// CHECK: %2 = cast %1 uint32 to int64
-// CHECK: %3 = int.add_imm %2 int64, 1 int64
-// CHECK: %4 = int.eq_imm %3 int64, 124 int64
-// CHECK: %5 = build_intern @tuple, nargs=1
-// CHECK: %8 = cast %1 uint32 to int64
-// CHECK: %9 = int.eq_imm %8 int64, 123 int64
+// the callees are inlined into main: in-range casts of constants are folded,
+// out-of-range ones are left to the runtime cast
+// CHECK-LABEL: func @main()
+// CHECK-NOT: call @test_
+// CHECK: load_tag %0 bool, true bool
+// CHECK: %1 = build_intern @tuple, nargs=1
+// CHECK: load_tag %4 bool, true bool
+// CHECK: load_int_imm %8 int64, 300 int64
+// CHECK-NEXT: %9 = int.cast %8 int64 to int8
+// CHECK: load_int_imm %13 int16, -1 int16
+// CHECK-NEXT: %14 = int.cast %13 int16 to uint32
+// CHECK: load_int_imm %18 int8, -1 int8
+// CHECK: load_int_imm %22 int8, 127 int8
+// CHECK: load_int_imm %26 int64, 128 int64
+// CHECK-NEXT: %27 = int.cast %26 int64 to int8
+// CHECK: loadk %31 uint32, 4294967295 uint32
+// CHECK: load_tag %35 bool, false bool
+// CHECK: load_tag %39 bool, true bool
+// CHECK-NOT: call @test_
+// CHECK: ret void
 // CHECK: true
 // CHECK: true
 // CHECK: 44

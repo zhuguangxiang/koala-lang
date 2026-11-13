@@ -27,6 +27,8 @@ int klr_merge_block_pass(KlrFunc *fn, void *data);
 
 int klr_dce_pass(KlrFunc *fn, void *data);
 
+void kl_inline(KlrModule *m);
+
 void kl_optimize(KlrModule *m);
 
 void kl_do_ssa(KlrModule *m);

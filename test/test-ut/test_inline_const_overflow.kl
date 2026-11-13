@@ -1,0 +1,90 @@
+// RUN: koala --test %s
+
+// After inlining, a constant argument takes the place of a parameter. A parameter is a variable for
+// the language, so an overflowing cast, arithmetic or an invalid shift count is not a compile-time
+// error: it is not folded and the runtime handles it as without inlining (wrap mode here).
+
+import "std/ut"
+
+func to_u8(n int8) uint8 { return uint8(n) }
+
+func to_i8(n int64) int8 { return int8(n) }
+
+func to_u64(n int64) uint64 { return uint64(n) }
+
+func i64_to_u8(n int64) uint8 { return uint8(n) }
+
+func add(a int, b int) int { return a + b }
+
+func sub(a int, b int) int { return a - b }
+
+func mul(a int, b int) int { return a * b }
+
+func uadd(a uint64, b uint64) uint64 { return a + b }
+
+func usub(a uint64, b uint64) uint64 { return a - b }
+
+func shl(a int, n int) int { return a << n }
+
+func shr(a int, n int) int { return a >> n }
+
+func ushl(a uint64, n uint64) uint64 { return a << n }
+
+@test
+func test_cast_wrap() {
+    ut.assert(to_u8(-1) == 255)
+    ut.assert(to_u8(-128) == 128)
+    ut.assert(to_i8(300) == 44)
+    ut.assert(to_i8(-129) == 127)
+    ut.assert(to_u64(-1) == 18446744073709551615)
+    ut.assert(i64_to_u8(256) == 0)
+}
+
+@test
+func test_cast_from_let() {
+    // a caller's `let` constant is still an argument for the callee
+    let n int8 = -1
+    ut.assert(to_u8(n) == 255)
+}
+
+@test
+func test_cast_valid_folded() {
+    ut.assert(to_u8(1) == 1)
+    ut.assert(to_i8(-128) == -128)
+}
+
+@test
+func test_arith_wrap() {
+    ut.assert(add(1, 9223372036854775807) == -9223372036854775808)
+    ut.assert(sub(-9223372036854775808, 1) == 9223372036854775807)
+    ut.assert(mul(4611686018427387904, 2) == -9223372036854775808)
+    ut.assert(uadd(18446744073709551615, 1) == 0)
+    ut.assert(usub(0, 1) == 18446744073709551615)
+}
+
+@test
+func test_shift_valid_folded() {
+    ut.assert(shl(6, 1) == 12)
+    ut.assert(shr(6, 1) == 3)
+    ut.assert(ushl(1, 63) == 9223372036854775808)
+}
+
+@should_panic("negative shift count")
+func test_shl_negative() {
+    print(shl(6, -1))
+}
+
+@should_panic("negative shift count")
+func test_shr_negative() {
+    print(shr(6, -1))
+}
+
+@should_panic("shift count out of range")
+func test_shl_64() {
+    print(shl(6, 64))
+}
+
+@should_panic("shift count out of range")
+func test_ushl_64() {
+    print(ushl(6, 64))
+}

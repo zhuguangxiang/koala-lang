@@ -609,6 +609,8 @@ Object *kl_new_module(char *path)
     vector_init_ptr(&m->globals);
     vector_init(&m->tests, sizeof(TestCase));
     vector_init(&m->lineinfos, sizeof(LineInfo));
+    vector_init(&m->inline_sites, sizeof(InlineSite));
+    vector_init(&m->inline_pcs, sizeof(InlinePc));
     vector_init(&m->libs, sizeof(NativeLib));
     stbl_init(&m->symbols);
     m->path = atom(path);
@@ -714,6 +716,18 @@ void kl_dump_module(Object *_m)
     // }
 
     printf("\n========================================\n\n");
+}
+
+/* JIT helper (v1): true when fn is one of the module's OWN functions
+ * (funcs[0..num_funcs)); imported functions sit at index >= num_funcs.
+ * Used by kl_jit_compile to restrict JIT to local free functions. */
+int kl_mo_is_local_func(Object *_m, Object *fn)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    for (int i = 0; i < m->num_funcs; i++) {
+        if (vector_get(&m->funcs, i) == fn) return 1;
+    }
+    return 0;
 }
 
 #ifdef __cplusplus

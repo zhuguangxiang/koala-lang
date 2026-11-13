@@ -1256,7 +1256,17 @@ TARGET(OP_INT_DIV) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd].ival = regs[rs].ival / regs[rt].ival;
+    if (regs[rt].ival == 0) {
+        SAVE_PC();
+        raise_exc_str("division by zero");
+        goto error;
+    }
+
+    // INT64_MIN / -1 overflows and traps in C: it wraps to INT64_MIN, like '-' does
+    if (regs[rt].ival == -1)
+        regs[rd].ival = (int64_t)(0 - (uint64_t)regs[rs].ival);
+    else
+        regs[rd].ival = regs[rs].ival / regs[rt].ival;
     regs[rd].tag = TAG_INT64;
 
     DISPATCH();
@@ -1285,7 +1295,17 @@ TARGET(OP_INT_MOD) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd].ival = regs[rs].ival % regs[rt].ival;
+    if (regs[rt].ival == 0) {
+        SAVE_PC();
+        raise_exc_str("division by zero");
+        goto error;
+    }
+
+    // INT64_MIN % -1 traps in C too
+    if (regs[rt].ival == -1)
+        regs[rd].ival = 0;
+    else
+        regs[rd].ival = regs[rs].ival % regs[rt].ival;
     regs[rd].tag = TAG_INT64;
 
     DISPATCH();
@@ -2083,6 +2103,12 @@ TARGET(OP_UINT_DIV) {
     ASSERT(is_uint(regs + rs) || is_int(regs + rs));
     ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
+    if (regs[rt].ival == 0) {
+        SAVE_PC();
+        raise_exc_str("division by zero");
+        goto error;
+    }
+
     regs[rd].ival = (uint64_t)regs[rs].ival / (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_UINT64;
 
@@ -2114,6 +2140,12 @@ TARGET(OP_UINT_MOD) {
     CHECK_REG_ID(rt);
     ASSERT(is_uint(regs + rs) || is_int(regs + rs));
     ASSERT(is_uint(regs + rt) || is_int(regs + rt));
+
+    if (regs[rt].ival == 0) {
+        SAVE_PC();
+        raise_exc_str("division by zero");
+        goto error;
+    }
 
     regs[rd].ival = (uint64_t)regs[rs].ival % (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_UINT64;

@@ -26,20 +26,20 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK-LABEL: func @main()
+// hello() and world() are inlined, their args are placed directly into the tuple slots
 // CHECK: %0 = local str        [fixedslot = 0(next)]
-// CHECK: loadk %0 str, 'zhangsan' str
-// CHECK: %1 = call @hello, nargs=1
-// CHECK: %2 = local str        [fixedslot = 0(next)]
-// CHECK: loadk %2 str, 'wangwu' str
-// CHECK: %3 = call @world, nargs=1        [fixedslot = 1(next)]
-// CHECK: %4 = local str        [fixedslot = 0(next)]
-// CHECK: move %4 str, %1 str
-// CHECK: %5 = build_intern @tuple, nargs=2        [fixedslot = 0(next)]
-// CHECK: %6 = local str        [fixedslot = 1(next)]
-// CHECK: loadk %6 str, ' ' str
-// CHECK: %7 = local str        [fixedslot = 2(next)]
-// CHECK: loadk %7 str, '\n' str
-// CHECK: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: loadk %0 str, 'zhangsan' str
+// CHECK-NEXT: %1 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %1 str, 'wangwu' str
+// CHECK-NEXT: %2 = build_intern @tuple, nargs=2        [fixedslot = 0(next)]
+// CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %3 str, ' ' str
+// CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %4 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NOT: call @hello
+// CHECK-NOT: call @world
+// CHECK: call @foo [const], nargs=1
 // CHECK: ret void
 
 // CHECK: zhangsan wangwu

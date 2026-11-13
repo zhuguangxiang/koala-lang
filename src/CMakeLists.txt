@@ -39,6 +39,7 @@ set(PARSER_SRC
     parser/backend/cgen.c
     parser/opt/const_copy_prop.c
     parser/opt/dce.c
+    parser/opt/inline.c
     parser/opt/cfg_bb_opt.c
     parser/opt/normalize.c
     parser/opt/lvn.c
@@ -123,6 +124,10 @@ set(KOALA_SOURCES
     runtime/eval.c
     runtime/run_test.c
     runtime/load_module.c
+    jit/jit.c
+    jit/emit.c
+    jit/printer.c
+    jit/disasm.c
     koala.c
     )
 add_executable(koala_out ${KOALA_SOURCES})

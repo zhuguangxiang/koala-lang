@@ -1,0 +1,50 @@
+// Edge cases + graceful bail-out for the baseline JIT (v1).
+// neg_divmod/big_shift/overflow are JIT-eligible (signed int64); udiv/fadd/caller
+// must fall back to the interpreter. Output must match KOALA_JIT=0 exactly.
+
+func neg_divmod(a int, b int) int {
+    var q = a / b
+    var m = a % b
+    return q * 1000 + m
+}
+
+func big_shift(a int) int {
+    var r = a << 40
+    r = r >> 40
+    return r
+}
+
+func overflow(a int) int {
+    var r = a * a
+    r = r * a
+    return r
+}
+
+func udiv(a uint, b uint) uint {
+    return a / b
+}
+
+func fadd(a float, b float) float {
+    return a + b
+}
+
+func helper(x int) int {
+    return x + 1
+}
+
+func caller(x int) int {
+    return helper(x) + 1
+}
+
+func main() {
+    print(neg_divmod(-100, 7))
+    print(neg_divmod(100, -7))
+    print(neg_divmod(-100, -7))
+    print(neg_divmod(-7, 7))
+    print(big_shift(-5))
+    print(big_shift(123))
+    print(overflow(3000000000))
+    print(udiv(100, 7))
+    print(fadd(1.5, 2.5))
+    print(caller(10))
+}

@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include "dictobj.h"
 #include "excobj.h"
+#include "jit/jit.h"
 #include "listobj.h"
 #include "modobj.h"
 #include "opcode_only.h"
@@ -266,21 +267,44 @@ static void _pop_frame(KoalaState *ks, CallFrame *cf)
     // mm_free(cf);
 }
 
+/* JIT entry guard; defined with the other JIT runtime helpers at the end of file. */
+static inline int jit_params_scalar(TValue *regs, int nargs);
+
 TValue kl_call_code(Object *code, TValue *args, int nargs)
 {
     KoalaState *ks = __ks();
 
     ASSERT(IS_CODE(code));
 
+    CodeObject *co = (CodeObject *)code;
+
     /* build a call frame */
-    CallFrame *cf = _new_frame(ks, (CodeObject *)code);
+    CallFrame *cf = _new_frame(ks, co);
     cf->ks = ks;
 
     /* copy arguments */
     memcpy(cf->locals, args, sizeof(TValue) * nargs);
 
-    /* eval the call frame */
-    TValue result = _eval_frame(ks, cf);
+    /* baseline JIT: compile once when hot, then dispatch to native code */
+    if (!co->jit && !co->jit_tried) {
+        if (++co->jit_hotness >= kl_jit_threshold()) {
+            co->jit = kl_jit_compile(co);
+            co->jit_tried = 1;
+        }
+    }
+
+    TValue result;
+    if (co->jit && jit_params_scalar(cf->locals, nargs)) {
+        /* link the frame exactly like _eval_frame does: the raise path
+           (_raise_exc_fmt) and kl_call_slot read ks->cf while native code runs */
+        cf->back = ks->cf;
+        ks->cf = cf;
+        co->jit->fn(cf->locals, &result);
+        ks->cf = cf->back;
+    } else {
+        /* eval the call frame */
+        result = _eval_frame(ks, cf);
+    }
 
     /* pop frame to free list */
     _pop_frame(ks, cf);
@@ -378,6 +402,83 @@ TValue kl_call_intf(TValue *args, int nargs, int intf_idx)
     } else {
         ASSERT(IS_CODE(fn));
         return kl_call_code(fn, args, nargs);
+    }
+}
+
+/* ===========================================================================
+ * JIT runtime helpers (v1). Grouped here at the end of the file. The only JIT
+ * touch-points above are: the jit/jit.h include, the jit_params_scalar forward
+ * declaration, and the compile-once / native-dispatch block inside kl_call_code.
+ * =========================================================================== */
+
+/* Baseline JIT entry guard: only run native code when every argument is a
+ * scalar whose payload lives in the TValue's 8-byte slot (signed/unsigned int
+ * of any width, bool, or float). Object arguments fall back to the interpreter.
+ * This is the union of the interpreter's scalar-opcode operand checks; static
+ * typing guarantees the actual tags, the guard only rejects object payloads. */
+static inline int jit_params_scalar(TValue *regs, int nargs)
+{
+    for (int i = 0; i < nargs; i++) {
+        TValue *v = regs + i;
+        if (!is_int(v) && !is_uint(v) && !is_bool(v) && !is_float(v)) return 0;
+    }
+    return 1;
+}
+
+/* JIT ordinary-call trampoline (see jit.h). A native function is only entered via
+ * kl_call_code, which leaves ks->stack_top at caller_regs + nlocals -- exactly the
+ * outgoing arg area -- and the native body never moves it, so the callee frame
+ * lands here just as the interpreter's OP_CALL does. */
+TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs,
+                          uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ASSERT(ks->stack_top == args);
+    /* the calling JIT frame is linked by kl_call_code; record the call site
+       for traceback, mirroring the interpreter's SAVE_PC */
+    ks->cf->pc = pc;
+    TValue ret;
+    if (IS_CFUNC(fn)) {
+        ret = kl_call_cfunc(fn, args, nargs);
+    } else {
+        ret = kl_call_code(fn, NULL, 0);
+    }
+    if (out) *out = ret;
+    /* the native error epilogue cannot trace itself; record the JIT frame
+       here, mirroring _eval_frame's error path */
+    if (is_error(&ret)) trace_here(ks->cf);
+    return ret;
+}
+
+TValue kl_jit_tag_value(int tag)
+{
+    ASSERT(tag >= 0 && tag < (int)(sizeof(vm_tag_mappings) / sizeof(vm_tag_mappings[0])));
+    return vm_tag_mappings[tag];
+}
+
+int kl_jit_shift_check(TValue *count, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    if (kl_check_shift_count(count)) return 1;
+    /* invalid count: kl_check_shift_count raised; mirror SAVE_PC + trace */
+    ks->cf->pc = pc;
+    trace_here(ks->cf);
+    return 0;
+}
+
+/* Float comparison for the JIT (op: 0=EQ 1=NE 2=LT 3=LE 4=GT 5=GE). Uses the
+ * exact C operators the interpreter's OP_FLOAT_* use, so NaN/unordered semantics
+ * match by construction. Returns 0/1 as int64 (clean rax for the native code). */
+int64_t kl_jit_float_cmp(double a, double b, int op)
+{
+    switch (op) {
+        case 0: return a == b;
+        case 1: return a != b;
+        case 2: return a < b;
+        case 3: return a <= b;
+        case 4: return a > b;
+        case 5: return a >= b;
+        default: return 0;
     }
 }
 

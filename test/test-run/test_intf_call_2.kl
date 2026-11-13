@@ -53,14 +53,14 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK-LABEL: func @main()
-// CHECK: %4 = call @Fly3:fly [intf-index = 0], nargs=1
-// CHECK: %6 = call @Fly3:fly2 [intf-index = 1], nargs=1
-// CHECK: %8 = call @Fly3:fly3 [intf-index = 2], nargs=1        [fixedslot = 2(next)]
-// CHECK: %9 = local str        [fixedslot = 0(next)]
-// CHECK: move %9 str, %4 str
-// CHECK: %10 = local str        [fixedslot = 1(next)]
-// CHECK: move %10 str, %6 str
-// CHECK: %11 = build_intern @tuple, nargs=3        [fixedslot = 0(next)]
+// CHECK: %3 = call @Fly3:fly [intf-index = 0], nargs=1
+// CHECK: %5 = call @Fly3:fly2 [intf-index = 1], nargs=1
+// CHECK: %7 = call @Fly3:fly3 [intf-index = 2], nargs=1        [fixedslot = 2(next)]
+// CHECK: %8 = local str        [fixedslot = 0(next)]
+// CHECK: move %8 str, %3 str
+// CHECK: %9 = local str        [fixedslot = 1(next)]
+// CHECK: move %9 str, %5 str
+// CHECK: %10 = build_intern @tuple, nargs=3        [fixedslot = 0(next)]
 
 // CHECK: Foo is flying
 // CHECK: Foo is flying2

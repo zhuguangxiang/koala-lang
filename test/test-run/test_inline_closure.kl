@@ -1,0 +1,45 @@
+// RUN: koala %s ++ --dump=inline-ir | filecheck %s
+
+// A call of a function value is inlined when the function is known: an immutable local only defined
+// by a function, e.g. 'let h = { |x int| x * 2 }' or 'let f = add', also a lambda returned by an
+// inlined call or passed to an inlined function. A 'var' function value is called.
+
+func add(a int, b int) int { return a + b }
+
+func apply(fn func(int) int, x int) int { return fn(x) }
+
+func run() {
+    let f = add
+    print("r:", f(1, 2))
+    let h = { |x int| x * 2 }
+    print("r:", h(3))
+    var g = { |x int| x + 1 }
+    print("r:", g(1))
+    g = { |x int| x + 2 }
+    print("r:", g(1))
+    let n = { || { |y int| y - 1 } }
+    print("r:", n()(9))
+    print("r:", apply({ |x int| x * 5 }, 2))
+}
+
+run()
+
+// CHECK-LABEL: func @apply(
+// CHECK:         call %fn func(int64)int64, %x int64
+
+// CHECK-LABEL: func @run() <NO-TYPE> {
+// CHECK:         %0 = add 1 int64, 2 int64
+// CHECK:         %2 = mul 3 int64, 2 int64
+// CHECK:         call %g func(int64)int64, 1 int64
+// CHECK:         call %g func(int64)int64, 1 int64
+// CHECK:         sub 9 int64, 1 int64
+// CHECK:         mul 2 int64, 5 int64
+// CHECK-NOT:     call %
+// CHECK:         ret void
+
+// CHECK: r: 3
+// CHECK-NEXT: r: 6
+// CHECK-NEXT: r: 2
+// CHECK-NEXT: r: 3
+// CHECK-NEXT: r: 8
+// CHECK-NEXT: r: 10

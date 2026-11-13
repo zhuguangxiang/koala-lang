@@ -1,0 +1,89 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// RUN: env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala %s ++ --no-inline 2>&1 | filecheck %s --check-prefix=JIT
+
+// Float and bool coverage for the baseline JIT (TValue mirror). float64
+// arithmetic uses SSE2; mod calls fmod; neg flips the sign bit; comparisons
+// (bool and fused jumps) go through kl_jit_float_cmp, which mirrors the C
+// operators incl. NaN. bool land/lor/lnot are GPR ops on the 0/1 payload.
+// float<->int casts call the do_cast helpers. Output must match JIT on/off.
+// Note: the NaN fused-branch inversion quirk (Koala_TODO §102) is a VM bug and
+// is deliberately not exercised here; NaN bool comparisons below are well-defined.
+
+func fadd(a float, b float) float { return a + b }
+func fsub(a float, b float) float { return a - b }
+func fmul(a float, b float) float { return a * b }
+func fdiv(a float, b float) float { return a / b }
+func fmod(a float, b float) float { return a % b }
+func fneg(a float) float { return -a }
+func flt(a float, b float) bool { return a < b }
+func feq(a float, b float) bool { return a == b }
+func fne(a float, b float) bool { return a != b }
+func fge(a float, b float) bool { return a >= b }
+func floop(n float) float {
+    var s = 0.0
+    var i = 0.0
+    while i < n {
+        s = s + i
+        i = i + 1.0
+    }
+    return s
+}
+func band(a bool, b bool) bool { return a && b }
+func bor(a bool, b bool) bool { return a || b }
+func bnot(a bool) bool { return !a }
+func f2i(x float) int { return int(x) }
+func i2f(x int) float { return float(x) }
+
+func main() {
+    print(fadd(1.5, 2.25))
+    print(fsub(5.5, 2.25))
+    print(fmul(1.5, 4.0))
+    print(fdiv(7.5, 2.0))
+    print(fmod(7.5, 2.0))
+    print(fneg(3.5))
+    print(flt(1.5, 2.5))
+    print(feq(1.5, 1.5))
+    print(fge(2.5, 1.5))
+    print(floop(5.0))
+    print(band(true, false))
+    print(bor(true, false))
+    print(bnot(true))
+    print(f2i(3.9))
+    print(i2f(7))
+    var z = 0.0
+    var nan = z / z
+    print(feq(nan, nan))
+    print(fne(nan, nan))
+    print(flt(nan, 1.0))
+}
+
+// CHECK: 3.75
+// CHECK-NEXT: 3.25
+// CHECK-NEXT: 6
+// CHECK-NEXT: 3.75
+// CHECK-NEXT: 1.5
+// CHECK-NEXT: -3.5
+// CHECK-NEXT: true
+// CHECK-NEXT: true
+// CHECK-NEXT: true
+// CHECK-NEXT: 10
+// CHECK-NEXT: false
+// CHECK-NEXT: true
+// CHECK-NEXT: false
+// CHECK-NEXT: 3
+// CHECK-NEXT: 7
+// CHECK-NEXT: false
+// CHECK-NEXT: true
+// CHECK-NEXT: false
+
+// JIT-DAG: [jit] func @fadd
+// JIT-DAG: [jit] func @fdiv
+// JIT-DAG: [jit] func @fmod
+// JIT-DAG: [jit] func @fneg
+// JIT-DAG: [jit] func @flt
+// JIT-DAG: [jit] func @floop
+// JIT-DAG: [jit] func @band
+// JIT-DAG: [jit] func @bnot
+// JIT-DAG: [jit] func @f2i
+// JIT-DAG: [jit] func @i2f

@@ -635,6 +635,15 @@ TypeSpec *optional_type_spec(TypeSpec *src)
 
 TypeSpec *optional_type_spec_intern(TypeSpec *src)
 {
+    // no nested optional, e.g. 'T?' with 'T' bound to 'int?' is 'int?'
+    if (src && src->kind == TYPE_OPTIONAL) {
+        // 'src' may be a non-interned optional, e.g. the result of 'as'
+        if (src->type_id >= 0) return src;
+        TypeSpec *sub_src = src->opt.src;
+        ASSERT(!sub_src || sub_src->type_id >= 0);
+        return optional_type_spec_intern(sub_src);
+    }
+
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_OPTIONAL;
     ts->opt.src = src;

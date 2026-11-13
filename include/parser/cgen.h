@@ -66,6 +66,8 @@ typedef struct _KlMachLoc {
     int pc;
     int line;
     int col;
+    // not NULL if the instruction is inlined
+    KlrInlineSite *inlined_at;
 } KlMachLoc;
 
 /*

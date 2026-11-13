@@ -1,0 +1,94 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+// 'T' bound to the optional result type of 'as' must not be mixed up with
+// other 'as' types, e.g. 'Box(a as Foo)' and 'Box(a as str)'
+
+class Box[T] {
+    var v T
+    var o T?
+    func __init__(v T) { self.v = v; self.o = nil }
+    func get() T { return self.v }
+    func get_o() T? { return self.o }
+    func set_o(v T) { self.o = v }
+}
+
+func or_nil[T](x T, flag bool) T? {
+    if flag { return x }
+    return nil
+}
+
+class Foo {
+    var n int
+    func __init__(n int) { self.n = n }
+}
+
+func run_as() {
+    var a any = Foo(4)
+    var b = Box(a as Foo)
+    print(b.get()!.n)
+    var c = Box(a as str)
+    print(c.get() ?? "nil")
+}
+
+func run() {
+    var i = Box[int?](nil)
+    var j = Box[int?](3)
+    var s = Box[str?]("a")
+    s.set_o("b")
+    let n int? = 6
+    print(or_nil[int?](n, false) ?? 0)
+}
+
+run()
+run_as()
+
+// CHECK: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @run_as() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_as_optional_type.Foo
+// CHECK-NEXT: call @Foo:__init__, %0 test_as_optional_type.Foo, 4 int64
+// CHECK-NEXT: %a = local any
+// CHECK-NEXT: move %a any, %0 test_as_optional_type.Foo
+// CHECK-NEXT: %1 = as %a any, test_as_optional_type.Foo
+// CHECK-NEXT: %2 = new @test_as_optional_type.Box[test_as_optional_type.Foo?]
+// CHECK-NEXT: call @Box:__init__, %2 test_as_optional_type.Box[test_as_optional_type.Foo?], %1 test_as_optional_type.Foo?
+// CHECK-NEXT: %b = local test_as_optional_type.Box[test_as_optional_type.Foo?]
+// CHECK-NEXT: move %b test_as_optional_type.Box[test_as_optional_type.Foo?], %2 test_as_optional_type.Box[test_as_optional_type.Foo?]
+// CHECK-NEXT: %3 = call @Box:get, %b test_as_optional_type.Box[test_as_optional_type.Foo?]
+// CHECK-NEXT: %4 = cast %3 test_as_optional_type.Foo? to test_as_optional_type.Foo
+// CHECK-NEXT: %5 = get_field %4 test_as_optional_type.Foo, n(index=0)
+// CHECK-NEXT: %6 = build_intern @tuple, %5 int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %6 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %7 = as %a any, str
+// CHECK-NEXT: %8 = new @test_as_optional_type.Box[str?]
+// CHECK-NEXT: call @Box:__init__, %8 test_as_optional_type.Box[str?], %7 str?
+// CHECK-NEXT: %c = local test_as_optional_type.Box[str?]
+// CHECK-NEXT: move %c test_as_optional_type.Box[str?], %8 test_as_optional_type.Box[str?]
+// CHECK-NEXT: %9 = call @Box:get, %c test_as_optional_type.Box[str?]
+// CHECK-NEXT: %coalesce = local str
+// CHECK-NEXT: %10 = cmpne %9 str?, nil
+// CHECK-NEXT: branch %10 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(coalesce-unwrap):                          ;; preds = %bb0
+// CHECK-NEXT: %11 = cast %9 str? to str
+// CHECK-NEXT: move %coalesce str, %11 str
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(coalesce-rhs):                             ;; preds = %bb0
+// CHECK-NEXT: move %coalesce str, 'nil' str
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK-NEXT: %12 = build_intern @tuple, %coalesce str
+// CHECK-NEXT: call @print [path = 'std/prelude'], %12 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @__init__() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @run
+// CHECK-NEXT: call @run_as
+// CHECK-NEXT: }
+// CHECK-NEXT: 0
+// CHECK-NEXT: 4
+// CHECK-NEXT: nil

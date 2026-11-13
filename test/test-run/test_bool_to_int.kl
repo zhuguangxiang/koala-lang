@@ -55,9 +55,7 @@ func main() {
 // OPT-NEXT: %0 = call @typeof [path = 'std/builtin'], 1 int64
 // OPT-NEXT: %1 = build_intern @tuple, 1 int64, 0 int64, 1 int64, %0 std/builtin.type
 // OPT-NEXT: call @print
-// OPT-NEXT: %2 = call @flag [const], true bool
-// OPT-NEXT: %3 = call @flag [const], false bool
-// OPT-NEXT: %4 = build_intern @tuple, %2 uint8, %3 uint8, 2 int64, 1 int64, 0 int64
+// OPT-NEXT: %2 = build_intern @tuple, 1 uint8, 0 uint8, 2 int64, 1 int64, 0 int64
 // OPT-NOT: select
 // OPT: ret void
 

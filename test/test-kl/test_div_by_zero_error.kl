@@ -1,0 +1,32 @@
+// RUN: koalac --opt %s 2>&1 | filecheck %s
+//
+// An integer divisor that is a constant zero(a literal, a 'const' or a 'let') is a compile error,
+// even if the dividend is a variable, as Go does.
+
+const ZERO = 0
+
+func div(x int, u uint) {
+    print(x / 0)
+    print(x % 0)
+    print(1 / 0)
+    print(x / ZERO)
+    let z = 0
+    print(x % z)
+    print(u / 0)
+    print(u % 0)
+}
+
+// CHECK: test_div_by_zero_error.kl:9:11:
+// CHECK-SAME: division by zero
+// CHECK: test_div_by_zero_error.kl:10:11:
+// CHECK-SAME: division by zero
+// CHECK: test_div_by_zero_error.kl:11:11:
+// CHECK-SAME: division by zero
+// CHECK: test_div_by_zero_error.kl:12:11:
+// CHECK-SAME: division by zero
+// CHECK: test_div_by_zero_error.kl:14:11:
+// CHECK-SAME: division by zero
+// CHECK: test_div_by_zero_error.kl:15:11:
+// CHECK-SAME: division by zero
+// CHECK: test_div_by_zero_error.kl:16:11:
+// CHECK-SAME: division by zero

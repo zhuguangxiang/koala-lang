@@ -4591,7 +4591,7 @@ static void parse_as(ParserState *ps, Expr *exp)
     warn_static_cast(ps, loc, "as", as->result, e->ts, target_ts);
 
     // A statically successful cast has type T; a runtime or failed cast has type T?.
-    exp->ts = as->result == ALWAYS_TRUE ? target_ts : optional_type_spec(target_ts);
+    exp->ts = as->result == ALWAYS_TRUE ? target_ts : optional_type_spec_intern(target_ts);
     exp->sym = get_symbol_by_id(exp->ts->sym_id);
 
     Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);

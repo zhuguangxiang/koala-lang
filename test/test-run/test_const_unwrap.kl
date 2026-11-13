@@ -1,0 +1,213 @@
+// RUN: koala %s ++ --dump=lir | filecheck %s
+
+// 'x!' with 'x' propagated to a constant: a non-nil constant folds the unwrapping
+// cast away, a nil is not propagated into it, opt warns and nil_check panics at runtime
+
+func let_str() {
+    let x str? = "a"
+    print(x!.upper())
+}
+
+func var_str() {
+    var x str? = "b"
+    print(x!.upper())
+}
+
+func let_bool() {
+    let x bool? = true
+    print(x!)
+}
+
+func var_bool() {
+    var x bool? = false
+    print(x!)
+}
+
+func let_int() {
+    let x int? = 3
+    print(x! + 1)
+}
+
+func var_int() {
+    var x int? = 4
+    print(x! + 1)
+}
+
+func var_nil() {
+    var x str? = nil
+    print(x!.upper())
+}
+
+func let_nil() {
+    let x str? = nil
+    print(x!.upper())
+}
+
+let_str()
+var_str()
+let_bool()
+var_bool()
+let_int()
+var_int()
+let_nil()
+
+// the nil unwrap of let_nil() is warned again once inlined into __init__
+// CHECK: test_const_unwrap.kl:43:11:
+// CHECK-SAME: forced unwrap ('!') of a nil value
+// CHECK-NEXT: test_const_unwrap.kl:38:11:
+// CHECK-SAME: forced unwrap ('!') of a nil value
+// CHECK-NEXT: test_const_unwrap.kl:43:11:
+// CHECK-SAME: forced unwrap ('!') of a nil value
+// CHECK-NEXT: --- IR Dump After isel [@__init__] ---
+// CHECK-NEXT: func @__init__() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// all the calls are inlined, the same constants are folded as in the callees
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: loadk %0 str, 'a' str
+// CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: loadk %5 str, 'b' str
+// CHECK-NEXT: %6 = call @str:upper [path = 'std/builtin'], nargs=1
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: load_tag %10 bool, true bool
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: load_tag %14 bool, false bool
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: load_int_imm %18 int64, 4 int64
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: load_int_imm %22 int64, 5 int64
+// CHECK-NOT: call @{{let|var}}_
+// CHECK: %let_nil.x = local [immutable] str?
+// CHECK-NEXT: load_tag %let_nil.x str?, nil
+// CHECK-NEXT: %26 = nil_check %let_nil.x str? to str        [fixedslot = 0(next)]
+// CHECK-NEXT: %27 = call @str:upper [path = 'std/builtin'], nargs=1
+// CHECK: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @let_str() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local str        [fixedslot = 0(next)]
+// CHECK-NEXT: loadk %0 str, 'a' str
+// CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %3 str, ' ' str
+// CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %4 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @var_str() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local str        [fixedslot = 0(next)]
+// CHECK-NEXT: loadk %0 str, 'b' str
+// CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %3 str, ' ' str
+// CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %4 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @let_bool() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local bool        [fixedslot = 0(next)]
+// CHECK-NEXT: load_tag %0 bool, true bool
+// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %2 str, ' ' str
+// CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %3 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @var_bool() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local bool        [fixedslot = 0(next)]
+// CHECK-NEXT: load_tag %0 bool, false bool
+// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %2 str, ' ' str
+// CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %3 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @let_int() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local int64        [fixedslot = 0(next)]
+// CHECK-NEXT: load_int_imm %0 int64, 4 int64
+// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %2 str, ' ' str
+// CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %3 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @var_int() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local int64        [fixedslot = 0(next)]
+// CHECK-NEXT: load_int_imm %0 int64, 5 int64
+// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %2 str, ' ' str
+// CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %3 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @var_nil() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %x = local str?
+// CHECK-NEXT: load_tag %x str?, nil
+// CHECK-NEXT: %0 = nil_check %x str? to str        [fixedslot = 0(next)]
+// CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %3 str, ' ' str
+// CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %4 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @let_nil() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %x = local [immutable] str?
+// CHECK-NEXT: load_tag %x str?, nil
+// CHECK-NEXT: %0 = nil_check %x str? to str        [fixedslot = 0(next)]
+// CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
+// CHECK-NEXT: loadk %3 str, ' ' str
+// CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
+// CHECK-NEXT: loadk %4 str, '\n' str
+// CHECK-NEXT: call @print [path = 'std/prelude'], nargs=3
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK-NEXT: A
+// CHECK-NEXT: B
+// CHECK-NEXT: true
+// CHECK-NEXT: false
+// CHECK-NEXT: 4
+// CHECK-NEXT: 5
+// CHECK-EMPTY:
+// CHECK-NEXT: Failure in func 'let_nil'
+// CHECK-EMPTY:
+// CHECK-NEXT: Traceback (most recent call last):
+// CHECK-NEXT: test_const_unwrap.kl", line 43, in let_nil
+// CHECK-NEXT: print(x!.upper())
+// CHECK-NEXT: test_const_unwrap.kl", line 52, in __init__
+// CHECK-NEXT: let_nil()
+// CHECK-EMPTY:
+// CHECK-NEXT: Error: forced unwrap (`!`) of a nil value

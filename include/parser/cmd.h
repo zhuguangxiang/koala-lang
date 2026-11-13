@@ -21,12 +21,14 @@ typedef enum _DumpFlags {
     DUMP_VREG = 1 << 4,
     DUMP_CODE = 1 << 5,
     DUMP_ITABLE = 1 << 6,
+    DUMP_INLINE_IR = 1 << 7,
     DUMP_ALL = 0xFFFFFFFF,
 } DumpFlags;
 
 typedef struct _CompileOptions {
     int enable_genir;
     int enable_ssa;
+    int enable_inline;
     int enable_opt;
     int enable_isel;
     int enable_lsra;
@@ -46,6 +48,7 @@ extern CompileOptions cmd_opt;
 
 #define genir_enabled()     (cmd_opt.enable_genir)
 #define ssa_enabled()       (cmd_opt.enable_ssa)
+#define inline_enabled()    (cmd_opt.enable_inline)
 #define opt_enabled()       (cmd_opt.enable_opt)
 #define isel_enabled()      (cmd_opt.enable_isel)
 #define fusion_enabled()    (cmd_opt.enable_fusion)
@@ -65,6 +68,7 @@ extern CompileOptions cmd_opt;
 #define dump_vreg_enabled()      ((cmd_opt.dump & DUMP_VREG) != 0)
 #define dump_code_enabled()      ((cmd_opt.dump & DUMP_CODE) != 0)
 #define dump_itable_enabled()    ((cmd_opt.dump & DUMP_ITABLE) != 0)
+#define dump_inline_ir_enabled() ((cmd_opt.dump & DUMP_INLINE_IR) != 0)
 
 #ifdef __cplusplus
 }

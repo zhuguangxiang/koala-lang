@@ -395,6 +395,8 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
     - 整型窄化按位回绕：`uint8(300)` → 44，`int16(40000)` → −25536。
     - float → float 窄化静默舍入：`float32(3.14159265358979)` → `3.1415927410125732`。
     - float → int 先**饱和**到 64 位再回绕到目标宽度：NaN → 0，负数 → 任何 uint 得 0，超上界 → `INT64_MAX` / `UINT64_MAX`。故 `uint8(-1.5)` → 0，`int8(1000.7)` → −24，`int8(+inf)` → −1（INT64_MAX 回绕）。
+- **整数除以 0 同样分轨**：除数是常量 0（字面量 / `const` / `let`）时编译报 `division by zero`，被除数是变量也报；除数是变量 0 时运行期抛 `division by zero` 异常。`INT64_MIN / -1` 运行期回绕为 `INT64_MIN`，`INT64_MIN % -1` 得 0。
+- **内联不改变分轨**：内联（`koala` 默认开启，`--no-inline` 关闭）把实参代入后，原本的参数即使成了常量也仍按**变量**处理，走运行期路径（§11.3 函数内联）。
 - **分轨是刻意设计**：同一个 cast 写成常量和写成变量可以有不同结局——`float32(2147483647)` 作为常量编译失败，作为函数参数则得 `2147483648`。测试因此也是两套：`test-kl/test_const_<src>_cast_failed.kl`（编译期报错）与 `test-run/test_cast_<src>.kl`（运行期取值，用例一律用函数参数包裹以躲开折叠）。
 
 ### 5.2 字符串到数值的解析：显式回退模式
@@ -1185,6 +1187,8 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   → 符号/类型检查（symbol.c / typespec.c）
   → intf-table 构建                        → trait 分发表
   → IR 生成（irgen.c）                     → KLR IR（类型化、use-def 链、CFG）
+  → 泛型特化（@specialized 实例化）
+  → 函数内联（inline.c，--inline；koala 默认开启）
   → 优化（opt.c，PassManager）             → 常量/复制传播、CFG 清理、DCE
   → SSA 构造 → SCCP → SSA 析构（phi 合并） → SSA 级优化
   → 指令选择（isel.c）                     → 类型特化操作码（reg-reg / reg-imm 双形态）
@@ -1193,7 +1197,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   → .klc 产出（write_klc.c；read_klc.c 反向加载）
 ```
 
-每个阶段可用命令行独立开关启用（--irgen / --ssa / --opt / --isel / --lsra / --cgen），并提供逐级 dump（no-opt-ir / ssa / ir / lir / vreg / code / itable）——与"无隐藏特性"原则一脉相承：**编译器的每一步中间产物都可观察**。
+每个阶段可用命令行独立开关启用（--irgen / --ssa / --inline / --opt / --isel / --lsra / --cgen；`koala` 默认开启内联，`++ --no-inline` 关闭），并提供逐级 dump（no-opt-ir / inline-ir / ssa / ir / lir / vreg / code / itable）——与"无隐藏特性"原则一脉相承：**编译器的每一步中间产物都可观察**。
 
 ### 11.2 IR 设计（KLR）
 
@@ -1210,6 +1214,15 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   - 死代码消除（DCE）
   - **SSA 构造 + SCCP**（稀疏条件常量传播：TOP/常量/BOTTOM 三值格 + meet 运算 + 双 worklist，教科书级实现）+ SSA 析构（phi 合并）
 - **指令选择**：表驱动规则把泛型二元运算（OP_BINARY_*）降级为类型特化操作码（OP_INT_ADD / OP_UINT_DIV …），并支持 reg-imm 立即数形态与交换律换序——与 CPython 3.11 特化自适应解释器殊途同归，而 Koala 在编译期一次完成。变量 cast 在此降级为 OP_INT_CAST / OP_FLOAT_CAST / OP_FLOAT_TO_INT / OP_INT_TO_FLOAT，目标类型与 trap/wrap 模式一起编码进 cast_flag（§5.1）。
+- **函数内联**（koalac `--inline`；`koala` 默认传入，`koala x.kl ++ --no-inline` 关闭，见 `Koala_TODO.md` §98）：在泛型特化之后、优化之前运行（`src/parser/opt/inline.c`），`--dump=inline-ir` 输出内联后的 IR，可与 `--dump=no-opt-ir` 对比。
+  - **范围**：只内联**当前模块**内只有一个基本块的函数、方法、静态方法（典型是 class 的 get/set），不涉及外模块；指令数有上限，含变长参数、被写的参数（尾调用）、`unreachable` 的函数不内联。
+  - **泛型**：仅支持泛型类的方法且接收者类型实参已确定（如 `Box[int]`），方法体限于字段读写 / local / move / ret（扩展见 TODO §97）。
+  - **函数值调用**：`call %v` 中 `%v` 是只定义一次、值为本模块函数的 `let` 变量（`let f = add`、无捕获闭包 `let h = { |x int| x * 2 }`）时，解析出 callee 后同样内联；`var` 变量、函数参数仍为 call（TODO §99）。
+  - **native 规则**：只看注解与有无实现，不看函数体里有什么指令——`@native` 有 koala 实现的可以内联；`@native` 无实现、`@intrinsic`（只能无实现）必须 call。
+  - **常量语义（同 Go）**：源码里的常量（字面量 / `const` / `let`）溢出、非法移位、除以 0 一律编译报错，与 trap/wrap 模式无关（§5.1）；内联进来的参数是**变量**，即使内联后成了常量，也不在编译期报错、不折叠，留到运行期按 `--int-trap` 的 trap/wrap 处理或抛异常（如 `division by zero`）。实现上内联克隆的指令带 `KLR_INSN_FLAGS_INLINED`，const-copy-prop 遇到它跳过报错，isel 把常量物化为寄存器走运行期检查。
+  - **不改变语义**：被内联调用里的 `new` 即使结果没被使用也保留（构造有副作用），并照常分配寄存器。
+  - **traceback**：被内联的指令保留原位置并记录内联调用点链（klc 末尾 `ITEM_INLINE_SITE` / `ITEM_INLINE_PC`），运行期 `trace_here` 展开成多帧，与不内联一致（含嵌套内联、`--strip-lineinfo`；TODO §95）。
+  - **已知限制**：多基本块函数不内联（TODO §96）。
 - **寄存器分配**：线性扫描（LSRA）——活跃区间分析 + 空闲寄存器位集，另有 simple regalloc 后备路径。
 - **IR 级另有数招**（均带编译开关与回归测试）：**指令融合**（--fusion，`let c = x<10; if c` 融合为 `jmp_int_lt_imm` 比较跳转合一；c 被多处使用则不融合、物化为 `int.lt_imm`）；**尾调用优化**（--tail-call，尾位置生成 `tail_call` 指令复用当前帧——`sum(100000000, 0)` 深递归不爆栈）；**滑动窗口调用**（call 结果直接被消费时省去中间 local，函数头记录 `max_call_args`）；**窥孔优化**（peephole）。
 
@@ -1231,7 +1244,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   - `test-ir`（36）——优化器逐 pass 验证（ssa、sccp、isel、lsra、fusion、tailcall…）
   - `test-run`（88）——端到端运行（泛型族、for 三协议、kwargs / callable / static、intf 调用、io、LRO、traceback…）
   - `test-ut`（34）——`@test` + std/ut 断言的标准库自验证层（builtin / io / fs / time 与语言语义：短路求值、泛型类、迭代器尺寸，以及整型八个宽度的提升 / 混算 / 回绕专档）
-- **观察面全覆盖**：RUN 行覆盖 no-opt-ir / ssa / ir / lir / vreg / code / itable 全部 7 个 dump 阶段——"无隐藏特性"的工程回响：每个可观察阶段都有断言守护。
+- **观察面全覆盖**：RUN 行覆盖 no-opt-ir / inline-ir / ssa / ir / lir / vreg / code / itable 全部 8 个 dump 阶段——"无隐藏特性"的工程回响：每个可观察阶段都有断言守护。
 - **负向断言文化**：优化器测试大量使用 CHECK-NOT 守护"不过度优化"（如不同常量的 phi 必须保留、死分支常量必须清除），测试的是正确性边界而非仅优化效果——LLVM 测试文化的核心实践。
 - **诊断与开关回归**：编译器错误消息有专门的 `2>&1` 回归测试；--int-trap / --float-trap / --fusion / --tail-call 每个编译开关均有对应测试。
 

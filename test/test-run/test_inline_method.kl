@@ -1,0 +1,233 @@
+// RUN: koala %s ++ --dump=no-opt-ir,inline-ir | filecheck %s
+
+// generic class methods: T is replaced by the receiver's type arguments
+class Box[T] {
+    var v T
+    func __init__(v T) { self.v = v }
+    func get() T { return self.v }
+    func set(v T) { self.v = v }
+}
+
+func use_box() int {
+    var b = Box[int](7)
+    b.set(b.get() + 1)
+    return b.get()
+}
+
+func use_box_str() str {
+    var b = Box[str]("a")
+    b.set("b")
+    return b.get()
+}
+
+// nested: add3 -> add2 -> add1
+func add1(x int) int { return x + 1 }
+func add2(x int) int { return add1(x) + 1 }
+func add3(x int) int { return add2(x) + 1 }
+
+// recursion is never inlined
+func fact(n int) int {
+    if n <= 1 { return 1 }
+    return n * fact(n - 1)
+}
+
+func use_fact() int { return fact(5) }
+
+// T to T? on the return value
+func wrap(x int) int? { return x }
+func use_wrap() int { return wrap(5) ?? 0 }
+
+// function-valued argument
+type IntFn = func(int) int
+func apply(f IntFn, x int) int { return f(x) }
+func use_apply() int { return apply(add1, 3) }
+
+// unused 'new' argument
+class Empty {
+    func __init__() {}
+}
+func one(e Empty) int { return 1 }
+func use_one() int { return one(Empty()) }
+
+// call through a trait is never inlined
+trait Shape {
+    func area() int
+}
+class Sq : Shape {
+    var w int
+    func __init__(w int) { self.w = w }
+    pub func area() int { return self.w * self.w }
+}
+func by_trait(s Shape) int { return s.area() }
+func use_shape() int { return by_trait(Sq(3)) + Sq(2).area() }
+
+print(use_box())
+print(use_box_str())
+print(add3(1))
+print(use_fact())
+print(use_wrap())
+print(use_apply())
+print(use_one())
+print(use_shape())
+
+// CHECK: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @use_box() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_method.Box[int64]
+// CHECK-NEXT: call @Box:__init__, %0 test_inline_method.Box[int64], 7 int64
+// CHECK-NEXT: %b = local test_inline_method.Box[int64]
+// CHECK-NEXT: move %b test_inline_method.Box[int64], %0 test_inline_method.Box[int64]
+// CHECK-NEXT: %1 = call @Box:get, %b test_inline_method.Box[int64]
+// CHECK-NEXT: %2 = add %1 int64, 1 int64
+// CHECK-NEXT: call @Box:set, %b test_inline_method.Box[int64], %2 int64
+// CHECK-NEXT: %3 = call @Box:get, %b test_inline_method.Box[int64]
+// CHECK-NEXT: ret %3 int64
+// CHECK-NEXT: }
+
+// CHECK: func @add3(%x int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @add2, %x int64
+// CHECK-NEXT: %1 = add %0 int64, 1 int64
+// CHECK-NEXT: ret %1 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_one() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_method.Empty
+// CHECK-NEXT: call @Empty:__init__, %0 test_inline_method.Empty
+// CHECK-NEXT: %1 = call @one, %0 test_inline_method.Empty
+// CHECK-NEXT: ret %1 int64
+// CHECK-NEXT: }
+
+// CHECK: --- IR Dump After inline ---
+// generic class methods with T replaced by int64/str
+// CHECK: func @use_box() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_method.Box[int64]
+// CHECK-NEXT: set_field %0 test_inline_method.Box[int64], v(index=0), 7 int64
+// CHECK-NEXT: %b = local test_inline_method.Box[int64]
+// CHECK-NEXT: move %b test_inline_method.Box[int64], %0 test_inline_method.Box[int64]
+// CHECK-NEXT: %2 = get_field %b test_inline_method.Box[int64], v(index=0)
+// CHECK-NEXT: %3 = add %2 int64, 1 int64
+// CHECK-NEXT: set_field %b test_inline_method.Box[int64], v(index=0), %3 int64
+// CHECK-NEXT: %5 = get_field %b test_inline_method.Box[int64], v(index=0)
+// CHECK-NEXT: ret %5 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_box_str() str {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_method.Box[str]
+// CHECK-NEXT: set_field %0 test_inline_method.Box[str], v(index=0), 'a' str
+// CHECK-NEXT: %b = local test_inline_method.Box[str]
+// CHECK-NEXT: move %b test_inline_method.Box[str], %0 test_inline_method.Box[str]
+// CHECK-NEXT: set_field %b test_inline_method.Box[str], v(index=0), 'b' str
+// CHECK-NEXT: %3 = get_field %b test_inline_method.Box[str], v(index=0)
+// CHECK-NEXT: ret %3 str
+// CHECK-NEXT: }
+
+// nested
+// CHECK: func @add3(%x int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = add %x int64, 1 int64
+// CHECK-NEXT: %1 = add %0 int64, 1 int64
+// CHECK-NEXT: %2 = add %1 int64, 1 int64
+// CHECK-NEXT: ret %2 int64
+// CHECK-NEXT: }
+
+// recursion
+// CHECK: func @fact(%n int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = cmple %n int64, 1 int64
+// CHECK-NEXT: branch %0 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(if-then):                                  ;; preds = %bb0
+// CHECK-NEXT: ret 1 int64
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(if-else):                                  ;; preds = %bb0
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(if-end):                                   ;; preds = %bb2
+// CHECK-NEXT: %1 = sub %n int64, 1 int64
+// CHECK-NEXT: %2 = call @fact, %1 int64
+// CHECK-NEXT: %3 = mul %n int64, %2 int64
+// CHECK-NEXT: ret %3 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_fact() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @fact [const], 5 int64
+// CHECK-NEXT: ret %0 int64
+// CHECK-NEXT: }
+
+// T to T?
+// CHECK: func @use_wrap() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local int64?
+// CHECK-NEXT: move %0 int64?, 5 int64
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %1 = cmpne %0 int64?, nil
+// CHECK-NEXT: branch %1 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(coalesce-unwrap):                          ;; preds = %bb0
+// CHECK-NEXT: %2 = cast %0 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %2 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(coalesce-rhs):                             ;; preds = %bb0
+// CHECK-NEXT: move %coalesce int64, 0 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK-NEXT: ret %coalesce int64
+// CHECK-NEXT: }
+
+// function-valued argument
+// CHECK: func @use_apply() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = local [immutable] func(int64)int64
+// CHECK-NEXT: move %0 func(int64)int64, @add1 func(int64)int64
+// CHECK-NEXT: %1 = add 3 int64, 1 int64
+// CHECK-NEXT: ret %1 int64
+// CHECK-NEXT: }
+
+// unused 'new' is kept
+// CHECK: func @use_one() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_method.Empty
+// CHECK-NEXT: ret 1 int64
+// CHECK-NEXT: }
+
+// trait call
+// CHECK: func @by_trait(%s test_inline_method.Shape) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @Shape:area [intf-index = 0], %s test_inline_method.Shape
+// CHECK-NEXT: ret %0 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_shape() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_method.Sq
+// CHECK-NEXT: set_field %0 test_inline_method.Sq, w(index=0), 3 int64
+// CHECK-NEXT: %2 = make_intf %0 test_inline_method.Sq [intf-table-index = 4] to test_inline_method.Shape
+// CHECK-NEXT: %3 = call @Shape:area [intf-index = 0], %2 test_inline_method.Shape
+// CHECK-NEXT: %4 = new @test_inline_method.Sq
+// CHECK-NEXT: set_field %4 test_inline_method.Sq, w(index=0), 2 int64
+// CHECK-NEXT: %6 = get_field %4 test_inline_method.Sq, w(index=0)
+// CHECK-NEXT: %7 = get_field %4 test_inline_method.Sq, w(index=0)
+// CHECK-NEXT: %8 = mul %6 int64, %7 int64
+// CHECK-NEXT: %9 = add %3 int64, %8 int64
+// CHECK-NEXT: ret %9 int64
+// CHECK-NEXT: }
+
+// CHECK: func @Sq:fmt(%self test_inline_method.Sq, %f std/builtin.Formatter) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: unreachable
+// CHECK-NEXT: }
+// CHECK-NEXT: 8
+// CHECK-NEXT: b
+// CHECK-NEXT: 4
+// CHECK-NEXT: 120
+// CHECK-NEXT: 5
+// CHECK-NEXT: 4
+// CHECK-NEXT: 1
+// CHECK-NEXT: 13

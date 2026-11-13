@@ -1436,6 +1436,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
         loc->filename = atom(insn->loc.filename);
         loc->line = insn->loc.loc.line;
         loc->col = insn->loc.loc.col;
+        loc->inlined_at = insn->loc.inlined_at;
         vector_push_back(&m->locs, &loc);
         mi->loc = loc;
         // printf("Call source location: %s:%d:%d\n", insn->loc.filename, loc->line, loc->col);

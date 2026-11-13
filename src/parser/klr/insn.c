@@ -943,7 +943,7 @@ KlrValue *klr_build_as(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec 
 
     KlrInsn *insn = new_insn(OP_AS, 1, name);
     init_oper(&insn->opers[0], insn, val, 0);
-    insn->ts = optional_type_spec(ts);
+    insn->ts = optional_type_spec_intern(ts);
     insn->target_ts = ts;
     insn->target_kls = kls;
     klr_append_insn(bldr, insn);

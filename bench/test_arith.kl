@@ -18,5 +18,5 @@ func test_arith(n int) int {
 
 func main() {
     let n = 100_000_000
-    test_arith(n)
+    print(test_arith(n))
 }

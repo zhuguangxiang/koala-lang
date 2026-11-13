@@ -62,6 +62,10 @@ typedef struct _ModuleObject {
 
     /* line information for testing(traceback) */
     Vector lineinfos; // ordered by pc
+
+    /* inlined sites for the traceback of the inlined frames */
+    Vector inline_sites; // InlineSite, site index i is at i - 1
+    Vector inline_pcs;   // ordered by pc
 } ModuleObject;
 
 typedef enum {
@@ -86,6 +90,20 @@ typedef struct _LineInfo {
     char *filename;  // source file name
     uint32_t lineno; // line number in the source file
 } LineInfo;
+
+// A call site of an inlined function
+typedef struct _InlineSite {
+    char *funcname;  // name of the inlined function
+    char *filename;  // location of the call, NULL if no lineinfo
+    uint32_t lineno;
+    uint32_t parent; // site of the call itself, 0 if the call is in the real function
+} InlineSite;
+
+// The inlined site of the instructions from pc, 0 if not inlined
+typedef struct _InlinePc {
+    uint32_t pc;
+    uint32_t site;
+} InlinePc;
 
 extern TypeObject module_type;
 
@@ -133,6 +151,9 @@ int kl_mo_add_dict(Object *_m, Vector *list);
 int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name,
                      int slot_index);
 Object *kl_mo_find(Object *_m, char *name);
+/* True when fn is one of the module's OWN functions: it sits in funcs[0..num_funcs).
+ * Imported functions are appended at index >= num_funcs by resolve_import. */
+int kl_mo_is_local_func(Object *_m, Object *fn);
 
 void kl_init_module_stbl(void);
 Object *kl_find_module(char *path);

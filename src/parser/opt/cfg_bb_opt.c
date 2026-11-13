@@ -89,6 +89,28 @@ int klr_remove_unused_block(KlrFunc *fn, void *data)
         }
     }
 
+    // dead blocks may use or define values of other dead blocks, so drop all uses in them first,
+    // then erase their non-local insns (a local is erased with its last def), at last the blocks
+    basic_block_foreach(bb, fn) {
+        if (bb->visited) continue;
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            for (int i = 0; i < insn->num_opers; i++) {
+                KlrOper *oper = insn_operand(insn, i);
+                if (!oper->use.is_def) set_operand(oper, insn, NULL);
+            }
+        }
+    }
+
+    basic_block_foreach(bb, fn) {
+        if (bb->visited) continue;
+        KlrInsn *insn, *nxt_i;
+        // a local is before its defs in a block, so erasing a def never erases 'nxt_i'
+        insn_foreach_safe(insn, nxt_i, bb) {
+            if (!klr_is_local((KlrValue *)insn)) klr_erase_insn(insn);
+        }
+    }
+
     // clear visited flag and delete unused blocks
     KlrBasicBlock *nxt;
     basic_block_foreach_safe(bb, nxt, fn) {

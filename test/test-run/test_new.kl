@@ -81,7 +81,15 @@ func main() {
 // CHECK: load_int_imm %7 int64, -1 int64
 // CHECK: %8 = local int64        [fixedslot = 1(next)]
 // CHECK: load_int_imm %8 int64, -10 int64
-// CHECK: call @foo [const], nargs=2
+// CHECK: %9 = local int64        [fixedslot = 2(next)]
+// CHECK: load_int_imm %9 int64, 1 int64
+// CHECK: %10 = build_intern @range, nargs=3        [fixedslot = 0(next)]
+// CHECK: %11 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: call @print [path = 'std/prelude'], nargs=3
+// CHECK: %14 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: loadk %14 std/builtin.range, range(1, 10, 1) std/builtin.range
+// CHECK: %15 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: call @print [path = 'std/prelude'], nargs=3
 
 // CHECK: (1, 2, 3) range(1, 10, 1) hello hello
 // CHECK: range(-1, -10, 1)

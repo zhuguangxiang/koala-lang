@@ -30,6 +30,7 @@ static void usage(void)
         "  -o <file>            Place the output into <file>.\n"
         "  --irgen              Enable IR generation stage.\n"
         "  --ssa                Enable SSA construction stage.\n"
+        "  --inline             Inline small functions of the current module.\n"
         "  --opt                Enable optimization passes (default).\n"
         "  --isel               Enable instruction selection stage.\n"
         "  --lsra               Enable linear scan register allocator.\n"
@@ -43,6 +44,7 @@ static void usage(void)
         "  --dump=<list>        Dump internal information.\n"
         "                       <list> is a comma-separated list of:\n"
         "                           no-opt-ir - dump no-opt IR\n"
+        "                           inline-ir - IR after generic specialization and inlining\n"
         "                           ssa       - dump SSA IR\n"
         "                           ir        - optimized IR (after opt passes)\n"
         "                           lir       - LIR (after isel/regalloc)\n"
@@ -113,6 +115,8 @@ static DumpFlags parse_dump_flags(const char *s)
     while (tok) {
         if (str_equal(tok, "no-opt-ir"))
             flags |= DUMP_NO_OPT_IR;
+        else if (str_equal(tok, "inline-ir"))
+            flags |= DUMP_INLINE_IR;
         else if (str_equal(tok, "ssa"))
             flags |= DUMP_SSA_IR;
         else if (str_equal(tok, "ir"))
@@ -167,6 +171,7 @@ static void parse_command(int argc, char *argv[])
         { "package-name", required_argument, 0, 13 },
         { "ssa", no_argument, 0, 14 },
         { "strip-lineinfo", no_argument, 0, 15 },
+        { "inline", no_argument, 0, 16 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -253,6 +258,10 @@ static void parse_command(int argc, char *argv[])
 
             case 15:
                 cmd_opt.strip_lineinfo = 1;
+                break;
+
+            case 16:
+                cmd_opt.enable_inline = 1;
                 break;
 
             case 'o': {
@@ -553,6 +562,11 @@ static int compile(ParserModule *pm)
     }
 
     KlrModule *m = pm->m;
+
+    // after irgen, all generic functions are specialized
+    if (inline_enabled()) {
+        kl_inline(m);
+    }
 
     if (opt_enabled()) {
         kl_optimize(m);

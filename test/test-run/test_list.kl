@@ -54,7 +54,7 @@ func main() {
 // CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple[std/builtin.list[int64]], ' ' str, '\n' str
 // CHECK: ret void
 
-// CHECK-LABEL: @main[9,64]:
+// CHECK-LABEL: @main[9,70]:
 // CHECK: build_intern r0, @list, #0
 // CHECK: move r2, r0
 // CHECK: build_intern r2, @tuple, #1
@@ -101,9 +101,15 @@ func main() {
 // CHECK: loadk r4, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
-// CHECK: load_int_imm r2, ti=0xb, #300
-// CHECK: call flg=0, r0, #1
-// CHECK: data (func_index=0(local))
+// CHECK: load_int_imm r2, ti=0xb, #100
+// CHECK: load_int_imm r3, ti=0xb, #200
+// CHECK: build_intern r0, @list, #2
+// CHECK: move r1, r0
+// CHECK: move r2, r1
+// CHECK: load_int_imm r3, ti=0xb, #300
+// CHECK: call flg=0, #2
+// CHECK: data (func_index=2(imported))
+// CHECK: move r0, r1
 // CHECK: move r2, r0
 // CHECK: build_intern r2, @tuple, #1
 // CHECK: loadk r3, #0

@@ -2904,6 +2904,8 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     if (ann && ann->ident &&
         (!strcmp(ann->ident, "intrinsic") ||
          (!strcmp(ann->ident, "native") && vector_empty(fn->body)))) {
+        // no koala body: it must be called, never inlined
+        ((KlrFunc *)sym->ir_val)->no_inline = 1;
         KlrBuilder bldr;
         klr_builder_end(&bldr, last);
         KlrValue *op = klr_build_unreachable(&bldr);
@@ -4506,6 +4508,7 @@ static void emit_specialized_funcs(ParserState *ps)
             ASSERT(spec_sym && spec_sym->ir_val);
             KlrFunc *new_fn = (KlrFunc *)spec_sym->ir_val;
             klr_specialize_func(origin, new_fn, tp_args, &hooks);
+            new_fn->no_inline = origin->no_inline;
 
             if (dump_no_opt_ir_enabled()) {
                 fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");

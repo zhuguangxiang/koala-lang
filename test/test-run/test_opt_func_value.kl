@@ -1,3 +1,4 @@
+// RUN: koala %s ++ --no-inline | filecheck %s
 // RUN: koala %s | filecheck %s
 
 // An optional function type is written via an alias: `type F = func(int)int`
@@ -6,6 +7,8 @@
 // optional one-element tuple, not an optional function.
 //
 // Covered positions: global variable, local variable, parameter, return value.
+
+import "test_pkg/pkg_generic_method"
 
 type F = func(int)int
 
@@ -70,3 +73,20 @@ var p F = pick(true)!
 print(p(10))
 // CHECK: true
 print(pick(false) == nil)
+// --- 'let' unwrap: the function is propagated into the cast and folded ---
+
+func let_local() int {
+    let g F? = inc
+    let f F = g!
+    return f(50)
+}
+// CHECK: 51
+print(let_local())
+
+func let_ext() int {
+    let g F? = pkg_generic_method.pass
+    let f F = g!
+    return f(60)
+}
+// CHECK: 61
+print(let_ext())

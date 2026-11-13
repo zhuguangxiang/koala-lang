@@ -4561,3 +4561,338 @@ include/runtime/vm_ops.h:85: _eval_frame: Assertion
 
 §92 也是「读到一个不该读的值」，但那个是 SSA 优化把两个变量合并所致，与本节无关：
 本节在**前端就没有任何检查**，两条后端都受影响。
+
+---
+
+## 94. 一元运算符（unary）语义未整改：uint64 `~x` 得 int64、NEG/NOT tag 不一致、JIT 镜像分歧（2026-11-13，待修）
+
+JIT int 类型覆盖设计时排查 unary，确认 §75（unary 仍自动提升）至今未整改，并顺带核出
+若干精确机制问题。本条汇总存档；**JIT 暂不扩展 unary 覆盖**，待语言侧整改后再镜像。
+
+### 94.1 实测症状（2026-11-13，debug 构建，解释器路径）
+
+```kl
+func f(x uint64) uint64 { return ~x }
+func main() {
+    let r = f(uint64(5))
+    print(r, typeof(r))    // 实测：-6 <class 'int64'>
+}
+```
+
+期望按 `number.kl` 声明 `uint64.__bitnot__() uint64`：应为 `18446744073709551610 <class 'uint64'>`。
+实测 payload 是 `-6`（~5 的补码，正确），但**类型谎报为 int64**。与 §75 的 uint8 例子同源。
+
+### 94.2 精确机制（已核实，纠正一处早期误判）
+
+- [ ] **`OP_INT_NOT` 保留源 tag**：`include/runtime/vm_ops.h:2660` `regs[rd].tag = regs[rs].tag;`
+      ——**不是**写 INT64。早期「OP_INT_NOT 写 TAG_INT64」的判断有误，特此纠正。
+- [ ] **`OP_INT_NEG` 强制 INT64**：`include/runtime/vm_ops.h:2674` `regs[rd].tag = TAG_INT64;`
+      ——与 NOT 不对称：NEG 抹掉源 tag，NOT 保留。
+- [ ] **uint64 `~x` 得 int64 的根因不在 isel 选 opcode，而在前端结果类型**：§75 已记录
+      `parse_unary` 把 unary 结果类型硬编码为 int64/uint64/float64，不按 `number.kl` 声明走；
+      `emit_ir_unary` 也不对操作数/结果做 cast。isel 的 `isel_lower_unary_bit_not`
+      （`src/parser/backend/isel.c:1480`）/ `isel_lower_unary_neg`（`:1466`）只按 `TYPE_INT`/`TYPE_FLOAT`
+      分流、不区分符号，是上游硬编码的下游表现，不是独立根因。
+- [ ] **声明侧**：`libs/std/builtin/number.kl` 中 `uint64` 声明 `__bitnot__() uint64`（:717），
+      **未声明 `__neg__`**；窄类型（int8/16/32、uint8/16/32）两者都不声明（§75）。
+
+### 94.3 JIT 侧镜像分歧（待 unary 整改后一并处理）
+
+- [ ] 现 JIT 白名单含 `OP_INT_NEG/NOT`，lowering 统一用 `emit_store_int64`（写死 TAG_INT64）。
+      对 NEG 与解释器一致；**对 NOT 不一致**——解释器保留源 tag（§94.2），JIT 写 INT64。
+- [ ] 当前被 int64-only 测试面掩盖（`bench/jit_diff.kl` 的 `f_unary` 结果随后参与算术，tag 被洗成
+      INT64，差分不可见）。一旦覆盖窄类型/uint 且 `~x` 结果直接被 `typeof`/`print` 观察，分歧即显现。
+- [ ] 处理方向：JIT 的 NOT 改为镜像「保留源 tag」（读 `[rs.tag]` 写回 `[rd.tag]`），
+      或随语言侧 unary 整改统一结果类型后再定。**本阶段不动 JIT 代码。**
+
+### 94.4 待办
+
+- [ ] 语言侧按 §75 整改：窄类型声明 `__neg__`/`__bitnot__`，unary 结果类型与操作数 cast 跟随声明。
+- [ ] 明确 uint64 是否需要 `__neg__`（number.kl 现未声明）；统一 NEG/NOT 的 tag 语义。
+- [ ] 整改后回归 `test/test-run/test_unary.kl`（既有 worklist），并补 uint64 `~x`/`-x` 用例。
+- [ ] JIT 侧按 §94.3 镜像 NOT 的 tag 行为，再纳入 unary 覆盖。
+
+### 94.5 关联条目
+
+- §75（unary 仍自动提升）是本条的上游根因；§63（trait 值上的运算符、移位与 unary）、
+  §47.5（用户类上的 unary 待实现）同属 unary 整改面。
+- 可能与记录在案的「uint64 高位打印为有符号」相关（tag 谎报为 int64 后按有符号打印），待验证。
+
+---
+
+## 95. `--inline` 后 traceback 丢失被内联函数的帧（2026-11-13，已完成 2026-11-14）
+
+### 95.1 现象
+
+```kl
+class Box {
+    var v int? = nil
+    func get() int { return self.v! }
+}
+
+func run() {
+    let b = Box()
+    print(b.get())
+}
+
+run()
+```
+
+- 不加 `--inline`：traceback 为 `line 3, in Box$get` → `line 8, in run` → `line 11, in __init__`。
+- 加 `--inline`：`Box$get` 帧消失，栈顶变成 `line 8, in run`（`print(b.get())`），看不到真正出错的
+  `self.v!`。程序结果不受影响，只影响出错定位。
+
+### 95.2 原因
+
+- `src/parser/opt/inline.c` 克隆被调函数的指令时统一写 `clone->loc = call->loc`，原位置丢失。
+- 运行期只有调用方一帧，`trace_here`（`src/objects/excobj.c`）按 pc 查行号表，只能得到一帧。
+
+### 95.2.1 已做（2026-11-14，简化方案）
+
+- [x] `inline.c` 克隆指令时复制被调函数的原位置（无位置的指令才用调用点位置）。出错行指向被内联函数里的
+      真实行（如 `self.v!`），但显示在调用方的帧里（`line 3, in run`），调用方那一行（`print(b.get())`）
+      不再出现。测试：`test/test-run/test_inline_traceback.kl`。
+- 完整还原帧见 95.3 方案 A（已做）。
+
+### 95.3 方案 A（Go / LLVM 做法，已做 2026-11-14）
+
+被内联的指令保留原位置，并记录「从哪个调用点内联进来」（嵌套内联形成链）；打印 traceback 时把这条
+链展开成多帧，与不内联时一致：
+
+- [x] `include/parser/ir.h`：`KlrInlineSite`（运行期函数名如 `Box$get`、调用点位置、上一层 site），
+      `KlrLocInfo.inlined_at` 指向它。
+- [x] `src/parser/opt/inline.c`：每次内联建一个 site（parent 为调用指令自己的 site）；克隆指令保留原 loc，
+      被调函数里已有的 site 链（先前内联进来的）复制一份，最外层接到新 site 上（`rebase_site`）。
+- [x] `src/parser/backend/cgen.c` / `include/parser/cgen.h`：`KlMachLoc.inlined_at`。
+- [x] `include/common/klc.h` / `src/common/klc.c` / `src/parser/write_klc.c`：klc 末尾（enums 之后）新增两段
+      `ITEM_INLINE_SITE`（函数名、调用点文件/行、parent）和 `ITEM_INLINE_PC`（pc → site，与行号表同样
+      按「pc ≤ 当前 pc 的最大项」查找）。行号表格式不变；旧 `.klc` 读到文件尾数量为 0，**无需升版本号**。
+      模块里没有内联指令时两段为空。`--strip-lineinfo` 时仍写 site（只去掉文件/行），帧以 `[pc N]` 显示。
+- [x] `src/runtime/load_module.c` / `include/runtime/modobj.h` / `src/objects/modobj.c`：读入
+      `inline_sites` / `inline_pcs`。
+- [x] `src/objects/excobj.c` `trace_here`：命中内联 site 时由内向外展开多帧；`Failure in func` 也显示最内层
+      被内联函数名。JIT 也走 `trace_here`，无需改动。
+- [x] 测试：`test/test-run/test_inline_traceback.kl`（方法内联、`apply` + lambda 嵌套内联、`--strip-lineinfo`）。
+      强制开 inline 时 `test_traceback_lineinfo` / `test_traceback_strip_lineinfo` 通过；
+      `test_jit_traceback` / `test_jit_error_void` / `test_jit_shift_error` 只剩 `JIT-DAG`（被测函数被内联，
+      不再单独 JIT 编译，属测试前提变化，见 §98）。
+
+### 95.4 关联
+
+- `--inline` 默认开启前应先完成本条（已完成）。
+
+---
+
+## 96. `--inline` 支持多个基本块的函数（2026-11-13，暂缓）
+
+### 96.1 现状
+
+`src/parser/opt/inline.c` 的 `can_inline` 要求 `func_num_blocks(callee) == 1`：被调函数里只要有
+`if`、`&&`/`||`、`?:`、循环、`!` 等分支，就不内联。get/set 已覆盖，但带判断的小函数
+（如 `if x < 0 { return 0 }; return x`）还不能内联。
+
+### 96.2 做法
+
+- [ ] 在调用点把调用方的 bb 切成两半（前半块 / 后半块）。
+- [ ] 克隆被调函数的全部 bb，参数替换为实参，块之间的边一并克隆。
+- [ ] 每个 `ret` 改为跳到后半块；有返回值时在后半块开头用 phi（或一个 local）汇合返回值。
+- [ ] 规模限制：按总指令数和 bb 数设上限；递归、尾调用不内联。
+- [ ] 测试：if / 短路 / `?:` / 循环 / 多个 return 的函数和方法，`--dump=inline-ir` 加运行结果。
+
+### 96.3 风险
+
+- 引入新的控制流与 phi，可能再暴露 opt / regalloc 的问题（参见本轮修过的死块删除、`new` 寄存器分配）。
+- 依赖 §95：多 bb 函数出错时丢帧更难定位。
+
+---
+
+## 97. `--inline` 扩大泛型支持（2026-11-13，暂缓）
+
+### 97.1 现状（`src/parser/opt/inline.c`）
+
+目前只内联「泛型类的方法 + 接收者类型参数已确定」（如 `Box[int]` 上的方法，`init_type_subst`），且：
+
+- [ ] **指令白名单**：`is_generic_safe_op` 只允许 `get_field` / `set_field` / `local` / `move` / `ret`。
+      泛型类的 get/set 能内联，方法里有运算、调用、`!` 等就放弃。
+- [ ] **类型替换**：`subst_type` 只替换 `T`、`T?` 和 self 类型；`list[T]`、`Box[T]` 这类嵌套泛型类型放弃。
+- [ ] **带类型实参的指令**：`insn->tp_args` 非空（如 `foo[T](x)`）一律不内联。
+- 泛型函数（非方法）有特化版本，特化后是普通函数，走普通路径，不在本条范围。
+
+### 97.2 方向
+
+- [ ] 放开运算类指令：类型替换为具体类型后由 isel 按具体类型选指令，逐个指令验证。
+- [ ] `subst_type` 支持嵌套泛型类型（实例化后的 instance 类型）。
+- [ ] 支持 `tp_args` 的替换。
+- [ ] 测试：`Box[int]` / `Box[str]` / `Box[T?]` 上带运算、调用、`!` 的方法，`--dump=inline-ir` 加运行结果。
+
+### 97.3 风险
+
+- 类型替换出错会产生类型不对的 IR，isel / 运行期才暴露；每放开一类指令都要有对应测试。
+
+---
+
+## 98. `--inline` 默认开启（2026-11-13，已完成 2026-11-14）
+
+- [x] `koala` 默认给 koalac 传 `--inline`；`koala x.kl ++ --no-inline` 关闭。`koalac` 本身仍默认不内联，
+      需显式 `--inline`（直接用 koalac 的 test-ir 等测试不受影响）。
+- [x] 前提 §95（traceback 帧还原）已完成。
+- [x] 测试：经 `koala` dump IR / LIR / code 的测试改为内联后的输出；以 JIT 编译被测函数为前提的
+      `test_jit_*` 的 JIT RUN 行加 `++ --no-inline`；原来「不加 / 加 `--inline`」两条 RUN 的测试改为
+      「`--no-inline` / 默认」。
+- [ ] bench 观察性能收益。
+- 关联：§96（多 bb）、§97（泛型）扩展后，默认开启的影响面会变大，需重新评估。
+
+---
+
+## 99. `--inline` 支持闭包 call 与函数类型变量 call（2026-11-13，部分完成）
+
+### 99.1 现状（实测，`--dump=inline-ir`）
+
+`src/parser/opt/inline.c` 的 `direct_callee` 只认 `call @func`（操作数 0 直接是本模块的 `KlrFunc`），
+经过函数类型变量的间接调用不内联：
+
+```kl
+func add(a int, b int) int { return a + b }
+func run() {
+    let f = add
+    print(f(1, 2))                  // call %f ...：不内联
+    let h = { |x int| x * 2 }
+    print(h(3))                     // call %h ...：不内联
+    print(({ |x int| x - 1 })(8))   // 直接调用的 lambda：已内联为 sub 8, 1
+}
+```
+
+IR 里 `%f` / `%h` 是 `let`（immutable）local，唯一一次定义就是 `move %f, @add` / `move %h, @__lambda$0`，
+callee 在编译期其实已确定。
+
+### 99.2 做法
+
+- [x] **函数类型变量**：`call %v` 中 `%v` 是 immutable local、只有一次定义且为 `move %v, @func`（本模块函数）
+      时，`resolve_func_value` 把 callee 解析为 `@func` 后按直接调用内联。支持 `let f = add`、
+      嵌套 `n()(9)`（内联后的函数体会被重新扫描）、lambda 作为参数传给被内联函数。
+- [x] **闭包**：无捕获 lambda 赋给 `let` 后调用，同上（目前闭包本身不允许捕获）。
+- [x] 内联后 `%v` 不再使用时，`local` + `move @func` 由后续 DCE 删除。
+- [x] 测试：`test/test-run/test_inline_closure.kl`（`var` 函数变量保持 call）。
+- [ ] `var` 变量、多次赋值、函数参数、全局 `let callback = {...}` 的函数值：callee 不确定或未处理，仍为 call。
+- [ ] 将来闭包允许捕获后，内联需处理捕获环境。
+
+### 99.3 关联
+
+- §96（多 bb）、§97（泛型）：解析出 callee 后仍受这两条限制。
+
+---
+
+## 100. JIT v2 路线图（阶段 2–5，延后；v1 保持 TValue 镜像）（2026-11-14，规划）
+
+**作者决定**：v1 JIT 保持 TValue 镜像结构，**不拆箱、不再物化**。下述性能与进阶方案
+（原阶段 2–5）整体归入 **v2**。v1 继续在 TValue 模型内做类型覆盖：int64/uint64/窄整型
+已完成（527/527），float/bool 正在 v1 落地。v1 设计见 `src/jit/DESIGN.md`。
+
+### 100.1 阶段 2 — 性能基础
+
+- [ ] **拆箱**：字节码静态 tag 数据流（每个 def 的 tag 由 opcode 确定）。int/bool 留 GPR、
+      float 留 XMM，仅在逃逸点（call 参数、ret、field/global 写、cast、intf 装箱）物化 TValue。
+- [ ] **机器 RA**：字节码 CFG 重算 liveness + 线性扫描（复用 `src/parser/backend/lsra.c` 的 interval 机制）。
+- [ ] **JIT→JIT 直调**：非自递归调用绕过 helper / `kl_call_code`，可 patch 调用点（W^X 双映射）。
+- [ ] **peephole**：冗余 tag 写、mov 链。
+- 验收：fib/tak/ack/loop-sum ≥5× 解释器；`bench-all.sh` 对标 luajit（开 JIT）；lit 差分绿。
+- 风险：拆箱正确性风险最高，join 点 tag 不一致需保守回退 boxed；lit + 差分兜底。
+
+### 100.2 阶段 3 — 覆盖扩展（按拆箱后模型发射）
+
+- [ ] float64 族（XMM；float16/32/bfloat16 同窄 int 模式，作用于 float64）。
+      注：float/bool 的**基础覆盖已提前在 v1（TValue 镜像）落地**，此处指拆箱后的重新发射。
+- [ ] `get_field`/`set_field`、`get_global`/`set_global`。
+- [ ] `new`/`build_intern`/float↔int cast（C helper）。
+- [ ] `OP_CALL` flag=1（itab）/flag=2（callable）；方法资格（owner=TypeObject，经 `tp->module` 解析）。
+- 验收：`--jit=force` 下 lit 全套通过；stdlib 热点基本全覆盖。
+
+### 100.3 阶段 4 — 工程化
+
+- [ ] CLI `++ --jit=off|on|force`（env 变量保留兼容）。
+- [ ] `test/lit.cfg` 透传 `KOALA_JIT*`，支持套件级 JIT=0/1 双跑差分。
+- [ ] 回边计数 + 阈值调优；OSR（届时重议哨兵 CallFrame）。
+- [ ] 代码缓存回收（LRU/引用计数，`kl_jit_free` 已就位）。
+
+### 100.4 阶段 5 — 可选进阶
+
+- [ ] itab 调用单态 inline cache（guard + 回退解释，静态类型无需 deopt）。
+- [ ] 热点内联（字节码级或 klc 保留 IR）；emitter 复用 AOT（`koalac --native`）。
+- [ ] aarch64；GC 落地时对接 safepoint（帧约定已兼容：call 点活引用在 `cf->locals`）。
+
+### 100.5 已锁定决策
+
+- 哨兵 CallFrame：v1 不加（当前无活路径缺口；OSR/直调时重议）。
+- unary：暂不扩展（见 §94），待语言侧整改后再镜像。
+- 输入层 / 后端：字节码 / 手写 x86-64（不变）。
+- **v1 不拆箱 / 不物化**（本条核心决定）。
+
+### 100.6 关联
+
+- §94（unary 语义未整改）；`src/jit/DESIGN.md`（v1 设计，§5.4 int 类型规则）。
+
+---
+
+## 101. 整数扩宽后 `typeof` 不一致：编译期折叠 vs 运行期（2026-11-14，待讨论）
+
+### 101.1 现象
+
+```kl
+func return_int64(v int8) int64 { return v }
+let r = return_int64(int8(-5))
+print(typeof(r))        // 不内联：int8；--inline：int64
+```
+
+- irgen 对 `return v` 的隐式扩宽生成 `cast %v int8 to int64`。运行期 isel 的 `int_need_cast` 判定扩宽无需转换，
+  值保留 `int8` tag（符合 §5.1「扩宽后的值运行期保留自身类型」）。
+- 内联后 cast 的输入成了常量 `-5 int8`，const-copy-prop 把它折叠成 `-5 int64`，`typeof` 变成 `int64`。
+- 不内联也存在：`int64(int8(-5))`（常量折叠）是 `int64`，`int64(a)`（运行期）是 `int8`。
+
+### 101.2 可选方案（未定）
+
+- [ ] A. 只让 `cast` 指令（显式 `int64(x)`、return 的隐式扩宽）在运行期真正改 tag；传参 / let / list 仍保留窄 tag。
+- [ ] B. 所有隐式扩宽都改为目标类型（`typeof` 恒等于声明类型），需推翻 §5.1 的设计，改动大。
+- [ ] C. 维持 §5.1：const-copy-prop 不折叠运行期无效果的整数扩宽 cast，两条路径都是 `int8`。
+
+### 101.3 测试
+
+- `test/test-run/test_int_mix.kl`：`return_int64` / `return_uint64` 两行原 CHECK 已注释，暂用
+  `{{int8|int64}}` / `{{uint8|uint64}}` 同时接受两种结果；定案后收紧。
+
+---
+
+## 102. float 比较分支取反在 NaN 下语义错误（VM/编译器 bug，JIT 排查中发现）（2026-11-14，待修）
+
+### 102.1 现象
+
+```kl
+func fjmp(a float, b float) int { if a < b { return 1 } return 0 }
+func flt(a float, b float) bool { return a < b }
+func main() {
+    var z = 0.0
+    var nan = z / z
+    print(fjmp(nan, 1.0))   // 实测 1；IEEE 应为 0（NaN < 1.0 为假）
+    print(flt(nan, 1.0))    // false（正确）
+}
+```
+
+### 102.2 根因（已核实字节码）
+
+编译器把 `if a < b { ... }` **取反**下降为 `jmp_float_ge a, b, else`（JIT trace 实测：
+`0000: jmp_float_ge r0, r1, label %bb2`）。NaN 时 `a >= b` 为假 → 不跳 → 落入 then 分支
+`return 1`。即 `if a < b` 被当作 `if !(a >= b)`，而 IEEE 下两者对 NaN 不等价
+（`a < b` 假，`!(a >= b)` 真）。`OP_JMP_FLOAT_GE` 用 C `>=`（NaN 返回假），故取反分支错误；
+bool 求值路径 `OP_FLOAT_LT` 直接用 `<`，正确。
+
+### 102.3 影响与归属
+
+- **属 VM/编译器 bug（解释器固有），非 JIT 引入**。JIT 忠实镜像解释器（JIT=0/1 差分一致），
+  按「VM bug 只报告不在 JIT 侧修」原则，此条仅报告。
+- 影响所有 float 取反分支（`<`/`<=`/`>`/`>=` 互为取反下降时）在 NaN 下的行为。
+- 修复方向（待作者定）：分支下降保留原比较方向并处理 unordered，或取反时用 unordered-aware 条件码。
+
+### 102.4 关联
+
+- JIT float/bool 覆盖（v1）排查中发现。同期发现的 **JIT 侧 `fneg` codegen bug 已修复**
+  （`emit_float_neg` 误用 `emit_alu_reg_reg` 的 `src = src OP dst` 参数语义，符号位未翻转到存回寄存器；
+  差分测试捕获，已改为正确操作数顺序）。

@@ -1,0 +1,91 @@
+// RUN: koala %s | filecheck %s
+
+// blocks become unreachable after const-prop; erasing such a block erases
+// 'move %land' and then the local '%land' defined right before it
+
+func boom() bool {
+    panic("rhs evaluated")
+    return true
+}
+
+func let_and() {
+    var a = 0
+    let f = false
+    while f && boom() {
+        a = a + 1
+    }
+    print("let_and", a)
+}
+
+func var_and() {
+    var a = 0
+    var f = false
+    while f && boom() {
+        a = a + 1
+    }
+    print("var_and", a)
+}
+
+func let_or() {
+    var a = 0
+    let t = true
+    while t || boom() {
+        a = a + 1
+        break
+    }
+    print("let_or", a)
+}
+
+func var_or() {
+    var a = 0
+    var t = true
+    while t || boom() {
+        a = a + 1
+        break
+    }
+    print("var_or", a)
+}
+
+func nested() {
+    var a = 0
+    let f = false
+    while f && (boom() || boom()) {
+        a = a + 1
+    }
+    print("nested", a)
+}
+
+func if_and() {
+    let f = false
+    if f && boom() {
+        print("if_and", 1)
+    } else {
+        print("if_and", 0)
+    }
+}
+
+func if_or() {
+    let t = true
+    if t || boom() {
+        print("if_or", 1)
+    } else {
+        print("if_or", 0)
+    }
+}
+
+let_and()
+var_and()
+let_or()
+var_or()
+nested()
+if_and()
+if_or()
+
+// CHECK: let_and 0
+// CHECK-NEXT: var_and 0
+// CHECK-NEXT: let_or 1
+// CHECK-NEXT: var_or 1
+// CHECK-NEXT: nested 0
+// CHECK-NEXT: if_and 0
+// CHECK-NEXT: if_or 1
+// CHECK-EMPTY:

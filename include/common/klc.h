@@ -25,7 +25,9 @@ extern "C" {
 #define ITEM_CLASS     9
 #define ITEM_LINEINFO  10
 #define ITEM_ENUM      11
-#define ITEM_MAX       12
+#define ITEM_INLINE_SITE 12
+#define ITEM_INLINE_PC   13
+#define ITEM_MAX         14
 
 #define KLC_ENUM_METADATA_VERSION ((0 << 16) | (30 << 8) | 0)
 
@@ -312,6 +314,27 @@ typedef struct _KlcLineInfo {
 } KlcLineInfo;
 
 void klc_add_lineinfo(KlcFile *klc, uint32_t pc, uint32_t line, uint16_t col, char *filename);
+
+/* A call site of an inlined function, for the traceback of the inlined frames */
+typedef struct _KlcInlineSite {
+    // name of the inlined function
+    uint16_t func_index;
+    // location of the call, in the caller, 0 if no lineinfo
+    uint16_t file_index;
+    uint32_t line;
+    // index of the site of the call itself, 0 if the call is in the real function
+    uint32_t parent;
+} KlcInlineSite;
+
+/* The inlined site of the instructions from pc, 0 if not inlined, sorted by pc */
+typedef struct _KlcInlinePc {
+    uint32_t pc;
+    uint32_t site;
+} KlcInlinePc;
+
+uint32_t klc_add_inline_site(KlcFile *klc, char *func_name, char *filename, uint32_t line,
+                             uint32_t parent);
+void klc_add_inline_pc(KlcFile *klc, uint32_t pc, uint32_t site);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,79 @@
+// RUN: koala %s ++ --dump=no-opt-ir,inline-ir | filecheck %s
+
+func subtract(a int, b int) int {
+    return a - b
+}
+
+func inline_caller(left int, right int) int {
+    return subtract(right, left) + 2
+}
+
+class Point {
+    var x int
+    var y int
+    func __init__(a int, b int) { self.x = a; self.y = b }
+    func get_x() int { return self.x }
+    func set_x(v int) { self.x = v }
+    static func add(a int, b int) int { return a + b }
+}
+
+func use_point() int {
+    var p = Point(1, 2)
+    p.set_x(10)
+    return p.get_x() + Point.add(p.y, 3)
+}
+
+print(inline_caller(10, 20))
+print(use_point())
+
+// CHECK: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @inline_caller(%left int64, %right int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @subtract, %right int64, %left int64
+// CHECK-NEXT: %1 = add %0 int64, 2 int64
+// CHECK-NEXT: ret %1 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_point() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_func.Point
+// CHECK-NEXT: call @Point:__init__, %0 test_inline_func.Point, 1 int64, 2 int64
+// CHECK-NEXT: %p = local test_inline_func.Point
+// CHECK-NEXT: move %p test_inline_func.Point, %0 test_inline_func.Point
+// CHECK-NEXT: call @Point:set_x, %p test_inline_func.Point, 10 int64
+// CHECK-NEXT: %1 = call @Point:get_x, %p test_inline_func.Point
+// CHECK-NEXT: %2 = get_field %p test_inline_func.Point, y(index=1)
+// CHECK-NEXT: %3 = call @Point:add, %2 int64, 3 int64
+// CHECK-NEXT: %4 = add %1 int64, %3 int64
+// CHECK-NEXT: ret %4 int64
+// CHECK-NEXT: }
+
+// CHECK: --- IR Dump After inline ---
+// CHECK: func @inline_caller(%left int64, %right int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = sub %right int64, %left int64
+// CHECK-NEXT: %1 = add %0 int64, 2 int64
+// CHECK-NEXT: ret %1 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_point() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_inline_func.Point
+// CHECK-NEXT: set_field %0 test_inline_func.Point, x(index=0), 1 int64
+// CHECK-NEXT: set_field %0 test_inline_func.Point, y(index=1), 2 int64
+// CHECK-NEXT: %p = local test_inline_func.Point
+// CHECK-NEXT: move %p test_inline_func.Point, %0 test_inline_func.Point
+// CHECK-NEXT: set_field %p test_inline_func.Point, x(index=0), 10 int64
+// CHECK-NEXT: %4 = get_field %p test_inline_func.Point, x(index=0)
+// CHECK-NEXT: %5 = get_field %p test_inline_func.Point, y(index=1)
+// CHECK-NEXT: %6 = add %5 int64, 3 int64
+// CHECK-NEXT: %7 = add %4 int64, %6 int64
+// CHECK-NEXT: ret %7 int64
+// CHECK-NEXT: }
+
+// CHECK: func @Point:fmt(%self test_inline_func.Point, %f std/builtin.Formatter) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: unreachable
+// CHECK-NEXT: }
+// CHECK-NEXT: 12
+// CHECK-NEXT: 15

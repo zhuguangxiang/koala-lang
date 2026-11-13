@@ -1133,6 +1133,32 @@ static void write_lineinfos(KlcFile *klc, Vector *vec)
     }
 }
 
+static void write_inline_sites(KlcFile *klc, Vector *vec)
+{
+    write_uint32(klc, vector_size(vec) - 1);
+
+    KlcInlineSite *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        write_uint16(klc, item->func_index);
+        write_uint16(klc, item->file_index);
+        write_uint32(klc, item->line);
+        write_uint32(klc, item->parent);
+    }
+}
+
+static void write_inline_pcs(KlcFile *klc, Vector *vec)
+{
+    write_uint32(klc, vector_size(vec) - 1);
+
+    KlcInlinePc *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        write_uint32(klc, item->pc);
+        write_uint32(klc, item->site);
+    }
+}
+
 static void write_enum_mbrs(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec);
@@ -1185,6 +1211,9 @@ int write_klc_file(KlcFile *klc)
     write_classes(klc, klc->objs + ITEM_CLASS);
     write_lineinfos(klc, klc->objs + ITEM_LINEINFO);
     write_enums(klc, klc->objs + ITEM_ENUM);
+    // appended at the end: a file written before has none
+    write_inline_sites(klc, klc->objs + ITEM_INLINE_SITE);
+    write_inline_pcs(klc, klc->objs + ITEM_INLINE_PC);
 
     fclose(fp);
     return 0;
@@ -1694,6 +1723,35 @@ static void read_lineinfos(KlcFile *klc, Vector *vec)
     }
 }
 
+/* the count is 0 at the end of a file written before the inlined sites */
+static void read_inline_sites(KlcFile *klc, Vector *vec)
+{
+    uint32_t size = 0;
+    read_uint32(klc, &size);
+
+    for (uint32_t i = 0; i < size; i++) {
+        KlcInlineSite *item = mm_alloc_obj(item);
+        vector_push_back(vec, &item);
+        read_uint16(klc, &item->func_index);
+        read_uint16(klc, &item->file_index);
+        read_uint32(klc, &item->line);
+        read_uint32(klc, &item->parent);
+    }
+}
+
+static void read_inline_pcs(KlcFile *klc, Vector *vec)
+{
+    uint32_t size = 0;
+    read_uint32(klc, &size);
+
+    for (uint32_t i = 0; i < size; i++) {
+        KlcInlinePc *item = mm_alloc_obj(item);
+        vector_push_back(vec, &item);
+        read_uint32(klc, &item->pc);
+        read_uint32(klc, &item->site);
+    }
+}
+
 static void read_enum_mbrs(KlcFile *klc, Vector *vec)
 {
     uint16_t member_count = 0;
@@ -1790,6 +1848,8 @@ KlcFile *read_klc_file(char *path, int rt)
             } else {
                 read_enums(klc, klc->objs + ITEM_ENUM);
             }
+            read_inline_sites(klc, klc->objs + ITEM_INLINE_SITE);
+            read_inline_pcs(klc, klc->objs + ITEM_INLINE_PC);
         }
     }
 
@@ -2022,6 +2082,8 @@ void fini_klc_file(KlcFile *klc)
     fini_klasses(klc->objs + ITEM_CLASS);
     fini_lineinfo(klc->objs + ITEM_LINEINFO);
     fini_enums(klc->objs + ITEM_ENUM);
+    fini_lineinfo(klc->objs + ITEM_INLINE_SITE);
+    fini_lineinfo(klc->objs + ITEM_INLINE_PC);
 }
 
 void free_klc_file(KlcFile *klc)
@@ -2081,6 +2143,27 @@ void klc_add_lineinfo(KlcFile *klc, uint32_t pc, uint32_t line, uint16_t col, ch
     info->col = col;
     info->name_index = name_index;
     vector_push_back(vec, &info);
+}
+
+uint32_t klc_add_inline_site(KlcFile *klc, char *func_name, char *filename, uint32_t line,
+                             uint32_t parent)
+{
+    Vector *vec = klc->objs + ITEM_INLINE_SITE;
+    KlcInlineSite *site = mm_alloc_obj(site);
+    site->func_index = klc_add_str(klc, func_name, strlen(func_name));
+    site->file_index = filename ? klc_add_str(klc, filename, strlen(filename)) : 0;
+    site->line = line;
+    site->parent = parent;
+    vector_push_back(vec, &site);
+    return vector_size(vec) - 1;
+}
+
+void klc_add_inline_pc(KlcFile *klc, uint32_t pc, uint32_t site)
+{
+    KlcInlinePc *item = mm_alloc_obj(item);
+    item->pc = pc;
+    item->site = site;
+    vector_push_back(klc->objs + ITEM_INLINE_PC, &item);
 }
 
 #ifdef __cplusplus

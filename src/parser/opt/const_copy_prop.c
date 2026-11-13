@@ -37,6 +37,8 @@ int type_allowed_to_prop(TypeSpec *ts)
 
 static int check_int_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, double *fout)
 {
+    // an inlined cast may take an argument, a variable for the language: an overflow is left to
+    // the runtime (trap or wrap), see the labels below
     TypeSpec *dst_ts = insn->ts;
     int src_width = c->len;
     int64_t val = (int64_t)c->ival;
@@ -82,12 +84,14 @@ static int check_int_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, 
     return 0;
 
 int_neg_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant integer overflow in cast: cannot cast negative int%d to uint%d",
               src_width * 8, dst_ts->int_flt_info.width * 8);
     insn->error = 1;
     return -1;
 
 int_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant integer overflow in cast: cannot cast from int%d to %s%d",
               src_width * 8, dst_ts->int_flt_info.sign ? "int" : "uint",
               dst_ts->int_flt_info.width * 8);
@@ -95,6 +99,7 @@ int_overflow:
     return -1;
 
 float_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant float overflow in cast: cannot cast from int%d to float%d",
               src_width * 8, dst_ts->int_flt_info.width * 8);
     insn->error = 1;
@@ -153,6 +158,7 @@ static int check_uint_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m,
     return 0;
 
 int_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant integer overflow in cast: cannot cast from uint%d to %s%d",
               src_width * 8, dst_ts->int_flt_info.sign ? "int" : "uint",
               dst_ts->int_flt_info.width * 8);
@@ -160,6 +166,7 @@ int_overflow:
     return -1;
 
 float_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant float overflow in cast: cannot cast from uint%d to float%d",
               src_width * 8, dst_ts->int_flt_info.width * 8);
     insn->error = 1;
@@ -225,12 +232,14 @@ static int check_float_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m
     return 0;
 
 float_neg_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant float overflow in cast: cannot cast negative float%d to uint%d",
               src_width * 8, dst_ts->int_flt_info.width * 8);
     insn->error = 1;
     return -1;
 
 int_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant float overflow in cast: cannot cast from float%d to %s%d",
               src_width * 8, dst_ts->int_flt_info.sign ? "int" : "uint",
               dst_ts->int_flt_info.width * 8);
@@ -238,6 +247,7 @@ int_overflow:
     return -1;
 
 float_overflow:
+    if (insn->flags & KLR_INSN_FLAGS_INLINED) return -1;
     klr_error(&insn->loc, "constant float overflow in cast: cannot cast from float%d to float%d",
               src_width * 8, dst_ts->int_flt_info.width * 8);
     insn->error = 1;
@@ -288,6 +298,25 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
     return 0;
 }
 
+/* An integer divisor is a constant zero: an error, even if the dividend is a variable(as Go). An
+   inlined divisor may come from an argument, a variable, so the runtime raises it. Returns 1 if
+   the divisor is a constant zero, which is never folded. */
+static int check_int_div_by_zero(KlrInsn *insn, KlrModule *m)
+{
+    KlrValue *rhs = insn_oper_value(insn, 1);
+    if (!klr_is_const(rhs)) return 0;
+
+    KlrConst *rval = (KlrConst *)rhs;
+    if (rval->which != CONST_INT && rval->which != CONST_UINT) return 0;
+    if (rval->ival != 0) return 0;
+
+    if (!(insn->flags & KLR_INSN_FLAGS_INLINED) && !insn->error) {
+        klr_error(&insn->loc, "division by zero");
+        insn->error = 1;
+    }
+    return 1;
+}
+
 // clang-format off
 
 #define DEFINE_FOLD_BINARY_FUNC(opname, op) \
@@ -305,6 +334,7 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                 int r = int64_##opname##_overflow((int64_t)lval->ival, \
                                                    (int64_t)rval->ival, &res); \
                 if (r) { \
+                    if (insn->flags & KLR_INSN_FLAGS_INLINED) return; \
                     KlrLocInfo *loc = &insn->loc; \
                     klr_error(loc, "signed integer overflow in binary " #opname); \
                     insn->error = 1; \
@@ -318,6 +348,7 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                 uint64_t res; \
                 int r = uint64_##opname##_overflow(lval->ival, rval->ival, &res); \
                 if (r) { \
+                    if (insn->flags & KLR_INSN_FLAGS_INLINED) return; \
                     KlrLocInfo *loc = &insn->loc; \
                     klr_error(loc, "unsigned integer overflow in binary " #opname); \
                     insn->error = 1; \
@@ -379,6 +410,8 @@ static void __fold_binary_mod_insn(KlrInsn *insn, KlrModule *m)
             int64_t res;
             int r = int64_mod_overflow((int64_t)lval->ival, (int64_t)rval->ival, &res);
             if (r) {
+                // an inlined operand may come from an argument: leave the overflow to the runtime
+                if (insn->flags & KLR_INSN_FLAGS_INLINED) return;
                 KlrLocInfo *loc = &insn->loc;
                 klr_error(loc, "signed integer overflow in binary mod");
                 insn->error = 1;
@@ -392,6 +425,8 @@ static void __fold_binary_mod_insn(KlrInsn *insn, KlrModule *m)
             uint64_t res;
             int r = uint64_mod_overflow(lval->ival, rval->ival, &res);
             if (r) {
+                // an inlined operand may come from an argument: leave the overflow to the runtime
+                if (insn->flags & KLR_INSN_FLAGS_INLINED) return;
                 KlrLocInfo *loc = &insn->loc;
                 klr_error(loc, "unsigned integer overflow in binary mod");
                 insn->error = 1;
@@ -432,6 +467,10 @@ static void __fold_binary_shift_insn(KlrInsn *insn, KlrModule *m)
     if (rval->which != CONST_INT && rval->which != CONST_UINT) return;
 
     uint64_t count = (uint64_t)rval->ival;
+    int invalid = (rval->which == CONST_INT && (int64_t)count < 0) || count >= 64;
+    // the count of an inlined shift may come from an argument: leave it to the runtime check
+    if (invalid && (insn->flags & KLR_INSN_FLAGS_INLINED)) return;
+
     if (rval->which == CONST_INT && (int64_t)count < 0) {
         klr_error(&insn->loc, "negative shift count: %" PRId64, (int64_t)count);
         insn->error = 1;
@@ -472,6 +511,37 @@ static void __fold_binary_shift_insn(KlrInsn *insn, KlrModule *m)
     }
 }
 
+// 'x!' with 'x' being nil, e.g. 'cast %x str? to str': keep 'x' so isel lowers it to
+// nil_check, which panics at runtime
+static int is_nil_unwrap(KlrInsn *insn, KlrValue *val)
+{
+    if (insn->code != OP_IR_CAST || !klr_is_const_none(val) || type_is_optional(insn->ts)) {
+        return 0;
+    }
+    if (!(insn->flags & KLR_INSN_FLAGS_NIL_WARNED)) {
+        klr_warn(&insn->loc, "forced unwrap ('!') of a nil value");
+        insn->flags |= KLR_INSN_FLAGS_NIL_WARNED;
+    }
+    return 1;
+}
+
+// replace_all_uses_with, but a nil is not propagated into the unwrapping cast
+static int replace_uses_except_nil_unwrap(KlrValue *val, KlrValue *def)
+{
+    if (!klr_is_const_none(val)) return replace_all_uses_with(val, def);
+
+    int changed = 0;
+    KlrUse *use, *next;
+    use_foreach_safe(use, next, def) {
+        KlrInsn *insn = use->insn;
+        if (insn->code == OP_MOVE && use->oper == &insn->opers[0]) continue;
+        if (is_nil_unwrap(insn, val)) continue;
+        set_operand(use->oper, insn, val);
+        changed = 1;
+    }
+    return changed;
+}
+
 static int do_fold(KlrInsn *insn, KlrFunc *fn)
 {
     KlrModule *m = fn->module;
@@ -497,7 +567,10 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             // value(const/insn) for this local variable
             KlrValue *_val = klr_get_local_var(insn->bb, src);
             if (_val) {
-                if (klr_is_const(_val)) {
+                if (is_nil_unwrap(insn, _val)) {
+                    log_info("forced unwrap of nil:");
+                    log_insn(insn);
+                } else if (klr_is_const(_val)) {
                     // Constant Propagation: Always replace local variables with
                     // known constants to enable further folding.
                     log_info("operand %d-th of insn(/) is const value:", i__);
@@ -546,11 +619,13 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
         }
 
         case OP_BINARY_DIV: {
+            if (check_int_div_by_zero(insn, m)) break;
             __fold_binary_div_insn(insn, m);
             break;
         }
 
         case OP_BINARY_MOD: {
+            if (check_int_div_by_zero(insn, m)) break;
             __fold_binary_mod_insn(insn, m);
             break;
         }
@@ -942,6 +1017,16 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
     return changed;
 }
 
+static int is_number_type(TypeSpec *ts)
+{
+    return ts && (ts->kind == TYPE_INT || ts->kind == TYPE_FLOAT || ts->kind == TYPE_BFLOAT16);
+}
+
+static int is_number_type_change(TypeSpec *dst, TypeSpec *src)
+{
+    return is_number_type(dst) && is_number_type(src) && !type_spec_equal_exact(dst, src);
+}
+
 static int do_propagate(KlrInsn *insn, KlrFunc *fn)
 {
     KlrModule *m = fn->module;
@@ -1003,6 +1088,16 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             }
             if (!(dst->flags & KLR_INSN_FLAGS_CONST)) klr_kill_local_var_copies(insn->bb, dst);
 
+            // a number moved into a local of another number type, e.g. 'let v int64 = int8(-5)'
+            // or an inlined 'int64' parameter given an 'int8': propagating it would change the
+            // type of the operations on the local, e.g. 'v + 1' would be an int8 add
+            if (is_number_type_change(dst->ts, src->ts)) {
+                log_info("no propagation of a number into a local of another number type:");
+                log_insn(insn);
+                if (!(dst->flags & KLR_INSN_FLAGS_CONST)) klr_clear_local_var(insn->bb, dst);
+                break;
+            }
+
             if (dst->flags & KLR_INSN_FLAGS_CONST) {
                 // dst is let variable.
                 if (type_allowed_to_prop(src->ts)) {
@@ -1012,7 +1107,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     // if src is const, this is const propagation, otherwise this is
                     // copy propagation -> let x = (1,2); let z = x -> let z = (1,2) This
                     // handles both Constant Prop (x = 10) and Copy Prop (x = %0).
-                    if (replace_all_uses_with(src, _dst)) {
+                    if (replace_uses_except_nil_unwrap(src, _dst)) {
                         changed = 1;
                     }
                 } else if (klr_is_insn(src)) {
@@ -1215,9 +1310,26 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                             changed = 1;
                         }
                     }
+                } else if (src->ts == insn->ts) {
+                    // 'x!' with 'x' propagated to a non-nil constant, e.g. 'cast 'a' str to str'
+                    log_info("fold unwrapping cast of non-nil const:");
+                    log_insn(insn);
+                    if (replace_all_uses_with(src, (KlrValue *)insn)) {
+                        changed = 1;
+                    }
                 } else {
                     log_info("unsupported const cast for non-int/uint/float constant:");
                     log_insn(insn);
+                }
+            } else if ((insn->error == 0) && (klr_is_func(src) || klr_is_extfunc(src)) &&
+                       type_spec_equal_exact(klr_is_func(src) ? ((KlrFunc *)src)->proto
+                                                              : ((KlrExtFunc *)src)->proto,
+                                             insn->ts)) {
+                // 'f!' with 'f' propagated to a function, which is never nil
+                log_info("fold unwrapping cast of function:");
+                log_insn(insn);
+                if (replace_all_uses_with(src, (KlrValue *)insn)) {
+                    changed = 1;
                 }
             }
             break;

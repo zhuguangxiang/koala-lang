@@ -1,0 +1,222 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+// a trait 'Maybe[T]' with 'T' bound to an optional type: 'T? (T = int?)' is 'int?'
+
+trait Maybe[T] {
+    func get() T?
+    func put(v T)
+}
+
+class Cell[T] : Maybe[T] {
+    var o T?
+    func __init__() { o = nil }
+    pub func get() T? = o
+    pub func put(v T) { o = v }
+}
+
+class IntCell : Maybe[int?] {
+    var o int?
+    func __init__() { o = nil }
+    pub func get() int? = o
+    pub func put(v int?) { o = v }
+}
+
+func read[T](m Maybe[T]) T? = m.get()
+
+func run() {
+    let c = Cell[int?]()
+    let m Maybe[int?] = c
+    print(m.get() ?? 1)
+    m.put(2)
+    print(m.get() ?? 1)
+    print(c.get() ?? 1)
+    m.put(nil)
+    print(m.get())
+
+    let ic = IntCell()
+    let im Maybe[int?] = ic
+    im.put(4)
+    print(im.get() ?? 0)
+    im.put(nil)
+
+    print(read[int?](im) ?? 6)
+    print(read[int?](c) ?? 7)
+
+    let s Maybe[str?] = Cell[str?]()
+    s.put("x")
+    print(s.get() ?? "y")
+}
+
+run()
+
+// CHECK: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: func @IntCell:get(%self test_generic_trait_optional.IntCell) int64? {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = get_field %self test_generic_trait_optional.IntCell, o(index=0)
+// CHECK-NEXT: ret %0 int64?
+// CHECK-NEXT: }
+
+// CHECK: func @run() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_generic_trait_optional.Cell[int64?]
+// CHECK-NEXT: call @Cell:__init__, %0 test_generic_trait_optional.Cell[int64?]
+// CHECK-NEXT: %c = local [immutable] test_generic_trait_optional.Cell[int64?]
+// CHECK-NEXT: move %c test_generic_trait_optional.Cell[int64?], %0 test_generic_trait_optional.Cell[int64?]
+// CHECK-NEXT: %m = local [immutable] test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %1 = make_intf %c test_generic_trait_optional.Cell[int64?] [intf-table-index = 4] to test_generic_trait_optional.Maybe
+// CHECK-NEXT: move %m test_generic_trait_optional.Maybe[int64?], %1 test_generic_trait_optional.Maybe
+// CHECK-NEXT: %2 = call @Maybe:get [intf-index = 0], %m test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %3 = cmpne %2 int64?, nil
+// CHECK-NEXT: branch %3 bool, label %bb1, label %bb2
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb1(coalesce-unwrap):                          ;; preds = %bb0
+// CHECK-NEXT: %4 = cast %2 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %4 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb2(coalesce-rhs):                             ;; preds = %bb0
+// CHECK-NEXT: move %coalesce int64, 1 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK-NEXT: %5 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %5 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: call @Maybe:put [intf-index = 1], %m test_generic_trait_optional.Maybe[int64?], 2 int64
+// CHECK-NEXT: %6 = call @Maybe:get [intf-index = 0], %m test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %7 = cmpne %6 int64?, nil
+// CHECK-NEXT: branch %7 bool, label %bb4, label %bb5
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb4(coalesce-unwrap):                          ;; preds = %bb3
+// CHECK-NEXT: %8 = cast %6 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %8 int64
+// CHECK-NEXT: jmp label %bb6
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb5(coalesce-rhs):                             ;; preds = %bb3
+// CHECK-NEXT: move %coalesce int64, 1 int64
+// CHECK-NEXT: jmp label %bb6
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb6(coalesce-end):                             ;; preds = %bb4, %bb5
+// CHECK-NEXT: %9 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %9 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %10 = call @Cell:get, %c test_generic_trait_optional.Cell[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %11 = cmpne %10 int64?, nil
+// CHECK-NEXT: branch %11 bool, label %bb7, label %bb8
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb7(coalesce-unwrap):                          ;; preds = %bb6
+// CHECK-NEXT: %12 = cast %10 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %12 int64
+// CHECK-NEXT: jmp label %bb9
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb8(coalesce-rhs):                             ;; preds = %bb6
+// CHECK-NEXT: move %coalesce int64, 1 int64
+// CHECK-NEXT: jmp label %bb9
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb9(coalesce-end):                             ;; preds = %bb7, %bb8
+// CHECK-NEXT: %13 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %13 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: call @Maybe:put [intf-index = 1], %m test_generic_trait_optional.Maybe[int64?], nil
+// CHECK-NEXT: %14 = call @Maybe:get [intf-index = 0], %m test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %15 = build_intern @tuple, %14 int64?
+// CHECK-NEXT: call @print [path = 'std/prelude'], %15 std/builtin.tuple[int64?], ' ' str, '\n' str
+// CHECK-NEXT: %16 = new @test_generic_trait_optional.IntCell
+// CHECK-NEXT: call @IntCell:__init__, %16 test_generic_trait_optional.IntCell
+// CHECK-NEXT: %ic = local [immutable] test_generic_trait_optional.IntCell
+// CHECK-NEXT: move %ic test_generic_trait_optional.IntCell, %16 test_generic_trait_optional.IntCell
+// CHECK-NEXT: %im = local [immutable] test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %17 = make_intf %ic test_generic_trait_optional.IntCell [intf-table-index = 4] to test_generic_trait_optional.Maybe
+// CHECK-NEXT: move %im test_generic_trait_optional.Maybe[int64?], %17 test_generic_trait_optional.Maybe
+// CHECK-NEXT: call @Maybe:put [intf-index = 1], %im test_generic_trait_optional.Maybe[int64?], 4 int64
+// CHECK-NEXT: %18 = call @Maybe:get [intf-index = 0], %im test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %19 = cmpne %18 int64?, nil
+// CHECK-NEXT: branch %19 bool, label %bb10, label %bb11
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb10(coalesce-unwrap):                         ;; preds = %bb9
+// CHECK-NEXT: %20 = cast %18 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %20 int64
+// CHECK-NEXT: jmp label %bb12
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb11(coalesce-rhs):                            ;; preds = %bb9
+// CHECK-NEXT: move %coalesce int64, 0 int64
+// CHECK-NEXT: jmp label %bb12
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb12(coalesce-end):                            ;; preds = %bb10, %bb11
+// CHECK-NEXT: %21 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %21 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: call @Maybe:put [intf-index = 1], %im test_generic_trait_optional.Maybe[int64?], nil
+// CHECK-NEXT: %22 = call @read, %im test_generic_trait_optional.Maybe[int64?]
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %23 = cmpne %22 int64?, nil
+// CHECK-NEXT: branch %23 bool, label %bb13, label %bb14
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb13(coalesce-unwrap):                         ;; preds = %bb12
+// CHECK-NEXT: %24 = cast %22 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %24 int64
+// CHECK-NEXT: jmp label %bb15
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb14(coalesce-rhs):                            ;; preds = %bb12
+// CHECK-NEXT: move %coalesce int64, 6 int64
+// CHECK-NEXT: jmp label %bb15
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb15(coalesce-end):                            ;; preds = %bb13, %bb14
+// CHECK-NEXT: %25 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %25 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %26 = make_intf %c test_generic_trait_optional.Cell[int64?] [intf-table-index = 4] to test_generic_trait_optional.Maybe
+// CHECK-NEXT: %27 = call @read, %26 test_generic_trait_optional.Maybe
+// CHECK-NEXT: %coalesce = local int64
+// CHECK-NEXT: %28 = cmpne %27 int64?, nil
+// CHECK-NEXT: branch %28 bool, label %bb16, label %bb17
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb16(coalesce-unwrap):                         ;; preds = %bb15
+// CHECK-NEXT: %29 = cast %27 int64? to int64
+// CHECK-NEXT: move %coalesce int64, %29 int64
+// CHECK-NEXT: jmp label %bb18
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb17(coalesce-rhs):                            ;; preds = %bb15
+// CHECK-NEXT: move %coalesce int64, 7 int64
+// CHECK-NEXT: jmp label %bb18
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb18(coalesce-end):                            ;; preds = %bb16, %bb17
+// CHECK-NEXT: %30 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: call @print [path = 'std/prelude'], %30 std/builtin.tuple[int64], ' ' str, '\n' str
+// CHECK-NEXT: %31 = new @test_generic_trait_optional.Cell[str?]
+// CHECK-NEXT: call @Cell:__init__, %31 test_generic_trait_optional.Cell[str?]
+// CHECK-NEXT: %s = local [immutable] test_generic_trait_optional.Maybe[str?]
+// CHECK-NEXT: %32 = make_intf %31 test_generic_trait_optional.Cell[str?] [intf-table-index = 4] to test_generic_trait_optional.Maybe
+// CHECK-NEXT: move %s test_generic_trait_optional.Maybe[str?], %32 test_generic_trait_optional.Maybe
+// CHECK-NEXT: call @Maybe:put [intf-index = 1], %s test_generic_trait_optional.Maybe[str?], 'x' str
+// CHECK-NEXT: %33 = call @Maybe:get [intf-index = 0], %s test_generic_trait_optional.Maybe[str?]
+// CHECK-NEXT: %coalesce = local str
+// CHECK-NEXT: %34 = cmpne %33 str?, nil
+// CHECK-NEXT: branch %34 bool, label %bb19, label %bb20
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb19(coalesce-unwrap):                         ;; preds = %bb18
+// CHECK-NEXT: %35 = cast %33 str? to str
+// CHECK-NEXT: move %coalesce str, %35 str
+// CHECK-NEXT: jmp label %bb21
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb20(coalesce-rhs):                            ;; preds = %bb18
+// CHECK-NEXT: move %coalesce str, 'y' str
+// CHECK-NEXT: jmp label %bb21
+// CHECK-EMPTY:
+// CHECK-NEXT: %bb21(coalesce-end):                            ;; preds = %bb19, %bb20
+// CHECK-NEXT: %36 = build_intern @tuple, %coalesce str
+// CHECK-NEXT: call @print [path = 'std/prelude'], %36 std/builtin.tuple[str], ' ' str, '\n' str
+// CHECK-NEXT: ret void
+// CHECK-NEXT: }
+
+// CHECK: func @__init__() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: call @run
+// CHECK-NEXT: }
+// CHECK-NEXT: 1
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: nil
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6
+// CHECK-NEXT: 7
+// CHECK-NEXT: x

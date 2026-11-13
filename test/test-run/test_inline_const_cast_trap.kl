@@ -1,0 +1,13 @@
+// RUN: ! koala %s ++ --int-trap 2>&1 | filecheck %s
+
+// In trap mode, an inlined cast of a constant argument that overflows is not a compile-time error
+// and not folded: it traps at runtime as without inlining.
+
+func to_u8(n int8) uint8 { return uint8(n) }
+
+print(to_u8(1))
+print(to_u8(-1))
+
+// CHECK: 1
+// CHECK-NEXT: panic: int8 → uint8 cast overflow (-1 not in [0, 255])
+// CHECK-EMPTY:

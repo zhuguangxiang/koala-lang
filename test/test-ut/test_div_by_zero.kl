@@ -1,0 +1,55 @@
+// RUN: env KOALA_JIT=0 koala --test %s ++ --no-inline
+// RUN: env KOALA_JIT=0 koala --test %s
+
+// An integer divisor that is a variable zero raises "division by zero" at run time, and
+// INT64_MIN / -1 wraps(% -1 is 0). The divisor comes in as an argument so that it is not constant;
+// inlined (by default), the inlined constant divisor is left to the runtime, too.
+// KOALA_JIT=0: the JIT does not check the divisor yet.
+
+import "std/ut"
+
+func div(a int, b int) int {
+    return a / b
+}
+
+func mod(a int, b int) int {
+    return a % b
+}
+
+func udiv(a uint, b uint) uint {
+    return a / b
+}
+
+func umod(a uint, b uint) uint {
+    return a % b
+}
+
+@should_panic("division by zero")
+func test_div_zero() {
+    print(div(6, 0))
+}
+
+@should_panic("division by zero")
+func test_mod_zero() {
+    print(mod(6, 0))
+}
+
+@should_panic("division by zero")
+func test_udiv_zero() {
+    print(udiv(6, 0))
+}
+
+@should_panic("division by zero")
+func test_umod_zero() {
+    print(umod(6, 0))
+}
+
+func test_div_minus_one() {
+    let min = -9223372036854775807 - 1
+    ut.assert(div(min, -1) == min)
+    ut.assert(mod(min, -1) == 0)
+    ut.assert(div(7, -1) == -7)
+    ut.assert(mod(7, -1) == 0)
+    ut.assert(div(7, 2) == 3)
+    ut.assert(mod(7, 2) == 1)
+}

@@ -1,0 +1,47 @@
+// RUN: ! koala %s ++ --test 2>&1 | filecheck %s
+// RUN: ! koala %s ++ --test --strip-lineinfo 2>&1 | filecheck %s --check-prefix=STRIP
+// RUN: ! env KOALA_JIT=1 KOALA_JIT_TRACE=1 koala %s ++ --test --no-inline 2>&1 | filecheck %s --check-prefix=JIT
+
+// JIT-eligible frames (int args, flag=0 calls, int arithmetic) must appear in
+// the panic traceback with the same source location as the interpreter.
+// boom() bails out of the JIT (loadk for the panic string) and raises.
+
+func boom(x int) int {
+    panic("jit boom")
+    return x
+}
+
+func jit_mid(x int) int {
+    return boom(x) + 1
+}
+
+func jit_outer(x int) int {
+    return jit_mid(x) + 2
+}
+
+@test
+func test_jit_traceback() {
+    jit_outer(1)
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 10, in boom
+// CHECK-NEXT:     panic("jit boom")
+// CHECK-NEXT:   File "{{.*}}", line 15, in jit_mid
+// CHECK-NEXT:     return boom(x) + 1
+// CHECK-NEXT:   File "{{.*}}", line 19, in jit_outer
+// CHECK-NEXT:     return jit_mid(x) + 2
+// CHECK-NEXT:   File "{{.*}}", line 24, in test_jit_traceback
+// CHECK-NEXT:     jit_outer(1)
+// CHECK: {{.*}}Error{{.*}}: jit boom
+
+// STRIP: Traceback (most recent call last):
+// STRIP-NEXT:   [pc {{[0-9]+}}] in boom
+// STRIP-NEXT:   [pc {{[0-9]+}}] in jit_mid
+// STRIP-NEXT:   [pc {{[0-9]+}}] in jit_outer
+// STRIP-NEXT:   [pc {{[0-9]+}}] in test_jit_traceback
+// STRIP: {{.*}}Error{{.*}}: jit boom
+
+// JIT-DAG: [jit] func @test_jit_traceback
+// JIT-DAG: [jit] func @jit_outer
+// JIT-DAG: [jit] func @jit_mid

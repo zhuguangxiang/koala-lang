@@ -31,10 +31,14 @@ func main() {
 // CHECK: %k = local [immutable] std/builtin.dict[test_dict_object_key.Key, str]
 // CHECK: ret void
 
-// CHECK-LABEL: @main[0,36]:
+// Key::__init__ is inlined: the objects are created right in the map key slots
+// CHECK-LABEL: @main[0,24]:
+// CHECK: build_intern r1, @list, #0
 // CHECK: build_intern r3, @list, #0
-// CHECK: build_intern r5, @list, #0
 // CHECK: build_intern r0, @map, #4
+// CHECK: new r1, #0
+// CHECK-NEXT: new r3, #0
+// CHECK-NEXT: new r5, #0
 // CHECK: build_intern r0, @map, #6
 
 // CHECK:{[]: hi, []: bye}

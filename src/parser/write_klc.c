@@ -439,6 +439,35 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
     }
 }
 
+static uint32_t add_inline_site(KlcFile *klc, KlrInlineSite *site)
+{
+    if (!site) return 0;
+    if (site->klc_index) return site->klc_index;
+    uint32_t parent = add_inline_site(klc, site->parent);
+    char *filename = strip_lineinfo() ? NULL : site->filename;
+    uint32_t line = filename ? site->loc.line : 0;
+    site->klc_index = klc_add_inline_site(klc, site->func_name, filename, line, parent);
+    return site->klc_index;
+}
+
+/* the inlined sites of the instructions, also with '--strip-lineinfo', for the traceback of the
+   inlined frames */
+static void write_inline_sites(KlMachModule *m, KlcFile *klc)
+{
+    KlMachLoc *loc;
+    int inlined = 0;
+    vector_foreach(loc, &m->locs) {
+        if (loc && loc->inlined_at) inlined = 1;
+    }
+    if (!inlined) return;
+
+    // a site for each lineinfo, the runtime finds it the same way
+    vector_foreach(loc, &m->locs) {
+        if (!loc) continue;
+        klc_add_inline_pc(klc, loc->pc, add_inline_site(klc, loc->inlined_at));
+    }
+}
+
 static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
 {
     klc->num_rt_consts = vector_size(&m->const_pool);
@@ -521,6 +550,8 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
             klc_add_lineinfo(klc, loc->pc, loc->line, loc->col, loc->filename);
         }
     }
+
+    write_inline_sites(m, klc);
 }
 
 void write_to_klc(ParserModule *pm)

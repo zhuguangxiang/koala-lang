@@ -24,9 +24,12 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = local float16        [fixedslot = 0(next)]
-// CHECK: loadk %0 float16, 1.000000 float16
-// CHECK: %1 = call @test_float [const], nargs=1        [fixedslot = 0(next)]
+// test_float(1.0) is inlined and folded to a float32 constant
+// CHECK-NOT: call @test_float
+// CHECK: %0 = local float32        [fixedslot = 0(next)]
+// CHECK-NEXT: loadk %0 float32, 2.500000 float32
+// CHECK: %4 = local float32        [fixedslot = 0(next)]
+// CHECK-NEXT: loadk %4 float32, 1.500000 float32
 
 // CHECK: 2.5
 // CHECK: 1.5

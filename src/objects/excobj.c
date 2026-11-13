@@ -23,6 +23,8 @@ typedef struct _Exception {
     char *msg;
     // failed code object
     CodeObject *co;
+    // failed inlined function, NULL if not inlined
+    char *inlined_func;
     // tracebacks
     Vector tracebacks;
 } Exception;
@@ -113,6 +115,27 @@ static LineInfo *find_lineinfo(Vector *lineinfos, uint32_t pc)
     return result;
 }
 
+/* the inlined site of pc, 0 if not inlined */
+static uint32_t find_inline_site(Vector *inline_pcs, uint32_t pc)
+{
+    InlinePc *items = VECTOR_ITEMS(inline_pcs, InlinePc);
+    int low = 0;
+    int high = vector_size(inline_pcs) - 1;
+    uint32_t site = 0;
+
+    while (low <= high) {
+        int mid = low + (high - low) / 2;
+        if (items[mid].pc <= pc) {
+            site = items[mid].site;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return site;
+}
+
 /**
  * Reads and prints a trimmed line of code from a source file by filename and line number.
  */
@@ -175,7 +198,7 @@ void print_exc_and_free(Object *obj)
     Exception *exc = (Exception *)obj;
 
     CodeObject *code = exc->co;
-    printf("\nFailure in func '%s'\n", code->cs.name);
+    printf("\nFailure in func '%s'\n", exc->inlined_func ? exc->inlined_func : code->cs.name);
 
     print_tracebacks(exc);
 
@@ -190,6 +213,23 @@ void print_exc_and_free(Object *obj)
     kl_free_exc(obj);
 }
 
+static void push_traceback(Exception *exc, char *filename, char *funcname, int lineno, uint32_t pc)
+{
+    TraceBack tb;
+    tb.funcname = funcname;
+    if (filename) {
+        tb.filename = filename;
+        tb.lineno = lineno;
+        tb.pc = 0;
+    } else {
+        // fallback using decimal PC directly mapping to --dump=code output
+        tb.filename = NULL;
+        tb.lineno = 0;
+        tb.pc = pc;
+    }
+    vector_push_back(&exc->tracebacks, &tb);
+}
+
 void trace_here(CallFrame *cf)
 {
     KoalaState *ks = cf->ks;
@@ -201,27 +241,23 @@ void trace_here(CallFrame *cf)
 
     char *func_name = co ? co->cs.name : "<unknown>";
     LineInfo *line = find_lineinfo(&mo->lineinfos, cf->pc);
+    char *filename = line ? line->filename : NULL;
+    int lineno = line ? line->lineno : 0;
 
-    TraceBack tb;
-
-    if (line && line->filename) {
-        // // Print full source location when LineInfo is available
-        // printf("  File \"%s\", line %d, in %s\n", line->filename, line->lineno, func_name);
-        // print_source_line(line->filename, line->lineno);
-        tb.filename = line->filename;
-        tb.funcname = func_name;
-        tb.lineno = line->lineno;
-        tb.pc = 0;
-    } else {
-        // // Fallback using decimal PC directly mapping to --dump=code output
-        // printf("  [pc %04u] in %s\n", cf->pc, func_name);
-        tb.filename = NULL;
-        tb.funcname = func_name;
-        tb.lineno = 0;
-        tb.pc = cf->pc;
+    // an inlined frame for each inlined site, from the innermost
+    uint32_t index = find_inline_site(&mo->inline_pcs, cf->pc);
+    if (index && vector_empty(&exc->tracebacks) && co == exc->co) {
+        exc->inlined_func = VECTOR_ITEMS(&mo->inline_sites, InlineSite)[index - 1].funcname;
+    }
+    while (index) {
+        InlineSite *site = VECTOR_ITEMS(&mo->inline_sites, InlineSite) + index - 1;
+        push_traceback(exc, filename, site->funcname, lineno, cf->pc);
+        filename = site->filename;
+        lineno = site->lineno;
+        index = site->parent;
     }
 
-    vector_push_back(&exc->tracebacks, &tb);
+    push_traceback(exc, filename, func_name, lineno, cf->pc);
 }
 
 #ifdef __cplusplus

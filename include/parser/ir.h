@@ -18,10 +18,25 @@
 extern "C" {
 #endif
 
+/* A call site of an inlined function, for the traceback of the inlined frames */
+typedef struct _KlrInlineSite {
+    // name of the inlined function, as the runtime names it, e.g. 'Box$get'
+    char *func_name;
+    // location of the call, in the caller
+    char *filename;
+    Loc loc;
+    // the site of the call itself, NULL if the call is in the real function
+    struct _KlrInlineSite *parent;
+    // index in the klc file, 0 if not written yet
+    uint32_t klc_index;
+} KlrInlineSite;
+
 /* AST Loc saved in IR for reporting errors */
 typedef struct _KlrLocInfo {
     char *filename;
     Loc loc;
+    // not NULL if the instruction is inlined
+    KlrInlineSite *inlined_at;
 } KlrLocInfo;
 
 typedef enum _KlrValueKind {
@@ -177,6 +192,9 @@ typedef struct _KlrFunc {
 
     /* flag: true if this function contains a tail call instruction */
     int has_tailcall;
+
+    /* flag: true if a @native/@intrinsic function without a koala body, which must be called */
+    int no_inline;
 
     /* max number of call arguments in this function */
     int max_call_args;
@@ -475,6 +493,13 @@ typedef struct _KlrRawOper {
  * Only 'move' and nil-compare may take a 'T?' as is.
  */
 #define KLR_INSN_FLAGS_UNWRAPPED 4
+
+/* The forced unwrap of a nil value is warned, only once. */
+#define KLR_INSN_FLAGS_NIL_WARNED 8
+
+/* Cloned by inlining: a constant operand may come from an argument, which is a variable for the
+ * language, so an invalid constant cast or shift count is left to the runtime, not reported. */
+#define KLR_INSN_FLAGS_INLINED 16
 
 /* instruction */
 typedef struct _KlrInsn {
@@ -1152,6 +1177,13 @@ void klr_build_rpo(KlrFunc *fn);
         printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", (ast)->filename, _loc.line, _loc.col, \
                ##__VA_ARGS__); \
         (m)->errors++; \
+    } while (0)
+
+#define klr_warn(ast, fmt, ...) \
+    do { \
+        Loc _loc = (ast)->loc; \
+        printf(BOLD("%s:%d:%d: ") WARN_PREFIX fmt "\n", (ast)->filename, _loc.line, _loc.col, \
+               ##__VA_ARGS__); \
     } while (0)
 
 KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name);

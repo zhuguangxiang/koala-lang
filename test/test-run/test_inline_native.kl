@@ -1,0 +1,32 @@
+// RUN: koalac %s --cgen --inline --dump=inline-ir | filecheck %s
+
+// a @native func/method with a koala body can be inlined. a @native without a body must be
+// called, never inlined, whatever its IR body is
+
+@native
+func add_native(a int, b int) int {
+    return a + b
+}
+
+@native
+func sub_native(a int, b int) int {}
+
+class Foo {
+    @native
+    func get() int { return 1 }
+
+    @native
+    func put(v int) int {}
+}
+
+func run() {
+    let foo = Foo()
+    print(add_native(1, 2), foo.get())
+    print(sub_native(1, 2), foo.put(1))
+}
+
+// CHECK-LABEL: func @run() <NO-TYPE> {
+// CHECK-NOT:   call @add_native
+// CHECK-NOT:   call @Foo:get
+// CHECK:       call @sub_native [const], 1 int64, 2 int64
+// CHECK-NEXT:  call @Foo:put, %foo test_inline_native.Foo, 1 int64

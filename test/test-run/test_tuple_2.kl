@@ -33,11 +33,9 @@ func main() {
 // CHECK: call @print [path = 'std/prelude'], %5 std/builtin.tuple[int64, str, float64], ' ' str, '\n' str
 // CHECK: ret void
 
-// CHECK-LABEL: @main[1,16]:
+// CHECK-LABEL: @main[1,14]:
 // CHECK: load_int_imm r1, ti=0xb, #30
-// CHECK: call flg=0, r1, #1
-// CHECK: data (func_index=0(local))
-// CHECK: loadk r2, #0
+// CHECK-NEXT: loadk r2, #0
 // CHECK: build_intern r0, @tuple, #2
 // CHECK: seq.get_imm r1, r0, #0
 // CHECK: loadk r0, #3
