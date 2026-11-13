@@ -1,0 +1,107 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline | filecheck %s
+// RUN: koalac %s --opt --tail-call --cgen --dump=code | filecheck %s --check-prefix=CODE
+// Tail calls to functions other than the caller reuse the caller's frame.
+
+// mutual recursion deeper than the frame stack
+func is_even(n int) bool {
+    if n == 0 { return true }
+    return is_odd(n - 1)
+}
+
+func is_odd(n int) bool {
+    if n == 0 { return false }
+    return is_even(n - 1)
+}
+
+print(is_even(1000000), is_odd(1000001))
+
+// arguments read the params they replace: (b, a) and (a + b, a)
+func swap_down(n int, a int, b int) int {
+    if n == 0 { return a * 10 + b }
+    return swap_up(n - 1, b, a)
+}
+
+func swap_up(n int, a int, b int) int {
+    return swap_down(n, a + b, a)
+}
+
+print(swap_down(3, 1, 2))
+
+// a function value
+func twice(x int) int { return x * 2 }
+
+func apply(f func(int) int, x int) int {
+    return f(x)
+}
+
+print(apply(twice, 21))
+
+// a lambda
+func apply_lambda(x int) int {
+    let f = { |x int| x + 100 }
+    return f(x)
+}
+
+print(apply_lambda(5))
+
+// a trait method
+trait Shape {
+    func area() int
+}
+
+class Square : Shape {
+    var side int
+    func __init__(side int) { self.side = side }
+    pub func area() int = self.side * self.side
+}
+
+func area_of(s Shape) int {
+    return s.area()
+}
+
+print(area_of(Square(7)))
+
+// a native function
+func pow2(n int) int {
+    return pow_int64_int64(2, n)
+}
+
+print(pow2(10))
+
+// a method of a class
+class Counter {
+    var n int
+    func __init__() { self.n = 0 }
+    pub func down(k int) int {
+        if k == 0 { return self.n }
+        self.n = self.n + 1
+        return self.down2(k - 1)
+    }
+    pub func down2(k int) int {
+        return self.down(k)
+    }
+}
+
+print(Counter().down(500000))
+
+// CHECK: true true
+// CHECK: 72
+// CHECK: 42
+// CHECK: 105
+// CHECK: 49
+// CHECK: 1024
+// CHECK: 500000
+
+// CODE-LABEL: @is_even[
+// CODE: {{[0-9A-F]+}} tail_call flg=8, #1
+// CODE-NEXT: data (func_index={{[0-9]+}}(local))
+// CODE-LABEL: @apply[
+// CODE: {{[0-9A-F]+}} tail_call flg=10, #1
+// CODE-NEXT: data (callee_reg=0)
+// CODE-LABEL: @area_of[
+// CODE: {{[0-9A-F]+}} tail_call flg=9, #1
+// CODE-NEXT: data (intf_slot=0)
+// CODE-LABEL: @pow2[
+// CODE: {{[0-9A-F]+}} tail_call flg=8, #2
+// CODE-NEXT: data (func_index={{[0-9]+}}(imported))

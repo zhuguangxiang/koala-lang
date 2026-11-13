@@ -5174,3 +5174,33 @@ cgen 的窥孔优化保持不变，优化都在 LSRA 里做。
 - SSA 路径（`--ssa`）。
 - 区间拆分 / spill：VM 有 256 个寄存器，超出直接报错（105.1）。
 - `src/parser/backend/simple_reg_alloc.c` 暂不在构建里，**保留**：留给以后不走 opt 的 debug 版本用（简单分配，不依赖活跃区间分析）。
+
+## 106. 尾调用扩展到其他函数（2026-11-14，已完成）
+
+以前 `tail_call` 只用于调用自身。现在尾位置（`%v = call ..; ret %v`）的调用都生成 `tail_call`：
+
+- **编码**：沿用 `OP_TAIL_CALL`。flag 0 仍是自身尾调用（单字、无 payload）；`8 | f` 表示调用其他函数，f 和后面的 payload 与 `OP_CALL` 相同（0 函数下标，含导入函数；1 trait 方法槽；2 函数值寄存器）。
+- **isel**：自身尾调用照旧（参数并行赋值到参数寄存器，置 `has_tailcall`）；其他函数按普通调用放参数到调用槽。`liveness.c` 只为自身尾调用延长参数区间。
+- **VM**：解析被调者同 `OP_CALL`；native 直接调用后返回；koala 函数把参数移到当前帧开头，换 code/module/nlocals 后继续执行（跨模块走 `ext_tailcall`），被调者已 JIT 则直接执行机器码。
+- **traceback**：帧记录被复用的次数，打印为 `(... N tail calls ...)`（同 Lua）。
+- **JIT**：只编译 flag 0；带其他尾调用的函数留在解释器（`src/jit/jit.c` 的唯一改动）。
+- **测试**：`test/test-run/test_tailcall_other.kl`（互递归 1e6 层、参数互换、函数值、lambda、trait 方法、native、方法互调、字节码编码）、`test_tailcall_import.kl`（导入函数）、`test_tailcall_traceback.kl`。
+- **已知**：JIT 下整数除零直接 SIGFPE，与尾调用无关，见 §107。
+
+## 107. JIT 下整数除零直接 SIGFPE（2026-11-14，待修，JIT 范围）
+
+```koala
+func boom(x int) int {
+    return 10 / x
+}
+
+func main() {
+    print(boom(0))
+}
+```
+
+- `koala` 默认（JIT 开）：进程收到 `Floating point exception (core dumped)`，退出码 136，没有 traceback。
+- `KOALA_JIT=0`：正常报 `Error: division by zero` 并打印 traceback（解释器路径已按 §63.3 修好）。
+- **原因**：`src/jit/jit.c` 的 `emit_div_rrr`（`OP_INT_DIV` / `OP_INT_MOD` / `OP_UINT_DIV` / `OP_UINT_MOD`）直接发 `cqo + idiv` / `div`，除数为 0 时没有检查；`INT64_MIN / -1` 同样会触发 `#DE`（解释器回绕为 `INT64_MIN`）。`emit_div_rrimm` 的立即数为 0 / -1 时也要确认。
+- **修法建议**：除法前比较除数，为 0 时跳到慢路径（调用 runtime helper 抛 `division by zero`，或 bail 回解释器）；有符号再判断 `rs == INT64_MIN && rt == -1`，结果取 `INT64_MIN`（取模为 0），与解释器一致。
+- **测试**：修好后 `test/test-run/test_tailcall_traceback.kl` 可以去掉 `KOALA_JIT=0`，并补一个 JIT 下除零 / `INT64_MIN / -1` 的回归测试。

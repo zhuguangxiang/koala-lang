@@ -253,7 +253,9 @@ void klr_build_live_ranges(KlrLSRAContext *ctx)
         blocks[bb->index] = bb;
         KlrInsn *insn;
         insn_foreach(insn, bb) {
-            if (insn->code == OP_TAIL_CALL) tailcall_pos = MAX(tailcall_pos, insn->pos);
+            // only a self tail call writes the params; another one passes call slots
+            if (insn->code == OP_TAIL_CALL && insn_oper_value(insn, 0) == (KlrValue *)fn)
+                tailcall_pos = MAX(tailcall_pos, insn->pos);
             if (insn->fixedslot) continue;
             ctx->vals[id] = (KlrValue *)insn;
             insn->tag = id++;

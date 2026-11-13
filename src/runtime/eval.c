@@ -86,6 +86,20 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
 }
 static TValue kl_call_cfunc(Object *code, TValue *args, int nargs);
 
+/* JIT entry guard; defined with the other JIT runtime helpers at the end of file. */
+static inline int jit_params_ok(TValue *regs, int nargs);
+
+/* baseline JIT: count a call and compile the code once when hot */
+static inline void jit_count_call(CodeObject *co)
+{
+    if (!co->jit && !co->jit_tried) {
+        if (++co->jit_hotness >= kl_jit_threshold()) {
+            co->jit = kl_jit_compile(co);
+            co->jit_tried = 1;
+        }
+    }
+}
+
 TValue do_print(TValue *args, int nargs);
 
 /* clang-format off */
@@ -258,6 +272,7 @@ static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 
     cf->nlocals = code->cs.nlocals;
 
+    cf->tailcalls = 0;
     cf->locals = ks->stack_top;
     ks->stack_top += cf->nlocals;
     ASSERT(ks->stack_top <= ks->stack_base + ks->stack_size);
@@ -275,9 +290,6 @@ static void _pop_frame(KoalaState *ks, CallFrame *cf)
     // mm_free(cf);
 }
 
-/* JIT entry guard; defined with the other JIT runtime helpers at the end of file. */
-static inline int jit_params_ok(TValue *regs, int nargs);
-
 TValue kl_call_code(Object *code, TValue *args, int nargs)
 {
     KoalaState *ks = __ks();
@@ -294,12 +306,7 @@ TValue kl_call_code(Object *code, TValue *args, int nargs)
     memcpy(cf->locals, args, sizeof(TValue) * nargs);
 
     /* baseline JIT: compile once when hot, then dispatch to native code */
-    if (!co->jit && !co->jit_tried) {
-        if (++co->jit_hotness >= kl_jit_threshold()) {
-            co->jit = kl_jit_compile(co);
-            co->jit_tried = 1;
-        }
-    }
+    jit_count_call(co);
 
     TValue result;
     if (co->jit && jit_params_ok(cf->locals, nargs)) {

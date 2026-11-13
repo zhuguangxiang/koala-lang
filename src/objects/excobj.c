@@ -180,7 +180,10 @@ static void print_tracebacks(Exception *exc)
 
     TraceBack *tb;
     vector_foreach_ptr(tb, &exc->tracebacks) {
-        if (tb->filename) {
+        if (!tb->funcname) {
+            // a frame reused by tail calls to other functions (as Lua does)
+            printf("  (... %d tail call%s ...)\n", tb->lineno, tb->lineno > 1 ? "s" : "");
+        } else if (tb->filename) {
             printf("  File \"%s\", line %d, in %s\n", tb->filename, tb->lineno, tb->funcname);
             print_source_line(tb->filename, tb->lineno);
         } else {
@@ -258,6 +261,11 @@ void trace_here(CallFrame *cf)
     }
 
     push_traceback(exc, filename, func_name, lineno, cf->pc);
+
+    if (cf->tailcalls > 0) {
+        TraceBack tb = { NULL, NULL, cf->tailcalls, 0 };
+        vector_push_back(&exc->tracebacks, &tb);
+    }
 }
 
 #ifdef __cplusplus

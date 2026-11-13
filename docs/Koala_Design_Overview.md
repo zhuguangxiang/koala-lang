@@ -1234,7 +1234,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   - **调用参数**：调用实参与结果放在 `nlocals` 之后的固定槽（`max_call_args`），尾调用实参直接写参数槽。
   - **上限**：寄存器操作数是 8 位，`nlocals + max_call_args > 256` 时编译报错，不再断言。
   - **simple regalloc**（`src/parser/backend/simple_reg_alloc.c`）：暂不在构建里，保留给以后不走 opt 的 debug 版本。
-- **IR 级另有数招**（均带编译开关与回归测试）：**指令融合**（--fusion，`let c = x<10; if c` 融合为 `jmp_int_lt_imm` 比较跳转合一；c 被多处使用则不融合、物化为 `int.lt_imm`）；**尾调用优化**（--tail-call，尾位置生成 `tail_call` 指令复用当前帧——`sum(100000000, 0)` 深递归不爆栈）；**滑动窗口调用**（call 结果直接被消费时省去中间 local，函数头记录 `max_call_args`）；**窥孔优化**（peephole）。
+- **IR 级另有数招**（均带编译开关与回归测试）：**指令融合**（--fusion，`let c = x<10; if c` 融合为 `jmp_int_lt_imm` 比较跳转合一；c 被多处使用则不融合、物化为 `int.lt_imm`）；**尾调用优化**（--tail-call，尾位置生成 `tail_call` 指令复用当前帧——`sum(100000000, 0)` 深递归不爆栈；被调者不限于自身：同模块函数/方法、导入函数、函数值、trait 方法、native 函数都可以，traceback 在被复用的帧下显示 `(... N tail calls ...)`；JIT 只编译自身尾调用）；**滑动窗口调用**（call 结果直接被消费时省去中间 local，函数头记录 `max_call_args`）；**窥孔优化**（peephole）。
 
 ### 11.4 与语言设计的呼应
 

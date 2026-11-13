@@ -1345,6 +1345,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 vector_push_back(&m->fixups, &mi);
                 mi->fixup_flag = KL_MACH_FIXUP_INTFID;
                 mi->opers[0] = 2;
+                if (insn->code == OP_TAIL_CALL) mi->opers[0] |= 8;
                 break;
             }
             void *ptr = get_mach_oper_ptr(insn, op2);
@@ -1397,9 +1398,9 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 mi->target_fn = fn->mach;
                 ASSERT(fn->mach != NULL);
                 log_info("  call target: %s(local)", fn->name);
-                if (insn->code == OP_CALL) {
-                    // insert 4 bytes: rel32 for call, tail-call needn't insert rel32, because
-                    // tail-call always call self.
+                if (insn->code == OP_CALL || ptr != (void *)insn->bb->func) {
+                    // insert 4 bytes: rel32 for call; a self tail-call needn't, it jumps
+                    // back to the start of the function.
                     KlMachBlock *mb = mi->bb;
                     KlMachInsn *data = build_data_mach_insn(mb);
                     vector_push_back(&mb->insns, &data);
@@ -1408,6 +1409,8 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 }
                 mi->opers[0] = 0; // set flag for local function
             }
+            // a tail call to another function: 8 | the flag of the call, with its payload
+            if (insn->code == OP_TAIL_CALL && ptr != (void *)insn->bb->func) mi->opers[0] |= 8;
             break;
         }
 
@@ -2065,7 +2068,7 @@ static void patch_fixups(KlMachModule *m)
     CodeBuffer *codes = &m->codes;
     KlMachInsn *mi;
     vector_foreach(mi, &m->fixups) {
-        if (mach_insn_is(mi, OP_CALL)) {
+        if (mach_insn_is(mi, OP_CALL) || mach_insn_is(mi, OP_TAIL_CALL)) {
             if (mi->fixup_flag == KL_MACH_FIXUP_REL32) {
                 ASSERT(mi->format == FORMAT_CALL);
                 ASSERT(mi->target_fn);

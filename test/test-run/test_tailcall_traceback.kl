@@ -1,0 +1,25 @@
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// A frame reused by tail calls to other functions shows how many calls it lost.
+
+func boom(x int) int {
+    return 10 / x
+}
+
+func mid(x int) int {
+    return boom(x - 1)
+}
+
+func top(x int) int {
+    return mid(x)
+}
+
+func main() {
+    print(top(1))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_tailcall_traceback.kl", line 5, in boom
+// CHECK-NEXT:     return 10 / x
+// CHECK-NEXT:   (... 2 tail calls ...)
+// CHECK-NEXT:   File "{{.*}}test_tailcall_traceback.kl", line 17, in main
+// CHECK: Error: division by zero

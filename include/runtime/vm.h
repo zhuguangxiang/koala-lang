@@ -38,6 +38,9 @@ typedef struct _CallFrame {
 
     /* locals */
     TValue *locals;
+
+    /* frames replaced by tail calls to other functions, for traceback */
+    int tailcalls;
 } CallFrame;
 
 /* per koala thread */

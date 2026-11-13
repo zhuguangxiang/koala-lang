@@ -1321,7 +1321,14 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             /* Self tail recursion (single word, no payload): the new args are
              * already in the register file and the frame is reused, so jump back
              * to the body start (bytecode pc 0, after the prologue). Terminator,
-             * no fallthrough — mirrors the interpreter resetting pc to start_pc. */
+             * no fallthrough — mirrors the interpreter resetting pc to start_pc.
+             * A tail call to another function (flag 8|x, with payload) bails. */
+            if (I_VAL(insn, 20, 4) != 0) {
+                j->failed = 1;
+                j->fail_pc = pc;
+                j->fail_insn = insn;
+                return 2;
+            }
             emit_jump(j, -1, 0);
             break;
 

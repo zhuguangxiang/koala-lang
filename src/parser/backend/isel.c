@@ -696,7 +696,11 @@ static void lower_tailcall_extra_argument(KlrValue *arg, int index, KlrFunc *fn,
         index);
 }
 
-static int is_tailcall(KlrInsn *insn, KlrFunc *cur_fn)
+/*
+ * `%v = call ..; ret %v`: the call is in tail position, so its frame can replace
+ * the caller's. The `ret` is erased.
+ */
+static int is_tailcall(KlrInsn *insn)
 {
     KlrBasicBlock *bb = insn->bb;
     KlrInsn *next = insn_next(insn, bb);
@@ -704,9 +708,6 @@ static int is_tailcall(KlrInsn *insn, KlrFunc *cur_fn)
 
     KlrValue *val = insn_oper_value(next, 0);
     if (val != (KlrValue *)insn) return 0;
-
-    KlrValue *fn = insn_oper_value(insn, 0);
-    if (fn != (KlrValue *)cur_fn) return 0;
 
     ASSERT(insn_last(bb) == next);
     klr_erase_insn(next);
@@ -716,8 +717,9 @@ static int is_tailcall(KlrInsn *insn, KlrFunc *cur_fn)
 static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *fn_val = insn_oper_value(insn, 0);
+    int tail = tail_call_enabled() && is_tailcall(insn);
 
-    if (tail_call_enabled() && is_tailcall(insn, fn)) {
+    if (tail && fn_val == (KlrValue *)fn) {
         fn->has_tailcall = 1;
         KlrInsn *last_local = NULL;
         int nargs = insn->num_opers;
@@ -759,7 +761,9 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
         clear_operand_at(insn, i);
     }
 
-    insn->code = OP_CALL;
+    // a tail call to another function passes its arguments as a call does;
+    // the VM moves them to the start of the reused frame
+    insn->code = tail ? OP_TAIL_CALL : OP_CALL;
     insn->num_opers = 1;
     insn->num_args = nargs - 1;
     ASSERT(insn->num_args >= 0);

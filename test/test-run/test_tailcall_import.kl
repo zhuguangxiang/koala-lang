@@ -1,0 +1,29 @@
+// RUN: mkdir -p %t.dir && koalac %S/../inputs/function_values_dep.kl --cgen --write-klc --package-name=function_values_dep -o %t.dir/function_values_dep.klc
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koalac %s --opt --tail-call --cgen --write-klc -o %t.dir/main.klc --dump=code | filecheck %s --check-prefix=CODE
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_JIT=0 KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// A tail call to a function of another module switches the module of the reused frame.
+
+import "function_values_dep"
+
+func next(x int) int {
+    return function_values_dep.increment(x)
+}
+
+// back in this module after the imported callee runs in the reused frame
+func step(n int, acc int) int {
+    if n == 0 { return acc }
+    return step(n - 1, next(acc))
+}
+
+func main() {
+    print(next(41))
+    print(step(100000, 0))
+}
+
+// CHECK: 42
+// CHECK-NEXT: 100000
+
+// CODE-LABEL: @next[
+// CODE: {{[0-9A-F]+}} tail_call flg=8, #1
+// CODE-NEXT: data (func_index={{[0-9]+}}(imported))

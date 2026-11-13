@@ -166,7 +166,8 @@ void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_
                 printf("flg=%d, ", flag);
                 if (Rx != 0xFFFu) printf("r%d, ", Rx);
                 printf("#%d", nargs);
-                if (opcode != OP_TAIL_CALL) {
+                if (opcode != OP_TAIL_CALL || flag != 0) {
+                    flag &= 7; // a tail call to another function sets 8
                     pc++; // skip the next FORMAT_DATA entry
                     insn = *(uint32_t *)(code + pc * 4);
                     printf("\n%04zu:  %08X   data ", pc, insn);

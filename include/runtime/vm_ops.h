@@ -522,16 +522,85 @@ TARGET(OP_CALL) {
 }
 
 TARGET(OP_TAIL_CALL) {
+    int flg = I_VAL(inst, 20, 4);
 #ifndef NDEBUG
     rd = I_VAL(inst, 8, 12);
-    int flg = I_VAL(inst, 20, 4);
 #endif
-
     ASSERT(rd == 0xFFFu); // tail call does not have return value
-    ASSERT(flg == 0);
 
-    pc = codes + code->cs.start_pc;
-    goto main_loop;
+    if (flg == 0) {
+        // self: the arguments are already in the parameters
+        pc = codes + code->cs.start_pc;
+        goto main_loop;
+    }
+
+    // another function: flg = 8 | the flag of OP_CALL, followed by its payload
+    imm = I_VAL(inst, 0, 8);
+    SAVE_PC();
+
+    Object *fn;
+    TValue *args = ks->stack_top;
+    ASSERT(args == regs + cf->nlocals);
+
+    if ((flg & 7) == 1) {
+        uint32_t index = *pc++;
+        ASSERT(is_intf(args));
+        IntfTable *itab = args->itab;
+        ASSERT(index < itab->num_funcs);
+        fn = itab->methods[index];
+    } else if ((flg & 7) == 2) {
+        uint32_t callee_reg = *pc++;
+#ifndef NDEBUG
+        if (callee_reg >= max_regs) {
+            raise_exc_str("invalid function callee register");
+            goto error;
+        }
+#endif
+        TValue *callee = regs + callee_reg;
+        if (!is_ref(callee) || !callee->obj || (!IS_CODE(callee->obj) && !IS_CFUNC(callee->obj))) {
+            raise_exc_str("function value is not callable");
+            goto error;
+        }
+        fn = callee->obj;
+    } else {
+        ASSERT((flg & 7) == 0);
+        int32_t local_index = *(int32_t *)pc++;
+        ASSERT(local_index >= 0 && local_index < entry_size);
+        fn = ENTRY(local_index);
+    }
+
+    ASSERT(fn != NULL);
+
+    if (IS_CFUNC(fn)) {
+        // a native function has no frame to reuse: call it and return its result
+        result = kl_call_cfunc(fn, args, imm);
+        if (is_error(&result)) goto error;
+        goto done;
+    }
+
+    ASSERT(IS_CODE(fn));
+    CodeObject *callee_co = (CodeObject *)fn;
+
+    // reuse this frame: the arguments become the callee's first locals
+    memmove(regs, args, sizeof(TValue) * imm);
+    Object *old_module = cf->module;
+    cf->code = callee_co;
+    Object *owner = callee_co->owner;
+    cf->module = IS_MODULE(owner) ? owner : ((TypeObject *)owner)->module;
+    cf->nlocals = callee_co->cs.nlocals;
+    cf->tailcalls++;
+    ks->stack_top = regs + cf->nlocals;
+    ASSERT(ks->stack_top <= ks->stack_base + ks->stack_size);
+
+    jit_count_call(callee_co);
+    if (callee_co->jit && jit_params_ok(regs, imm)) {
+        // the frame is linked already; an error has been traced by the helper
+        callee_co->jit->fn(regs, &result);
+        goto done;
+    }
+
+    if (cf->module != old_module) goto ext_tailcall;
+    goto local_tailcall;
 }
 
 TARGET(OP_SET_FIELD) {

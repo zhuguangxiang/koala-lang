@@ -1532,35 +1532,30 @@ X(OP_JMP_FLOAT_GE, FORMAT_RROff, "jmp_float_ge")
 X(OP_CALL, FORMAT_CALL, "call")
 
 /**
- * OP_TAIL_CALL — tail-call self (only call the current function)
+ * OP_TAIL_CALL — tail call: the callee reuses the current stack frame
  *
  * FORMAT_CALL:
  *     | op:8 | flag:4 | A(ret-reg):12 | B(nargs):8 |
  *
  * Encoding rules:
- *     - flag must be 0
  *     - A(ret-reg) must be 0xFFF (no return value)
- *     - B(nargs) is optional debug info; VM does not use it
- *
- * Details:
- *     OP_TAIL_CALL performs a tail-recursive call to the *current* function.
- *     It cannot be used for:
- *         - external calls
- *         - interface method calls
- *         - calling other functions in the same module
- *
- *     No payload word follows this instruction.
- *     The instruction is a single 32-bit word.
+ *     - flag == 0: a call to the current function (self tail recursion);
+ *       B(nargs) is debug info only and no payload word follows
+ *     - flag == 8 | f: a call to another function; f and the payload word that
+ *       follows are those of OP_CALL (0 = function index, local or imported,
+ *       1 = interface slot, 2 = callee register), and B(nargs) arguments are
+ *       in the call slots as for OP_CALL
  *
  * VM behavior:
- *     - reuses the current stack frame (no new frame is created)
- *     - does not return to the caller
- *     - jumps to the beginning of the current function body
- *     - acts as a terminator instruction (no fallthrough)
- *
- * Summary:
- *     OP_TAIL_CALL is a compact, single-word terminator instruction
- *     dedicated to self tail recursion elimination.
+ *     - flag 0: the new args are already in the param registers; jumps to the
+ *       beginning of the current function body
+ *     - flag 8|f: resolves the callee as OP_CALL does; a native callee is called
+ *       and its result returned; a koala callee gets the arguments moved to the
+ *       start of the current frame, which then runs the callee (switching module
+ *       if needed). The frame counts these calls, and the traceback shows
+ *       "(... N tail calls ...)" under it (as Lua does).
+ *     - does not return to the caller; a terminator instruction (no fallthrough)
+ *     - the JIT compiles only flag 0; a function with flag 8|f stays interpreted
  */
 X(OP_TAIL_CALL, FORMAT_CALL, "tail_call")
 
