@@ -20,6 +20,7 @@ typedef struct KoalaOptions {
     int test_mode;               // --test
     int strip_lineinfo;          // --strip-lineinfo
     int disable_inline;          // --no-inline
+    int enable_domtree;          // --domtree
     char *dump;                  // --dump=<list>
     const char *output;          // -o <file>
     const char *input;           // input file

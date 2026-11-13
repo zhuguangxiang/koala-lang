@@ -21,6 +21,8 @@ endfunction()
 
 common_utest(ring)
 common_utest(utf8)
+common_utest(dominance)
+common_utest(gvn)
 
 # re_core is compiled into the test directly: it lives in the koala/re package
 # and has no build target of its own (packages are built by wombat).

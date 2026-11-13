@@ -10,6 +10,7 @@
 #include "atom.h"
 #include "cgen.h"
 #include "cmd.h"
+#include "domtree.h"
 #include "isel.h"
 #include "log.h"
 #include "lsra.h"
@@ -31,6 +32,7 @@ static void usage(void)
         "  --irgen              Enable IR generation stage.\n"
         "  --ssa                Enable SSA construction stage.\n"
         "  --inline             Inline small functions of the current module.\n"
+        "  --domtree            Build the dominator tree.\n"
         "  --opt                Enable optimization passes (default).\n"
         "  --isel               Enable instruction selection stage.\n"
         "  --lsra               Enable linear scan register allocator.\n"
@@ -47,6 +49,7 @@ static void usage(void)
         "                           inline-ir - IR after generic specialization and inlining\n"
         "                           ssa       - dump SSA IR\n"
         "                           ir        - optimized IR (after opt passes)\n"
+        "                           domtree   - dominator tree info\n"
         "                           lir       - LIR (after isel/regalloc)\n"
         "                           vreg      - dump virtual register info\n"
         "                           code      - codegen output\n"
@@ -121,6 +124,8 @@ static DumpFlags parse_dump_flags(const char *s)
             flags |= DUMP_SSA_IR;
         else if (str_equal(tok, "ir"))
             flags |= DUMP_IR;
+        else if (str_equal(tok, "domtree"))
+            flags |= DUMP_DOMTREE;
         else if (str_equal(tok, "lir"))
             flags |= DUMP_LIR;
         else if (str_equal(tok, "vreg"))
@@ -172,6 +177,7 @@ static void parse_command(int argc, char *argv[])
         { "ssa", no_argument, 0, 14 },
         { "strip-lineinfo", no_argument, 0, 15 },
         { "inline", no_argument, 0, 16 },
+        { "domtree", no_argument, 0, 17 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -262,6 +268,10 @@ static void parse_command(int argc, char *argv[])
 
             case 16:
                 cmd_opt.enable_inline = 1;
+                break;
+
+            case 17:
+                cmd_opt.enable_domtree = 1;
                 break;
 
             case 'o': {
@@ -574,6 +584,10 @@ static int compile(ParserModule *pm)
 
     if (ssa_enabled()) {
         kl_ssa_opt(m);
+    }
+
+    if (domtree_enabled()) {
+        kl_domtree(m);
     }
 
     if (isel_enabled()) {

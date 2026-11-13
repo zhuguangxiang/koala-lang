@@ -33,6 +33,7 @@ set(PARSER_SRC
     parser/klr/insn.c
     parser/klr/printer.c
     parser/klr/ssa.c
+    parser/klr/domtree.c
     parser/backend/isel.c
     parser/backend/lsra.c
     parser/backend/lower_operands.c
@@ -67,6 +68,9 @@ set(COMMON_SOURCES
     common/hashmap.c
     common/buffer.c
     common/bitset.c
+    common/dominance.c
+    common/gvn_dvnt.c
+    common/gvn_rpo.c
     common/utf8.c
     common/klc.c)
 

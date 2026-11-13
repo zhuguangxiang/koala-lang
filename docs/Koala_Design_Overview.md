@@ -1197,7 +1197,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   → .klc 产出（write_klc.c；read_klc.c 反向加载）
 ```
 
-每个阶段可用命令行独立开关启用（--irgen / --ssa / --inline / --opt / --isel / --lsra / --cgen；`koala` 默认开启内联，`++ --no-inline` 关闭），并提供逐级 dump（no-opt-ir / inline-ir / ssa / ir / lir / vreg / code / itable）——与"无隐藏特性"原则一脉相承：**编译器的每一步中间产物都可观察**。
+每个阶段可用命令行独立开关启用（--irgen / --ssa / --inline / --opt / --domtree / --isel / --lsra / --cgen；`koala` 默认开启内联，`++ --no-inline` 关闭），并提供逐级 dump（no-opt-ir / inline-ir / ssa / ir / domtree / lir / vreg / code / itable）——与"无隐藏特性"原则一脉相承：**编译器的每一步中间产物都可观察**。
 
 ### 11.2 IR 设计（KLR）
 
@@ -1215,6 +1215,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   - **SSA 构造 + SCCP**（稀疏条件常量传播：TOP/常量/BOTTOM 三值格 + meet 运算 + 双 worklist，教科书级实现）+ SSA 析构（phi 合并）
 - **指令选择**：表驱动规则把泛型二元运算（OP_BINARY_*）降级为类型特化操作码（OP_INT_ADD / OP_UINT_DIV …），并支持 reg-imm 立即数形态与交换律换序——与 CPython 3.11 特化自适应解释器殊途同归，而 Koala 在编译期一次完成。变量 cast 在此降级为 OP_INT_CAST / OP_FLOAT_CAST / OP_FLOAT_TO_INT / OP_INT_TO_FLOAT，目标类型与 trap/wrap 模式一起编码进 cast_flag（§5.1）。
 - **函数内联**（koalac `--inline`；`koala` 默认传入，`koala x.kl ++ --no-inline` 关闭，见 `Koala_TODO.md` §98）：在泛型特化之后、优化之前运行（`src/parser/opt/inline.c`），`--dump=inline-ir` 输出内联后的 IR，可与 `--dump=no-opt-ir` 对比。
+- **支配树**（`src/parser/klr/domtree.c`，基于 `src/common/dominance.c` 的 Cooper–Harvey–Kennedy 2001 算法）：只依赖 CFG，非 SSA 和 SSA IR 都能用；节点为 start、`bb_list` 中的块和 end。提供 `klr_idom` / `klr_dominates`（O(1)）/ `klr_is_back_edge`，以及支配边界；`--domtree` 开关（默认关闭）在优化之后运行支配树 pass，结果存入 `KlrFunc.domtree`，`--dump=domtree` 只打印这个结果（支配树、支配边界和回边），不开 `--domtree` 时不输出。供后续循环识别、循环展开、递归内联与 GVN 使用（见 `Koala_TODO.md` §103）。
   - **范围**：只内联**当前模块**内只有一个基本块的函数、方法、静态方法（典型是 class 的 get/set），不涉及外模块；指令数有上限，含变长参数、被写的参数（尾调用）、`unreachable` 的函数不内联。
   - **泛型**：仅支持泛型类的方法且接收者类型实参已确定（如 `Box[int]`），方法体限于字段读写 / local / move / ret（扩展见 TODO §97）。
   - **函数值调用**：`call %v` 中 `%v` 是只定义一次、值为本模块函数的 `let` 变量（`let f = add`、无捕获闭包 `let h = { |x int| x * 2 }`）时，解析出 callee 后同样内联；`var` 变量、函数参数仍为 call（TODO §99）。

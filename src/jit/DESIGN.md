@@ -1,4 +1,4 @@
-# Koala 基线 JIT 设计（v1）
+# Koala 基线 JIT 设计 · Drop Bear（v1）
 
 > 位置：`src/jit/`。本文描述 v1 的设计取舍、执行模型、字节码白名单、
 > 两遍汇编与跳转回填、热度分派、内存管理、正确性保证与后续路线。
@@ -23,6 +23,18 @@ v1 是一个 **Sparkplug 风格的基线（baseline）JIT**：把每条受支持
    复用其建帧 / 链帧 / 原生-解释器分派；**不做 JIT→JIT 直调**（v2 再做）。
    唯一例外是纯自递归（`is_self_only`）：直接 near call 本函数原生入口，绕过
    `kl_call_code`（见 §5.3）。
+
+### 代号（Naming）
+
+承接 **koala**（语言）/ **wombat**（构建工具）的澳洲动物命名传统，JIT 用澳洲传说神兽：
+
+| 代号 | 版本 | 定位 |
+| --- | --- | --- |
+| **Drop Bear** | v1 | 基线（本文）：传说里从树上扑下来的凶猛考拉，往热点「空投」原生代码 |
+| **Yowie** | v2 | 优化：澳洲雪人，拆箱 + 机器 RA + JIT 直调（见 Koala_TODO §100） |
+| **Bunyip** | v3 | 进阶：澳洲沼泽神兽，IC / 内联 / AOT 等 |
+
+koala/wombat 是真实动物，Drop Bear/Yowie/Bunyip 是传说神兽——JIT 是语言家族里「开了挂的传说表亲」。
 
 - 目标平台：x86-64 / System V AMD64 调用约定（Linux）。
 - 依赖：仅 libc（`mmap`/`mprotect`/`memcpy`）。不依赖 libgccjit、LLVM 等。

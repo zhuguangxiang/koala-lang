@@ -29,6 +29,7 @@ static void print_usage(const char *prog)
         "  -o <file>            Output .klc file\n"
         "  --ssa                Enable SSA construction stage.\n"
         "  --no-inline          Do not inline functions (inlined by default).\n"
+        "  --domtree            Build the dominator tree.\n"
         "  --int-trap           Enable trap checking for integer cast.\n"
         "  --float-trap         Enable trap checking for float cast.\n"
         "  --dump=<list>        Dump internal information.\n"
@@ -37,6 +38,7 @@ static void print_usage(const char *prog)
         "                           inline-ir - IR after generic specialization and inlining\n"
         "                           ssa       - dump SSA IR\n"
         "                           ir        - optimized IR (after opt passes)\n"
+        "                           domtree   - dominator tree info\n"
         "                           lir       - LIR (after isel/regalloc)\n"
         "                           vreg      - dump virtual register info\n"
         "                           code      - codegen output\n"
@@ -127,6 +129,9 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
             case 8:
                 opt->disable_inline = 1;
                 break;
+            case 9:
+                opt->enable_domtree = 1;
+                break;
             default:
                 return -1;
         }
@@ -185,6 +190,7 @@ int kl_parse_args(int argc, char *argv[])
         { "test", no_argument, 0, 6 },
         { "strip-lineinfo", no_argument, 0, 7 },
         { "no-inline", no_argument, 0, 8 },
+        { "domtree", no_argument, 0, 9 },
         { 0, 0, 0, 0 },
     };
 

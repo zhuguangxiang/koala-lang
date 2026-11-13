@@ -1,0 +1,132 @@
+// RUN: koalac %s --opt --domtree --dump=domtree | filecheck %s
+// RUN: koalac %s --opt --dump=domtree | filecheck --allow-empty --check-prefix=OFF %s
+
+// --dump=domtree prints nothing without the --domtree pass
+// OFF-NOT: Dominator Tree
+
+// loop rotated into guard + do-while: the body heads the loop
+// CHECK-LABEL: func @loop_if
+// CHECK-NEXT:    start
+// CHECK-NEXT:      bb0(entry)
+// CHECK-NEXT:        bb1(while-body)  df: bb1(while-body) bb2(while-end)
+// CHECK-NEXT:          bb4(if-else)  df: bb5(if-end)
+// CHECK-NEXT:          bb3(if-then)  df: bb5(if-end)
+// CHECK-NEXT:          bb5(if-end)  df: bb1(while-body) bb2(while-end)
+// CHECK-NEXT:        bb2(while-end)
+// CHECK-NEXT:          end
+// CHECK-NEXT:    back edges: bb5(if-end) -> bb1(while-body)
+// while loop with if/else inside
+func loop_if(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        if i % 2 == 0 {
+            s = s + i
+        } else {
+            s = s - 1
+        }
+        i = i + 1
+    }
+    return s
+}
+
+// both returns reach end, which only entry dominates
+// CHECK-LABEL: func @fib
+// CHECK-NEXT:    start
+// CHECK-NEXT:      bb0(entry)
+// CHECK-NEXT:        bb2(if-end)  df: end
+// CHECK-NEXT:        bb1(if-then)  df: end
+// CHECK-NEXT:        end
+// CHECK-NOT:     back edges
+// CHECK:       Dominator Tree
+// early return, recursion
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+// inner loop header bb3, break exits to bb5, continue jumps back to bb4
+// CHECK-LABEL: func @nested
+// CHECK-NEXT:    start
+// CHECK-NEXT:      bb0(entry)
+// CHECK-NEXT:        bb1(while-body)  df: bb1(while-body) bb2(while-end)
+// CHECK-NEXT:          bb3(while-cond)  df: bb1(while-body) bb2(while-end) bb3(while-cond)
+// CHECK-NEXT:            bb4(while-body)  df: bb3(while-cond) bb4(while-body) bb5(while-end)
+// CHECK-NEXT:              bb6(if-end)  df: bb4(while-body) bb5(while-end)
+// CHECK-NEXT:                bb7(if-end)  df: bb4(while-body) bb5(while-end)
+// CHECK-NEXT:            bb5(while-end)  df: bb1(while-body) bb2(while-end)
+// CHECK-NEXT:        bb2(while-end)
+// CHECK-NEXT:          end
+// CHECK-NEXT:    back edges: bb4(while-body) -> bb3(while-cond), bb5(while-end) -> bb1(while-body), bb7(if-end) -> bb4(while-body)
+// nested loops with break and continue
+func nested(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        var j = 0
+        while j < i {
+            j = j + 1
+            if j == 3 { continue }
+            if j > 5 { break }
+            s = s + j
+        }
+        i = i + 1
+    }
+    return s
+}
+
+// Engineering a Compiler, 2nd ed. (Cooper, Torczon), chapter 9 CFG B0..B8:
+//   B0 -> B1, B1 -> B2 | B5, B2 -> B3, B5 -> B6 | B8, B6 -> B7, B8 -> B7,
+//   B7 -> B3, B3 -> B1 (back edge) | B4
+// mapped to bbN: B0=bb0 B1=bb1 B2=bb3 B3=bb5 B4=bb2 B5=bb4 B6=bb6 B7=bb8 B8=bb7
+// IDom and DF match the book: DF(B1)={B1} DF(B2)={B3} DF(B3)={B1}
+// DF(B5)={B3} DF(B6)={B7} DF(B7)={B3} DF(B8)={B7}.
+// The CHK paper Figures 2 and 4 are irreducible and can't be written without
+// goto; they are tested in test/test-c/test_dominance.c.
+// CHECK-LABEL: func @eac
+// CHECK-NEXT:    start
+// CHECK-NEXT:      bb0(entry)
+// CHECK-NEXT:        bb1(while-body)  df: bb1(while-body)
+// CHECK-NEXT:          bb4(if-else)  df: bb5(if-end)
+// CHECK-NEXT:            bb7(if-else)  df: bb8(if-end)
+// CHECK-NEXT:            bb6(if-then)  df: bb8(if-end)
+// CHECK-NEXT:            bb8(if-end)  df: bb5(if-end)
+// CHECK-NEXT:          bb3(if-then)  df: bb5(if-end)
+// CHECK-NEXT:          bb5(if-end)  df: bb1(while-body)
+// CHECK-NEXT:            bb2(while-end)
+// CHECK-NEXT:              end
+// CHECK-NEXT:    back edges: bb5(if-end) -> bb1(while-body)
+func eac(n int) int {
+    var s = 1           // B0
+    while true {        // B1
+        if n > s {
+            s = s + 1   // B2
+        } else {        // B5
+            if s > 10 {
+                s = s * 2   // B6
+            } else {
+                s = s * 3   // B8
+            }
+            s = s - n   // B7
+        }
+        s = s + 5       // B3
+        if s > 100 { break }
+    }
+    return s            // B4
+}
+
+// methods are dumped too
+// CHECK-LABEL: func @Counter:step
+// CHECK-NEXT:    start
+// CHECK-NEXT:      bb0(entry)
+// CHECK-NEXT:        bb1(if-then)  df: bb2(if-end)
+// CHECK-NEXT:        bb2(if-end)
+// CHECK-NEXT:          end
+class Counter {
+    var count int
+    func step(n int) {
+        if n > 0 {
+            count = count + n
+        }
+    }
+}

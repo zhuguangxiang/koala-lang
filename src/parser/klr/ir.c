@@ -4,6 +4,7 @@
  */
 
 #include "ir.h"
+#include "domtree.h"
 #include <string.h>
 #include "log.h"
 #include "mm.h"
@@ -801,6 +802,7 @@ KlrValue *klr_add_method(KlrKlass *kls, TypeSpec *ret, char *name)
 
 static void klr_fini_func(KlrFunc *fn)
 {
+    klr_func_free_domtree(fn);
     KlrBasicBlock *bb, *nxt;
     basic_block_foreach_safe(bb, nxt, fn) {
         klr_erase_block(bb);

@@ -4782,11 +4782,14 @@ callee 在编译期其实已确定。
 
 ---
 
-## 100. JIT v2 路线图（阶段 2–5，延后；v1 保持 TValue 镜像）（2026-11-14，规划）
+## 100. JIT v2「Yowie」路线图（阶段 2–5，延后；v1 Drop Bear 保持 TValue 镜像）（2026-11-14，规划）
+
+**代号**（承接 koala/wombat 的澳洲动物命名，见 `src/jit/DESIGN.md` §1）：
+v1 = **Drop Bear**（基线），v2 = **Yowie**（优化），v3 = **Bunyip**（进阶）。
 
 **作者决定**：v1 JIT 保持 TValue 镜像结构，**不拆箱、不再物化**。下述性能与进阶方案
-（原阶段 2–5）整体归入 **v2**。v1 继续在 TValue 模型内做类型覆盖：int64/uint64/窄整型
-已完成（527/527），float/bool 正在 v1 落地。v1 设计见 `src/jit/DESIGN.md`。
+（原阶段 2–5）整体归入 **v2 Yowie**（v3 Bunyip 承接更进阶项）。v1 继续在 TValue 模型内做
+类型覆盖：int64/uint64/窄整型/float64/bool 已完成。v1 设计见 `src/jit/DESIGN.md`。
 
 ### 100.1 阶段 2 — 性能基础
 
@@ -4896,3 +4899,129 @@ bool 求值路径 `OP_FLOAT_LT` 直接用 `<`，正确。
 - JIT float/bool 覆盖（v1）排查中发现。同期发现的 **JIT 侧 `fneg` codegen bug 已修复**
   （`emit_float_neg` 误用 `emit_alu_reg_reg` 的 `src = src OP dst` 参数语义，符号位未翻转到存回寄存器；
   差分测试捕获，已改为正确操作数顺序）。
+
+---
+
+## 103. 支配树与 GVN 演化路径（2026-11-14，阶段 1 已完成）
+
+独立模块，放在 `koala_common`，不依赖 KLR，目前尚未接入 koalac。输入是抽象图或最小 SSA 接口
+（`include/common/gvn.h`），SSA 和非 SSA 流水线都能使用。每一步都用 `test/test-c` 中的随机程序和
+同步执行的解释器做差分验证：替换目标必须支配使用点，原程序与替换后的程序每个值相同。
+
+### 103.1 已完成
+
+- **支配树 / 支配边界**：`src/common/dominance.c`，ctest `c_dominance`。
+  - Cooper, Harvey, Kennedy, "A Simple, Fast Dominance Algorithm", SP&E 2001。
+  - 在逆后序上迭代求 idom；支配树先序进/出编号，`dom_dominates` 为 O(1)；支配边界按论文
+    Figure 5 计算。
+  - 测试：论文 Figure 2/4、菱形、循环、不可达节点、自环、入口回边；另有 2000 个随机图与
+    按定义计算的暴力结果比对。
+- **DVNT**：`src/common/gvn_dvnt.c`，ctest `c_gvn`。
+  - Briggs, Cooper, Simpson, "Value Numbering", SP&E 27(6), 1997。
+  - 悲观算法：沿支配树先序遍历一遍，用作用域哈希表编号；支持交换律、常量折叠、无意义 phi、
+    冗余 phi。
+- **RPO 乐观 VN**：`src/common/gvn_rpo.c`，ctest `c_gvn`。
+  - L. T. Simpson, "Value-Driven Redundancy Elimination", PhD thesis, Rice 1996；以及上面的
+    Briggs, Cooper, Simpson 1997。
+  - 先按逆后序迭代到不动点，再沿支配树做消除；能证明循环中同步递增的归纳变量相等，
+    以及 `k = phi(a, k)` ≡ a。
+  - 测试：5000 个随机 SSA 程序，RPO 替换数 ≥ DVNT（17114 对 16981）；11 个变异全部被测试捕获。
+
+### 103.2 阶段 2：Predicated GVN（Gargi 2002，LLVM NewGVN 的基础）
+
+K. Gargi, "A Sparse Algorithm for Predicated Global Value Numbering", PLDI 2002。
+在新文件中实现，以 `gvn_rpo.c` 为起点，按下列顺序逐步增强，每步都要求随机差分测试通过，
+并且结果不弱于上一步：
+
+1. **边可达性**：乐观地假设边不可达，常量条件的分支只标记一条出边可达；phi 忽略不可达的入边
+   （相当于把 SCCP 合进 GVN）。最小 SSA 接口需要增加分支条件。
+2. **谓词推断**：在 `a == b` 的真边所支配的区域里，把 a 和 b 视为同一个值；
+   在 `c` 为真的边上 `c` ≡ true。
+3. **phi-of-ops / value-phi**：`phi(a+1, b+1)` ≡ `phi(a, b) + 1`，并发现跨路径的等价。
+4. **稀疏工作表**：只重算被改动的值所影响的指令，代替整轮 RPO 迭代；只影响性能，不影响结果。
+
+### 103.3 阶段 3：GVN-PRE（可选）
+
+VanDrunen, Hosking, "Value-Based Partial Redundancy Elimination", CC 2004。
+在值编号上做部分冗余消除：循环不变量外提，在只有部分路径冗余的计算处补插入。
+
+### 103.4 阶段 4：接入 koalac
+
+- KLR → 最小 SSA 接口的适配；默认流水线是非 SSA 的：
+  - 指令结果（`%N`）只定义一次，可以直接使用；
+  - `local` 变量会被多次赋值，需要先走 `--ssa`，或者只对单定义的值编号。
+- ~~支配树接入 KLR~~（已完成 2026-11-14）：`include/parser/domtree.h` / `src/parser/klr/domtree.c`，
+  只依赖 CFG，不需要 SSA。`KlrBasicBlock.dom_index` 映射到节点编号，CFG 改变后需要重建。
+  `--domtree` 开关（默认关闭，`koala` 和 `koalac` 都支持）在 opt / ssa 之后运行支配树 pass，
+  结果存入 `KlrFunc.domtree`（`kl_domtree`；`klr_func_free_domtree` 释放，CFG 改变后需要重跑）。
+  `--dump=domtree` 只打印 pass 的结果：支配树、支配边界、不可达块和回边；不开 `--domtree` 时不输出。
+  测试为 `test/test-ir/test_domtree.kl`（循环加 if、提前 return、嵌套循环带 break/continue、方法、
+  EaC 第 9 章 B0..B8），以及不开 `--domtree` 时无输出。
+- GVN 前后的 IR dump，并补充 lit 测试。
+- 支配树也供循环识别（回边 = 跳到支配自己的块）、循环展开和递归内联使用（见 §96）。
+
+### 103.5 参考（暂不实现）
+
+- Gulwani, Necula, "A Polynomial-Time Algorithm for Global Value Numbering", SAS 2004：
+  完备的 Herbrand 等价，代价大，仅作理论参考。
+- GCC 9 的 RPO-VN（`tree-ssa-sccvn`）：Simpson RPO 加边可达性，只在循环区域内迭代；
+  工程实现可参考。
+
+---
+
+## 104. 尾调用参数并行移动丢环回边：shuffle 结果错误（编译器 bug，JIT 摸底中发现）（2026-11-14，待修）
+
+### 104.1 现象（已实证）
+
+`bench/shuffle.kl` 是 5 参数尾递归，专门测寄存器「洗牌」（并行移动）：
+
+```kl
+func shuffle(a int, b int, c int, d int, e int) int {
+    if a <= 0 { return e }
+    return shuffle(a - 1, e, d, c, b)   // 尾调用，参数轮转
+}
+```
+
+小输入即可暴露（`/tmp/shuffle_small.kl` 实测）：
+
+| 版本 | `shuffle(3,1,2,3,4)` | 说明 |
+| --- | --- | --- |
+| 尾递归 `st` | **4（错）** | 走 `OP_TAIL_CALL` |
+| 非尾递归 `sn`（`return … + 0`） | **1（对）** | 走普通 `OP_CALL` |
+| luajit 同算法 | **1（对）** | 参照 |
+
+`bench/shuffle.kl` 的 `shuffle(40_000_000,…)` 实测得 4，**恰好等于源码正确值**——错误排列
+`(b,c,d,e)→(e,d,d,e)` 一步即达不动点且 e 仍为 4，故大输入掩盖了 bug。
+
+### 104.2 根因（已核实字节码）
+
+递归调用需 5 路并行赋值 `(r0,r1,r2,r3,r4) ← (a-1, e, d, c, b)`，即环 `(r1 r4)(r2 r3)`。
+发射的字节码（`koalac --dump=code`，@shuffle pc 16–19）只有：
+
+```
+16: int.sub_imm r0, r0, #1   ; r0 = a-1 ✓
+17: move r1, r4              ; r1 = e ✓
+18: move r2, r3              ; r2 = d ✓
+19: tail_call                ; r3←r2、r4←r1 两条 move 缺失！
+```
+
+`r3`、`r4` 未更新，尾调用实参变成 `(a-1, e, d, d, e)`。
+
+责任层：`src/parser/backend/isel.c` 尾调用下降的贪心并行移动
+`allow_fixslot`（~:580）/ `lower_tailcall_fixslot`（:613）。当 `src->use_count==1 && allow_fixslot`
+时走「直接定槽」（`fixedslot=2`，不发 move），否则发 move。该贪心策略对**环状排列**错误地
+把环回边（c→r3、b→r4，源是已在寄存器里的参数）判成可定槽，省掉了必需的 move，
+环未用临时寄存器打破 → 丢赋值。isel 后的 LIR 已只剩 2 条 move（bug 在 isel，非 LSRA）。
+
+### 104.3 归属与影响
+
+- **编译器 bug（isel 尾调用并行移动），非 JIT**。JIT 与解释器执行同一份错字节码，
+  故 JIT=0/1 差分一致（都错）；按「VM/编译器 bug 只报告」原则此条仅报告。
+- 影响所有「尾调用 + 参数含环状轮转」的函数；非尾调用路径正确。
+- 修复方向：尾调用参数下降改用正确的并行移动环消解（cycle breaking + 临时寄存器），
+  不能对环内参数源用「直接定槽」省 move。
+
+### 104.4 关联
+
+- JIT 摸底（Drop Bear v1）跑 `bench/shuffle.kl` 时排查发现；JIT 已支持 `OP_TAIL_CALL`
+  （`jmp` 回函数体起点），本身无误，错在上游字节码。

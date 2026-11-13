@@ -1063,6 +1063,14 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             return 2; /* consumed the payload word as well */
         }
 
+        case OP_TAIL_CALL:
+            /* Self tail recursion (single word, no payload): the new args are
+             * already in the register file and the frame is reused, so jump back
+             * to the body start (bytecode pc 0, after the prologue). Terminator,
+             * no fallthrough — mirrors the interpreter resetting pc to start_pc. */
+            emit_jump(j, -1, 0);
+            break;
+
         default: {
             int alu = arith_alu(op);
             int cc = cmp_cc(op);

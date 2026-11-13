@@ -230,6 +230,9 @@ typedef struct _KlrFunc {
     /* link to module/klass */
     List mlink;
 
+    /* dominator tree built by the --domtree pass, NULL if not built */
+    struct _KlrDomTree *domtree;
+
     /* backend-private pointer */
     void *mach;
 } KlrFunc;
@@ -301,6 +304,9 @@ typedef struct _KlrBasicBlock {
      * This marks the "latch" or "exit" point of a loop body.
      */
     int has_back_edge;
+
+    /* node index in the last built KlrDomTree, see domtree.h */
+    int dom_index;
 
     /* backend-private pointer */
     void *mach;
