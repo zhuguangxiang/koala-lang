@@ -1,0 +1,21 @@
+[package]
+name = "koala/turtle"
+version = "0.1.0"
+description = "Logo-style turtle graphics over SDL2, modelled on CPython's turtle"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_turtle"
+sources = ["native/turtle_shim.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+# SDL2 is a system library (dynamic link, nothing vendored).
+# Ubuntu/Debian: sudo apt-get install -y libsdl2-dev
+cflags = [
+    "-O2",
+    "$(pkg-config --cflags sdl2)",
+]
+link = ["SDL2", "m"]

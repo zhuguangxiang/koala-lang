@@ -1,0 +1,108 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Logo-style turtle graphics, modelled on CPython's `turtle` module.
+///
+/// The backend is SDL2 (a system library, linked dynamically — nothing is
+/// vendored). It plays the role Tk plays for CPython's turtle: a window and a
+/// 2D canvas. Building it needs the SDL2 development package:
+///
+///     Ubuntu/Debian: sudo apt-get install -y libsdl2-dev
+///
+/// Two ways to use it, just like CPython:
+///
+/// 1. Module-level functions act on a shared default turtle:
+///
+///        import "koala/turtle"
+///        turtle.color(0, 160, 0)
+///        for i in range(36) { turtle.forward(100); turtle.right(170) }
+///        turtle.done()
+///
+/// 2. An explicit `Turtle` object (see `turtle.kl`):
+///
+///        let t = turtle.Turtle()
+///        t.forward(100)
+///        t.done()
+///
+/// Drawing is deferred until `done()` (opens the window, blocks until closed)
+/// or `update()` (renders once, non-blocking). Coordinates: origin at centre,
+/// y up, heading 0 = east, angles counter-clockwise positive — CPython's
+/// conventions, not SDL's.
+
+/// Native symbols for this package live in `libkoala_turtle.so`.
+link "koala_turtle"
+
+// The shared default turtle behind the module-level functions. Creating it
+// opens no window (rendering is deferred), so importing the module is cheap.
+let _default = Turtle()
+
+/// Move the default turtle forward `dist`, drawing if the pen is down.
+pub func forward(dist float) { _default.forward(dist) }
+
+/// Move the default turtle backward `dist`.
+pub func backward(dist float) { _default.backward(dist) }
+
+/// Turn the default turtle left by `angle` degrees.
+pub func left(angle float) { _default.left(angle) }
+
+/// Turn the default turtle right by `angle` degrees.
+pub func right(angle float) { _default.right(angle) }
+
+/// Move the default turtle to (x, y).
+pub func goto(x float, y float) { _default.goto(x, y) }
+
+/// Set the default turtle's heading.
+pub func setheading(angle float) { _default.setheading(angle) }
+
+/// Send the default turtle to the origin, facing east.
+pub func home() { _default.home() }
+
+/// Lift the default turtle's pen.
+pub func penup() { _default.penup() }
+
+/// Lower the default turtle's pen.
+pub func pendown() { _default.pendown() }
+
+/// Set the default turtle's pen colour (RGB 0..255).
+pub func color(r int, g int, b int) { _default.color(r, g, b) }
+
+/// Set the default turtle's pen thickness.
+pub func pensize(width int) { _default.pensize(width) }
+
+/// Draw a circle with the default turtle.
+pub func circle(radius float, steps int = 64) { _default.circle(radius, steps) }
+
+/// Erase the default turtle's drawing.
+pub func clear() { _default.clear() }
+
+/// The default turtle's x coordinate.
+pub func xcor() float { return _default.xcor() }
+
+/// The default turtle's y coordinate.
+pub func ycor() float { return _default.ycor() }
+
+/// The default turtle's heading.
+pub func heading() float { return _default.heading() }
+
+/// Whether the default turtle's pen is down.
+pub func isdown() bool { return _default.isdown() }
+
+/// Render the default turtle's drawing now (non-blocking).
+pub func update() { _default.update() }
+
+/// Show the default turtle's drawing and block until the window is closed.
+pub func done() { _default.done() }
+
+/// Release the default turtle's window and resources.
+pub func bye() { _default.bye() }
+
+/// Draw a filled circle of diameter `size` at the default turtle's position.
+pub func dot(size int) { _default.dot(size) }
+
+/// Whether the named key is currently held down (see `Turtle.key`).
+pub func key(name str) bool { return _default.key(name) }
+
+/// Whether the default turtle's window has been closed.
+pub func closed() bool { return _default.closed() }

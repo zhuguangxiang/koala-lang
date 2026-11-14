@@ -1,0 +1,124 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A Logo-style drawing turtle, modelled on CPython's `turtle.Turtle`.
+///
+/// The turtle starts at the centre of the canvas facing east (heading 0),
+/// pen down, black, size 1. Moving with the pen down draws a line. Angles are
+/// degrees, counter-clockwise positive; the y axis points UP (like CPython,
+/// unlike SDL pixels).
+///
+/// Drawing is deferred: commands record line segments, and `done()` opens an
+/// SDL window and shows them (blocking until the window is closed). `update()`
+/// renders the current segments without blocking. The state methods work
+/// headless, so you can compute a path without a display.
+///
+///     let t = turtle.Turtle()
+///     t.color(0, 160, 0)
+///     t.pensize(2)
+///     for i in range(36) { t.forward(100); t.right(170) }
+///     t.done()
+pub class Turtle {
+    /// Create a turtle at the origin, facing east, pen down.
+    @native
+    pub func __init__() {}
+
+    /// Move forward `dist` pixels, drawing if the pen is down.
+    @native
+    pub func forward(dist float) {}
+
+    /// Move backward `dist` pixels, drawing if the pen is down.
+    @native
+    pub func backward(dist float) {}
+
+    /// Turn left (counter-clockwise) by `angle` degrees.
+    @native
+    pub func left(angle float) {}
+
+    /// Turn right (clockwise) by `angle` degrees.
+    @native
+    pub func right(angle float) {}
+
+    /// Move to (x, y) in canvas coordinates, drawing if the pen is down.
+    @native
+    pub func goto(x float, y float) {}
+
+    /// Set the heading to `angle` degrees (0 = east, 90 = north).
+    @native
+    pub func setheading(angle float) {}
+
+    /// Move to the origin and face east, drawing if the pen is down.
+    @native
+    pub func home() {}
+
+    /// Lift the pen: moving no longer draws.
+    @native
+    pub func penup() {}
+
+    /// Lower the pen: moving draws again.
+    @native
+    pub func pendown() {}
+
+    /// Set the pen colour from RGB components (0..255).
+    @native
+    pub func color(r int, g int, b int) {}
+
+    /// Set the pen thickness in pixels (minimum 1).
+    @native
+    pub func pensize(width int) {}
+
+    /// Draw a circle of `radius` pixels, approximated with `steps` segments.
+    @native
+    pub func circle(radius float, steps int = 64) {}
+
+    /// Erase all drawn segments (the turtle keeps its position and heading).
+    @native
+    pub func clear() {}
+
+    /// The current x coordinate.
+    @native
+    pub func xcor() float {}
+
+    /// The current y coordinate.
+    @native
+    pub func ycor() float {}
+
+    /// The current heading in degrees.
+    @native
+    pub func heading() float {}
+
+    /// Whether the pen is down.
+    @native
+    pub func isdown() bool {}
+
+    /// Render the current segments to the window now (non-blocking).
+    @native
+    pub func update() {}
+
+    /// Open the window, show the drawing, and block until it is closed
+    /// (close button or Esc).
+    @native
+    pub func done() {}
+
+    /// Release the window and drawing resources.
+    @native
+    pub func bye() {}
+
+    /// Draw a filled circle of diameter `size` at the current position, in
+    /// the current pen colour. Does not move the turtle. Like CPython's dot.
+    @native
+    pub func dot(size int) {}
+
+    /// Whether the named key is currently held down. Names: "up", "down",
+    /// "left", "right", "space", "escape", "return", or a letter "a".."z".
+    /// Call `update()` each frame so the key state stays current.
+    @native
+    pub func key(name str) bool {}
+
+    /// Whether the window has been closed (close button or Esc). Use as the
+    /// condition of an animation loop driven by `update()`.
+    @native
+    pub func closed() bool {}
+}

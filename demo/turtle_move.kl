@@ -1,0 +1,48 @@
+/*
+ * turtle_move.kl — koala/turtle 交互示例：方向键控制小球上下左右移动。
+ *
+ * 运行：./demo/run_turtle_move.sh
+ *
+ * 操作：↑ ↓ ← → 移动小球；关闭窗口或按 Esc 退出。
+ *
+ * 这是一个动画循环：每帧读键盘 -> 更新位置 -> clear -> 画小球 -> update。
+ * update() 负责渲染、处理窗口事件并 pacing 到约 60fps；closed() 在窗口
+ * 关闭时返回 true，结束循环。
+ */
+
+import "koala/turtle"
+
+func main() {
+    var x = 0.0
+    var y = 0.0
+    let speed = 5.0
+    let half_w = 375.0      // 窗口 800x600，把小球限制在画面内
+    let half_h = 275.0
+
+    turtle.penup()
+    while !turtle.closed() {
+        if turtle.key("up") { y = y + speed }
+        if turtle.key("down") { y = y - speed }
+        if turtle.key("left") { x = x - speed }
+        if turtle.key("right") { x = x + speed }
+
+        if x > half_w { x = half_w }
+        if x < -half_w { x = -half_w }
+        if y > half_h { y = half_h }
+        if y < -half_h { y = -half_h }
+
+        turtle.clear()
+        // 用三个实心圆叠出一个有立体感的小球
+        turtle.goto(x, y)
+        turtle.color(150, 30, 30)
+        turtle.dot(46)
+        turtle.color(235, 70, 70)
+        turtle.dot(38)
+        turtle.goto(x - 9.0, y + 9.0)
+        turtle.color(255, 190, 190)
+        turtle.dot(11)
+
+        turtle.update()
+    }
+    turtle.bye()
+}

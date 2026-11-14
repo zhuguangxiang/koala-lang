@@ -1,0 +1,20 @@
+/*
+ * turtle_demo.kl — koala/turtle 用法示例：画一个彩色螺旋。
+ *
+ * 运行：./demo/run_turtle_demo.sh
+ * 关闭窗口（或按 Esc）即退出。
+ */
+
+import "koala/turtle"
+
+func main() {
+    turtle.pensize(2)
+    var d = 2.0
+    for i in range(150) {
+        turtle.color((i * 2) % 256, (i * 5) % 256, (i * 9) % 256)
+        turtle.forward(d)
+        turtle.right(91.0)
+        d = d + 2.5
+    }
+    turtle.done()
+}
