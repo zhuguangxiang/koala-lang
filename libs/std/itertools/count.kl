@@ -1,0 +1,81 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An infinite iterator yielding an arithmetic progression:
+/// `start`, `start + step`, `start + 2*step`, ...
+///
+/// `Count` never exhausts: `has_next()` is always true and `next()` never
+/// returns `nil`. Bound it with `take`, e.g. `take(count(1, 2), 5)` yields
+/// 1, 3, 5, 7, 9. `step` may be zero (a constant stream) or negative
+/// (counting down).
+///
+/// `Count` is itself `Iterable`: `iter()` returns the same iterator.
+///
+/// Examples
+///
+/// ```kl
+/// for (i, x) in zip(count(0), ["a", "b", "c"]) {
+///     print(i, x)   // 0 a / 1 b / 2 c
+/// }
+/// for v in take(count(1, 2), 4) {
+///     print(v)      // 1 / 3 / 5 / 7
+/// }
+/// ```
+pub class Count : Iterator[int] & Iterable[int] {
+    var current int
+    let step int
+
+    /// Create a counter starting at `start`, advancing by `step` each turn.
+    pub func __init__(start = 0, step = 1) {
+        current = start
+        self.step = step
+    }
+
+    /// Return this same iterator; counters are single-pass.
+    /// Panic if `step != 1`: strided iteration over a counter is not supported.
+    pub func iter(step = 1) Iterator[int] {
+        if step != 1 { panic("Count does not support step != 1") }
+        return self
+    }
+
+    /// Always true: a counter is infinite.
+    pub func has_next() bool = true
+
+    /// Return the current value and advance by `step`.
+    pub func next_strict() int {
+        let v = current
+        current = current + self.step
+        return v
+    }
+
+    /// Return the current value and advance. Never `nil` (infinite).
+    pub func next() int? {
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("Count(current={}, step={})", current, self.step)
+    }
+}
+
+/// Return an infinite iterator yielding `start`, `start + step`, ...
+///
+/// Defaults: `start = 0`, `step = 1`. Bound it with `take` or pair it with a
+/// finite source via `zip`.
+///
+/// Examples
+///
+/// ```kl
+/// for v in take(count(), 3) {
+///     print(v)      // 0 / 1 / 2
+/// }
+/// for v in take(count(10, -2), 3) {
+///     print(v)      // 10 / 8 / 6
+/// }
+/// ```
+pub func count(start = 0, step = 1) Count {
+    return Count(start, step)
+}

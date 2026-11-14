@@ -1,0 +1,91 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that yields a single value repeatedly.
+///
+/// With no count (or `n = nil`) it is infinite: `has_next()` is always true.
+/// With a non-negative `n` it yields the value exactly `n` times, then
+/// exhausts. `n` must be non-negative when given.
+///
+/// `Repeat` is itself `Iterable`: `iter()` returns the same iterator, so it
+/// composes, e.g. `zip(repeat(0), xs)`.
+///
+/// Examples
+///
+/// ```kl
+/// for v in repeat(7, 3) {
+///     print(v)      // 7 / 7 / 7
+/// }
+/// for v in take(repeat(0), 4) {
+///     print(v)      // 0 / 0 / 0 / 0  (infinite, bounded by take)
+/// }
+/// ```
+pub class Repeat[T] : Iterator[T] & Iterable[T] {
+    let value T
+    var remaining int?
+
+    /// Create a repeater for `value`. `n = nil` (the default) is infinite;
+    /// a non-negative `n` yields the value `n` times.
+    /// Panic if `n` is negative.
+    pub func __init__(value T, n int? = nil) {
+        if let k = n {
+            if k < 0 { panic("repeat count must be non-negative") }
+        }
+        self.value = value
+        remaining = n
+    }
+
+    /// Return this same iterator; repeaters are single-pass.
+    /// Panic if `step != 1`: strided repetition is not supported.
+    pub func iter(step = 1) Iterator[T] {
+        if step != 1 { panic("Repeat does not support step != 1") }
+        return self
+    }
+
+    /// Return true if infinite, or if fewer than `n` values have been yielded.
+    pub func has_next() bool {
+        if let r = remaining { return r > 0 }
+        return true
+    }
+
+    /// Return the value and advance.
+    /// Panic if a finite repeat is exhausted.
+    pub func next_strict() T {
+        if !has_next() { panic("No more elements in Repeat") }
+        if let r = remaining { remaining = r - 1 }
+        return value
+    }
+
+    /// Return the value, or `nil` if a finite repeat is exhausted.
+    /// Never `nil` for an infinite repeat.
+    pub func next() T? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("Repeat")
+    }
+}
+
+/// Return an iterator yielding `value` repeatedly.
+///
+/// `n = nil` (the default) repeats forever; a non-negative `n` repeats
+/// exactly `n` times. Bound an infinite repeat with `take`.
+///
+/// Examples
+///
+/// ```kl
+/// for v in repeat("x", 3) {
+///     print(v)      // x / x / x
+/// }
+/// for v in take(repeat(1), 5) {
+///     print(v)      // 1 / 1 / 1 / 1 / 1
+/// }
+/// ```
+pub func repeat[T](value T, n int? = nil) Repeat[T] {
+    return Repeat[T](value, n)
+}

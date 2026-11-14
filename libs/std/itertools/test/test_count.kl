@@ -1,0 +1,157 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import count, Count, take, zip, map, enumerate
+
+func double(x int) int { return x * 2 }
+
+// ==================== Progression ====================
+
+@test
+func test_default() {
+    let got = list[int]()
+    for v in take(count(), 3) { got.append(v) }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 0)
+    ut.assert_eq(got[1], 1)
+    ut.assert_eq(got[2], 2)
+}
+
+@test
+func test_start() {
+    let got = list[int]()
+    for v in take(count(5), 3) { got.append(v) }
+    ut.assert_eq(got[0], 5)
+    ut.assert_eq(got[1], 6)
+    ut.assert_eq(got[2], 7)
+}
+
+@test
+func test_step() {
+    let got = list[int]()
+    for v in take(count(1, 2), 4) { got.append(v) }
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[1], 3)
+    ut.assert_eq(got[2], 5)
+    ut.assert_eq(got[3], 7)
+}
+
+@test
+func test_negative_step() {
+    let got = list[int]()
+    for v in take(count(10, -2), 3) { got.append(v) }
+    ut.assert_eq(got[0], 10)
+    ut.assert_eq(got[1], 8)
+    ut.assert_eq(got[2], 6)
+}
+
+@test
+func test_zero_step() {
+    let got = list[int]()
+    for v in take(count(5, 0), 3) { got.append(v) }
+    ut.assert_eq(got[0], 5)
+    ut.assert_eq(got[1], 5)
+    ut.assert_eq(got[2], 5)
+}
+
+// ==================== Infinite protocol ====================
+
+@test
+func test_has_next_always_true() {
+    let c = count()
+    ut.assert_true(c.has_next())
+    ut.assert_true(c.has_next())
+    c.next_strict()
+    c.next_strict()
+    ut.assert_true(c.has_next())
+}
+
+@test
+func test_next_never_nil() {
+    let c = count()
+    ut.assert_true(c.next() != nil)
+    ut.assert_true(c.next() != nil)
+    ut.assert_true(c.next() != nil)
+}
+
+@test
+func test_next_strict_sequence() {
+    let c = count(3, 3)
+    ut.assert_eq(c.next_strict(), 3)
+    ut.assert_eq(c.next_strict(), 6)
+    ut.assert_eq(c.next_strict(), 9)
+}
+
+@test
+func test_iter_returns_self() {
+    let c = count()
+    ut.assert_eq(c.next_strict(), 0)
+    let again = c.iter()
+    ut.assert_eq(again.next_strict(), 1)
+    ut.assert_eq(c.next_strict(), 2)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[int] = count(2)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_eq(it.next_strict(), 3)
+    ut.assert_true(it.has_next())
+}
+
+@test
+func test_fmt() {
+    let c = count()
+    ut.assert_eq(format("{}", c), "Count(current=0, step=1)")
+    c.next_strict()
+    ut.assert_eq(format("{}", c), "Count(current=1, step=1)")
+}
+
+// ==================== Composition ====================
+
+@test
+func test_zip_count() {
+    var n = 0
+    for (i, x) in zip(count(0), ["a", "b", "c"]) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(x, ["a", "b", "c"][n])
+        n = n + 1
+    }
+    ut.assert_eq(n, 3)
+}
+
+@test
+func test_take_count() {
+    let got = list[int]()
+    for v in take(count(1, 2), 5) { got.append(v) }
+    ut.assert_eq(got.len(), 5)
+    ut.assert_eq(got[4], 9)
+}
+
+@test
+func test_map_count() {
+    let got = list[int]()
+    for v in take(map(count(), double), 3) { got.append(v) }
+    ut.assert_eq(got[0], 0)
+    ut.assert_eq(got[1], 2)
+    ut.assert_eq(got[2], 4)
+}
+
+@test
+func test_enumerate_count() {
+    var n = 0
+    for (i, v) in enumerate(take(count(10), 3)) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(v, 10 + n)
+        n = n + 1
+    }
+    ut.assert_eq(n, 3)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("Count does not support step != 1")
+func test_iter_step_unsupported() {
+    let c = count()
+    c.iter(2)
+}
