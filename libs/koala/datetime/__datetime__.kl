@@ -6,9 +6,11 @@
 /// Date and time types with a Python-like API, implemented in pure Koala.
 ///
 /// This package provides `Date` (a calendar date in the proleptic Gregorian
-/// calendar), `Time` (a time of day with nanosecond resolution) and `DateTime`
-/// (a date and time in UTC), plus the calendar helpers `is_leap_year` and
-/// `days_in_month`. Timezone support lands in a later increment.
+/// calendar), `Time` (a time of day with nanosecond resolution), `DateTime`
+/// (a date and time, UTC by default or in a fixed offset), `TimeZone` (a
+/// fixed UTC offset) and `ZoneInfo` (a named IANA zone read from the OS
+/// zoneinfo database, DST-aware), plus the calendar helpers `is_leap_year`
+/// and `days_in_month`.
 ///
 /// Every type conforms to `ToString` and `Printable`, so its two string forms
 /// differ on purpose (mirroring Python `str()` vs `repr()`):

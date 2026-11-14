@@ -1,0 +1,111 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A fixed offset from UTC, used to give a [`DateTime`] a timezone.
+///
+/// This is the fixed-offset layer (like Python's `datetime.timezone`, Go's
+/// `time.FixedZone`, chrono's `FixedOffset`): a constant number of seconds
+/// east of UTC, with no daylight-saving rules. Named IANA zones (which need
+/// the tz database) are a separate, later increment.
+///
+/// The offset must be strictly between -24h and +24h.
+///
+/// Examples
+///
+/// ```kl
+/// let utc = datetime.TimeZone.utc()
+/// let cst = datetime.TimeZone.of_hours(8)        // +08:00
+/// let ist = datetime.TimeZone.of(5, 30)          // +05:30
+/// let parsed = datetime.TimeZone.parse("-05:00")
+/// print(cst.to_str())                            // +08:00
+/// ```
+pub class TimeZone : ToString {
+
+    /// The offset from UTC in seconds (east positive, west negative).
+    pub let offset int
+
+    /// Create a timezone with the given offset in seconds.
+    /// Panic if the offset is not strictly between -86400 and 86400.
+    pub func __init__(offset int) {
+        if offset <= -86400 || offset >= 86400 {
+            panic("datetime.TimeZone: offset out of range (-24h, +24h)")
+        }
+        self.offset = offset
+    }
+
+    /// The UTC timezone (offset 0).
+    pub static func utc() TimeZone { return TimeZone(0) }
+
+    /// A timezone `h` hours from UTC (may be negative).
+    pub static func of_hours(h int) TimeZone { return TimeZone(h * 3600) }
+
+    /// A timezone `h` hours and `m` minutes from UTC; `m` takes the sign of
+    /// `h`, so `of(-5, 30)` is -05:30. `m` defaults to 0.
+    pub static func of(h int, m = 0) TimeZone {
+        var total = h * 3600
+        if h < 0 {
+            total = total - m * 60
+        } else {
+            total = total + m * 60
+        }
+        return TimeZone(total)
+    }
+
+    /// A timezone with the given offset in seconds.
+    pub static func of_seconds(s int) TimeZone { return TimeZone(s) }
+
+    /// Parse an ISO 8601 offset: `Z`, `+HH:MM`, `-HH:MM`, `+HHMM`, or `+HH`.
+    /// Panic if the text is not a valid offset.
+    pub static func parse(s str) TimeZone {
+        if s == "Z" || s == "z" { return TimeZone.utc() }
+        if s.len() < 3 { panic("datetime.TimeZone: invalid offset") }
+        let sign_ch = s.substr(0, 1)
+        if sign_ch != "+" && sign_ch != "-" { panic("datetime.TimeZone: invalid offset") }
+        var sign = 1
+        if sign_ch == "-" { sign = -1 }
+        let rest = s.substr(1, s.len())
+        var hh = 0
+        var mm = 0
+        if rest.len() == 2 {
+            hh = rest.to_int()
+        } else if rest.len() == 5 && rest.substr(2, 3) == ":" {
+            hh = rest.substr(0, 2).to_int()
+            mm = rest.substr(3, 5).to_int()
+        } else if rest.len() == 4 {
+            hh = rest.substr(0, 2).to_int()
+            mm = rest.substr(2, 4).to_int()
+        } else {
+            panic("datetime.TimeZone: invalid offset")
+        }
+        if hh < 0 || hh > 23 || mm < 0 || mm > 59 { panic("datetime.TimeZone: invalid offset") }
+        return TimeZone(sign * (hh * 3600 + mm * 60))
+    }
+
+    /// Return the offset from UTC in seconds.
+    pub func offset_seconds() int { return offset }
+
+    /// Return the ISO 8601 offset string: `Z` for UTC, else `+HH:MM`/`-HH:MM`.
+    pub func to_str() str {
+        if offset == 0 { return "Z" }
+        var sign = "+"
+        if offset < 0 { sign = "-" }
+        let a = abs(offset)
+        let hh = a / 3600
+        let mm = (a % 3600) / 60
+        return format("{}{:02d}:{:02d}", sign, hh, mm)
+    }
+
+    /// Format for display (Printable): `TimeZone(+08:00)`.
+    pub func fmt(f Formatter) {
+        f.write_fmt("TimeZone({})", to_str())
+    }
+
+    /// Return true if equal to `o` (same offset).
+    pub func __eq__(o TimeZone) bool { return offset == o.offset }
+    /// Return true if not equal to `o`.
+    pub func __ne__(o TimeZone) bool { return offset != o.offset }
+    /// Return a hash consistent with equality.
+    pub func hash() int { return offset.hash() }
+}

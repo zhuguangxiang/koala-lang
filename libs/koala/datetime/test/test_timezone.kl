@@ -1,0 +1,218 @@
+// RUN: koala --test %s
+
+// Unit tests for fixed-offset timezone support (TimeZone + offset-aware DateTime).
+
+import "koala/datetime"
+import "std/time"
+import "std/ut"
+
+// ==================== TimeZone construction ====================
+
+@test
+func test_timezone_utc() {
+    let z = datetime.TimeZone.utc()
+    ut.assert_eq(z.offset, 0)
+    ut.assert_eq(z.to_str(), "Z")
+}
+
+@test
+func test_timezone_of_hours() {
+    ut.assert_eq(datetime.TimeZone.of_hours(8).offset, 28800)
+    ut.assert_eq(datetime.TimeZone.of_hours(-5).offset, -18000)
+    ut.assert_eq(datetime.TimeZone.of_hours(0).offset, 0)
+}
+
+@test
+func test_timezone_of() {
+    ut.assert_eq(datetime.TimeZone.of(5, 30).offset, 19800)
+    ut.assert_eq(datetime.TimeZone.of(-5, 30).offset, -19800)
+    ut.assert_eq(datetime.TimeZone.of(8).offset, 28800)
+}
+
+@test
+func test_timezone_of_seconds() {
+    ut.assert_eq(datetime.TimeZone.of_seconds(28800).offset, 28800)
+    ut.assert_eq(datetime.TimeZone.of_seconds(-18000).offset, -18000)
+}
+
+@test
+func test_timezone_to_str() {
+    ut.assert_eq(datetime.TimeZone.of_hours(8).to_str(), "+08:00")
+    ut.assert_eq(datetime.TimeZone.of(5, 30).to_str(), "+05:30")
+    ut.assert_eq(datetime.TimeZone.of(-5, 30).to_str(), "-05:30")
+    ut.assert_eq(datetime.TimeZone.of_hours(-8).to_str(), "-08:00")
+    ut.assert_eq(datetime.TimeZone.utc().to_str(), "Z")
+}
+
+@test
+func test_timezone_eq_hash() {
+    let a = datetime.TimeZone.of_hours(8)
+    let b = datetime.TimeZone.of_seconds(28800)
+    let c = datetime.TimeZone.of_hours(9)
+    ut.assert_true(a == b)
+    ut.assert_true(a != c)
+    ut.assert_eq(a.hash(), b.hash())
+}
+
+// ==================== TimeZone.parse ====================
+
+@test
+func test_timezone_parse() {
+    ut.assert_eq(datetime.TimeZone.parse("Z").offset, 0)
+    ut.assert_eq(datetime.TimeZone.parse("+08:00").offset, 28800)
+    ut.assert_eq(datetime.TimeZone.parse("-05:00").offset, -18000)
+    ut.assert_eq(datetime.TimeZone.parse("+05:30").offset, 19800)
+    ut.assert_eq(datetime.TimeZone.parse("+0800").offset, 28800)
+    ut.assert_eq(datetime.TimeZone.parse("-0500").offset, -18000)
+    ut.assert_eq(datetime.TimeZone.parse("+08").offset, 28800)
+}
+
+// ==================== DateTime with timezone ====================
+
+@test
+func test_datetime_zoned_to_str() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, zone = tz)
+    ut.assert_eq(z.to_str(), "2026-10-24T13:30:45+08:00")
+    ut.assert_eq(format("{}", z), "DateTime(2026-10-24T13:30:45+08:00)")
+}
+
+@test
+func test_datetime_utc_no_suffix() {
+    // Backward compatibility: UTC has no offset suffix.
+    let u = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    ut.assert_eq(u.to_str(), "2026-10-24T13:30:45")
+    ut.assert_eq(u.tz.offset, 0)
+}
+
+@test
+func test_datetime_zoned_nanosecond() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789, tz)
+    ut.assert_eq(z.to_str(), "2026-10-24T13:30:45.123456789+08:00")
+}
+
+@test
+func test_datetime_same_instant_across_zones() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, zone = tz)
+    let u = datetime.DateTime(2026, 10, 24, 5, 30, 45)
+    ut.assert_true(z == u)
+    ut.assert_eq(z.timestamp_nanos(), u.timestamp_nanos())
+}
+
+@test
+func test_datetime_zoned_timestamp() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(1970, 1, 1, 8, 0, 0, zone = tz)
+    // 08:00+08:00 is the Unix epoch.
+    ut.assert_eq(z.timestamp_nanos(), 0)
+}
+
+// ==================== astimezone ====================
+
+@test
+func test_astimezone_utc_to_plus8() {
+    let u = datetime.DateTime(2026, 10, 24, 5, 30, 45)
+    let z = u.astimezone(datetime.TimeZone.of_hours(8))
+    ut.assert_eq(z.to_str(), "2026-10-24T13:30:45+08:00")
+    ut.assert_true(z == u)
+}
+
+@test
+func test_astimezone_plus8_to_minus5() {
+    let tz8 = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, zone = tz8)
+    let w = z.astimezone(datetime.TimeZone.of_hours(-5))
+    ut.assert_eq(w.to_str(), "2026-10-24T00:30:45-05:00")
+    ut.assert_true(w == z)
+}
+
+@test
+func test_astimezone_cross_day() {
+    let u = datetime.DateTime(2026, 10, 24, 23, 30, 0)
+    let z = u.astimezone(datetime.TimeZone.of_hours(8))
+    ut.assert_eq(z.to_str(), "2026-10-25T07:30:00+08:00")
+}
+
+// ==================== from_str with offset ====================
+
+@test
+func test_from_str_offset() {
+    let z = datetime.DateTime.from_str("2026-10-24T13:30:45+08:00")
+    ut.assert_eq(z.to_str(), "2026-10-24T13:30:45+08:00")
+    ut.assert_eq(z.tz.offset, 28800)
+}
+
+@test
+func test_from_str_z() {
+    let z = datetime.DateTime.from_str("2026-10-24T05:30:45Z")
+    ut.assert_eq(z.tz.offset, 0)
+    ut.assert_eq(z.to_str(), "2026-10-24T05:30:45")
+}
+
+@test
+func test_from_str_offset_with_nanos() {
+    let z = datetime.DateTime.from_str("2026-10-24T13:30:45.123456789+08:00")
+    ut.assert_eq(z.nanosecond, 123456789)
+    ut.assert_eq(z.tz.offset, 28800)
+}
+
+@test
+func test_from_str_roundtrip_zoned() {
+    let tz = datetime.TimeZone.of(5, 30)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123, zone = tz)
+    ut.assert_eq(datetime.DateTime.from_str(z.to_str()), z)
+}
+
+// ==================== utcoffset / tzname ====================
+
+@test
+func test_utcoffset_tzname() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, zone = tz)
+    ut.assert_eq(z.utcoffset(), time.Duration.from_secs(28800))
+    ut.assert_eq(z.tzname(), "+08:00")
+}
+
+// ==================== tz preserved by operations ====================
+
+@test
+func test_replace_keeps_tz() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, zone = tz)
+    let r = z.replace(h = 14)
+    ut.assert_eq(r.to_str(), "2026-10-24T14:30:45+08:00")
+}
+
+@test
+func test_add_keeps_tz() {
+    let tz = datetime.TimeZone.of_hours(8)
+    let z = datetime.DateTime(2026, 10, 24, 13, 30, 45, zone = tz)
+    let r = z + time.Duration.from_hours(1)
+    ut.assert_eq(r.to_str(), "2026-10-24T14:30:45+08:00")
+    let s = z - time.Duration.from_hours(1)
+    ut.assert_eq(s.to_str(), "2026-10-24T12:30:45+08:00")
+}
+
+// ==================== Error branches ====================
+
+@should_panic("datetime.TimeZone: offset out of range (-24h, +24h)")
+func test_timezone_offset_too_big() {
+    datetime.TimeZone.of_seconds(86400)
+}
+
+@should_panic("datetime.TimeZone: offset out of range (-24h, +24h)")
+func test_timezone_offset_too_small() {
+    datetime.TimeZone.of_seconds(-86400)
+}
+
+@should_panic("datetime.TimeZone: invalid offset")
+func test_timezone_parse_bad() {
+    datetime.TimeZone.parse("abc")
+}
+
+@should_panic("datetime.TimeZone: invalid offset")
+func test_timezone_parse_bad_range() {
+    datetime.TimeZone.parse("+25:00")
+}

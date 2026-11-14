@@ -1,0 +1,118 @@
+// RUN: koala --test %s
+
+// Unit tests for named IANA timezones (ZoneInfo). These read the operating
+// system's zoneinfo database (/usr/share/zoneinfo), present on Linux/macOS.
+
+import "koala/datetime"
+import "std/ut"
+
+// ==================== Fixed-offset zones ====================
+
+@test
+func test_shanghai_offset() {
+    let sh = datetime.ZoneInfo("Asia/Shanghai")
+    let summer = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let winter = datetime.DateTime(2026, 1, 1, 12, 0, 0)
+    ut.assert_eq(sh.offset_at(summer.timestamp_nanos()), 28800)
+    ut.assert_eq(sh.offset_at(winter.timestamp_nanos()), 28800)
+}
+
+@test
+func test_shanghai_in_zone() {
+    let sh = datetime.ZoneInfo("Asia/Shanghai")
+    let utc = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let local = utc.in_zone(sh)
+    ut.assert_eq(local.to_str(), "2026-07-01T20:00:00+08:00")
+}
+
+@test
+func test_utc_zone() {
+    let z = datetime.ZoneInfo("UTC")
+    let utc = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    ut.assert_eq(z.offset_at(utc.timestamp_nanos()), 0)
+    let local = utc.in_zone(z)
+    ut.assert_eq(local.hour, 12)
+}
+
+// ==================== DST zones ====================
+
+@test
+func test_new_york_dst_offsets() {
+    let ny = datetime.ZoneInfo("America/New_York")
+    let summer = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let winter = datetime.DateTime(2026, 1, 1, 12, 0, 0)
+    ut.assert_eq(ny.offset_at(summer.timestamp_nanos()), -14400)  // EDT
+    ut.assert_eq(ny.offset_at(winter.timestamp_nanos()), -18000)  // EST
+}
+
+@test
+func test_new_york_in_zone() {
+    let ny = datetime.ZoneInfo("America/New_York")
+    let summer = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let winter = datetime.DateTime(2026, 1, 1, 12, 0, 0)
+    let s = summer.in_zone(ny)
+    let w = winter.in_zone(ny)
+    ut.assert_eq(s.to_str(), "2026-07-01T08:00:00-04:00")
+    ut.assert_eq(w.to_str(), "2026-01-01T07:00:00-05:00")
+}
+
+@test
+func test_london_dst() {
+    let lon = datetime.ZoneInfo("Europe/London")
+    let summer = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let winter = datetime.DateTime(2026, 1, 1, 12, 0, 0)
+    ut.assert_eq(lon.offset_at(summer.timestamp_nanos()), 3600)  // BST
+    ut.assert_eq(lon.offset_at(winter.timestamp_nanos()), 0)     // GMT
+}
+
+@test
+func test_new_york_at_epoch() {
+    let ny = datetime.ZoneInfo("America/New_York")
+    // 1970-01-01T00:00:00Z is winter (EST, -05:00).
+    ut.assert_eq(ny.offset_at(0), -18000)
+}
+
+// ==================== Instant preserved ====================
+
+@test
+func test_in_zone_preserves_instant() {
+    let ny = datetime.ZoneInfo("America/New_York")
+    let utc = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let local = utc.in_zone(ny)
+    ut.assert_true(local == utc)
+    ut.assert_eq(local.timestamp_nanos(), utc.timestamp_nanos())
+}
+
+@test
+func test_in_zone_cross_day() {
+    let sh = datetime.ZoneInfo("Asia/Shanghai")
+    let utc = datetime.DateTime(2026, 10, 24, 23, 30, 0)
+    let local = utc.in_zone(sh)
+    ut.assert_eq(local.to_str(), "2026-10-25T07:30:00+08:00")
+}
+
+// ==================== Naming / display ====================
+
+@test
+func test_zone_name() {
+    let ny = datetime.ZoneInfo("America/New_York")
+    ut.assert_eq(ny.name, "America/New_York")
+    ut.assert_eq(ny.to_str(), "America/New_York")
+    ut.assert_eq(format("{}", ny), "ZoneInfo(America/New_York)")
+}
+
+@test
+func test_timezone_at() {
+    let ny = datetime.ZoneInfo("America/New_York")
+    let summer = datetime.DateTime(2026, 7, 1, 12, 0, 0)
+    let tz = ny.timezone_at(summer.timestamp_nanos())
+    ut.assert_eq(tz.offset, -14400)
+    ut.assert_eq(tz.to_str(), "-04:00")
+}
+
+// ==================== Error branches ====================
+
+@should_panic
+func test_invalid_zone() {
+    datetime.ZoneInfo("Not/A_Real_Zone")
+}

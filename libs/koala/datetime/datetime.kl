@@ -5,7 +5,8 @@
 
 import "std/time"
 
-/// A date and time of day, in UTC, with nanosecond precision.
+/// A date and time of day with nanosecond precision, in UTC by default or in
+/// a fixed [`TimeZone`] offset.
 ///
 /// Combines a calendar [`Date`] and a wall-clock [`Time`]. Bridge to `std/time`:
 /// [`to_instant`](#to_instant) / [`from_instant`](#from_instant) convert to/from a
@@ -30,10 +31,13 @@ pub class DateTime : ToString {
     pub let second int
     /// The nanosecond (0..999999999).
     pub let nanosecond int
+    /// The timezone (a fixed [`TimeZone`] offset); defaults to UTC.
+    pub let tz TimeZone
 
-    /// Create a `DateTime` from its fields (UTC). Date and time ranges are validated
-    /// by reusing [`Date`] and [`Time`]. `mi`, `s`, `ns` default to 0.
-    pub func __init__(y int, mo int, d int, h int, mi = 0, s = 0, ns = 0) {
+    /// Create a `DateTime` from its fields. Date and time ranges are validated
+    /// by reusing [`Date`] and [`Time`]. `mi`, `s`, `ns` default to 0. The fields
+    /// are wall-clock time in `zone` (default UTC); `zone` is a fixed offset.
+    pub func __init__(y int, mo int, d int, h int, mi = 0, s = 0, ns = 0, zone TimeZone? = nil) {
         let dd = Date(y, mo, d)
         let tt = Time(h, mi, s, ns)
         year = dd.year
@@ -43,6 +47,7 @@ pub class DateTime : ToString {
         minute = tt.minute
         second = tt.second
         nanosecond = tt.nanosecond
+        if let z = zone { tz = z } else { tz = TimeZone.utc() }
     }
 
     /// Return the current UTC date and time (backed by `time.now()`).
@@ -54,15 +59,22 @@ pub class DateTime : ToString {
     }
 
     /// Parse an ISO 8601 datetime `YYYY-MM-DDTHH:MM:SS`, optionally with a
-    /// `.nnnnnnnnn` nanosecond fraction (the inverse of [`to_str`](#to_str)).
+    /// `.nnnnnnnnn` nanosecond fraction and an offset suffix (`Z`, `+HH:MM`,
+    /// `+HHMM`, or `+HH`). No suffix means UTC. The inverse of [`to_str`](#to_str).
     ///
     /// Panic if the text is malformed or a field is out of range.
     pub static func from_str(s str) DateTime {
-        if s.len() != 19 && s.len() != 29 { panic("datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]") }
-        if s.substr(10, 11) != "T" { panic("datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]") }
+        let msg = "datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]"
+        if s.len() < 19 { panic(msg) }
+        if s.substr(10, 11) != "T" { panic(msg) }
+        var base_len = 19
+        if s.len() >= 29 && s.substr(19, 20) == "." { base_len = 29 }
         let dd = Date.from_str(s.substr(0, 10))
-        let tt = Time.from_str(s.substr(11, s.len()))
-        return DateTime(dd.year, dd.month, dd.day, tt.hour, tt.minute, tt.second, tt.nanosecond)
+        let tt = Time.from_str(s.substr(11, base_len))
+        let suffix = s.substr(base_len, s.len())
+        var zone = TimeZone.utc()
+        if suffix.len() > 0 { zone = TimeZone.parse(suffix) }
+        return DateTime(dd.year, dd.month, dd.day, tt.hour, tt.minute, tt.second, tt.nanosecond, zone)
     }
 
     /// Combine a `Date` and a `Time` into a `DateTime` (Python's `datetime.combine`).
@@ -115,19 +127,45 @@ pub class DateTime : ToString {
         return time.Instant.from_unix_ns(to_epoch_nanos())
     }
 
-    /// Return a new `DateTime` shifted by the duration `dur`.
+    /// Return the same instant expressed in timezone `zone` (Python's
+    /// `datetime.astimezone`). The wall-clock fields shift; the instant is
+    /// unchanged, so the result compares equal to `self`.
+    pub func astimezone(zone TimeZone) DateTime {
+        let local_nanos = to_epoch_nanos() + zone.offset * NANOS_PER_SEC
+        let dt = DateTime.from_epoch_nanos(local_nanos)
+        return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.nanosecond, zone)
+    }
+
+    /// Return this instant expressed in the named IANA timezone `zi` (Python's
+    /// `datetime.astimezone(ZoneInfo(...))`). The result is a fixed-offset
+    /// snapshot whose offset is correct for this instant (DST included).
+    pub func in_zone(zi ZoneInfo) DateTime {
+        return astimezone(zi.timezone_at(to_epoch_nanos()))
+    }
+
+    /// Return the timezone's offset from UTC as a `time.Duration`.
+    pub func utcoffset() time.Duration {
+        return time.Duration.from_secs(tz.offset)
+    }
+
+    /// Return the timezone's offset string (`Z` for UTC, else `+HH:MM`).
+    pub func tzname() str {
+        return tz.to_str()
+    }
+
+    /// Return a new `DateTime` shifted by the duration `dur`, keeping the timezone.
     pub func add(dur time.Duration) DateTime {
-        return DateTime.from_epoch_nanos(to_epoch_nanos() + dur.to_ns())
+        return DateTime.from_epoch_nanos(to_epoch_nanos() + dur.to_ns()).astimezone(tz)
     }
 
     /// Return a new datetime advanced by `d` (`datetime + timedelta`).
     pub func __add__(d time.Duration) DateTime {
-        return DateTime.from_epoch_nanos(to_epoch_nanos() + d.to_ns())
+        return DateTime.from_epoch_nanos(to_epoch_nanos() + d.to_ns()).astimezone(tz)
     }
 
     /// Return a new datetime moved back by `d` (`datetime - timedelta`).
     pub func __sub__(d time.Duration) DateTime {
-        return DateTime.from_epoch_nanos(to_epoch_nanos() - d.to_ns())
+        return DateTime.from_epoch_nanos(to_epoch_nanos() - d.to_ns()).astimezone(tz)
     }
 
     /// Return the elapsed time between two datetimes as a `time.Duration`
@@ -165,31 +203,33 @@ pub class DateTime : ToString {
         if ss < 0 { ss = second }
         var nns = ns
         if nns < 0 { nns = nanosecond }
-        return DateTime(yy, mm, dd, hh, mmin, ss, nns)
+        return DateTime(yy, mm, dd, hh, mmin, ss, nns, tz)
     }
 
     /// Nanoseconds since the Unix epoch (1970-01-01T00:00:00Z); negative before it.
+    /// The wall-clock fields are local to `tz`, so the offset is subtracted.
     func to_epoch_nanos() int {
-        return date().to_days() * NANOS_PER_DAY + time_of_day().to_nanos()
+        return date().to_days() * NANOS_PER_DAY + time_of_day().to_nanos() - tz.offset * NANOS_PER_SEC
     }
 
     /// Return the raw ISO 8601 string (ToString): `YYYY-MM-DDTHH:MM:SS`, with
-    /// `.NNNNNNNNN` appended when [`nanosecond`](#nanosecond) is non-zero.
+    /// `.NNNNNNNNN` appended when [`nanosecond`](#nanosecond) is non-zero. A
+    /// non-UTC timezone appends its offset (`+HH:MM`); UTC has no suffix.
     pub func to_str() str {
+        var base = ""
         if nanosecond == 0 {
-            return format("{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}", year, month, day, hour, minute, second)
+            base = format("{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}", year, month, day, hour, minute, second)
+        } else {
+            base = format("{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}.{:09d}", year, month, day, hour, minute, second, nanosecond)
         }
-        return format("{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}.{:09d}", year, month, day, hour, minute, second, nanosecond)
+        if tz.offset == 0 { return base }
+        return base + tz.to_str()
     }
 
     /// Format for display (Printable): the debug-oriented `DateTime(...)` wrapper.
     /// The raw ISO form is [`to_str`](#to_str).
     pub func fmt(f Formatter) {
-        if nanosecond == 0 {
-            f.write_fmt("DateTime({:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d})", year, month, day, hour, minute, second)
-        } else {
-            f.write_fmt("DateTime({:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}.{:09d})", year, month, day, hour, minute, second, nanosecond)
-        }
+        f.write_fmt("DateTime({})", to_str())
     }
 
     /// Return true if equal to `o` (Equatable[DateTime]).
