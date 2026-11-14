@@ -1,0 +1,67 @@
+/*
+ * demo/chat — context compaction.
+ *
+ * The model is stateless: every call re-sends the whole message list, which
+ * grows until it hits the context window. When a request's prompt tokens
+ * reach a threshold of the window, summarize the older history with a
+ * separate model call and replace it with the summary, keeping the system
+ * message and the most recent turns. Shared by chat and agent modes.
+ */
+
+import "koala/openai" as openai
+
+/// Compact when prompt tokens reach this percent of the context window.
+const COMPACT_PERCENT = 80
+
+/// How many recent messages to keep verbatim after compaction.
+const KEEP_RECENT = 4
+
+const SUMMARIZE_PROMPT = "You summarize conversations. Produce a concise summary that preserves key facts, decisions, the current task, code state, file paths, and any important results. Output only the summary, no preamble."
+
+/// If the last request used at least COMPACT_PERCENT of the context window,
+/// summarize the older messages and replace them with the summary, keeping
+/// the system message and the most recent KEEP_RECENT messages. Mutates
+/// `messages` in place; a no-op below the threshold or on summary failure.
+func maybe_compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]], prompt_tokens int) {
+    let limit = cfg.context_window * COMPACT_PERCENT / 100
+    if prompt_tokens < limit { return }
+    if messages.len() <= KEEP_RECENT + 2 { return }
+
+    // The older history to summarize: everything between the system message
+    // and the most recent KEEP_RECENT messages.
+    let old = list[dict[str, str]]()
+    var i = 1
+    while i < messages.len() - KEEP_RECENT {
+        old.append(messages[i])
+        i += 1
+    }
+    let summary = _summarize(client, model, cfg, old)
+    if summary == nil { return }
+
+    let recent = list[dict[str, str]]()
+    var j = messages.len() - KEEP_RECENT
+    while j < messages.len() {
+        recent.append(messages[j])
+        j += 1
+    }
+    let system = messages[0]
+    messages.clear()
+    messages.append(system)
+    messages.append({"role": "user", "content": "[Summary of the earlier conversation]\n" + summary})
+    for m in recent { messages.append(m) }
+    print("(context compacted: " + str(prompt_tokens) + " tokens reached " + str(COMPACT_PERCENT) + "% of " + str(cfg.context_window) + "; older history summarized)")
+}
+
+/// Ask the model to summarize `old` messages; nil on failure.
+func _summarize(client openai.Client, model str, cfg Config, old list[dict[str, str]]) str? {
+    var transcript = ""
+    for m in old {
+        transcript += m["role"] + ": " + m["content"] + "\n\n"
+    }
+    let req = list[dict[str, str]]()
+    req.append({"role": "system", "content": SUMMARIZE_PROMPT})
+    req.append({"role": "user", "content": "Summarize this conversation:\n\n" + transcript})
+    let resp = client.chat.completions.create(model, req, cfg.temperature, cfg.max_tokens)
+    if !resp.ok() { return nil }
+    return resp.choices[0].message.content
+}

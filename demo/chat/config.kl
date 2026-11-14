@@ -20,6 +20,7 @@ pub class Config {
     pub let max_code_bytes int
     pub let temperature float
     pub let max_tokens int
+    pub let context_window int
     pub let system_prompt str
 
     pub func __init__() {
@@ -30,6 +31,7 @@ pub class Config {
         max_code_bytes = _int(obj, "max_code_bytes")
         temperature = _float(obj, "temperature")
         max_tokens = _int(obj, "max_tokens")
+        context_window = _int(obj, "context_window")
         system_prompt = _str(obj, "system_prompt")
     }
 }

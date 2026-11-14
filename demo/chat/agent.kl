@@ -1,0 +1,134 @@
+/*
+ * demo/chat — the coding agent: a model-driven tool-use loop.
+ *
+ * /agent (agent mode) runs the loop: the model emits one action per turn
+ * (write a file, run a shell command, or finish), the harness executes it
+ * and feeds the result back, until the model emits "done" or the step cap
+ * is hit. One Agent persists across tasks so follow-ups keep context.
+ */
+
+import "std/fs"
+import "std/os"
+import "koala/openai" as openai
+
+/// Maximum model->tool rounds per task, to bound a runaway loop.
+const MAX_STEPS = 12
+
+/// The agent system prompt: a fenced-block action protocol. Blocks rather
+/// than JSON because the JSON parser panics on malformed input and Koala
+/// has no try/catch; blocks are parsed with string ops and never panic.
+const AGENT_PROMPT = "You are an autonomous coding agent in a command-line chat. Complete the user's task by writing files and running shell commands, step by step, until it is done.\n\nEmit EXACTLY ONE fenced action block per turn, and nothing else. The info string after the opening ``` names the action:\n\nWrite a file (info 'write <path>', body = the full file content):\n```write hello.c\n#include <stdio.h>\nint main(void) { printf(\"hello\\n\"); return 0; }\n```\n\nRun a shell command (info 'shell', body = the command; compile and run here):\n```shell\ngcc hello.c -o hello && ./hello\n```\n\nFinish (info 'done', body = your final message to the user):\n```done\nCompiled and ran successfully.\n```\n\nRules: one block per turn. After each action you receive its result (exit code, stdout, stderr). For a C program: write the .c file, compile with gcc, run the binary, and confirm BOTH compile and run succeed (exit 0) before 'done'. On failure, read the error, fix it, and retry. For a plain question needing no tools, reply with a single 'done' block containing your answer. The conversation persists across tasks, so use earlier context for follow-ups."
+
+/// A coding agent. Owns a persistent conversation (seeded with the agent
+/// prompt) and a scratch working directory; `run` drives the model->tool
+/// loop for one task, appending to the same conversation each time.
+pub class Agent {
+    let client openai.Client
+    let cfg Config
+    let workdir str
+    let messages list[dict[str, str]]
+
+    pub func __init__(_client openai.Client, _cfg Config) {
+        client = _client
+        cfg = _cfg
+        workdir = _setup_workdir()
+        messages = list[dict[str, str]]()
+        messages.append({"role": "system", "content": AGENT_PROMPT})
+        print("(agent work dir: " + workdir + ")")
+    }
+
+    /// Run the agent loop on `task` with `model`, printing each step and the
+    /// final answer. Appends to the persistent conversation.
+    pub func run(task str, model str) {
+        messages.append({"role": "user", "content": task})
+        var step = 0
+        while step < MAX_STEPS {
+            step += 1
+            let resp = client.chat.completions.create(model, messages, cfg.temperature, cfg.max_tokens)
+            if !resp.ok() {
+                messages.pop()
+                print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+                return
+            }
+            let text = resp.choices[0].message.content
+            messages.append({"role": "assistant", "content": text})
+            maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens)
+
+            let block = _parse_block(text)
+            if block == nil {
+                messages.append({"role": "user", "content": "No action block found. Emit exactly one fenced block: write, shell, or done."})
+                continue
+            }
+            let (info, body) = block
+            if info == "done" || info.starts_with("done ") {
+                print("bot> " + body.strip())
+                return
+            }
+            let result = _exec(info, body, workdir)
+            print("[step " + str(step) + "] " + info)
+            print(result)
+            messages.append({"role": "user", "content": result})
+        }
+        print("(step limit " + str(MAX_STEPS) + " reached; stopping)")
+    }
+}
+
+/// The first fenced block in `text` as (info, body), or nil when there is
+/// none. The info is what follows the opening ```; the body runs to the
+/// closing ``` (or the end of the text).
+func _parse_block(text str) (str, str)? {
+    let lines = text.split("\n")
+    var i = 0
+    while i < lines.len() {
+        let t = lines[i].strip()
+        if t.starts_with("```") {
+            let info = t.substr(3).strip()
+            var content = ""
+            var first = true
+            var j = i + 1
+            while j < lines.len() {
+                if lines[j].strip() == "```" { return (info, content) }
+                if !first { content += "\n" }
+                content += lines[j]
+                first = false
+                j += 1
+            }
+            return (info, content)
+        }
+        i += 1
+    }
+    return nil
+}
+
+/// Execute a write/shell action in `workdir` and return the observation to
+/// feed back to the model.
+func _exec(info str, body str, workdir str) str {
+    if info.starts_with("write") {
+        let path = info.substr(5).strip()
+        if path == "" { return "write: missing path" }
+        if fs.write_str(workdir + "/" + path, body) {
+            return "write ok: " + path + " (" + str(body.len()) + " bytes)"
+        }
+        return "write failed: " + path
+    }
+    if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
+        let cmd = body.strip()
+        if cmd == "" { return "shell: empty command" }
+        let r = os.output("sh", ["-c", cmd], workdir)
+        if r == nil { return "shell: cannot start: " + cmd }
+        let (code, out, err) = r
+        var s = "exit " + str(code)
+        if out.strip() != "" { s += "\nstdout:\n" + out.strip() }
+        if err.strip() != "" { s += "\nstderr:\n" + err.strip() }
+        return s
+    }
+    return "unknown action: " + info
+}
+
+/// A scratch directory under the system temp dir, so agent files do not
+/// land in the working tree.
+func _setup_workdir() str {
+    let dir = fs.temp_dir().to_str() + "/koala-chat-agent"
+    fs.mkdir(dir)
+    return dir
+}

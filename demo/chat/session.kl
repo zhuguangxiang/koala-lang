@@ -17,6 +17,7 @@ pub class Session {
     let key str
     var model str
     let messages list[dict[str, str]]
+    var _agent Agent?
 
     pub func __init__(_client openai.Client, _cfg Config, _key str) {
         client = _client
@@ -24,13 +25,16 @@ pub class Session {
         key = _key
         model = _cfg.model
         messages = list[dict[str, str]]()
+        _agent = nil
         reset()
     }
 
-    /// Clear the conversation back to the single system message.
+    /// Clear the conversation back to the single system message, and drop
+    /// the agent's memory so the next agent task starts fresh.
     pub func reset() {
         messages.clear()
         messages.append({"role": "system", "content": cfg.system_prompt})
+        _agent = nil
     }
 
     /// The model currently in use.
@@ -62,7 +66,21 @@ pub class Session {
             return resp
         }
         messages.append({"role": "assistant", "content": resp.choices[0].message.content})
+        maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens)
         return resp
+    }
+
+    /// Run the coding agent loop on `task` with the current model. The
+    /// Agent persists across calls so follow-up tasks keep the conversation
+    /// and the working directory; /reset drops it.
+    pub func agent(task str) {
+        if let a = _agent {
+            a.run(task, model)
+        } else {
+            let a = Agent(client, cfg)
+            _agent = a
+            a.run(task, model)
+        }
     }
 
     /// The model ids the endpoint offers (GET {base_url}/models), or nil

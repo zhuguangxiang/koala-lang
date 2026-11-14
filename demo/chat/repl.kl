@@ -2,6 +2,7 @@
  * demo/chat — the read-eval-print loop and command handling.
  */
 
+import "std/fs"
 import "std/os"
 import "koala/readline"
 
@@ -13,26 +14,57 @@ func _is_blank(line str) bool {
     return true
 }
 
-/// Run the chat loop against `session` until /quit, /exit or Ctrl-D.
-/// Owns all terminal I/O: the prompt, command dispatch, and rendering of
-/// each reply. The conversation lives in `session`, settings in `cfg`.
+/// The prompt, tagged with the current mode ([chat] / [agent]); bold cyan
+/// on a terminal, plain on a pipe.
+func _prompt(mode str) str {
+    if os.isatty(1) {
+        return "\x01\x1b[1;36m\x02[" + mode + "] you>\x01\x1b[0m\x02 "
+    }
+    return "[" + mode + "] you> "
+}
+
+/// Run the loop against `session` until /quit, /exit or Ctrl-D. Starts in
+/// chat mode (single-shot Q&A); /agent switches to agent mode (each plain
+/// line runs the coding loop), /chat switches back. Commands work in both.
 func run_repl(session Session, cfg Config) {
     // False on the first run, when there is no history file yet.
     readline.read_history_file(cfg.history_file)
     readline.set_history_length(200)
 
-    // The prompt in bold cyan on a terminal; plain on a pipe.
-    var prompt = "you> "
-    if os.isatty(1) { prompt = "\x01\x1b[1;36m\x02you>\x01\x1b[0m\x02 " }
+    // Tab completes the /commands and their arguments (model names, paths).
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(_ChatCompleter(session))
+    readline.set_completer_delims(" \t\n")
 
-    print("Chat with " + cfg.model + ". /quit or Ctrl-D to leave, /reset to clear, @FILE to load a file, /model to switch models.")
-    while let line = readline.input(prompt) {
+    var mode = "chat"
+    print("Chat with " + cfg.model + ". /agent = coding loop, /chat = Q&A, /quit or Ctrl-D to leave, /reset to clear, /file PATH to load, /model to switch models.")
+    while let line = readline.input(_prompt(mode)) {
         // blank lines (and the "" Ctrl-C returns) are not sent
         if _is_blank(line) { continue }
         if line == "/quit" || line == "/exit" { break }
+        if line == "/chat" {
+            mode = "chat"
+            print("(chat mode)")
+            continue
+        }
+        if line == "/agent" {
+            mode = "agent"
+            print("(agent mode — type a task directly; /chat to return)")
+            continue
+        }
+        if line.starts_with("/agent ") {
+            mode = "agent"
+            let task = line.substr(7, line.len()).strip()
+            if task != "" { session.agent(task) }
+            continue
+        }
         if line == "/reset" {
             session.reset()
             print("(the history is cleared)")
+            continue
+        }
+        if line == "/clear" {
+            if os.isatty(1) { printf("\x1b[2J\x1b[3J\x1b[H") }
             continue
         }
         if line == "/models" {
@@ -48,12 +80,23 @@ func run_repl(session Session, cfg Config) {
             continue
         }
         if line.starts_with("/model ") {
-            let name = line.substr(7, line.len())
+            let name = line.substr(7, line.len()).strip()
             if name == "" {
                 print("(current model: " + session.current_model() + ")")
             } else {
                 session.set_model(name)
                 print("(model set to " + name + ")")
+            }
+            continue
+        }
+        if line == "/file" || line.starts_with("/file ") {
+            let path = line.substr(5, line.len()).strip()
+            if path == "" {
+                print("(usage: /file PATH)")
+            } else if let n = session.load_file(path) {
+                print("(loaded " + path + ", " + str(n) + " chars)")
+            } else {
+                print("cannot read: " + path)
             }
             continue
         }
@@ -67,14 +110,102 @@ func run_repl(session Session, cfg Config) {
             continue
         }
 
-        let resp = session.ask(line)
-        if !resp.ok() {
-            print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
-            continue
+        // A plain line: a task in agent mode, a question in chat mode.
+        if mode == "agent" {
+            session.agent(line)
+        } else {
+            let resp = session.ask(line)
+            if !resp.ok() {
+                print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+                continue
+            }
+            print("bot> " + resp.choices[0].message.content)
+            printf("({} tokens)\n", resp.usage.total_tokens)
         }
-        print("bot> " + resp.choices[0].message.content)
-        printf("({} tokens)\n", resp.usage.total_tokens)
     }
 
     readline.write_history_file(cfg.history_file)
+}
+
+/// Tab completion: the /commands for the first word, model names after
+/// "/model ", and file paths after "/file ". No trailing space is added —
+/// commands are matched exactly and arguments are parsed as-is, so a stray
+/// space would break "/quit" or end up inside a model name or path.
+class _ChatCompleter : readline.Completer {
+    let session Session
+    let commands list[str]
+    var models list[str]?
+    var file_text str
+    var file_matches list[str]
+
+    func __init__(_session Session) {
+        session = _session
+        commands = ["/quit", "/exit", "/reset", "/clear", "/model", "/models", "/file", "/agent", "/chat"]
+        models = nil
+        file_text = ""
+        file_matches = list[str]()
+    }
+
+    func complete(text str, state int) str? {
+        let before = readline.get_line_buffer().substr(0, readline.get_begidx())
+        if before == "" {
+            if !text.starts_with("/") { return nil }
+            return _nth(commands, text, state)
+        }
+        let cmd = before.split(" ")[0]
+        if cmd == "/model" { return _nth(_model_list(), text, state) }
+        if cmd == "/file" { return _nth(_files(text), text, state) }
+        return nil
+    }
+
+    /// The state-th candidate starting with `text`, else nil.
+    func _nth(candidates list[str], text str, state int) str? {
+        var n = 0
+        for c in candidates {
+            if c.starts_with(text) {
+                if n == state { return c }
+                n += 1
+            }
+        }
+        return nil
+    }
+
+    /// The endpoint's model ids, fetched once on first use and cached.
+    func _model_list() list[str] {
+        if let m = models { return m }
+        let fetched = session.list_models()
+        models = fetched
+        if let m = fetched { return m }
+        return list[str]()
+    }
+
+    /// File-path matches for `text`, cached per word being completed.
+    func _files(text str) list[str] {
+        if text != file_text {
+            file_text = text
+            file_matches = _file_matches(text)
+        }
+        return file_matches
+    }
+}
+
+/// The paths that complete `text`: its directory part followed by each name
+/// in that directory starting with the rest, as readline's file completion.
+func _file_matches(text str) list[str] {
+    let out = list[str]()
+    var dir = ""
+    var prefix = text
+    let slash = text.rindex("/")
+    if slash >= 0 {
+        dir = text.substr(0, slash + 1)
+        prefix = text.substr(slash + 1)
+    }
+    var where = dir
+    if where.len() == 0 { where = "." }
+    if !fs.is_dir(where) { return out }
+    for path in fs.list_dir(where) {
+        let name = path.name()
+        if name.starts_with(prefix) { out.append(dir + name) }
+    }
+    return out
 }

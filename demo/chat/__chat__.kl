@@ -10,14 +10,23 @@
 ///   file and every field are required. A template lives at
 ///   demo/chat/config.json. The API key is NOT in config: it comes from
 ///   $OPENAI_COMPAT_API_KEY, or is entered at startup when unset.
+///   context_window sets the model's token budget; when a request reaches
+///   80% of it, older history is auto-summarized (compaction) to fit.
 ///
-/// Commands: /quit /exit Ctrl-D leave, /reset clears the conversation,
-///   @FILE loads a file, /model shows the current model, /model NAME
-///   switches it, /models lists the models the endpoint offers.
+/// Modes: starts in chat mode (single-shot Q&A). /agent switches to agent
+///   mode, where each plain line runs the coding loop (write/compile/run
+///   until done); /chat switches back. The prompt shows [chat] / [agent].
+/// Commands (both modes): /quit /exit Ctrl-D leave, /reset clears the
+///   conversation, /clear clears the screen, /file PATH (or @PATH) loads a
+///   file, /model shows or switches the model (/model NAME), /models lists
+///   the endpoint's models. Tab completes the /commands, model names after
+///   /model, paths after /file.
 ///
 /// Layout:
 ///   config.kl   — Config (from config.json) and resolve_key
 ///   session.kl  — Session: conversation, model selection, model listing
+///   agent.kl    — Agent: the model-driven write/shell/done tool loop
+///   compact.kl  — context compaction (summarize old history near the limit)
 ///   repl.kl     — the input loop, commands, and terminal I/O
 
 import "koala/openai" as openai
