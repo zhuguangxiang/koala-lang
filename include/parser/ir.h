@@ -308,6 +308,9 @@ typedef struct _KlrBasicBlock {
     /* node index in the last built KlrDomTree, see domtree.h */
     int dom_index;
 
+    /* the header of a partially unrolled loop, not unrolled again */
+    int unrolled;
+
     /* backend-private pointer */
     void *mach;
 } KlrBasicBlock;

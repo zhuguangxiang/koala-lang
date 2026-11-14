@@ -147,7 +147,7 @@ func main() {
 **Performance & implementation**
 - Compact **register‑based bytecode**, primitives live in registers with no heap boxing.
 - A real optimizing compiler: **SSA IR**, SCCP / LVN / DCE / constant‑copy propagation / CFG cleanup, instruction selection, **linear‑scan register allocation**, tail‑call optimization and inlining.
-- **Drop Bear**, a baseline x86‑64 JIT (v1): hot integer/float/bool functions compile to native code, **up to ~6× over the interpreter** and already competitive with LuaJIT.
+- **Drop Bear**, a baseline x86‑64 JIT (v1): hot integer/float/bool functions compile to native code, **up to ~9× over the interpreter** and already beats LuaJIT on several benchmarks.
 - Pure C23, **zero external dependencies**, hackable and easy to extend.
 
 ## Quick start
@@ -195,20 +195,39 @@ Run `wombat help <command>` for details. See the [wombat API reference](docs/koa
 
 ## Performance
 
-**Koala vs Lua vs LuaJIT** — hyperfine (mean, lower is better). `Koala` = bare interpreter; `Koala JIT` = Drop Bear baseline JIT (v1); LuaJIT shown with JIT off.
+**Koala vs LuaJIT vs Lua 5.4** — hyperfine (mean ms, lower is better), release build. `JIT` = Drop Bear baseline JIT (v1, with the write-back register cache); `int` = bare interpreter. Koala runs with `++ --recursive-self-inline --domtree --unroll`; regenerate the table with `./bench-table.sh`.
 
-| Benchmark   | Koala     | Koala JIT | Lua      | LuaJIT(-joff) | vs Lua | vs LuaJIT |
-| ----------- | --------- | --------- | -------- | ------------- | ------ | --------- |
-| sum         | **565.6ms** | 95.9ms  | 1074ms | 956.4ms       | 1.90×  | **1.69×** |
-| loop-sum    | 270.5ms   | 67.6ms  | 298.2ms  | 247.7ms       | 1.10×  | 0.92×     |
-| fib         | **2.927s**  | 785.7ms | 4.208s | 3.242s        | 1.44×  | **1.11×** |
-| ack         | 556.8ms   | 233.1ms | 551.6ms  | 385.5ms       | ~1.00× | 0.69×     |
-| tak         | 413.7ms   | 136.0ms | 581.5ms  | 356.1ms       | 1.41×  | 0.86×     |
-| shuffle     | **140.7ms** | 42.3ms  | 653.5ms | 461.6ms     | **4.64×** | **3.28×** |
-| logic_chain | **1.114s**  | 437.8ms | 1.857s | 1.222s        | 1.67×  | **1.10×** |
-| float_arith | **254.5ms** | 178.9ms | 539.5ms | 343.0ms     | **2.12×** | **1.35×** |
+| Benchmark   | Koala JIT | Koala int | LuaJIT JIT | LuaJIT int | Lua 5.4 |
+| ----------- | --------: | --------: | ---------: | ---------: | ------: |
+| **fib** ⚡  | **274**   | 1256      | 694        | 3257       | 4128    |
+| tak         | **137**   | 562       | 147        | 348        | 572     |
+| loop-sum    | **31**    | 269       | 47         | 247        | 296     |
+| float_arith | 52        | 268       | **47**     | 332        | 559     |
+| logic_chain | 432       | 1260      | **343**    | 1237       | 1867    |
+| float_logic | 81        | 713       | **65**     | 577        | 709     |
+| sum         | 75        | 584       | **47**     | 957        | 1059    |
+| ack         | 251       | 705       | **80**     | 381        | 539     |
+| shuffle     | 71        | 351       | **20**     | 471        | 654     |
 
-Against LuaJIT **with its JIT enabled**, Drop Bear v1 already wins on `tak`, ties on `fib`, and trails on call‑heavy and floating‑point loops — the gap is code quality (the baseline keeps values in the TValue register file), which the next JIT tier targets. Static typing is free ammunition: type specialization, devirtualization and bounds‑check elimination need no guessing and no guards.
+⚡ **fib** is run with `--recursive-self-inline` (the compiler inlines the two self-recursive
+calls, then the JIT compiles the flattened body): **274 ms, 2.5× faster than LuaJIT**. Without
+that flag fib is 797 ms (~0.86× of LuaJIT). The recursive-inline + JIT combo is where
+static typing pays off most.
+
+**loop-sum** is partially unrolled (`--unroll`, factor 4) and its loop body runs entirely in
+machine registers thanks to the JIT's write-back register cache (values are written back to the
+VM frame only at observable points such as calls and `ret`): **31 ms, 1.5× faster than LuaJIT**.
+
+Bitwise benchmarks use Lua 5.4 integer syntax that LuaJIT (5.1-based) cannot parse, so they
+compare against Lua 5.4 only — Koala JIT wins big: `test_bitwise` 138 ms vs 1150 ms (**8.3×**),
+`test_arith` 483 ms vs 1752 ms (**3.6×**).
+
+**Takeaways.** Drop Bear v1 speeds Koala up **3–9× over its own interpreter**. Against LuaJIT's
+JIT it already wins on `tak`, `loop-sum` and `fib` (with recursive inlining), is close on
+`float_arith`, and trails on call-heavy (`ack`, `shuffle`), tail-recursive (`sum`) and
+`idiv`/branch-heavy (`logic_chain`) code — exactly what the next tier (Yowie: unboxing,
+cross-call register allocation, cheaper calls) targets. Static typing is free ammunition: type
+specialization, devirtualization and bounds-check elimination need no guessing and no guards.
 
 ### Built‑in benchmarking (`@bench`)
 
@@ -228,7 +247,7 @@ KOALA_JIT=0 koala test/test-bench/test_jit.kl ++ --test   # interpreter
 KOALA_JIT=1 koala test/test-bench/test_jit.kl ++ --test   # Drop Bear JIT
 ```
 
-[`test/test-bench/test_jit.kl`](test/test-bench/test_jit.kl) covers integer / uint / float loops and self‑ / tail‑recursion. Drop Bear v1 measured ~4× on integer loops and `fib`, ~6.5× on tail recursion, ~1.7× on float loops (the float gap is what Yowie targets). `@bench` also compares compiler options, e.g. `++ --test --domtree --unroll`.
+[`test/test-bench/test_jit.kl`](test/test-bench/test_jit.kl) covers integer / uint / float loops and self‑ / tail‑recursion. Drop Bear v1 measured ~5.6× on integer/uint loops, ~4.5× on `fib`, ~9× on tail recursion and ~4.8× on float loops. `@bench` also compares compiler options, e.g. `++ --test --domtree --unroll`.
 
 ## Under the hood
 

@@ -70,14 +70,106 @@ func early_ret(x int) int {
 // CHECK:      %bb17(if-then):                                 ;; preds = %bb14, %bb2, %bb5, %bb8, %bb11
 // CHECK-NEXT:   %15 = mul %i int64, 11 int64
 
-// 18 trips, more than UNROLL_MAX_TRIPS: not unrolled
+// 17 trips, more than UNROLL_MAX_TRIPS: partially unrolled by 4, the constant bound needs no
+// guard, the copies run while i < 17 - 3, the original loop runs the remaining trips
 func too_many() int {
     var s = 0
     for i in range(17) { s = s + i }
     return s
 }
 
-// CHECK-NOT: func @too_many
+// CHECK-LABEL: --- IR Dump After unroll ---
+// CHECK-NEXT:   func @too_many() int64 {
+// CHECK:        move %i int64, 0 int64
+// CHECK-NEXT:   jmp label %bb1
+// CHECK:      %bb1(unroll-cond):                              ;; preds = %bb9, %bb0
+// CHECK-NEXT:   %0 = cmplt %i int64, 14 int64
+// CHECK-NEXT:   branch %0 bool, label %bb2, label %bb10
+// CHECK:      %bb2(loop-cond):                                ;; preds = %bb1
+// CHECK-NEXT:   %1 = cmplt %i int64, 17 int64
+// CHECK-NEXT:   jmp label %bb3
+// CHECK:      %bb3(loop-body):                                ;; preds = %bb2
+// CHECK-NEXT:   %2 = add %s int64, %i int64
+// CHECK-NEXT:   move %s int64, %2 int64
+// CHECK-NEXT:   %3 = add %i int64, 1 int64
+// CHECK-NEXT:   move %i int64, %3 int64
+// CHECK-NEXT:   jmp label %bb4
+// CHECK:      %bb9(loop-body):                                ;; preds = %bb8
+// CHECK-NEXT:   %11 = add %s int64, %i int64
+// CHECK-NEXT:   move %s int64, %11 int64
+// CHECK-NEXT:   %12 = add %i int64, 1 int64
+// CHECK-NEXT:   move %i int64, %12 int64
+// CHECK-NEXT:   jmp label %bb1
+// CHECK:      %bb10(loop-cond):                               ;; preds = %bb11, %bb1
+// CHECK-NEXT:   %13 = cmplt %i int64, 17 int64
+// CHECK-NEXT:   branch %13 bool, label %bb11, label %bb12
+// CHECK:      %bb11(loop-body):                               ;; preds = %bb10
+// CHECK:        jmp label %bb10
+// CHECK:      %bb12(loop-end):                                ;; preds = %bb10
+// CHECK-NEXT:   ret %s int64
+
+// the bound is a parameter: partially unrolled, the guard skips the copies if 'n - 3' wraps
+func sum_to(n int) int {
+    var s = 0
+    for i in range(1, n) { s = s + i }
+    return s
+}
+
+// CHECK-LABEL: --- IR Dump After unroll ---
+// CHECK-NEXT:   func @sum_to(%n int64) int64 {
+// CHECK:        move %i int64, 1 int64
+// CHECK-NEXT:   jmp label %bb1
+// CHECK:      %bb1(unroll-guard):                             ;; preds = %bb0
+// CHECK-NEXT:   %0 = cmpge %n int64, -9223372036854775805 int64
+// CHECK-NEXT:   branch %0 bool, label %bb2, label %bb12
+// CHECK:      %bb2(unroll-bound):                             ;; preds = %bb1
+// CHECK-NEXT:   %1 = local int64
+// CHECK-NEXT:   %2 = sub %n int64, 3 int64
+// CHECK-NEXT:   move %1 int64, %2 int64
+// CHECK-NEXT:   jmp label %bb3
+// CHECK:      %bb3(unroll-cond):                              ;; preds = %bb11, %bb2
+// CHECK-NEXT:   %3 = cmplt %i int64, %1 int64
+// CHECK-NEXT:   branch %3 bool, label %bb4, label %bb12
+// CHECK:      %bb4(loop-cond):                                ;; preds = %bb3
+// CHECK-NEXT:   %4 = cmplt %i int64, %n int64
+// CHECK-NEXT:   jmp label %bb5
+// CHECK:      %bb11(loop-body):                               ;; preds = %bb10
+// CHECK:        jmp label %bb3
+// CHECK:      %bb12(loop-cond):                               ;; preds = %bb13, %bb1, %bb3
+// CHECK-NEXT:   %16 = cmplt %i int64, %n int64
+// CHECK-NEXT:   branch %16 bool, label %bb13, label %bb14
+
+// the exit test is after the step: the last copy keeps it
+func rotated(n int) int {
+    var s = 0
+    var i = 0
+    while true {
+        s = s + i
+        i += 1
+        if i >= n { break }
+    }
+    return s
+}
+
+// CHECK-LABEL: --- IR Dump After unroll ---
+// CHECK-NEXT:   func @rotated(%n int64) int64 {
+// CHECK:      %bb1(unroll-guard):                             ;; preds = %bb0
+// CHECK-NEXT:   %0 = cmpge %n int64, -9223372036854775805 int64
+// CHECK-NEXT:   branch %0 bool, label %bb2, label %bb8
+// CHECK:      %bb3(unroll-cond):                              ;; preds = %bb7, %bb2
+// CHECK-NEXT:   %3 = cmplt %i int64, %1 int64
+// CHECK-NEXT:   branch %3 bool, label %bb4, label %bb8
+// CHECK:      %bb4(while-body):                               ;; preds = %bb3
+// CHECK:        %6 = cmpge %i int64, %n int64
+// CHECK-NEXT:   jmp label %bb5
+// CHECK:      %bb7(while-body):                               ;; preds = %bb6
+// CHECK:        %15 = cmpge %i int64, %n int64
+// CHECK-NEXT:   branch %15 bool, label %bb9, label %bb3
+// CHECK:      %bb8(while-body):                               ;; preds = %bb8, %bb1, %bb3
+// CHECK:        %18 = cmpge %i int64, %n int64
+// CHECK-NEXT:   branch %18 bool, label %bb9, label %bb8
+// CHECK:      %bb9(while-end):                                ;; preds = %bb8, %bb7
+// CHECK-NEXT:   ret %s int64
 
 // the opt removes the original loops after unrolling
 // DOM-LABEL: func @g
@@ -85,4 +177,4 @@ func too_many() int {
 // DOM-LABEL: func @early_ret
 // DOM-NOT: back edges
 // DOM-LABEL: func @too_many
-// DOM: back edges: bb2(loop-body) -> bb1(loop-cond)
+// DOM: back edges: bb2(loop-cond) -> bb1(unroll-cond), bb4(loop-body) -> bb3(loop-cond)

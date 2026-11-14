@@ -15,6 +15,16 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     exit 1
 }
 
+echo ""
+echo "=============================================="
+echo " workspace: test (JIT disabled)"
+echo "=============================================="
+
+(cd "$ROOT/libs" && KOALA_JIT=0 wombat test std && KOALA_JIT=0 wombat test koala) || {
+    echo "wombat test with JIT disabled failed."
+    exit 1
+}
+
 echo "Done."
 
 cd build/debug

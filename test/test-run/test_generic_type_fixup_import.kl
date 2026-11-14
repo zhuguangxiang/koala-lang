@@ -1,0 +1,48 @@
+// RUN: mkdir -p %t.dir && koalac %S/../inputs/generic_type_fixup_dep.kl --cgen --write-klc --package-name=generic_type_fixup_dep -o %t.dir/generic_type_fixup_dep.klc
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koalac %s --cgen --write-klc -o %t.dir/main.klc
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_JIT=0 KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+
+import "generic_type_fixup_dep" as dep
+
+func identity_str(value str) str { return value }
+func plus_one(value int) int { return value + 1 }
+func str_length(value str) int { return value.len() }
+func make_str() str { return "created" }
+
+func main() {
+    let box = dep.Box[str]("hello")
+    let (n, value) = box.pair()
+    print(n, value)
+    if let pair = box.optional() {
+        let (p, value) = pair
+        print(p, value)
+    }
+    let (m, nested) = box.nested()[0]
+    print(m, nested)
+    let (k, item) = box.identity[int](list[(int, int)]((3, 5)))[0]
+    print(k, item)
+    print(box.apply(identity_str))
+    print(box.apply_int(plus_one))
+    print(box.from_class(make_str))
+    print(box.map[int](str_length))
+    print(dep.CallbackOnly[str]().apply(str_length))
+    print(dep.CallbackOnly[int]().generic[str](str_length))
+    print(dep.CallbackOnly[int]().make[str](make_str))
+    print(dep.CallbackOnly[int]().second[int, str](make_str))
+    print(dep.run[str](make_str))
+}
+
+// CHECK: 7 hello
+// CHECK-NEXT: 8 hello
+// CHECK-NEXT: 7 hello
+// CHECK-NEXT: 3 5
+// CHECK-NEXT: hello
+// CHECK-NEXT: 5
+// CHECK-NEXT: created
+// CHECK-NEXT: 5
+// CHECK-NEXT: 7
+// CHECK-NEXT: 8
+// CHECK-NEXT: created
+// CHECK-NEXT: created
+// CHECK-NEXT: created

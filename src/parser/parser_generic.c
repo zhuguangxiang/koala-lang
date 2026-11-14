@@ -581,6 +581,15 @@ TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args, HashMap *stbl, Par
             vector_push_back(inst_args, &inst_arg);
         }
         arg_ts = union_type_spec_intern(inst_args);
+    } else if (ts->kind == TYPE_PROTO) {
+        Vector *args = vector_create_ptr();
+        TypeSpec *arg;
+        vector_foreach(arg, ts->proto_type.args) {
+            TypeSpec *inst_arg = type_spec_specialize(arg, tp_args, stbl, pm);
+            vector_push_back(args, &inst_arg);
+        }
+        TypeSpec *ret = type_spec_specialize(ts->proto_type.ret, tp_args, stbl, pm);
+        arg_ts = func_type_spec_intern(args, ret);
     } else {
         arg_ts = ts;
     }

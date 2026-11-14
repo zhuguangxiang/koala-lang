@@ -19,7 +19,6 @@ typedef enum {
     FIXUP_FUNC_PARAM,
     FIXUP_FUNC_RET,
     FIXUP_KLASS_BASE,
-    FIXUP_GENERIC_VAR,
     FIXUP_FUNC_PROTO,
     FIXUP_VAR_TYPE,
 } FixupKind;
@@ -51,6 +50,14 @@ typedef struct _LoadKlcContext {
 static inline int ts_need_fixup(TypeSpec *ts)
 {
     if (ts->kind == TYPE_OPTIONAL) return ts_need_fixup(ts->opt.src);
+    if (ts->kind == TYPE_VA_LIST) return ts_need_fixup(ts->va_list.src);
+    if (ts->kind == TYPE_PROTO) {
+        TypeSpec *arg;
+        vector_foreach(arg, ts->proto_type.args) {
+            if (ts_need_fixup(arg)) return 1;
+        }
+        return ts_need_fixup(ts->proto_type.ret);
+    }
 
     if (ts->kind == TYPE_ENUM) {
         ASSERT(ts->sym_id >= 0);
@@ -66,20 +73,6 @@ static void add_fixup_entry(FixupEntry *entry, TypeSpec *ts, LoadContext *ctx)
     ASSERT(ts_need_fixup(ts));
 
     vector_push_back(&ctx->fixups, entry);
-
-    if (ts->kind == TYPE_GENERIC_REF) {
-        TypeSpec *arg_ts;
-        vector_foreach(arg_ts, ts->generic_ref.args) {
-            ASSERT(arg_ts->kind == TYPE_GENERIC_VAR);
-            FixupEntry arg_entry = {
-                .kind = FIXUP_GENERIC_VAR,
-                .owner = ts,
-                .index = i__,
-                .scope = entry->scope,
-            };
-            vector_push_back(&ctx->fixups, &arg_entry);
-        }
-    }
 }
 
 static void add_stage_2_fixup_entry(FixupEntry *entry, LoadContext *ctx)
@@ -160,6 +153,10 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         } else {
             UNREACHABLE();
         }
+        TypeSpec **arg;
+        vector_foreach_ptr(arg, ts->generic_ref.args) {
+            if (ts_need_fixup(*arg)) fixup_type_spec(arg, ctx);
+        }
     } else if (ts->kind == TYPE_GENERIC_VAR) {
         // Try the scope first: the owner may be a method, and a top-level
         // symbol of the same name is then a different symbol.
@@ -218,10 +215,18 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
             }
         }
     } else if (ts->kind == TYPE_OPTIONAL) {
-        if (ts->opt.src->sym_id < 0) {
+        if (ts_need_fixup(ts->opt.src)) {
             TypeSpec **_src_ts = &ts->opt.src;
             fixup_type_spec(_src_ts, ctx);
         }
+    } else if (ts->kind == TYPE_VA_LIST) {
+        if (ts_need_fixup(ts->va_list.src)) fixup_type_spec(&ts->va_list.src, ctx);
+    } else if (ts->kind == TYPE_PROTO) {
+        TypeSpec **arg;
+        vector_foreach_ptr(arg, ts->proto_type.args) {
+            if (ts_need_fixup(*arg)) fixup_type_spec(arg, ctx);
+        }
+        if (ts_need_fixup(ts->proto_type.ret)) fixup_type_spec(&ts->proto_type.ret, ctx);
     } else {
         UNREACHABLE();
     }
@@ -256,12 +261,6 @@ static void __do_fixup(Vector *fixups, LoadContext *ctx)
             case FIXUP_KLASS_BASE: {
                 KlassSymbol *kls_sym = entry->owner;
                 TypeSpec **ts_ptr = vector_get_ptr(&kls_sym->bases, entry->index);
-                fixup_type_spec(ts_ptr, ctx);
-                break;
-            }
-            case FIXUP_GENERIC_VAR: {
-                TypeSpec *ts = entry->owner;
-                TypeSpec **ts_ptr = vector_get_ptr(ts->generic_ref.args, entry->index);
                 fixup_type_spec(ts_ptr, ctx);
                 break;
             }

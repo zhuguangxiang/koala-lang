@@ -2,11 +2,15 @@
 // RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
 // RUN: env KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s
 // RUN: env KOALA_JIT_THRESHOLD=1 KOALA_JIT_CHECK_CACHE=1 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 KOALA_JIT_WB=wt koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 KOALA_JIT_CHECK_CACHE=1 koala %s ++ --no-inline --domtree --unroll 2>&1 | filecheck %s
 // RUN: env KOALA_JIT_THRESHOLD=1 KOALA_JIT_TRACE=1 koala %s ++ --no-inline 2>&1 | filecheck %s --check-prefix=JIT
 // JIT register cache (DESIGN §15): promoted VM registers keep a copy in a
-// machine register across loop back edges. Each function below breaks one
-// invalidation rule if it is wrong: a stale copy changes the printed value
-// (and KOALA_JIT_CHECK_CACHE=1 traps on it).
+// machine register across loop back edges, and a scalar def stays dirty in
+// it (lazy writeback) until a flush writes payload and tag back together.
+// Each function below breaks one invalidation or flush rule if it is wrong:
+// a stale copy or stale memory changes the printed value (and
+// KOALA_JIT_CHECK_CACHE=1 traps on it).
 
 class Box {
     var v int
@@ -124,6 +128,156 @@ func fcount(n int) int {
     return c
 }
 
+// dirty uint64 / bool copies: a flush must write their own tag back (an INT64
+// tag would print the uint negative and the bool as an integer)
+func ubig(n int) uint64 {
+    var u = uint64(0) - uint64(n) - uint64(1)
+    var i = 0
+    while i < n {
+        u = u + uint64(1)
+        i = i + 1
+    }
+    return u
+}
+
+func flag_loop(n int) bool {
+    var f = false
+    var i = 0
+    while i < n {
+        f = !f
+        i = i + 1
+    }
+    return f
+}
+
+// int.not of a dirty copy: the result tag comes from the pending tag
+func not_loop(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + ~i
+        i = i + 1
+    }
+    return s
+}
+
+// a dirty value read by non-aware ops (set_field, print) inside the loop:
+// written back before them
+func flush_use(b Box, n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + i
+        b.v = s
+        if i % 10 == 0 { print("s", s) }
+        i = i + 1
+    }
+    return b.v
+}
+
+// partially unrolled loop (with --unroll): the copies and the remainder loop
+// all keep s and i dirty; the exit edge writes them back
+func unroll_sum(n int) int {
+    var s = 0
+    for i in range(1, n) { s = s * 3 + i }
+    return s
+}
+
+// division by zero after dirty defs in the loop: the raise path writes back
+func div_late(n int, z int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + i
+        i = i + 1
+    }
+    return s / z
+}
+
+// the result of int.not on a dirty copy, returned directly: its tag (INT64,
+// or UINT64 for a uint64 operand) comes from the pending tag
+func not_last(n int) int {
+    var x = 0
+    var i = 0
+    while i < n {
+        x = ~i
+        i = i + 1
+    }
+    return x
+}
+
+func unot_last(n int) uint64 {
+    var x = uint64(0)
+    var u = uint64(5)
+    var i = 0
+    while i < n {
+        x = ~u
+        u = u + uint64(1)
+        i = i + 1
+    }
+    return x
+}
+
+// moves of dirty uint64 / float64 copies: the destination takes the source's
+// pending tag
+func ufib(n int) uint64 {
+    var a = uint64(0)
+    var b = uint64(1)
+    var i = 0
+    while i < n {
+        var t = a + b
+        a = b
+        b = t
+        i = i + 1
+    }
+    return a
+}
+
+func ffib(n int) float64 {
+    var a = 0.0
+    var b = 1.0
+    var i = 0
+    while i < n {
+        var t = a + b
+        a = b
+        b = t
+        i = i + 1
+    }
+    return a
+}
+
+// one VM register holds a float in one place and an int in another: reading a
+// dirty copy across classes goes through memory, written back first
+func mix(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        var f = float64(i) * 0.5
+        if f > 3.0 { s = s + 1 }
+        var k = i * 3
+        if k > 6 { s = s + 2 }
+        i = i + 1
+    }
+    return s
+}
+
+func mix2(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        var k = i * 3
+        if k > 6 { s = s + 2 }
+        var k2 = k + i
+        if k2 > 9 { s = s + 1 }
+        var k3 = k2 * k
+        if k3 > 90 { s = s + 1 }
+        var f = float64(i) * 0.5
+        if f > 3.0 { s = s + 1 }
+        i = i + 1
+    }
+    return s
+}
+
 func main() {
     var r = 0
     var f = 0.0
@@ -156,6 +310,18 @@ func main() {
     print(e)
     print(g)
     print(h)
+    print(ubig(1000))
+    print(flag_loop(7))
+    print(not_loop(100))
+    print(flush_use(Box(0), 35))
+    print(unroll_sum(23))
+    print(not_last(100))
+    print(unot_last(10))
+    print(ufib(93))
+    print(ffib(10))
+    print(mix(20))
+    print(mix2(20))
+    print(div_late(100, 0))
 }
 
 // CHECK: {{^}}1498500{{$}}
@@ -167,6 +333,22 @@ func main() {
 // CHECK-NEXT: {{^}}500500{{$}}
 // CHECK-NEXT: {{^}}100{{$}}
 // CHECK-NEXT: {{^}}10600{{$}}
+// CHECK-NEXT: 18446744073709551615
+// CHECK-NEXT: true
+// CHECK-NEXT: -5050
+// CHECK-NEXT: s 0
+// CHECK-NEXT: s 55
+// CHECK-NEXT: s 210
+// CHECK-NEXT: s 465
+// CHECK-NEXT: 595
+// CHECK-NEXT: 23535794695
+// CHECK-NEXT: -100
+// CHECK-NEXT: 18446744073709551601
+// CHECK-NEXT: 12200160415121876738
+// CHECK-NEXT: 55
+// CHECK-NEXT: 47
+// CHECK-NEXT: 81
+// CHECK: Error: division by zero
 
 // JIT-DAG: [jit] regcache @isum:
 // JIT-DAG: [jit] regcache @fsum: {{.*}}xmm

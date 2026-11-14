@@ -30,6 +30,21 @@
  *
  * An inner loop is unrolled first, the outer loop becomes innermost after the opt and is
  * unrolled in the next round.
+ *
+ * A loop that can't be fully unrolled is partially unrolled UNROLL_PARTIAL_FACTOR (U) times if
+ * its exit test 'branch (cmp %i, L)' compares the counter with a constant, or a local or a
+ * parameter not written in the loop, the loop continues while '%i < L' or '%i <= L' with a
+ * positive step (or '>' / '>=' with a negative one), and the init of %i may be any value:
+ *
+ *   P -> [guard] -> [bound] -> cond -> copy 0 -> ... -> copy U-1 -> cond
+ *                                  \-> the original loop, runs the remaining trips
+ *
+ * 'cond' runs the U copies only if all of their exit tests pass, i.e. '%i <rel> L - (U-1)*step',
+ * so the exit tests of the copies are removed. In a loop testing after the step, the test of the
+ * last copy decides if the loop continues, so it is kept. The bound is a constant if L is,
+ * otherwise 'guard' skips the copies if computing it overflows and 'bound' saves it in a local.
+ * The copies run the same instructions as the original trips, so the result is always correct.
+ * The headers of both loops are marked, so they are not unrolled again.
  */
 
 #include "cmd.h"
@@ -41,10 +56,11 @@
 extern "C" {
 #endif
 
-#define UNROLL_MAX_TRIPS     16
-#define UNROLL_MAX_INSNS     256
-#define UNROLL_MAX_INIT_WALK 8
-#define UNROLL_MAX_PER_FUNC  8
+#define UNROLL_MAX_TRIPS      16
+#define UNROLL_MAX_INSNS      256
+#define UNROLL_MAX_INIT_WALK  8
+#define UNROLL_MAX_PER_FUNC   8
+#define UNROLL_PARTIAL_FACTOR 4
 
 typedef struct _PtrEntry {
     HashMapEntry hnode;
@@ -90,8 +106,10 @@ typedef struct _Loop {
     KlrBasicBlock **blocks;
     int num_blocks;
     int num_insns;
-    /* trip count, the number of the header entries */
+    /* trip count, the number of the header entries; the number of copies */
     int trips;
+    /* the target of the back edges of the last copy */
+    KlrBasicBlock *last_next;
     /* the counter, its only def in the loop, and its value on the k-th entry of the header */
     KlrValue *var;
     KlrInsn *step_move;
@@ -179,7 +197,8 @@ static int check_loop(Loop *loop)
             use_foreach(use, (KlrValue *)insn) {
                 if (!in_loop(loop, use->insn->bb)) return 0;
             }
-            def_foreach(use, (KlrValue *)insn) {
+            def_foreach(use, (KlrValue *)insn)
+            {
                 if (!in_loop(loop, use->insn->bb)) return 0;
             }
         }
@@ -226,6 +245,9 @@ typedef struct _CountedLoop {
     /* exit test: var <rel> limit */
     int rel;
     int64_t limit;
+    /* a constant, or a local or a parameter not written in the loop */
+    KlrValue *limit_val;
+    int limit_is_const;
     /* exit if the test is true */
     int exit_on_true;
     /* the test reads var before the step */
@@ -249,6 +271,38 @@ static int swap_rel(int rel)
         default:
             return rel;
     }
+}
+
+static int negate_rel(int rel)
+{
+    switch (rel) {
+        case OP_BINARY_LT:
+            return OP_BINARY_GE;
+        case OP_BINARY_LE:
+            return OP_BINARY_GT;
+        case OP_BINARY_GT:
+            return OP_BINARY_LE;
+        case OP_BINARY_GE:
+            return OP_BINARY_LT;
+        case OP_BINARY_EQ:
+            return OP_BINARY_NE;
+        default:
+            return OP_BINARY_EQ;
+    }
+}
+
+/* a local or a parameter of the int type of `var`, not written in the loop */
+static int is_invariant(Loop *loop, KlrValue *val, KlrValue *var)
+{
+    if (val == var || !(klr_is_local(val) || klr_is_param(val))) return 0;
+    if (!val->ts || !type_is_int(val->ts) || int_type_width(val->ts) != int_type_width(var->ts))
+        return 0;
+    KlrUse *use;
+    def_foreach(use, val)
+    {
+        if (in_loop(loop, use->insn->bb)) return 0;
+    }
+    return 1;
 }
 
 static int is_rel(int code)
@@ -299,8 +353,19 @@ static int match_exit_test(Loop *loop, KlrBasicBlock *bb, CountedLoop *cl, KlrIn
     cl->rel = cmp->code;
     if (klr_is_local(lhs) && const_int_value(rhs, &cl->limit)) {
         cl->var = lhs;
+        cl->limit_val = rhs;
+        cl->limit_is_const = 1;
     } else if (klr_is_local(rhs) && const_int_value(lhs, &cl->limit)) {
         cl->var = rhs;
+        cl->limit_val = lhs;
+        cl->limit_is_const = 1;
+        cl->rel = swap_rel(cl->rel);
+    } else if (klr_is_local(lhs) && lhs->ts && is_invariant(loop, rhs, lhs)) {
+        cl->var = lhs;
+        cl->limit_val = rhs;
+    } else if (klr_is_local(rhs) && rhs->ts && is_invariant(loop, lhs, rhs)) {
+        cl->var = rhs;
+        cl->limit_val = lhs;
         cl->rel = swap_rel(cl->rel);
     } else {
         return 0;
@@ -322,7 +387,8 @@ static KlrInsn *match_step(Loop *loop, CountedLoop *cl)
 {
     KlrInsn *move = NULL;
     KlrUse *use;
-    def_foreach(use, cl->var) {
+    def_foreach(use, cl->var)
+    {
         if (!in_loop(loop, use->insn->bb)) continue;
         if (move) return NULL;
         move = use->insn;
@@ -415,7 +481,7 @@ static int trip_count(Loop *loop)
         CountedLoop cl;
         memset(&cl, 0, sizeof(cl));
         KlrInsn *cmp;
-        if (!match_exit_test(loop, exit_bb, &cl, &cmp)) continue;
+        if (!match_exit_test(loop, exit_bb, &cl, &cmp) || !cl.limit_is_const) continue;
         KlrInsn *move = match_step(loop, &cl);
         if (!move) continue;
         if (exit_bb == move->bb) {
@@ -438,8 +504,8 @@ static int trip_count(Loop *loop)
 static KlrBasicBlock *map_block(Loop *loop, HashMap *maps, KlrBasicBlock **headers, int k,
                                 KlrBasicBlock *bb)
 {
-    // a back edge goes to the next copy, the last one goes to the original loop
-    if (bb == loop->header) return (k + 1 < loop->trips) ? headers[k + 1] : loop->header;
+    // a back edge goes to the next copy, the last one goes to `last_next`
+    if (bb == loop->header) return (k + 1 < loop->trips) ? headers[k + 1] : loop->last_next;
     KlrBasicBlock *mapped = ptr_map_get(&maps[k], bb);
     return mapped ? mapped : bb;
 }
@@ -466,7 +532,25 @@ static KlrValue *counter_value(Loop *loop, int k, KlrInsn *insn)
     return klr_const_int((uint64_t)loop->vals[idx], loop->var->ts, loop->kdt->fn->module);
 }
 
-static void peel(Loop *loop)
+/* replace the exit test 'branch' of `bb` by a jump to `target` in the loop */
+static void remove_exit_test(KlrBasicBlock *bb, KlrBasicBlock *target)
+{
+    KlrInsn *br = insn_last(bb);
+    ASSERT(br && insn_is(br, OP_IR_JMP_COND));
+    klr_remove_all_out_edges(bb);
+    klr_erase_insn(br);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, bb);
+    klr_build_jmp(&bldr, target);
+}
+
+/*
+ * Clone the loop `loop->trips` times before the header, the back edges of the k-th copy jump to
+ * the (k+1)-th copy, the ones of the last copy jump to `loop->last_next`. If `subst`, the reads
+ * of the counter are replaced by their constant values. The exit test in `exit_bb` is removed in
+ * every copy, except the last one if `keep_last`. Returns the header of the first copy.
+ */
+static KlrBasicBlock *copy_loop(Loop *loop, int subst, KlrBasicBlock *exit_bb, int keep_last)
 {
     int trips = loop->trips;
     HashMap *maps = mm_alloc(sizeof(HashMap) * trips);
@@ -507,12 +591,12 @@ static void peel(Loop *loop)
                     KlrValue *val = insn_oper_value(insn, j);
                     KlrValue *mapped = val;
                     KlrValue *c;
-                    if (val && val == loop->var && !insn_operand(insn, j)->use.is_def &&
+                    if (subst && val && val == loop->var && !insn_operand(insn, j)->use.is_def &&
                         (c = counter_value(loop, k, insn))) {
                         mapped = c;
                     } else if (val && klr_is_block(val)) {
-                        mapped = (KlrValue *)map_block(loop, maps, headers, k,
-                                                       (KlrBasicBlock *)val);
+                        mapped =
+                            (KlrValue *)map_block(loop, maps, headers, k, (KlrBasicBlock *)val);
                     } else if (val) {
                         KlrValue *v = ptr_map_get(&maps[k], val);
                         if (v) mapped = v;
@@ -527,15 +611,33 @@ static void peel(Loop *loop)
                 klr_link_edge(copy, map_block(loop, maps, headers, k, edge->dst));
             }
         }
+
+        if (exit_bb && !(keep_last && k + 1 == trips)) {
+            KlrInsn *br = insn_last(exit_bb);
+            KlrBasicBlock *then_bb = (KlrBasicBlock *)insn_oper_value(br, 2);
+            KlrBasicBlock *else_bb = (KlrBasicBlock *)insn_oper_value(br, 3);
+            KlrBasicBlock *stay = in_loop(loop, then_bb) ? then_bb : else_bb;
+            remove_exit_test(ptr_map_get(&maps[k], exit_bb),
+                             map_block(loop, maps, headers, k, stay));
+        }
     }
 
-    // the preheader enters the first copy
+    KlrBasicBlock *first = headers[0];
+    for (int k = 0; k < trips; k++) ptr_map_fini(&maps[k]);
+    mm_free(maps);
+    mm_free(headers);
+    return first;
+}
+
+/* the preheader enters `target` instead of the header */
+static void retarget_preheader(Loop *loop, KlrBasicBlock *target)
+{
     KlrBasicBlock *pre = loop->preheader;
     KlrInsn *term = insn_last(pre);
     if (term) {
         for (int j = 0; j < term->num_opers; j++) {
             if (insn_oper_value(term, j) == (KlrValue *)loop->header) {
-                set_operand_at(term, j, (KlrValue *)headers[0]);
+                set_operand_at(term, j, (KlrValue *)target);
             }
         }
     }
@@ -545,15 +647,139 @@ static void peel(Loop *loop)
     int n = 0;
     KlrEdge *edge;
     edge_out_foreach(edge, pre) {
-        succs[n++] = (edge->dst == loop->header) ? headers[0] : edge->dst;
+        succs[n++] = (edge->dst == loop->header) ? target : edge->dst;
     }
     klr_remove_all_out_edges(pre);
     for (int i = 0; i < n; i++) klr_link_edge(pre, succs[i]);
     mm_free(succs);
+}
 
-    for (int k = 0; k < trips; k++) ptr_map_fini(&maps[k]);
-    mm_free(maps);
-    mm_free(headers);
+static void peel(Loop *loop)
+{
+    loop->last_next = loop->header;
+    retarget_preheader(loop, copy_loop(loop, 1, NULL, 0));
+}
+
+typedef struct _PartialLoop {
+    KlrValue *var;
+    KlrValue *limit;
+    /* the loop continues while 'var <rel> limit' */
+    int rel;
+    int64_t step;
+    /* L - delta is the bound of the unrolled loop */
+    int64_t delta;
+    /* the bound if the limit is a constant */
+    int bound_is_const;
+    int64_t bound;
+    /* computing the bound doesn't overflow if 'limit <guard_rel> guard' */
+    int guard_rel;
+    int64_t guard;
+    KlrBasicBlock *exit_bb;
+    int keep_last;
+} PartialLoop;
+
+/* the exit test of a loop with any trip count, see the comment at the top */
+static int match_partial(Loop *loop, PartialLoop *pl)
+{
+    for (int i = 0; i < loop->num_blocks; i++) {
+        KlrBasicBlock *exit_bb = loop->blocks[i];
+        CountedLoop cl;
+        memset(&cl, 0, sizeof(cl));
+        KlrInsn *cmp;
+        if (!match_exit_test(loop, exit_bb, &cl, &cmp)) continue;
+        KlrInsn *move = match_step(loop, &cl);
+        if (!move) continue;
+        if (exit_bb == move->bb) {
+            cl.test_before_step = insn_index(cmp) < insn_index(move);
+        } else {
+            cl.test_before_step = klr_dominates(loop->kdt, exit_bb, move->bb);
+        }
+
+        int rel = cl.exit_on_true ? negate_rel(cl.rel) : cl.rel;
+        if (cl.step > 0) {
+            if (rel != OP_BINARY_LT && rel != OP_BINARY_LE) continue;
+        } else if (cl.step < 0) {
+            if (rel != OP_BINARY_GT && rel != OP_BINARY_GE) continue;
+        } else {
+            continue;
+        }
+
+        // all exit tests of U trips pass if the one of the last trip does: 'var + delta <rel> L'
+        int64_t delta;
+        if (__builtin_mul_overflow(cl.step, (int64_t)(UNROLL_PARTIAL_FACTOR - 1), &delta) ||
+            delta < cl.min || delta > cl.max)
+            continue;
+
+        memset(pl, 0, sizeof(*pl));
+        if (cl.limit_is_const) {
+            if (__builtin_sub_overflow(cl.limit, delta, &pl->bound) || pl->bound < cl.min ||
+                pl->bound > cl.max)
+                continue;
+            pl->bound_is_const = 1;
+        } else if (cl.step > 0) {
+            // L - delta >= min
+            pl->guard_rel = OP_BINARY_GE;
+            pl->guard = cl.min + delta;
+        } else {
+            // L - delta <= max
+            pl->guard_rel = OP_BINARY_LE;
+            pl->guard = cl.max + delta;
+        }
+        pl->var = cl.var;
+        pl->limit = cl.limit_val;
+        pl->rel = rel;
+        pl->step = cl.step;
+        pl->delta = delta;
+        pl->exit_bb = exit_bb;
+        // the test after the step decides if the next trip runs
+        pl->keep_last = !cl.test_before_step;
+        return 1;
+    }
+    return 0;
+}
+
+static void partial_unroll(Loop *loop, PartialLoop *pl)
+{
+    KlrBasicBlock *header = loop->header;
+    KlrModule *m = loop->kdt->fn->module;
+    TypeSpec *ts = pl->var->ts;
+    KlrBuilder bldr;
+
+    KlrBasicBlock *guard_bb = NULL, *bound_bb = NULL;
+    if (!pl->bound_is_const) {
+        guard_bb = klr_add_block_before(header, "unroll-guard");
+        bound_bb = klr_add_block_before(header, "unroll-bound");
+    }
+    KlrBasicBlock *cond_bb = klr_add_block_before(header, "unroll-cond");
+
+    loop->trips = UNROLL_PARTIAL_FACTOR;
+    loop->last_next = cond_bb;
+    KlrBasicBlock *first = copy_loop(loop, 0, pl->exit_bb, pl->keep_last);
+
+    KlrValue *bound;
+    if (pl->bound_is_const) {
+        bound = klr_const_int((uint64_t)pl->bound, ts, m);
+    } else {
+        klr_builder_end(&bldr, guard_bb);
+        KlrValue *ok = klr_build_cmp(&bldr, pl->limit, klr_const_int((uint64_t)pl->guard, ts, m),
+                                     pl->guard_rel, "");
+        klr_build_jmp_cond(&bldr, ok, bound_bb, header);
+
+        klr_builder_end(&bldr, bound_bb);
+        bound = klr_build_local_var(&bldr, ts, "");
+        KlrValue *val =
+            klr_build_sub(&bldr, pl->limit, klr_const_int((uint64_t)pl->delta, ts, m), "");
+        klr_build_move(&bldr, bound, val);
+        klr_build_jmp(&bldr, cond_bb);
+    }
+
+    klr_builder_end(&bldr, cond_bb);
+    KlrValue *c = klr_build_cmp(&bldr, pl->var, bound, pl->rel, "");
+    klr_build_jmp_cond(&bldr, c, first, header);
+
+    retarget_preheader(loop, guard_bb ? guard_bb : cond_bb);
+    header->unrolled = 1;
+    cond_bb->unrolled = 1;
 }
 
 /* unroll one loop of `fn`, skips the headers in `done` */
@@ -565,7 +791,9 @@ static int unroll_one(KlrFunc *fn, KlrBasicBlock **done, int num_done)
     int changed = 0;
     for (int i = 0; i < kdt->num_blocks && !changed; i++) {
         KlrBasicBlock *header = kdt->blocks[i];
-        if (header == fn->sbb || header == fn->ebb || !klr_reachable(kdt, header)) continue;
+        if (header == fn->sbb || header == fn->ebb || !klr_reachable(kdt, header) ||
+            header->unrolled)
+            continue;
 
         int skip = 0;
         for (int j = 0; j < num_done; j++) {
@@ -581,8 +809,14 @@ static int unroll_one(KlrFunc *fn, KlrBasicBlock **done, int num_done)
 
         if (check_loop(&loop)) {
             loop.trips = trip_count(&loop);
+            PartialLoop pl;
             if (loop.trips > 0 && loop.trips * loop.num_insns <= UNROLL_MAX_INSNS) {
                 peel(&loop);
+                done[num_done] = header;
+                changed = 1;
+            } else if (UNROLL_PARTIAL_FACTOR * loop.num_insns <= UNROLL_MAX_INSNS &&
+                       match_partial(&loop, &pl)) {
+                partial_unroll(&loop, &pl);
                 done[num_done] = header;
                 changed = 1;
             }

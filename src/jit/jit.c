@@ -16,10 +16,10 @@
 
 #include "jit/jit.h"
 #include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include "emit.h"
@@ -81,6 +81,15 @@ typedef struct _RcSlot {
     int xmm;
 } RcSlot;
 
+/* Cache state at a program point (DESIGN §15.2): bit s of `valid` = slot s's
+ * register holds the value; bit s of `dirty` (subset of valid) = memory is
+ * stale and tag[s] is the pending tag, written with the payload on a flush. */
+#define RC_TAG_TOP (-1) /* optimistic fixpoint start: any tag */
+typedef struct _RcState {
+    uint32_t valid, dirty;
+    int32_t tag[RC_MAX];
+} RcState;
+
 /* Pass-0 record: VM register vm is read/written at pc as int (0), float (1) or
  * either (-1, plain moves). Drives the promotion choice only, not correctness. */
 typedef struct _RcVote {
@@ -99,18 +108,23 @@ typedef struct _JitCtx {
     uint32_t fail_insn; /* the offending instruction word */
     int self_only;      /* direct self calls: helpers must set ks->stack_top */
     int nlocals;
-    int cur_pc;         /* bytecode pc being translated */
+    int cur_pc; /* bytecode pc being translated */
 
-    /* Write-through register cache (DESIGN §15). Memory stays the truth; a
-     * promoted VM register may also have a copy in rc[s].phys, valid when bit s
-     * of rc_valid is set. */
+    /* Write-back register cache (DESIGN §15). A promoted VM register may
+     * have a copy in rc[s].phys, valid when bit s of rc_valid is set; when bit
+     * s of rc_dirty is also set, the copy is newer than memory and rc_tag[s] is
+     * the tag memory will get when the slot is flushed. */
     int rc_n;
     RcSlot rc[RC_MAX];
     uint32_t rc_valid;
+    uint32_t rc_dirty;
+    int32_t rc_tag[RC_MAX];
+    int rc_wb;          /* KOALA_JIT_WB=wb: scalar defs of promoted regs stay dirty */
+    int rc_cur_aware;   /* the op being translated is cache-aware */
     int rc_preload;     /* pc 0 is a jump target: load every copy at entry */
     int rc_check;       /* KOALA_JIT_CHECK_CACHE: verify each hit, ud2 on mismatch */
-    uint32_t *rc_in;    /* per pc: state at a jump target (from the last pass) */
-    uint32_t *rc_meet;  /* per pc: meet of incoming edge states (this pass) */
+    RcState *rc_in;     /* per pc: state at a jump target (from the last pass) */
+    RcState *rc_meet;   /* per pc: meet of incoming edge states (this pass) */
     uint8_t *rc_pred;   /* per pc: some edge reaches it (this pass) */
     uint8_t *rc_jt;     /* per pc: jump target (pass 0) */
     uint8_t *rc_jt_new; /* per pc: jump target (this pass) */
@@ -173,10 +187,9 @@ static void jit_stats_print(void)
     int bailed = 0;
     for (int i = 0; i < jit_stats_data.nkeys; i++) bailed += jit_stats_data.keys[i].count;
     qsort(jit_stats_data.keys, jit_stats_data.nkeys, sizeof(StatEntry), stat_cmp);
-    fprintf(stderr, "[jit stats] compiled %d, not compiled %d\n", jit_stats_data.compiled,
-            bailed);
-    fprintf(stderr, "[jit stats] code %zu bytes, %zu pages, %d chunks\n",
-            jit_stats_data.code_bytes, jit_stats_data.pages, jit_stats_data.chunks);
+    fprintf(stderr, "[jit stats] compiled %d, not compiled %d\n", jit_stats_data.compiled, bailed);
+    fprintf(stderr, "[jit stats] code %zu bytes, %zu pages, %d chunks\n", jit_stats_data.code_bytes,
+            jit_stats_data.pages, jit_stats_data.chunks);
     for (int i = 0; i < jit_stats_data.nkeys; i++) {
         StatEntry *e = &jit_stats_data.keys[i];
         fprintf(stderr, "  %6d  %-28s", e->count, e->key);
@@ -353,7 +366,7 @@ static void emit_epilogue(JitCtx *j)
 /* Load the out pointer into RCX. */
 static void emit_load_out(JitCtx *j) { emit_mov_reg_mem(&j->buf, RCX, RBP, FRAME_OUT); }
 
-/* ---- write-through register cache (DESIGN §15) ---- */
+/* ---- write-back register cache (DESIGN §15) ---- */
 
 static int jit_env_flag(const char *name, int dflt)
 {
@@ -380,7 +393,27 @@ static int jit_check_cache(void)
     return cached;
 }
 
+/* KOALA_JIT_WB=wt: write-through, every def goes to memory at once (no dirty
+ * copies). KOALA_JIT_WB=wb (default): write-back. */
+static int jit_write_back(void)
+{
+    static int cached = -1;
+    if (cached < 0) {
+        const char *v = getenv("KOALA_JIT_WB");
+        cached = !(v && !strcmp(v, "wt"));
+    }
+    return cached;
+}
+
 #define RC_ALL(j) ((uint32_t)((1u << (j)->rc_n) - 1))
+
+/* Tags a dirty copy may carry: scalars only. A reference is always written
+ * through, so memory alone tells the GC every live object. */
+static int rc_wb_tag(int32_t tag)
+{
+    return tag == TAG_BOOL || (tag >= TAG_INT8 && tag <= TAG_UINT64) ||
+           (tag >= TAG_FLOAT16 && tag <= TAG_BFLOAT16);
+}
 
 static void *grow(void *p, int *cap, int need, size_t elem)
 {
@@ -406,11 +439,90 @@ static int rc_slot(JitCtx *j, int vm)
     return -1;
 }
 
-/* An edge reaches bytecode pc t with cache state `state`. */
-static void rc_edge(JitCtx *j, int t, uint32_t state)
+/* Optimistic top of the lattice: everything valid and dirty, any tag. */
+static void rc_state_top(RcState *st)
 {
-    j->rc_meet[t] &= state;
+    st->valid = ~0u;
+    st->dirty = ~0u;
+    for (int s = 0; s < RC_MAX; s++) st->tag[s] = RC_TAG_TOP;
+}
+
+/* An edge reaches bytecode pc t with the current cache state. A slot stays
+ * dirty at t only when it is dirty with the same tag on every edge. */
+static void rc_edge(JitCtx *j, int t)
+{
+    RcState *m = &j->rc_meet[t];
+    m->valid &= j->rc_valid;
+    m->dirty &= j->rc_dirty;
+    for (int s = 0; s < j->rc_n; s++) {
+        if (!(m->dirty & (1u << s))) continue;
+        int32_t et = j->rc_tag[s];
+        if (m->tag[s] == RC_TAG_TOP)
+            m->tag[s] = et;
+        else if (et != RC_TAG_TOP && et != m->tag[s])
+            m->dirty &= ~(1u << s);
+    }
+    m->dirty &= m->valid;
     j->rc_pred[t] = 1;
+}
+
+/* Store slot s's copy and pending tag to memory (no state change). */
+static void rc_emit_flush(JitCtx *j, int s)
+{
+    EmitBuf *b = &j->buf;
+    RcSlot *r = &j->rc[s];
+    if (r->xmm)
+        emit_movsd_mem_reg(b, RBX, VAL_DISP(r->vm), r->phys);
+    else
+        emit_mov_mem_reg(b, RBX, VAL_DISP(r->vm), r->phys);
+    emit_mov_mem_imm32(b, RBX, TAG_DISP(r->vm), j->rc_tag[s]);
+}
+
+/* Write back the dirty slots in mask; memory is current for them afterwards.
+ * Plain movs: flags survive, so this may sit between a cmp and its jcc. */
+static void rc_flush(JitCtx *j, uint32_t mask)
+{
+    mask &= j->rc_dirty;
+    for (int s = 0; s < j->rc_n; s++)
+        if (mask & (1u << s)) rc_emit_flush(j, s);
+    j->rc_dirty &= ~mask;
+}
+
+/* Cold exits (raise paths): write back every dirty slot, keeping the hot
+ * path's state (the stores run only on the exit). */
+static void rc_flush_cold(JitCtx *j)
+{
+    for (int s = 0; s < j->rc_n; s++)
+        if (j->rc_dirty & (1u << s)) rc_emit_flush(j, s);
+}
+
+/* Make vm's memory (payload and tag) current before reading it directly. */
+static void rc_mem(JitCtx *j, int vm)
+{
+    int s = rc_slot(j, vm);
+    if (s >= 0) rc_flush(j, 1u << s);
+}
+
+/* vm's pending tag when its copy is dirty, else -1 (read the tag in memory). */
+static int32_t rc_dirty_tag(JitCtx *j, int vm)
+{
+    int s = rc_slot(j, vm);
+    if (s < 0 || !(j->rc_dirty & (1u << s))) return -1;
+    return j->rc_tag[s];
+}
+
+/* Before an edge to pc t: flush what t's entry state does not hold dirty
+ * (with the same tag), so every edge arrives in exactly that state. */
+static void rc_edge_flush(JitCtx *j, int t)
+{
+    RcState *in = &j->rc_in[t];
+    uint32_t mask = 0;
+    for (int s = 0; s < j->rc_n; s++) {
+        if (!(j->rc_dirty & (1u << s))) continue;
+        if (!(in->dirty & (1u << s)) || (in->tag[s] != RC_TAG_TOP && in->tag[s] != j->rc_tag[s]))
+            mask |= 1u << s;
+    }
+    rc_flush(j, mask);
 }
 
 static void rc_check_hit(JitCtx *j, int s)
@@ -434,7 +546,7 @@ static int rc_get(JitCtx *j, int s)
 {
     RcSlot *r = &j->rc[s];
     if (j->rc_valid & (1u << s)) {
-        if (j->rc_check) rc_check_hit(j, s);
+        if (j->rc_check && !(j->rc_dirty & (1u << s))) rc_check_hit(j, s);
     } else {
         if (r->xmm)
             emit_movsd_reg_mem(&j->buf, r->phys, RBX, VAL_DISP(r->vm));
@@ -445,21 +557,30 @@ static int rc_get(JitCtx *j, int s)
     return r->phys;
 }
 
-/* vm as an int operand: its GPR copy, or -1 to read [rbx+VAL_DISP(vm)]. */
+/* vm as an int operand: its GPR copy, or -1 to read [rbx+VAL_DISP(vm)]
+ * (an XMM-class copy is written back first so that memory is current). */
 static int rc_gpr(JitCtx *j, int vm)
 {
     rc_vote(j, vm, 0);
     int s = rc_slot(j, vm);
-    if (s < 0 || j->rc[s].xmm) return -1;
+    if (s < 0) return -1;
+    if (j->rc[s].xmm) {
+        rc_flush(j, 1u << s);
+        return -1;
+    }
     return rc_get(j, s);
 }
 
-/* vm as a float operand: its XMM copy, or -1. */
+/* vm as a float operand: its XMM copy, or -1 (memory made current). */
 static int rc_xmm(JitCtx *j, int vm)
 {
     rc_vote(j, vm, 1);
     int s = rc_slot(j, vm);
-    if (s < 0 || !j->rc[s].xmm) return -1;
+    if (s < 0) return -1;
+    if (!j->rc[s].xmm) {
+        rc_flush(j, 1u << s);
+        return -1;
+    }
     return rc_get(j, s);
 }
 
@@ -503,11 +624,15 @@ static void rc_alu(JitCtx *j, int op, int dst, int vm)
     EmitBuf *b = &j->buf;
     int p = rc_gpr(j, vm);
     if (op == ALU_MUL) {
-        if (p >= 0) emit_imul_reg_reg(b, dst, p);
-        else emit_imul_reg_mem(b, dst, RBX, VAL_DISP(vm));
+        if (p >= 0)
+            emit_imul_reg_reg(b, dst, p);
+        else
+            emit_imul_reg_mem(b, dst, RBX, VAL_DISP(vm));
     } else {
-        if (p >= 0) emit_alu_reg_reg(b, op, p, dst);
-        else emit_alu_reg_mem(b, op, dst, RBX, VAL_DISP(vm));
+        if (p >= 0)
+            emit_alu_reg_reg(b, op, p, dst);
+        else
+            emit_alu_reg_mem(b, op, dst, RBX, VAL_DISP(vm));
     }
 }
 
@@ -515,8 +640,10 @@ static void rc_alu(JitCtx *j, int op, int dst, int vm)
 static void rc_sse(JitCtx *j, int op, int dst, int vm)
 {
     int p = rc_xmm(j, vm);
-    if (p >= 0) emit_sse_reg_reg(&j->buf, op, dst, p);
-    else emit_sse_reg_mem(&j->buf, op, dst, RBX, VAL_DISP(vm));
+    if (p >= 0)
+        emit_sse_reg_reg(&j->buf, op, dst, p);
+    else
+        emit_sse_reg_mem(&j->buf, op, dst, RBX, VAL_DISP(vm));
 }
 
 /* Where to compute a result for rd: rd's own machine register when it is
@@ -531,8 +658,8 @@ static int rc_dst(JitCtx *j, int rd, int avoid, int xmm)
     return j->rc[s].phys;
 }
 
-/* vm's payload in memory was just written from src (an XMM when src_xmm):
- * bring its copy up to date. */
+/* vm's payload and tag in memory were just written, the payload from src (an
+ * XMM when src_xmm): bring its copy up to date; memory is current. */
 static void rc_def(JitCtx *j, int vm, int src, int src_xmm, int cls)
 {
     EmitBuf *b = &j->buf;
@@ -542,8 +669,10 @@ static void rc_def(JitCtx *j, int vm, int src, int src_xmm, int cls)
     RcSlot *r = &j->rc[s];
     if (r->xmm == src_xmm) {
         if (r->phys != src) {
-            if (r->xmm) emit_movaps_reg_reg(b, r->phys, src);
-            else emit_mov_reg_reg(b, r->phys, src);
+            if (r->xmm)
+                emit_movaps_reg_reg(b, r->phys, src);
+            else
+                emit_mov_reg_reg(b, r->phys, src);
         }
     } else if (r->xmm) {
         emit_movq_xmm_gpr(b, r->phys, src);
@@ -551,27 +680,66 @@ static void rc_def(JitCtx *j, int vm, int src, int src_xmm, int cls)
         emit_movq_gpr_xmm(b, r->phys, src);
     }
     j->rc_valid |= 1u << s;
+    j->rc_dirty &= ~(1u << s);
 }
 
-/* vm's payload in memory was just set to the constant v. */
-static void rc_def_imm(JitCtx *j, int vm, int64_t v, int cls)
+/* Can a def of vm with this tag stay in vm's register only? */
+static int rc_wb_slot(JitCtx *j, int vm, int32_t tag)
+{
+    if (!j->rc_wb || !j->rc_cur_aware || !rc_wb_tag(tag)) return -1;
+    return rc_slot(j, vm);
+}
+
+/* vm = src (an XMM when src_xmm) tagged `tag`: a promoted scalar becomes a
+ * dirty copy, anything else is written through. */
+static void rc_store(JitCtx *j, int vm, int src, int src_xmm, int cls, int32_t tag)
+{
+    EmitBuf *b = &j->buf;
+    int s = rc_wb_slot(j, vm, tag);
+    if (s < 0) {
+        if (src_xmm)
+            emit_movsd_mem_reg(b, RBX, VAL_DISP(vm), src);
+        else
+            emit_mov_mem_reg(b, RBX, VAL_DISP(vm), src);
+        emit_mov_mem_imm32(b, RBX, TAG_DISP(vm), tag);
+    }
+    rc_def(j, vm, src, src_xmm, cls);
+    if (s >= 0) {
+        j->rc_dirty |= 1u << s;
+        j->rc_tag[s] = tag;
+    }
+}
+
+/* vm = the 32-bit constant v (sign-extended) tagged `tag`. */
+static void rc_store_imm(JitCtx *j, int vm, int32_t v, int cls, int32_t tag)
 {
     EmitBuf *b = &j->buf;
     rc_vote2(j, vm, cls, 1);
     int s = rc_slot(j, vm);
+    int wb = rc_wb_slot(j, vm, tag) >= 0;
+    if (!wb) {
+        emit_mov_mem_imm32(b, RBX, TAG_DISP(vm), tag);
+        emit_mov_mem_imm32(b, RBX, VAL_DISP(vm), v);
+    }
     if (s < 0) return;
     RcSlot *r = &j->rc[s];
     int dst = r->xmm ? R11 : r->phys;
-    if (v == (int32_t)v) emit_mov_reg_imm32(b, dst, (int32_t)v);
-    else emit_mov_reg_imm64(b, dst, (uint64_t)v);
+    emit_mov_reg_imm32(b, dst, v);
     if (r->xmm) emit_movq_xmm_gpr(b, r->phys, R11);
     j->rc_valid |= 1u << s;
+    if (wb) {
+        j->rc_dirty |= 1u << s;
+        j->rc_tag[s] = tag;
+    } else {
+        j->rc_dirty &= ~(1u << s);
+    }
 }
 
 /* Entry: load every copy (only when pc 0 is a jump target, see §15.5). */
 static void rc_emit_preload(JitCtx *j)
 {
     j->rc_valid = 0;
+    j->rc_dirty = 0;
     if (!j->rc_n || !j->rc_preload) return;
     for (int s = 0; s < j->rc_n; s++) rc_get(j, s);
 }
@@ -582,6 +750,8 @@ static void rc_emit_preload(JitCtx *j)
 static void emit_jump(JitCtx *j, int cc, int target_pc)
 {
     EmitBuf *b = &j->buf;
+    int local = target_pc >= 0 && target_pc < j->num_insns;
+    if (local) rc_edge_flush(j, target_pc);
     if (cc < 0)
         emit_jmp_rel32(b, 0);
     else
@@ -594,8 +764,8 @@ static void emit_jump(JitCtx *j, int cc, int target_pc)
     j->fixups[j->nfixups].patch_off = emit_pos(b) - 4;
     j->fixups[j->nfixups].target_pc = target_pc;
     j->nfixups++;
-    if (target_pc >= 0 && target_pc < j->num_insns) {
-        rc_edge(j, target_pc, j->rc_valid);
+    if (local) {
+        rc_edge(j, target_pc);
         j->rc_jt_new[target_pc] = 1;
         if (j->rc_collect && target_pc <= j->cur_pc) {
             j->backs = grow(j->backs, &j->cap_backs, j->nbacks + 2, sizeof(int));
@@ -619,12 +789,10 @@ static void emit_store_int64(JitCtx *j, int rd)
     emit_store_tag(j, rd, TAG_INT64);
 }
 
-/* Store GPR r as the payload of rd with an explicit tag, refreshing rd's copy. */
+/* rd = GPR r with an explicit tag (a dirty copy when rd is promoted). */
 static void emit_store_reg_tagged(JitCtx *j, int rd, int r, int32_t tag)
 {
-    emit_mov_mem_reg(&j->buf, RBX, VAL_DISP(rd), r);
-    emit_store_tag(j, rd, tag);
-    rc_def(j, rd, r, 0, 0);
+    rc_store(j, rd, r, 0, 0, tag);
 }
 
 /* Store RAX as the payload of rd with an explicit tag (INT64 / UINT64). */
@@ -645,8 +813,7 @@ static void emit_alu_rrr(JitCtx *j, int alu_op, int rd, int rs, int rt, int32_t 
 }
 
 /* rd = rs ALU imm, result tagged `tag`. */
-static void emit_alu_rrimm(JitCtx *j, int alu_op, int rd, int rs, int32_t imm,
-                           int32_t tag)
+static void emit_alu_rrimm(JitCtx *j, int alu_op, int rd, int rs, int32_t imm, int32_t tag)
 {
     EmitBuf *b = &j->buf;
     int d = rc_dst(j, rd, -1, 0);
@@ -666,8 +833,7 @@ static void emit_raise_at(JitCtx *j, int what, int pc_abs);
  * uses xor edx,edx+div. Result tag INT64 / UINT64 accordingly. Like the
  * interpreter, a zero divisor raises "division by zero", and a signed divisor
  * of -1 gives -rs (INT64_MIN wraps) and 0 for the remainder: idiv would trap. */
-static void emit_div_rrr(JitCtx *j, int rd, int rs, int rt, int is_mod,
-                         int is_unsigned, int pc_abs)
+static void emit_div_rrr(JitCtx *j, int rd, int rs, int rt, int is_mod, int is_unsigned, int pc_abs)
 {
     EmitBuf *b = &j->buf;
     /* both operands are fetched before the raise path (one cache state per op) */
@@ -700,13 +866,10 @@ static void emit_div_rrr(JitCtx *j, int rd, int rs, int rt, int is_mod,
         emit_idiv_reg(b, RCX);
     }
     if (jdone) emit_patch_i32(b, jdone + 1, (int32_t)(emit_pos(b) - (jdone + 5)));
-    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), is_mod ? RDX : RAX);
-    emit_store_tag(j, rd, is_unsigned ? TAG_UINT64 : TAG_INT64);
-    rc_def(j, rd, is_mod ? RDX : RAX, 0, 0);
+    rc_store(j, rd, is_mod ? RDX : RAX, 0, 0, is_unsigned ? TAG_UINT64 : TAG_INT64);
 }
 
-static void emit_div_rrimm(JitCtx *j, int rd, int rs, int32_t imm, int is_mod,
-                           int is_unsigned)
+static void emit_div_rrimm(JitCtx *j, int rd, int rs, int32_t imm, int is_mod, int is_unsigned)
 {
     EmitBuf *b = &j->buf;
     rc_load_gpr(j, RAX, rs, 0);
@@ -718,9 +881,7 @@ static void emit_div_rrimm(JitCtx *j, int rd, int rs, int32_t imm, int is_mod,
         emit_cqo(b);
         emit_idiv_reg(b, RCX);
     }
-    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), is_mod ? RDX : RAX);
-    emit_store_tag(j, rd, is_unsigned ? TAG_UINT64 : TAG_INT64);
-    rc_def(j, rd, is_mod ? RDX : RAX, 0, 0);
+    rc_store(j, rd, is_mod ? RDX : RAX, 0, 0, is_unsigned ? TAG_UINT64 : TAG_INT64);
 }
 
 /* rd = (rs CC rt) as a BOOL. */
@@ -730,9 +891,7 @@ static void emit_int_cmp_rrr(JitCtx *j, int cc, int rd, int rs, int rt)
     rc_load_gpr(j, RAX, rs, 0);
     rc_alu(j, ALU_CMP, RAX, rt);
     emit_setcc_reg(b, cc, RAX);
-    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
-    emit_store_tag(j, rd, TAG_BOOL);
-    rc_def(j, rd, RAX, 0, 0);
+    rc_store(j, rd, RAX, 0, 0, TAG_BOOL);
 }
 
 static void emit_int_cmp_rrimm(JitCtx *j, int cc, int rd, int rs, int32_t imm)
@@ -741,9 +900,7 @@ static void emit_int_cmp_rrimm(JitCtx *j, int cc, int rd, int rs, int32_t imm)
     rc_load_gpr(j, RAX, rs, 0);
     emit_alu_reg_imm32(b, ALU_CMP, RAX, imm);
     emit_setcc_reg(b, cc, RAX);
-    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
-    emit_store_tag(j, rd, TAG_BOOL);
-    rc_def(j, rd, RAX, 0, 0);
+    rc_store(j, rd, RAX, 0, 0, TAG_BOOL);
 }
 
 /* Fused compare-and-branch: if (rs CC rt) goto target_pc. */
@@ -762,8 +919,10 @@ static void emit_jmp_cmp_rrimm(JitCtx *j, int cc, int rs, int32_t imm, int targe
 {
     EmitBuf *b = &j->buf;
     int p = rc_gpr(j, rs);
-    if (p >= 0) emit_alu_reg_imm32(b, ALU_CMP, p, imm);
-    else emit_alu_mem_imm32(b, ALU_CMP, RBX, VAL_DISP(rs), imm);
+    if (p >= 0)
+        emit_alu_reg_imm32(b, ALU_CMP, p, imm);
+    else
+        emit_alu_mem_imm32(b, ALU_CMP, RBX, VAL_DISP(rs), imm);
     emit_jump(j, cc, target_pc);
 }
 
@@ -772,8 +931,8 @@ static void emit_jmp_cmp_rrimm(JitCtx *j, int cc, int rs, int32_t imm, int targe
  * kl_check_shift_count + SAVE_PC + trace, returning 0 on raise so the native
  * code branches to the error epilogue. shift_kind: 0=shl, 1=sar, 2=shr.
  *   rdi = &regs[rt] (the count TValue), esi = pc_abs */
-static void emit_reg_shift(JitCtx *j, int rd, int rs, int rt, int shift_kind,
-                           int32_t tag, int pc_abs)
+static void emit_reg_shift(JitCtx *j, int rd, int rs, int rt, int shift_kind, int32_t tag,
+                           int pc_abs)
 {
     EmitBuf *b = &j->buf;
     emit_mov_reg_reg(b, RDI, RBX);
@@ -833,9 +992,7 @@ static void emit_float_arith(JitCtx *j, int sse_op, int rd, int rs, int rt)
     int d = rc_dst(j, rd, rt, 1);
     rc_load_xmm(j, d, rs);
     rc_sse(j, sse_op, d, rt);
-    emit_movsd_mem_reg(b, RBX, VAL_DISP(rd), d);
-    emit_store_tag(j, rd, TAG_FLOAT64);
-    rc_def(j, rd, d, 1, 1);
+    rc_store(j, rd, d, 1, 1, TAG_FLOAT64);
 }
 
 /* rd = -rs (double). IEEE negation is a sign-bit flip, done on the raw bits with
@@ -847,9 +1004,7 @@ static void emit_float_neg(JitCtx *j, int rd, int rs)
     emit_mov_reg_imm64(b, RDX, (uint64_t)0x8000000000000000ULL);
     /* emit_alu_reg_reg writes its last argument: dst = dst OP src, so RAX = RAX ^ RDX */
     emit_alu_reg_reg(b, ALU_XOR, RDX, RAX);
-    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
-    emit_store_tag(j, rd, TAG_FLOAT64);
-    rc_def(j, rd, RAX, 0, 1);
+    rc_store(j, rd, RAX, 0, 1, TAG_FLOAT64);
 }
 
 /* rd = fmod(rs, rt): args in xmm0/xmm1, result in xmm0 (System V). */
@@ -882,12 +1037,19 @@ static int emit_float_ucomi(JitCtx *j, int rs, int rt, int cmp_op)
         emit_movsd_reg_mem(b, XMM0, RBX, VAL_DISP(a));
     }
     int pc = rc_xmm(j, c);
-    if (pc >= 0) emit_ucomisd_reg_reg(b, pa, pc);
-    else emit_ucomisd_reg_mem(b, pa, RBX, VAL_DISP(c));
+    if (pc >= 0)
+        emit_ucomisd_reg_reg(b, pa, pc);
+    else
+        emit_ucomisd_reg_mem(b, pa, RBX, VAL_DISP(c));
     switch (cmp_op) {
-        case 2: case 4: return CC_A;
-        case 3: case 5: return CC_AE;
-        default: return -1;
+        case 2:
+        case 4:
+            return CC_A;
+        case 3:
+        case 5:
+            return CC_AE;
+        default:
+            return -1;
     }
 }
 
@@ -904,9 +1066,7 @@ static void emit_float_cmp_bool(JitCtx *j, int rd, int rs, int rt, int cmp_op)
         emit_setcc_reg(b, cmp_op == 0 ? CC_E : CC_NE, RAX);
         emit_alu_reg_reg(b, cmp_op == 0 ? ALU_AND : ALU_OR, RCX, RAX);
     }
-    emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
-    emit_store_tag(j, rd, TAG_BOOL);
-    rc_def(j, rd, RAX, 0, 0);
+    rc_store(j, rd, RAX, 0, 0, TAG_BOOL);
 }
 
 /* Fused float compare-and-branch: if (rs CC rt) goto target_pc. */
@@ -914,6 +1074,7 @@ static void emit_float_jmp_cmp(JitCtx *j, int rs, int rt, int cmp_op, int target
 {
     EmitBuf *b = &j->buf;
     int cc = emit_float_ucomi(j, rs, rt, cmp_op);
+    rc_edge_flush(j, target_pc); /* before the jp that skips emit_jump's flush */
     if (cc >= 0) {
         emit_jump(j, cc, target_pc);
     } else if (cmp_op == 0) {
@@ -948,23 +1109,46 @@ static int num_slot(OpCode op, int *is_cmp)
 {
     *is_cmp = 0;
     switch (op) {
-        case OP_NUM_ADD: return SLOT_ADD;
-        case OP_NUM_SUB: return SLOT_SUB;
-        case OP_NUM_MUL: return SLOT_MUL;
-        case OP_NUM_DIV: return SLOT_DIV;
-        case OP_NUM_MOD: return SLOT_MOD;
-        case OP_NUM_SHL: return SLOT_SHL;
-        case OP_NUM_SHR: return SLOT_SHR;
-        case OP_NUM_AND: return SLOT_BIT_AND;
-        case OP_NUM_OR: return SLOT_BIT_OR;
-        case OP_NUM_XOR: return SLOT_BIT_XOR;
-        case OP_NUM_EQ: *is_cmp = 1; return SLOT_EQ;
-        case OP_NUM_NE: *is_cmp = 1; return SLOT_NE;
-        case OP_NUM_LT: *is_cmp = 1; return SLOT_LT;
-        case OP_NUM_LE: *is_cmp = 1; return SLOT_LE;
-        case OP_NUM_GT: *is_cmp = 1; return SLOT_GT;
-        case OP_NUM_GE: *is_cmp = 1; return SLOT_GE;
-        default: return -1;
+        case OP_NUM_ADD:
+            return SLOT_ADD;
+        case OP_NUM_SUB:
+            return SLOT_SUB;
+        case OP_NUM_MUL:
+            return SLOT_MUL;
+        case OP_NUM_DIV:
+            return SLOT_DIV;
+        case OP_NUM_MOD:
+            return SLOT_MOD;
+        case OP_NUM_SHL:
+            return SLOT_SHL;
+        case OP_NUM_SHR:
+            return SLOT_SHR;
+        case OP_NUM_AND:
+            return SLOT_BIT_AND;
+        case OP_NUM_OR:
+            return SLOT_BIT_OR;
+        case OP_NUM_XOR:
+            return SLOT_BIT_XOR;
+        case OP_NUM_EQ:
+            *is_cmp = 1;
+            return SLOT_EQ;
+        case OP_NUM_NE:
+            *is_cmp = 1;
+            return SLOT_NE;
+        case OP_NUM_LT:
+            *is_cmp = 1;
+            return SLOT_LT;
+        case OP_NUM_LE:
+            *is_cmp = 1;
+            return SLOT_LE;
+        case OP_NUM_GT:
+            *is_cmp = 1;
+            return SLOT_GT;
+        case OP_NUM_GE:
+            *is_cmp = 1;
+            return SLOT_GE;
+        default:
+            return -1;
     }
 }
 
@@ -972,8 +1156,7 @@ static int num_slot(OpCode op, int *is_cmp)
  * slot, pc). The helper returns a TValue (tag in rax, payload in rdx); on
  * TAG_ERROR jump to the error epilogue (the helper already traced this frame),
  * otherwise store the result into regs[rd]. */
-static void emit_num_binop(JitCtx *j, int rd, int rs, int rt, int slot, int is_cmp,
-                           int pc_abs)
+static void emit_num_binop(JitCtx *j, int rd, int rs, int rt, int slot, int is_cmp, int pc_abs)
 {
     EmitBuf *b = &j->buf;
     emit_mov_reg_reg(b, RDI, RBX);
@@ -1031,13 +1214,19 @@ static void emit_call_abs(JitCtx *j, void *fn)
 
 /* Generic slot call: kl_jit_slot3(&regs[a0], &regs[a1], &regs[a2], nargs, slot, pc).
  * a1/a2 < 0 pass NULL. store=1 writes the result to regs[rd]. */
-static void emit_slot3(JitCtx *j, int rd, int a0, int a1, int a2, int nargs,
-                       int slot, int pc_abs, int store)
+static void emit_slot3(JitCtx *j, int rd, int a0, int a1, int a2, int nargs, int slot, int pc_abs,
+                       int store)
 {
     EmitBuf *b = &j->buf;
     emit_reg_addr(j, RDI, a0);
-    if (a1 >= 0) emit_reg_addr(j, RSI, a1); else emit_mov_reg_imm32(b, RSI, 0);
-    if (a2 >= 0) emit_reg_addr(j, RDX, a2); else emit_mov_reg_imm32(b, RDX, 0);
+    if (a1 >= 0)
+        emit_reg_addr(j, RSI, a1);
+    else
+        emit_mov_reg_imm32(b, RSI, 0);
+    if (a2 >= 0)
+        emit_reg_addr(j, RDX, a2);
+    else
+        emit_mov_reg_imm32(b, RDX, 0);
     emit_mov_reg_imm32(b, RCX, nargs);
     emit_mov_reg_imm32(b, R8, slot);
     emit_mov_reg_imm32(b, R9, pc_abs);
@@ -1188,6 +1377,7 @@ static void emit_ref_null(JitCtx *j, int rd, int rs, int cc)
 static void emit_jmp_ref_null(JitCtx *j, int rs, int cc, int target)
 {
     EmitBuf *b = &j->buf;
+    rc_mem(j, rs);
     emit_mov_reg_mem(b, RAX, RBX, TAG_DISP(rs));
     emit_alu_reg_imm32(b, ALU_CMP, RAX, TAG_NIL);
     emit_jump(j, cc, target);
@@ -1224,8 +1414,7 @@ static void emit_move_true(JitCtx *j, int rd, int rs, int rt)
  * are scratch. The body runs with rsp ≡ 8 (mod 16), so pad 8 to reach the 16-byte
  * alignment the ABI requires at a call site. The helper address is absolute
  * (imm64) and called indirectly, so the code is position-independent: no fixup. */
-static void emit_helper_call(JitCtx *j, int rd, int nargs, int nlocals, Object *fn,
-                             int pc_abs)
+static void emit_helper_call(JitCtx *j, int rd, int nargs, int nlocals, Object *fn, int pc_abs)
 {
     EmitBuf *b = &j->buf;
     emit_mov_reg_reg(b, RDI, RBX);
@@ -1250,8 +1439,8 @@ static void emit_helper_call(JitCtx *j, int rd, int nargs, int nlocals, Object *
 
 /* OP_CALL flag 1 (callee_reg < 0: trait method `index` of the receiver) or
  * flag 2 (function value in callee_reg) through kl_jit_call_dyn. */
-static void emit_dyn_call(JitCtx *j, int rd, int nargs, int nlocals, int callee_reg,
-                          int index, int pc_abs)
+static void emit_dyn_call(JitCtx *j, int rd, int nargs, int nlocals, int callee_reg, int index,
+                          int pc_abs)
 {
     EmitBuf *b = &j->buf;
     emit_reg_addr(j, RDI, nlocals);
@@ -1274,8 +1463,8 @@ static void emit_dyn_call(JitCtx *j, int rd, int nargs, int nlocals, int callee_
 
 /* OP_TAIL_CALL to another function through kl_jit_tail_call, which writes *out
  * (the native callee's result or the JIT_TAG_TAILCALL request), then return. */
-static void emit_tail_call(JitCtx *j, int nargs, int nlocals, Object *fn, int callee_reg,
-                           int index, int pc_abs)
+static void emit_tail_call(JitCtx *j, int nargs, int nlocals, Object *fn, int callee_reg, int index,
+                           int pc_abs)
 {
     EmitBuf *b = &j->buf;
     emit_reg_addr(j, RDI, nlocals);
@@ -1298,6 +1487,7 @@ static void emit_tail_call(JitCtx *j, int nargs, int nlocals, Object *fn, int ca
 static void emit_raise_at(JitCtx *j, int what, int pc_abs)
 {
     EmitBuf *b = &j->buf;
+    rc_flush_cold(j);
     emit_mov_reg_imm32(b, RDI, what);
     emit_mov_reg_imm32(b, RSI, pc_abs);
     emit_sub_rsp_imm32(b, 8);
@@ -1406,8 +1596,7 @@ static uint64_t jit_tag_ok_mask(void)
     return mask;
 }
 
-static void emit_direct_call(JitCtx *j, int rd, int nargs, int nlocals, CodeObject *co,
-                             int pc_abs)
+static void emit_direct_call(JitCtx *j, int rd, int nargs, int nlocals, CodeObject *co, int pc_abs)
 {
     EmitBuf *b = &j->buf;
     int cn = co->cs.nlocals;
@@ -1798,6 +1987,14 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
         case OP_MOVE:
             rd = I_VAL(insn, 12, 12);
             rs = I_VAL(insn, 0, 12);
+            {
+                int32_t tag = rc_dirty_tag(j, rs);
+                if (tag >= 0) { /* rs dirty: its tag is known here */
+                    rc_load_gpr(j, RDX, rs, -1);
+                    rc_store(j, rd, RDX, 0, -1, tag);
+                    break;
+                }
+            }
             emit_mov_reg_mem(b, RAX, RBX, TAG_DISP(rs));
             rc_load_gpr(j, RDX, rs, -1);
             emit_mov_mem_reg(b, RBX, TAG_DISP(rd), RAX);
@@ -1809,18 +2006,14 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             rd = I_VAL(insn, 16, 8);
             ti = I_VAL(insn, 12, 4);
             imm = sval(I_VAL(insn, 0, 12), 12);
-            emit_mov_mem_imm32(b, RBX, TAG_DISP(rd), ti);
-            emit_mov_mem_imm32(b, RBX, VAL_DISP(rd), imm);
-            rc_def_imm(j, rd, imm, 0);
+            rc_store_imm(j, rd, imm, 0, ti);
             break;
 
         case OP_LOAD_UINT_IMM:
             rd = I_VAL(insn, 16, 8);
             ti = I_VAL(insn, 12, 4);
             imm = (int)I_VAL(insn, 0, 12);
-            emit_mov_mem_imm32(b, RBX, TAG_DISP(rd), ti);
-            emit_mov_mem_imm32(b, RBX, VAL_DISP(rd), imm);
-            rc_def_imm(j, rd, imm, 0);
+            rc_store_imm(j, rd, imm, 0, ti);
             break;
 
         case OP_LOADK: {
@@ -1831,9 +2024,7 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             TValue *pool = VECTOR_ITEMS(&m->const_pool, TValue);
             TValue cv = pool[idx];
             emit_mov_reg_imm64(b, RAX, (uint64_t)cv.ival);
-            emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
-            emit_store_tag(j, rd, (int32_t)cv.tag);
-            rc_def(j, rd, RAX, 0, cv.tag == TAG_FLOAT64 ? 1 : 0);
+            rc_store(j, rd, RAX, 0, cv.tag == TAG_FLOAT64 ? 1 : 0, (int32_t)cv.tag);
             break;
         }
 
@@ -1842,9 +2033,7 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             int tag = I_VAL(insn, 0, 8);
             TValue cv = kl_jit_tag_value(tag);
             emit_mov_reg_imm64(b, RAX, (uint64_t)cv.ival);
-            emit_mov_mem_reg(b, RBX, VAL_DISP(rd), RAX);
-            emit_store_tag(j, rd, (int32_t)cv.tag);
-            rc_def(j, rd, RAX, 0, -1);
+            rc_store(j, rd, RAX, 0, -1, (int32_t)cv.tag);
             break;
         }
 
@@ -1863,6 +2052,15 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             /* '~' keeps uint64 and gives int64 otherwise (a widened narrow int) */
             rd = I_VAL(insn, 12, 12);
             rs = I_VAL(insn, 0, 12);
+            {
+                int32_t tag = rc_dirty_tag(j, rs);
+                if (tag >= 0) { /* rs dirty: its tag is known here */
+                    rc_load_gpr(j, RAX, rs, 0);
+                    emit_not_reg(b, RAX);
+                    rc_store(j, rd, RAX, 0, 0, tag == TAG_UINT64 ? TAG_UINT64 : TAG_INT64);
+                    break;
+                }
+            }
             emit_mov_reg_mem(b, RCX, RBX, TAG_DISP(rs));
             rc_load_gpr(j, RAX, rs, 0);
             emit_not_reg(b, RAX);
@@ -1916,8 +2114,7 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             rs = I_VAL(insn, 8, 8);
             rt = I_VAL(insn, 0, 8);
             int kind = (op == OP_INT_SHR) ? 1 : (op == OP_UINT_SHR) ? 2 : 0;
-            int32_t stag =
-                (op == OP_UINT_SHL || op == OP_UINT_SHR) ? TAG_UINT64 : TAG_INT64;
+            int32_t stag = (op == OP_UINT_SHL || op == OP_UINT_SHR) ? TAG_UINT64 : TAG_INT64;
             emit_reg_shift(j, rd, rs, rt, kind, stag, code->cs.start_pc + pc);
             break;
         }
@@ -1960,8 +2157,7 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             rd = I_VAL(insn, 16, 8);
             rs = I_VAL(insn, 8, 8);
             int flag = I_VAL(insn, 0, 8);
-            emit_cast_call(j, rd, rs, flag & 0x3, (flag >> 2) & 0x3F,
-                           (void *)do_int_cast);
+            emit_cast_call(j, rd, rs, flag & 0x3, (flag >> 2) & 0x3F, (void *)do_int_cast);
             break;
         }
 
@@ -1971,9 +2167,9 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             rd = I_VAL(insn, 16, 8);
             rs = I_VAL(insn, 8, 8);
             int flag = I_VAL(insn, 0, 8);
-            void *fn = op == OP_FLOAT_CAST ? (void *)do_float_cast
-                     : op == OP_FLOAT_TO_INT ? (void *)do_float_to_int
-                                             : (void *)do_int_to_float;
+            void *fn = op == OP_FLOAT_CAST     ? (void *)do_float_cast
+                       : op == OP_FLOAT_TO_INT ? (void *)do_float_to_int
+                                               : (void *)do_int_to_float;
             emit_cast_call(j, rd, rs, flag & 0x3, (flag >> 2) & 0x3F, fn);
             break;
         }
@@ -1985,10 +2181,10 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             rd = I_VAL(insn, 16, 8);
             rs = I_VAL(insn, 8, 8);
             rt = I_VAL(insn, 0, 8);
-            int sop = op == OP_FLOAT_ADD ? SSE_ADD
-                    : op == OP_FLOAT_SUB ? SSE_SUB
-                    : op == OP_FLOAT_MUL ? SSE_MUL
-                                         : SSE_DIV;
+            int sop = op == OP_FLOAT_ADD   ? SSE_ADD
+                      : op == OP_FLOAT_SUB ? SSE_SUB
+                      : op == OP_FLOAT_MUL ? SSE_MUL
+                                           : SSE_DIV;
             emit_float_arith(j, sop, rd, rs, rt);
             break;
         }
@@ -2124,8 +2320,10 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             off = sval(I_VAL(insn, 0, 16), 16);
             {
                 int p = rc_gpr(j, rd);
-                if (p >= 0) emit_alu_reg_imm32(b, ALU_CMP, p, 0);
-                else emit_alu_mem_imm32(b, ALU_CMP, RBX, VAL_DISP(rd), 0);
+                if (p >= 0)
+                    emit_alu_reg_imm32(b, ALU_CMP, p, 0);
+                else
+                    emit_alu_mem_imm32(b, ALU_CMP, RBX, VAL_DISP(rd), 0);
             }
             emit_jump(j, op == OP_JMP_TRUE ? CC_NE : CC_E, pc + 1 + off);
             break;
@@ -2164,8 +2362,7 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
                 emit_direct_call(j, rd, nargs, code->cs.nlocals, (CodeObject *)fn,
                                  code->cs.start_pc + pc);
             else
-                emit_helper_call(j, rd, nargs, code->cs.nlocals, fn,
-                                 code->cs.start_pc + pc);
+                emit_helper_call(j, rd, nargs, code->cs.nlocals, fn, code->cs.start_pc + pc);
             return 2; /* consumed the payload word as well */
         }
 
@@ -2289,8 +2486,8 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
 
         case OP_BUILD_INTERN:
             rd = I_VAL(insn, 16, 8);
-            off = I_VAL(insn, 8, 8);   /* tag */
-            imm = I_VAL(insn, 0, 8);   /* count */
+            off = I_VAL(insn, 8, 8); /* tag */
+            imm = I_VAL(insn, 0, 8); /* count */
             emit_build_intern(j, rd, off, imm);
             break;
 
@@ -2305,8 +2502,10 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
                 GlobalObject *g = (GlobalObject *)vector_get(&m->globals, idx);
                 addr = &((ModuleObject *)g->module)->values[g->index];
             }
-            if (op == OP_GLOBAL_GET) emit_global_get(j, rs, addr);
-            else emit_global_set(j, rs, addr);
+            if (op == OP_GLOBAL_GET)
+                emit_global_get(j, rs, addr);
+            else
+                emit_global_set(j, rs, addr);
             break;
         }
 
@@ -2594,40 +2793,59 @@ static int is_terminator(OpCode op)
     }
 }
 
+static int is_return(OpCode op)
+{
+    return op == OP_RET || op == OP_RET_INT_IMM || op == OP_RET_UINT_IMM || op == OP_RET_TAG ||
+           op == OP_RET_CONST || op == OP_RET_VOID;
+}
+
 /* One emission pass over the body. Also the dataflow step: jumps record the
  * cache state on their edge (emit_jump), fallthroughs here; a jump target
- * starts from rc_in[pc], the meet computed by the previous pass. */
-static void jit_emit_body(JitCtx *j, ModuleObject *m, CodeObject *code, uint32_t *insns,
-                          int n, int self_only)
+ * starts from rc_in[pc], the meet computed by the previous pass. Every edge
+ * first writes back what the target does not hold dirty (rc_edge_flush). */
+static void jit_emit_body(JitCtx *j, ModuleObject *m, CodeObject *code, uint32_t *insns, int n,
+                          int self_only)
 {
     j->buf.len = 0;
     j->nfixups = 0;
     j->failed = 0;
     for (int pc = 0; pc < n; pc++) {
-        j->rc_meet[pc] = ~0u;
+        rc_state_top(&j->rc_meet[pc]);
         j->rc_pred[pc] = 0;
         j->rc_jt_new[pc] = 0;
     }
     emit_prologue(j);
     rc_emit_preload(j);
-    rc_edge(j, 0, j->rc_valid); /* entry */
+    rc_edge(j, 0); /* entry */
     int prev_term = 0;
     for (int pc = 0; pc < n && !j->failed; pc++) {
         uint32_t insn = insns[pc];
         OpCode op = (OpCode)I_OP(insn);
         j->cur_pc = pc;
-        if (pc > 0 && !prev_term) rc_edge(j, pc, j->rc_valid);
-        if (j->rc_jt[pc])
-            j->rc_valid = j->rc_in[pc];
-        else if (pc > 0 && prev_term)
+        if (pc > 0 && !prev_term && j->rc_jt[pc]) {
+            rc_edge_flush(j, pc);
+            rc_edge(j, pc);
+        }
+        if (j->rc_jt[pc]) {
+            RcState *in = &j->rc_in[pc];
+            j->rc_valid = in->valid & RC_ALL(j);
+            j->rc_dirty = in->dirty & j->rc_valid;
+            memcpy(j->rc_tag, in->tag, sizeof(j->rc_tag));
+        } else if (pc > 0 && prev_term) {
             j->rc_valid = 0; /* not reachable by fallthrough or jump */
+            j->rc_dirty = 0;
+        }
         j->pc_map[pc] = emit_pos(&j->buf);
         int aware = rc_aware(op, insn);
+        /* helpers, the GC and the caller see memory: write back first */
+        if (!aware || is_return(op)) rc_flush(j, ~0u);
         if (!aware) j->rc_valid = 0;
+        j->rc_cur_aware = aware;
         pc += translate_insn(j, insn, pc, m, code, self_only) - 1;
         if (!aware) j->rc_valid = 0;
         prev_term = is_terminator(op);
     }
+    j->rc_cur_aware = 0;
 }
 
 /* Choose the promoted VM registers from the pass-0 votes (DESIGN §15.4): each
@@ -2734,8 +2952,8 @@ JitEntry *kl_jit_compile(CodeObject *code)
     j.cap_fixups = n;
     j.fixups = calloc(n, sizeof(Fixup));
     emit_init(&j.buf);
-    j.rc_in = calloc(n, sizeof(uint32_t));
-    j.rc_meet = calloc(n, sizeof(uint32_t));
+    j.rc_in = calloc(n, sizeof(RcState));
+    j.rc_meet = calloc(n, sizeof(RcState));
     j.rc_pred = calloc(n, 1);
     j.rc_jt = calloc(n, 1);
     j.rc_jt_new = calloc(n, 1);
@@ -2762,9 +2980,13 @@ JitEntry *kl_jit_compile(CodeObject *code)
     if (jit_regcache()) rc_select(&j, code->cs.nlocals > 0 ? code->cs.nlocals : 0);
     if (j.rc_n) {
         j.rc_check = jit_check_cache();
+        j.rc_wb = jit_write_back();
         memcpy(j.rc_jt, j.rc_jt_new, n);
         j.rc_preload = j.rc_jt[0];
-        for (int pc = 0; pc < n; pc++) j.rc_in[pc] = RC_ALL(&j);
+        for (int pc = 0; pc < n; pc++) {
+            rc_state_top(&j.rc_in[pc]);
+            if (!j.rc_wb) j.rc_in[pc].dirty = 0;
+        }
         int stable = 0;
         while (!stable && rc_passes < 64) {
             jit_emit_body(&j, m, code, insns, n, self_only);
@@ -2773,8 +2995,17 @@ JitEntry *kl_jit_compile(CodeObject *code)
             stable = 1;
             for (int pc = 0; pc < n; pc++) {
                 if (!j.rc_jt[pc]) continue;
-                uint32_t in = j.rc_pred[pc] ? j.rc_meet[pc] : 0;
-                if (in != j.rc_in[pc]) {
+                RcState in;
+                if (j.rc_pred[pc]) {
+                    in = j.rc_meet[pc];
+                } else {
+                    memset(&in, 0, sizeof(in));
+                }
+                in.valid &= RC_ALL(&j);
+                in.dirty &= in.valid;
+                for (int s = 0; s < RC_MAX; s++)
+                    if (!(in.dirty & (1u << s))) in.tag[s] = 0;
+                if (memcmp(&in, &j.rc_in[pc], sizeof(in))) {
                     j.rc_in[pc] = in;
                     stable = 0;
                 }
@@ -2836,7 +3067,8 @@ JitEntry *kl_jit_compile(CodeObject *code)
         jit_stats_data.compiled++;
     }
     if (jit_trace() && j.rc_n) rc_print(&j, name, rc_passes);
-    if (jit_trace()) jit_print_code(name, insns, n, j.pc_map, j.buf.data, j.buf.len, err_off, stderr);
+    if (jit_trace())
+        jit_print_code(name, insns, n, j.pc_map, j.buf.data, j.buf.len, err_off, stderr);
 
 done:
     free(j.pc_map);

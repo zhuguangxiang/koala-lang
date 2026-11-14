@@ -810,7 +810,34 @@ for (_, v) in d.items() {    // values only
 Loop variables carry no type annotation — `for (k str, v int) in m` is not valid syntax. Their types
 always come from the iterable, as in Python, Go and Rust.
 
-Top-level iteration combinators `enumerate` and `zip` are available.
+Iteration combinators live in the `std/itertools` package (import them explicitly):
+
+```kl
+from "std/itertools" import enumerate, zip, filter, take
+
+for (i, x) in enumerate([10, 20, 30]) {   // (0, 10), (1, 20), (2, 30)
+    print(i, x)
+}
+for (x, y) in zip([1, 2, 3], "ab") {      // (1, "a"), (2, "b") — stops at the shorter
+    print(x, y)
+}
+```
+
+| Function | Result |
+|---|---|
+| `enumerate(obj)` | `(index, element)` pairs, numbered from 0 |
+| `zip(a, b)` | `(left, right)` pairs, stops at the shorter |
+| `filter(obj, pred)` | elements satisfying `pred` |
+| `take(obj, n)` | first `n` elements |
+| `skip(obj, n)` | elements after the first `n` |
+| `chain(a, b)` | elements of `a` then `b` |
+| `reduce(obj, init, fn)` | folds to a single value (eager, not an iterator) |
+
+Except for `reduce`, each returns a lazy, single-pass iterator that is itself iterable,
+so they compose: `take(filter(xs, pred), 3)`, `enumerate(chain(a, b))`. On an iterator,
+`next_strict()` panics when exhausted and `next()` returns `nil`. `enumerate` numbers
+from 0; to start elsewhere, construct `Enumerate[T](obj, start)` directly. `reduce`'s
+accumulator type is inferred from `init` and may differ from the element type.
 
 ### The `with` Statement
 

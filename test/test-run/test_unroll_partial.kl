@@ -1,0 +1,126 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --domtree --unroll | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --domtree --unroll | filecheck %s
+
+// Partial unrolling by 4: the bound is a parameter or more than 16 trips, the unrolled loop
+// gives the same results as the loop.
+
+func sum_to(n int) int {
+    var s = 0
+    for i in range(1, n) { s = s * 3 + i }
+    return s
+}
+
+func sum_le(n int) int {
+    var s = 0
+    var i = 0
+    while i <= n { s = s * 3 + i; i += 1 }
+    return s
+}
+
+func down_gt(n int) int {
+    var s = 0
+    var i = 20
+    while i > n { s = s * 3 + i; i -= 2 }
+    return s
+}
+
+func down_ge(n int) int {
+    var s = 0
+    var i = 10
+    while i >= n { s = s * 3 + i; i -= 1 }
+    return i * 1000000 + s
+}
+
+// rotated: the exit test is after the step
+func rotated(n int) int {
+    var s = 0
+    var i = 0
+    while true {
+        s = s * 3 + i
+        i += 1
+        if i >= n { break }
+    }
+    return s
+}
+
+func with_break(n int, stop int) int {
+    var s = 0
+    for i in range(n) {
+        if i == stop { break }
+        s = s * 3 + i
+    }
+    return s
+}
+
+func early_ret(n int, x int) int {
+    for i in range(n) {
+        if i == x { return i * 11 }
+    }
+    return -1
+}
+
+// not unrolled: the bound is changed in the loop
+func bound_changed(n int) int {
+    var m = n
+    var s = 0
+    var i = 0
+    while i < m { s = s * 3 + i; i += 1; if i == 2 { m = m + 3 } }
+    return s
+}
+
+// the guard: 'n - 3' would wrap, the original loop runs all the trips
+func near_min(n int) int {
+    var c = 0
+    var i = -9223372036854775807 - 1
+    while i < n { c += 1; i += 1 }
+    return c
+}
+
+func near_max(n int) int {
+    var c = 0
+    var i = 9223372036854775807
+    while i > n { c += 1; i -= 1 }
+    return c
+}
+
+// not unrolled: the step is cast to 'int32'
+func narrow(n int32) int {
+    var s = 0
+    var i int32 = 0
+    while i < n { s = s * 3 + i; i = int32(i + 1) }
+    return s
+}
+
+func const_many() int {
+    var s = 0
+    for i in range(23) { s = s * 3 + i }
+    return s
+}
+
+for n in [0, 1, 2, 3, 4, 5, 7, 8, 9] { print(sum_to(n), sum_le(n - 1), down_gt(n), down_ge(n)) }
+// CHECK: 0 0 560966 -158551
+// CHECK-NEXT: 0 0 560966 280483
+// CHECK-NEXT: 1 1 186988 1093494
+// CHECK-NEXT: 5 5 186988 2031164
+// CHECK-NEXT: 18 18 62328 3010387
+// CHECK-NEXT: 58 58 62328 4003461
+// CHECK-NEXT: 543 543 20774 6000382
+// CHECK-NEXT: 1636 1636 6922 7000125
+// CHECK-NEXT: 4916 4916 6922 8000039
+
+for n in [1, 2, 3, 4, 5, 6, 9] { print(rotated(n), with_break(n, 5), early_ret(n, 4), bound_changed(n), narrow(int32(n))) }
+// CHECK-NEXT: 0 0 -1 0 0
+// CHECK-NEXT: 1 1 -1 58 1
+// CHECK-NEXT: 5 5 -1 179 5
+// CHECK-NEXT: 18 18 -1 543 18
+// CHECK-NEXT: 58 58 44 1636 58
+// CHECK-NEXT: 179 58 44 4916 179
+// CHECK-NEXT: 4916 58 44 132854 4916
+
+print(near_min(-9223372036854775806), near_min(-9223372036854775802))
+// CHECK-NEXT: 2 6
+print(near_max(9223372036854775805), near_max(9223372036854775801))
+// CHECK-NEXT: 2 6
+print(const_many())
+// CHECK-NEXT: 23535794695

@@ -5036,9 +5036,20 @@ VanDrunen, Hosking, "Value-Based Partial Redundancy Elimination", CC 2004。
     之后 opt 折叠最后一份的退出测试并删掉不可达的原循环。副本带 `KLR_INSN_FLAGS_INLINED`，
     死代码里的常量除零 / 溢出留给运行时，不报编译错误。
   - `--dump=unroll-ir` 打印展开后（重跑 opt 之前）的函数。
+  - 部分展开（完全展开条件不满足时）：上界是常量（K > 16）或循环内不被修改、宽度与 `%i` 相同的
+    local / 参数，比较是 `<` / `<=`（步长 > 0）或 `>` / `>=`（步长 < 0），且 4 × 循环指令数 <= 256。
+    按因子 U = 4 复制循环体，`unroll-cond` 判断 `%i rel (L - (U-1)×step)`，为真则执行 4 份副本，
+    否则进入原循环（作为余数循环）。先测试后步进时，副本的退出测试全部删除；先步进后测试时，只保留最后一份的
+    测试。非常量上界需要 `unroll-guard` 检查 `L - delta` 不溢出，`unroll-bound` 在循环外计算一次；
+    溢出时直接进入原循环。常量上界在编译期计算。原循环头和 cond 块标记 `unrolled`，后面的轮次不再展开。
+    `bench/loop-sum.kl`（debug、`KOALA_JIT=0`）从 11.09s 降到 8.31s。
   - 测试：`test/test-ir/test_unroll.kl`（while / range 提前 return、超过上限不展开、展开后无回边、
-    不开 `--domtree` 时 warning）、`test/test-run/test_unroll.kl`（与不展开的结果相同：break / continue /
+    不开 `--domtree` 时 warning；部分展开：常量上界、参数上界的 guard、先步进后测试）、
+    `test/test-run/test_unroll.kl`（与不展开的结果相同：break / continue /
     嵌套 / 循环后读计数器 / 倒数 / 常量在左 / if-else / 0 趟 / 步长 / lambda / 死代码除零 / 接近 INT64_MAX）、
+    `test/test-run/test_unroll_partial.kl`（部分展开：0..9 趟、`<=` / `>` / `>=`、先步进后测试、break /
+    return、上界在循环内被修改、接近 INT64_MIN / MAX 时由 guard 回退、常量 23 趟；
+    分别在开 JIT 和 `KOALA_JIT=0` 下运行）、
     `test/test-run/test_unroll_traceback.kl`（展开后 traceback 行号不变）。
   - 性能：`test/test-bench/test_unroll.kl`，结果见 `test/test-bench/README.md`。
 - 直接自递归内联：`--recursive-self-inline` 默认关闭，在首次 opt 后逐层展开当前模块的直接自调用，
@@ -5279,7 +5290,7 @@ JIT review 发现的错误（JIT 开 / `KOALA_JIT=0` 输出不同或崩溃），
 
 - **内联 `ucomisd`**：浮点比较 / 融合浮点跳转不再调 C helper（PF 处理 NaN）。
 - **去冗余 tag 写**：试做后按用户要求撤销（收益小，与「内存即真相」的简单性冲突）。
-- **写穿寄存器缓存**（已完成）：热点 VM 寄存器的 payload 副本留在 RSI/RDI/R8–R10、XMM1–7，每次写仍写穿内存（tag+payload），GC 枚举不变。数据流由多遍发射求不动点（发射器即转移函数），非感知指令前后全部作废；自尾调用函数入口预装；`rc_dst` 就地计算。`KOALA_JIT_REGCACHE=0` 关闭，`KOALA_JIT_CHECK_CACHE=1` 每次命中比对内存（不符 `ud2`）。
+- **写回（WB）寄存器缓存**（已完成）：热点 VM 寄存器的副本放在 RSI/RDI/R8–R10、XMM1–7。标量的写只更新副本并标记为 dirty，到非感知指令、`ret`、跳转边（目标入口不持有该 dirty slot 时）、错误路径之前才把 payload 和 tag 一起写回；引用总是立即写回，GC 枚举不变。数据流（valid / dirty / 待写 tag）由多遍发射求不动点（发射器即转移函数）；自尾调用的函数在入口预装副本；`rc_dst` 就地计算。loop-sum 54 → 30ms（luajit 47）。`KOALA_JIT_REGCACHE=0` 关闭缓存，`KOALA_JIT_WB=wt` 改为写穿（默认 `wb`），`KOALA_JIT_CHECK_CACHE=1` 每次命中不脏的副本前比对内存（不符 `ud2`）。详见 DESIGN §15。
   - **性能**：test_float_arith 190 → 54ms（3.5×）、test_float_logic 2.1×、loop-sum / sum / test_bitwise ~1.35×；调用密集与 `idiv` 主导的不变。
   - **测试**：`test/test-run/test_jit_regcache.kl`（五跑：JIT / 解释 / 阈值 1 / 阈值 1+自检 / trace）；全量 lit 在自检 + 阈值 1 下通过；7 个变异全部捕获，3 个等价变异见 DESIGN §15.7。
 - **分块代码区**（已完成）：函数 16 字节对齐顺序分配进 1MB chunk（PROT_NONE 预留），写入只翻涉及的页 RW→RX，W^X 不变；不用 `mremap`（会搬走代码）。代码页数减少 1.8–4.7×，运行时间不变（噪声内）。`KOALA_JIT_STATS` 增加 `code B bytes, P pages, C chunks`，`KOALA_JIT_CODE_CHUNK=<bytes>` 供测试用。测试 `test_jit_code_arena.kl`，7 个变异全部捕获。设计见 DESIGN §16。

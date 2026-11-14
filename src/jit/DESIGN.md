@@ -21,9 +21,10 @@ v1 是一个 **Sparkplug 风格的基线（baseline）JIT**：把每条受支持
    max_call_args)` 或全局中，规则见 §14.1。下面各条都服从这一条；任何优化（含阶段 3）
    只要保证 GC 点上对象都能经 `KoalaState` 枚举到、GC 能正常工作，即为合法。
 2. **保持 TValue 寄存器文件**：寄存器文件就是解释器同款的 `cf->locals`（每寄存器 16
-   字节 `{tag, payload}`）。机器码可以把值的副本缓存在物理寄存器里（阶段 3 写穿缓存，
-   §15），但在每个 GC 点、基本块边界和出口前，内存中的 TValue 必须与解释器
-   语义一致（tag 正确、值已写回）。跨 GC 点的拆箱 + 机器 RA（需 stack map）属 v2
+   字节 `{tag, payload}`）。机器码可以把标量值缓存在物理寄存器里，并推迟写回（阶段 3
+   写回缓存，§15），但在每个可能读内存的点（GC 点 / helper / 调用、非缓存感知指令、
+   出口、错误路径）之前，必须把 payload 和 tag 一起写回，使内存中的 TValue 与解释器语义
+   一致。对象引用总是立即写回。跨 GC 点的拆箱 + 机器 RA（需 stack map）属 v2
    （见 Koala_TODO §100）。
 3. **帧与解释器同构**：每个被调用的函数都有真实 `CallFrame`（入 `ks->cf` 链、locals 在
    VM 栈上），traceback 与解释器逐帧一致。flag=0 调 koala 代码走 JIT→JIT 直调（原生侧
@@ -53,7 +54,7 @@ koala/wombat 是真实动物，Drop Bear/Yowie/Bunyip 是传说神兽——JIT �
 - 闭包捕获以外的高级特性（接口/寄存器调用、方法、非自调用尾调用已在阶段 1
   支持，见 §5.3）。
 - 对象 / 字符串等非数值运算（int64/uint64/窄整型/float64/bool 已覆盖，见 §5.4、§5.5）。
-- 跨 GC 点的寄存器分配、去优化（deopt）与 OSR（写穿寄存器缓存见 §15）。
+- 跨 GC 点的寄存器分配、去优化（deopt）与 OSR（写回寄存器缓存见 §15）。
 - 跨函数内联、类型特化推测。
 
 遇到上述任何情况，JIT **在编译期整体放弃**（bail-out），该函数永久走解释器，
@@ -73,7 +74,7 @@ koala/wombat 是真实动物，Drop Bear/Yowie/Bunyip 是传说神兽——JIT �
 v1 选 **方案 C**：因为寄存器布局、tag 写回、分支条件都与解释器逐条对齐，
 **正确性由构造保证**（correctness-by-construction），无需任何静态分析。
 代价是每次运算多一次 tag 写入、寄存器仍驻留内存。阶段 3 在不破坏 §1 不变量 1/2 的
-前提下做局部改进（写穿寄存器缓存，§15）；跨 GC 点的拆箱与寄存器分配留给 v2。
+前提下做局部改进（写回寄存器缓存，§15）；跨 GC 点的拆箱与寄存器分配留给 v2。
 省多余 tag 写（前向已知 tag 数据流）曾实现并实测后撤销：release 下仅 loop-sum +25%，
 其余 ±3% 噪声内——tag 写是立即数 store，被 store buffer 吸收，真正开销在每条指令的
 操作数 load/store，不值得为此增加一套分析。
@@ -563,8 +564,9 @@ opcode**，仅 3 个例外：
 | `KOALA_JIT_THRESHOLD=<n>` | 热度阈值，调用 n 次后编译 | 1 |
 | `KOALA_JIT_TRACE=1` | 开启 trace（见下）：编译成功打印 IR 风格 dump，编译失败/跳过打印 bail 原因 | 关闭 |
 | `KOALA_JIT_STATS=1` | 进程退出时打印 `[jit stats] compiled N, not compiled M` 及按原因（`op NAME`、`op call flg=N` 等）排序的 bail 计数，以及 `[jit stats] code B bytes, P pages, C chunks`（§16） | 关闭 |
-| `KOALA_JIT_REGCACHE=0` | 关闭写穿寄存器缓存（§15） | 开启 |
-| `KOALA_JIT_CHECK_CACHE=1` | 每次命中寄存器副本前与内存比对，不符 `ud2`（§15.7） | 关闭 |
+| `KOALA_JIT_REGCACHE=0` | 关闭寄存器缓存，回到 v1 逐条读写内存（§15.0） | 开启 |
+| `KOALA_JIT_WB=wt\|wb` | 寄存器缓存的写策略：`wt` 写穿：每次写立即写内存，只省 load；`wb` 写回：标量写推迟到写回点，load 和 store 都省（§15.0） | `wb` |
+| `KOALA_JIT_CHECK_CACHE=1` | 每次命中不脏的寄存器副本前与内存比对，不符 `ud2`（§15.7） | 关闭 |
 | `KOALA_JIT_CODE_CHUNK=<bytes>` | 代码区 chunk 大小（向上取整到页），测试用小值强制跨 chunk | 1MB |
 
 这些变量均在进程内首次读取后缓存（`static int cached = -1` 惰性初始化），
@@ -662,17 +664,17 @@ KOALA_JIT=1 koala bench/test_arith.kl   # ~0.43s
 `add1` + 互递归 `fa`/`fb` fib(32)，`++ --no-inline`，debug 构建）0.89s → 0.51s
 （解释器 1.64s）；fib / ack / tak 为 self-only，不变（0.79 / 0.24 / 0.14s）。
 
-**阶段 3（写穿寄存器缓存，§15）**：test_float_arith 190 → 54ms（luajit 46）、
-test_float_logic 233 → 110ms、loop-sum 75 → 54、sum 104 → 77、test_bitwise 215 → 163、
-shuffle 86 → 76、tak 153 → 138；fib / ack / `idiv` 主导的基准不变。完整对比见 §15.8
-（上表为 11-14 基线，未重测）。
+**阶段 3（写回寄存器缓存，§15）**：无缓存 → 写回（WB）：test_float_arith 190 → 55ms
+（luajit 47）、test_float_logic 233 → 85、loop-sum 75 → 30–33（luajit 47，koala 快 1.57×）、
+sum 104 → 77、test_bitwise 215 → 139、shuffle 86 → 73、tak 153 → 143；fib / ack / `idiv`
+主导的基准基本不变。完整对比见 §15.8（上表为 11-14 基线，未重测）。
 
 ### 13.1 落后归因 → Yowie(v2) 靶子
 
 | 落后项 | 根因（v1 限制） | Yowie 对策 |
 | --- | --- | --- |
 | test_float_logic（4.46×） | 浮点比较 `if res>=50.0` 每迭代调 `kl_jit_float_cmp` C helper | 阶段 3 已内联 `ucomisd`（处理 PF/NaN） |
-| test_float_arith（3.88×） | TValue 镜像：每迭代 movsd 读内存→addsd→写内存+写 tag | 阶段 3 写穿寄存器缓存：190→54ms（§15.8） |
+| test_float_arith（3.88×） | TValue 镜像：每迭代 movsd 读内存→addsd→写内存+写 tag | 阶段 3 寄存器缓存：190→55ms（§15.8） |
 | ack（2.99×） | 嵌套非尾调用每次 helper→`kl_call_code` 建帧开销 | JIT→JIT 直调 |
 | sum / shuffle（~2×） | 尾循环 TValue 每迭代 load/store + tag 写 | 拆箱 + RA |
 | loop-sum / logic_chain（1.3–1.5×） | TValue 镜像 load/store + tag 写（已较接近） | 拆箱 + RA |
@@ -680,8 +682,8 @@ shuffle 86 → 76、tak 153 → 138；fib / ack / `idiv` 主导的基准不变�
 结论：v1 已把可 JIT 的都 JIT 了，剩余差距集中在**代码质量**而非覆盖，对应 Yowie 三项
 （拆箱+RA、内联浮点比较、JIT 直调，见 Koala_TODO §100）。此表作为 Yowie 的优化对照基线。
 
-> 注：shuffle 的结果受尾调用编译器 bug 影响（Koala_TODO §104，40M 输入恰好掩盖），
-> 性能数仍有效（同样跑 40M 次循环）。
+> 注：上表为早期摸底数据；shuffle 曾受尾调用并行移动 bug 影响（Koala_TODO §104，**已修复**）。
+> 最新五方对比（koala JIT/解释器 vs LuaJIT JIT/解释器 vs Lua 5.4）见 README「Performance」。
 
 ## 14. GC root 枚举（前瞻）
 
@@ -762,15 +764,52 @@ C 函数期间，活值已在 VM 栈/参数窗口，C 侧临时 root 由 TraceSt
 - v1 GC 直接保守扫 VM 栈 + 全局，**零 JIT 侧改动**（镜像模型已就位），先跑通半自动内存模型。
 - 现在锁定 safepoint 约定，为 v2 stack map 留接口。
 - 关联：Koala_TODO §100（Yowie 拆箱）、内存管理设计目标（Koala_Language_Manual.md）。
-## 15. 阶段 3：写穿寄存器缓存（Write-Through Register Cache）
 
-> 状态：**已实现（2026-11-15）**，默认开启，`KOALA_JIT_REGCACHE=0` 关闭。在**不改变内存
-> 中 TValue 语义的任何一刻**的前提下，把热点 VM 寄存器的 payload 副本留在物理寄存器里，
-> 消掉每条指令的操作数 load。实现细节与设计稿的差异见 15.9，实测见 15.8。
+## 15. 阶段 3：写回寄存器缓存（Write-Back Register Cache）
 
-### 15.1 现状与瓶颈（实测 trace）
+> 状态：**已实现**，默认开启，默认策略是 WB。热点 VM 寄存器的值在物理寄存器里有一份
+> 副本，标量的写**只更新副本**，payload 和 tag 推迟到内存可观测点（写回点，15.3）**一起**写回。
+> 这样每轮循环既不用 load，也不用 store。实测见 15.8，实现细节见 15.9。
 
-v1 每条算术指令都是「load 操作数 → 运算 → store payload → store tag」四步，例如
+### 15.0 三种策略
+
+| 策略 | 开关 | 读 | 写 | 内存与解释器一致的时刻 | 用途 |
+| --- | --- | --- | --- | --- | --- |
+| 无缓存（v1） | `KOALA_JIT_REGCACHE=0` | 每次从内存 load | 每次 store payload + tag | 每条指令边界 | 基线；怀疑缓存有问题时整体关掉 |
+| WT（写穿，write-through） | `KOALA_JIT_WB=wt` | 副本有效就用副本，否则 load | 立即 store payload + tag，同时刷新副本 | 每条指令边界 | 只消掉 load（依赖链不再经过内存）；对照 WB 排错 |
+| WB（写回，write-back，默认） | `KOALA_JIT_WB=wb` 或不设 | 同 WT | 标量只更新副本并标记 dirty，到写回点再一起写 payload + tag；引用仍走 WT | 每个写回点（15.3 表） | 同时消掉 load 和 store |
+
+术语（本节统一使用）：
+
+| 术语 | 含义 |
+| --- | --- |
+| 寄存器提升（register promotion） | 编译期把某个 VM 寄存器 rN 固定映射到一个物理寄存器 `P(rN)`，被映射的称为提升寄存器 |
+| 副本（cached copy） | `P(rN)` 中保存的 rN payload |
+| valid / invalid | 副本是否保存 rN 的当前 payload |
+| clean / dirty | 副本与内存一致 / 副本比内存新（内存 stale，需要写回） |
+| authoritative copy | 当前值所在的位置：dirty 时是 `P(rN)`，否则是内存 |
+| 写回（writeback / flush） | 把 dirty 副本的 payload 和 tag 一起写入内存，之后变为 clean |
+| 作废（invalidate） | 把副本标为 invalid，dirty 副本必须先写回 |
+| 写回点 | 内存可观测点：helper / GC 点 / 调用、非缓存感知指令、`ret`、跳转边、错误路径（完整列表见 15.3） |
+| 缓存感知指令（cache-aware） | JIT 发射时会读写寄存器缓存的指令（`rc_aware`，列表见 15.9）；其余为非缓存感知指令，只经内存读写 |
+| stale | 过期：副本或内存不再保存当前值 |
+
+各策略的作用：
+
+- **无缓存**：发出的代码与 v1 逐字节相同，每条指令都读写 TValue 内存。
+- **WT**：解决**延迟**问题。依赖链留在寄存器里，不再经过 store-to-load forwarding。
+  但每次写仍有两次 store，store 多的循环（loop-sum 展开后）会受 store 端口吞吐限制。
+  WT 下不存在 dirty 状态，写回点什么都不用写，内存随时是最新值，所以适合用来判断问题是否
+  出在写回逻辑上：WT 正确、WB 出错，就是漏写回或待写 tag 错了。
+- **WB**：在 WT 的基础上再解决**吞吐**问题。循环里的标量写不再 store，代价是内存只在写回点
+  与解释器一致，需要 15.3 的写回点表和 15.5 的数据流保证正确。
+
+`KOALA_JIT_WB` 只在缓存开启时起作用；`KOALA_JIT_REGCACHE=0` 时两种写策略都不生效。
+`KOALA_JIT_CHECK_CACHE=1` 在 WT 和 WB 下可用（WB 下只比对 clean 副本）；无缓存时没有副本，不起作用。
+
+### 15.1 瓶颈（实测 trace）
+
+v1 每条算术指令都要走四步：load 操作数 → 运算 → store payload → store tag。例如
 `bench/test_float_arith.kl` 的循环体（单个 BB `%bb4`）：
 
 ```asm
@@ -790,175 +829,379 @@ cmp   rax, [rbx+0x8]
 jl    %bb4
 ```
 
-**为什么慢**：`r1 = r1 + r2` 是循环携带依赖链（loop-carried）。每一轮的 `addsd` 必须等
-上一轮的 `movsd [rbx+0x18], xmm0` 经 **store-to-load forwarding** 转发回来，这一步在
-Intel 上约 4–5 周期，与 `addsd` 的 4 周期**串行相加**：每轮 ≈ 9 周期，而纯寄存器链只需 4
-周期。整数链更夸张：`add` 1 周期，但加上转发后是 ≈ 6 周期。tag 写是立即数 store，
-不在任何依赖链上，会被 store buffer 吸收——这也是之前「省 tag 写」实测无收益的原因（§2）。
+这里有两种成本：
 
-结论：**真正的成本是依赖链上经过内存的那一跳**，消掉它要让值在寄存器里跨过回边。
+1. **经内存的 store-to-load 转发延迟（latency）**：`r1 = r1 + r2` 是跨轮依赖链，每一轮的 `addsd`
+   都要等上一轮的 store 经 store-to-load forwarding 转发回来（约 4–5 周期），这段时间和
+   `addsd` 的 4 周期串行相加。整数链更明显：`add` 只要 1 周期，加上转发就是约 6 周期。
+   要消掉这一跳，值必须留在寄存器里跨过回边，所以缓存不能只在一个 BB 内有效（15.2）。
+2. **store 数量（吞吐）**：只消掉 load 后，每条写仍有 payload 和 tag 两次 store。loop-sum
+   展开 4 次以后，循环体有 8 条加法，每条都要写回，P 核每周期最多执行 2 次 store，store
+   就成了瓶颈。依赖链已经在寄存器里了，loop-sum 却只从 75ms 降到 54ms，原因就在这里。
+   要消掉这些 store，写必须**延迟**到真正需要内存值的时候。
 
-### 15.2 为什么不做「纯基本块内缓存」
+### 15.2 为什么跨 BB，而不是只在基本块内缓存
 
-最初设想是 BB-local：块内缓存，块尾全部写回、块首全部作废。但 trace 显示热点循环体
-大多**只有一个或两个 BB**，依赖链恰好跨越回边：
+只在 BB 内缓存的做法是：块尾全部写回，块首全部作废。但 trace 显示，热点循环体大多只有
+一两个 BB，依赖链正好跨过回边：
 
-| bench | 循环结构 | BB-local 能否消掉链上的 load |
+| bench | 循环结构 | 只在 BB 内缓存的效果 |
 | --- | --- | --- |
-| test_float_arith | 单 BB 自环 `%bb4` | 否：块首作废 → 每轮重 load r1/r3 |
-| loop-sum | `%bb2`（判断）+ `%bb3`（体）| 否：每个 BB 内每寄存器只用一次 |
-| sum / shuffle | 自尾调用 `tail_call` → 跳回 pc 0 | 否：跳回即块边界 |
-| test_arith | 单 BB，r1 上 8 步链 | 部分：块内 7 次 load 可省，回边那次不行 |
+| test_float_arith | 单 BB 自环 `%bb4` | 块首作废 → 每轮重新 load r1/r3，块尾全部写回 |
+| loop-sum | `%bb5`（判断）+ `%bb6`（展开 4 次的体） | 回边和判断边都要写回 |
+| sum / shuffle | 自尾调用 `tail_call` → 跳回 pc 0 | 跳回 pc 0 本身就是块边界 |
+| test_arith | 单 BB，r1 上 8 步链 | 块内能省 7 次 load，跨回边的那次省不掉 |
 
-即 BB-local 方案对多数基准**几乎无收益**。因此改为：**内存永远是真值（写穿），寄存器只
-是可随时丢弃的副本**，副本的有效性用一个跨 BB 的前向 must 数据流决定，可以跨过回边。
+所以副本的状态（是否有效、是否待写回、待写的 tag）用**跨 BB 的前向数据流**计算（15.5），
+可以跨过回边保留。
 
-### 15.3 核心原理：写穿 + 副本有效性
+### 15.3 核心原理：有效、脏、待写 tag
 
-- **写穿（write-through）**：任何写 VM 寄存器 `rN` 的指令，照旧把 payload 和 tag
-  写回 `[rbx+N*16]`。**内存中的 TValue 在每条字节码指令边界都与 v1 完全一致**。
-  不变量 1（GC 枚举）、不变量 2（TValue 文件）、错误尾声、traceback、`kl_jit_refill_cf`、
-  JIT→JIT 直调、自递归直调全部**零改动**、天然成立。
-- **副本**：一部分 VM 寄存器（「提升寄存器」）在编译期被分到一个固定物理寄存器
-  `P(rN)`。在某个程序点，若 `valid(rN)` 为真，则保证 `P(rN) == [rbx+N*16+8]`。
-- **读**：缓存感知的指令读 `rN` 时，`valid` 则直接用 `P(rN)`（**省掉 load，也断开了
-  经过内存的依赖链**）；否则从内存 load 进 `P(rN)` 并置 `valid`（load-on-miss）。
-- **写**：结果算在 `P(rd)` 里，然后 store 回内存（store 不在依赖链上，被 store buffer
-  吸收），置 `valid(rd)`。
-- **作废**：副本只可能因两类事件失真——物理寄存器被破坏，或内存被「旁路」写入：
-  1. **GC 点 / 任何 helper、运行时、直调、自递归 near call**：caller-saved 物理
-     寄存器被破坏，且 helper 可能写任意 VM 寄存器、将来 GC 可能移动对象 → **全部作废**。
-  2. **非缓存感知的指令**（如 inline 的 `get_field`、`make_intf` 等）照旧经内存读写；
-     它读内存总是对的（写穿保证），但它的写不会更新副本 → **全部作废**（保守；以后可
-     细化为只作废其 def）。
-  3. 缓存感知指令写 `rd` 但结果在另一类寄存器（如 float 结果、`rd` 是 GPR 类）→ 实现中
-     用一条 `movq` 跨类拷贝，副本**仍有效**（payload 只是 64 位，类别只影响放在哪）。
+部分 VM 寄存器在编译期做**寄存器提升（register promotion）**，各自固定映射到一个物理寄存器 `P(rN)`（15.4）。每个程序点
+上，每个提升寄存器 slot 有三项状态：
 
-由于内存永远是真值，**作废永远是安全的**：最坏情况只是退化成 v1 的 load。唯一的
-正确性风险是「该作废时没作废」（副本陈旧），15.7 用运行期自检专门覆盖它。
+| 状态 | 含义 |
+| --- | --- |
+| `valid(s)` | `P(rN)` 中是 rN 的当前 payload |
+| `dirty(s)`（⊆ valid） | 内存中的 `[rbx+N*16]` **已过期**，当前值只在 `P(rN)` 里 |
+| `tag(s)`（仅 dirty 时有意义） | 写回时要写入的 tag（编译期常量） |
+
+内存和副本之间的关系：
+
+- **valid 且 clean**：`P(rN) == [rbx+N*16+8]`，内存的 tag 也正确。副本只是缓存，可以随时作废（invalidate）。
+- **dirty**：`P(rN)` 是 authoritative copy，内存里的 payload 和 tag 都是 stale，读 rN 只能读副本。
+  作废或逐出（evict）前必须先写回。
+- **invalid**：内存是 authoritative copy。读 rN 时 load 进 `P(rN)` 并设为 valid（load-on-miss）。
+
+**读**：缓存感知的指令读 rN 时，如果副本 valid，就直接使用 `P(rN)`，不 load，依赖链也不
+经过内存；否则从内存 load 一次。
+
+**写**（`rc_store` / `rc_store_imm`）：结果就地算在 `P(rd)` 里（15.6），之后：
+
+- **走 WB**（`rc_wb_slot`）：要求 `KOALA_JIT_WB=wb`（默认），当前指令是缓存感知的，
+  结果 tag 是标量（`BOOL`、`INT8..UINT64`、`FLOAT16..BFLOAT16`，见 `rc_wb_tag`），且 rd
+  已提升。满足时**一条 store 都不发**，只设置 `valid|dirty` 并记下 `tag(s)`。
+- **走 WT**：写穿。立即写 payload 和 tag，副本设为 valid 并清除 dirty（`rc_def`）。
+  引用类（`NIL`、`OBJECT` 等）**总是写穿**：GC 只看内存就能找到所有对象，物理寄存器里
+  永远不会只有一个对象的唯一引用。
+
+**payload 和 tag 一起写回**：dirty 是一个整体，写回时总是同时写 payload 和立即数 tag
+（`rc_emit_flush`：`mov/movsd [rbx+N*16+8], P` 和 `mov qword [rbx+N*16], imm32`）。不存在
+「payload 已写、tag 未写」的中间状态，所以无论在哪一刻读内存，看到的都是一个完整、
+一致的 TValue。
+
+**写回点**：凡是可能有人读内存的地方，都要先写回。下表列出全部情形：
+
+| 写回点 | 写回范围 | 实现 |
+| --- | --- | --- |
+| 非缓存感知指令之前（helper、运行时、GC 点、调用、直调、自递归 near call、`get_field` 等内联内存访问） | 全部 dirty | `jit_emit_body`：`!aware` 时 `rc_flush(~0)`，前后各把 valid 清零 |
+| `ret*` 之前（调用者和 `kl_jit_refill_cf` 读帧） | 全部 dirty | `jit_emit_body`：`is_return(op)` |
+| 跳向某个 pc 的边，目标入口不认为该 slot 脏，或认为脏但 tag 不同 | 这些 slot | `rc_edge_flush`（`emit_jump`、落入跳转目标、浮点跳转的 `jp` 前） |
+| 自尾调用 `jmp pc0` | pc 0 入口不持有的 slot | `emit_jump(j,-1,0)` 走同一个 `rc_edge_flush` |
+| 错误路径（`emit_raise_at`：除零、移位越界等） | 全部 dirty，**只发在冷路径上** | `rc_flush_cold`：只发 store，不改热路径状态 |
+| 某条缓存感知指令要直接读 rN 的内存（如 `jmp_ref_*_null` 读 tag） | 仅 rN | `rc_mem(vm)` |
+| 类别不符（int 指令读 XMM 类 slot，float 指令读 GPR 类 slot） | 仅该 slot | `rc_gpr` / `rc_xmm` 先 flush，再返回 -1（之后从内存读） |
+
+写回只用普通 `mov`，不影响标志位，所以可以插在 `cmp` 和 `jcc` 之间（条件跳转的边在
+`cmp` 之后才知道，见 15.5）。
+
+**用待写 tag 代替读内存 tag**：`move` 和 `int.not` 原本要在运行期读源寄存器的 tag。
+源寄存器是 dirty 时，内存里的 tag 已过期，此时编译期已经知道待写 tag（`rc_dirty_tag`），
+直接使用它：`move` 的 rd 可以继续写回（WB），`int.not` 也在编译期选好 `INT64` 或 `UINT64`。
+
+**副本变为 stale 的两种情形**（无论 clean 还是 dirty，都要在副本失效前处理）：
+
+1. **物理寄存器被破坏**：任何 helper 或 call 都会破坏 caller-saved 寄存器。这类指令都是
+   非缓存感知的，执行前写回全部 dirty，执行后 valid 清零。
+2. **绕过缓存的写（bypass write）**：非缓存感知指令只经内存读写，读之前已经写回所以读到的是对的，但它写
+   内存不会更新副本，所以执行后 valid 必须清零（保守做法，以后可以细化为只作废它的 def）。
+
+只要能维持「dirty slot 在作废前一定已经写回」，作废就永远安全，最坏情况只是退回
+load。正确性风险只有两类：**漏作废**（副本 stale）和**漏写回**（内存 stale）。15.7 分别用
+运行期自检和变异测试覆盖。
 
 ### 15.4 物理寄存器池与提升选择
 
-- **GPR 池**：`RSI, RDI, R8, R9, R10`（5 个）。它们在 v1 中只出现在 helper 调用的参数
-  序列里，而调用点本来就全部作废，不冲突。`RAX/RCX/RDX` 仍是运算 scratch
-  （`idiv`/`cqo`/移位计数要用），`R11` 留给直调序列，`RBX/RBP` 不变。
-- **XMM 池**：`XMM1–XMM7`（7 个），`XMM0` 仍是 scratch（`fmod` 等 helper 调用点本就作废）。
-- 全部是 caller-saved：**序言 / 尾声不变**，不需要额外 push/pop，栈对齐不变。
-- **类别**：每个提升寄存器只有一个类别（int → GPR，float → XMM），按它在缓存感知指令
-  中被当作 int 还是 float 访问的加权次数取多数（`move` 不计票）。类别不符的读：副本有效
-  时 `movq` 跨类取，否则走内存；类别不符的写：`movq` 跨类刷新。
-- **选择**：对每个 VM 寄存器按「读次数 × 8^循环深度」打分（深度 = 覆盖该 pc 的后向跳转
-  `[target, src]` 区间数，封顶 3；含自尾调用跳回 pc 0），分数 ≥ 8（循环内读一次，或直线
-  代码读 8 次）才提升，各池取分数最高者。
+- **GPR 池**：`RSI, RDI, R8, R9, R10`（5 个）。v1 中只有 helper 调用的参数序列用到它们，
+  而调用点前本来就会全部写回和作废，不冲突。`RAX/RCX/RDX` 仍是运算 scratch（`idiv`、
+  `cqo`、移位计数要用），`R11` 留给直调序列，`RBX/RBP` 不变。
+- **XMM 池**：`XMM1–XMM7`（7 个）。`XMM0` 仍是 scratch（`fmod` 等 helper 调用点本来就作废）。
+- 全部是 caller-saved：**序言和尾声不变**，不用额外 push/pop，栈对齐不变。
+- **类别**：每个提升寄存器只有一个类别（int → GPR，float → XMM）。它在缓存感知指令中被当作
+  int 和当作 float 访问的次数分别加权计票，取多数（`move` 不计票）。类别不符的处理：
+  - 读：`rc_load_gpr` / `rc_load_xmm` 在副本 valid 时用 `movq` 跨类读取；
+  - 作为 ALU 第二操作数（`rc_gpr` / `rc_xmm`）：先写回该 slot，再从内存读；
+  - 写：`movq` 跨类刷新副本，照常走 WB（payload 只是 64 位，类别只决定放在哪个寄存器）。
+- **选择**：每个 VM 寄存器得分 = 读次数 × 8^循环深度。循环深度是覆盖该 pc 的后向跳转区间
+  `[target, src]` 的个数，最大取 3，自尾调用跳回 pc 0 也算后向跳转。得分 ≥ 8（循环内读一次，
+  或直线代码读 8 次）才提升，每个池取得分最高的寄存器。
 
-### 15.5 跨 BB 有效性：前向 must 数据流
+### 15.5 数据流：RcState 格与多遍发射
 
-- 状态：一个位集 `valid`（提升寄存器 ≤ 12 个，`uint32_t` 足够）。
-- **发射器就是转移函数**（实现与设计稿的主要差异）：不另写 `cache_effect` 表，而是
-  **多遍发射**。每遍完整发射一次函数体，发射过程中维护 `rc_valid`：`emit_jump` 把当前
-  状态记到目标 pc 的边上，顺序落入（前一条不是 `jmp`/`ret*`/`tail_call`）也记一条边；
-  跳转目标处把状态设为上一遍算出的 `in[pc]`。一遍结束后 `in' = ∩ 边状态`，与本遍所用
-  的 `in` 相同即不动点，本遍的机器码就是结果。规则只存在于发射器一处，不可能漂移。
-- 第 0 遍不带缓存：收集跳转目标、后向边、操作数投票（15.4），无提升寄存器则直接用这遍
-  的输出（与 v1 逐字节相同）。之后从「每个目标全有效」的乐观初值开始迭代；状态只减不增，
-  实测 1–3 遍收敛，上限 64 遍，超限回退到无缓存发射。
-- **非感知指令**：发射前、发射后都把 `rc_valid` 清零（发射前清零保证它内部发出的跳转边
-  带空状态；两条单独去掉都是等价变异，同时去掉则测试失败）。
-- **入口预装**：仅当 pc 0 是跳转目标（自尾调用）时，在序言之后、pc 0 标号之前把全部
-  副本 load 一次（未初始化的 local 也无妨：副本只承诺「等于内存 payload」）。外部调用、
-  JIT 直调、自递归 near call 都从偏移 0 进入，经过预装；自尾调用 `jmp pc0` 跳过预装，
-  作为 pc 0 的前驱参与汇合，所以 `sum`/`shuffle`/`tail_sum` 的副本能跨过尾调用回边。
-  pc 0 不是目标时入口状态为空，靠 load-on-miss。
+**状态**：`RcState { uint32 valid, dirty; int32 tag[RC_MAX]; }`。提升寄存器最多 12 个，
+位集够用。`tag[s] = RC_TAG_TOP (-1)` 表示「任意 tag 都兼容」，只在乐观初值中出现。
 
-### 15.6 发射示意（test_float_arith，设 r1→XMM1、r2→XMM2、r3→RSI、r0→RDI）
+**汇合（meet，`rc_edge`）**：每条到达 pc t 的边，把当前状态和 `rc_meet[t]` 求交：
+
+- `valid` 按位与；
+- `dirty` 按位与，再要求**各边的 tag 一致**：TOP 和任意 tag 兼容，两个不同的具体 tag 冲突，
+  冲突时清除该 slot 的 dirty；
+- 最后 `dirty &= valid`。
+
+例如一条边上 r1 是 `INT64` 且 dirty，另一条边上 r1 是 `BOOL` 且 dirty，那么入口 r1 是 clean。
+两条边都要在跳转前把 r1 写回（见下一条）。
+
+**边上写回（`rc_edge_flush`）**：每条边在离开前，把「目标入口 `rc_in[t]` 不认为脏，或认为
+脏但 tag 不同」的 slot 写回。这样**每条边到达时都恰好处于入口状态**：入口认为脏的 slot，
+内存一定过期，值在副本里；入口认为 clean 的 slot，内存一定是最新值。由于入口状态是所有边的交，
+边上写回只会让「边上的 dirty」变成入口的子集，不会出现不一致。
+
+调用位置：
+
+- `emit_jump`：对本地目标调用，位置在 `jcc` 之前（写回只用 mov，不影响标志位）；
+- 落入（fallthrough）跳转目标：在 `jit_emit_body` 中调用；
+- `emit_float_jmp_cmp`：在 `ucomisd` 之后、处理 NaN 的 `jp` 之前调用，因为 `jp` 本身也是一条
+  到达目标的边，会跳过 `emit_jump` 里的写回。
+
+**发射器就是转移函数**：没有单独的 `cache_effect` 表，而是**多遍发射**。每一遍完整发射一次
+函数体，发射过程中维护 `rc_valid` / `rc_dirty` / `rc_tag`，`emit_jump` 和落入时记录边的
+状态。每一遍：
+
+1. 跳转目标处，把状态设为上一遍算出的 `rc_in[pc]`；
+2. 不可达的 pc（上一条是终结指令，且自身不是跳转目标）的 valid 和 dirty 都清零；
+3. 一遍结束后，对每个跳转目标取 `in' = rc_meet[pc]`（没有前驱时为空），规范化（未 dirty
+   的 slot tag 置 0），再用 `memcmp` 和本遍使用的 `rc_in` 比较；
+4. 全部相同就是不动点，本遍生成的机器码就是最终结果。
+
+规则只存在于发射器这一处，不会出现两份规则不一致的情况。
+
+- 第 0 遍不带缓存：收集跳转目标、后向边、操作数投票（15.4）。如果没有寄存器被提升，就直接
+  用这一遍的输出（与 v1 逐字节相同）。
+- 之后从乐观初值 `rc_state_top`（全部 valid、全部 dirty、tag 为 TOP）开始迭代。
+  `KOALA_JIT_WB=wt` 时初值的 dirty 为 0。状态只减不增，实测 1–3 遍收敛，上限 64 遍，超限就退回
+  无缓存发射。
+- **入口**：外部调用、JIT 直调、自递归 near call 都从偏移 0 进入，此时内存就是最新值，入口状态
+  是全 clean（dirty = 0）。只有 pc 0 是跳转目标（自尾调用）时，才在序言之后、pc 0 标号之前预装全部
+  副本（`rc_emit_preload`，未初始化的 local 也没关系，副本只承诺「等于内存」）。自尾调用
+  `jmp pc0` 跳过预装，作为 pc 0 的前驱参与汇合。由于入口这条边的状态是全 clean，pc 0 入口
+  也全 clean，自尾调用会在 `jmp` 前写回自己的 dirty。pc 0 不是跳转目标时，入口状态为空，
+  靠 load-on-miss。
+
+### 15.6 发射示意
+
+**loop-sum**（`test_for_range`，`--domtree --unroll`，部分展开因子 4）。分配结果为
+r2→RSI、r1→RDI、r0→R8、r3→R9，3 遍收敛。下面是 `KOALA_JIT_TRACE=1` 的实际输出（节选）：
 
 ```asm
-; 入口预装（一次）
-movsd xmm1, [rbx+0x18] ; movsd xmm2, [rbx+0x28] ; mov rsi, [rbx+0x38] ; mov rdi, [rbx+0x8]
-...
-%bb4:                         ; in = {r0,r1,r2,r3}（前驱 bb0 与回边都有效）
-addsd xmm1, xmm2              ; r1 += r2   ← 链：仅 addsd 4 周期
-movsd [rbx+0x18], xmm1        ; 写穿（不在链上）
-mov   qword [rbx+0x10], 0x13
-add   rsi, 1                  ; r3 += 1    ← 链：1 周期
-mov   [rbx+0x38], rsi
-mov   qword [rbx+0x30], 0xb
-cmp   rsi, rdi                ; 无 load
-jl    %bb4
+%bb0:
+  mov rdi, 0x0                 ; r1 = 0       （dirty，无 store）
+  mov rsi, 0x1                 ; r2 = 1       （dirty）
+  mov rax, 0x8000000000000003  ; loadk r3     （dirty）
+  mov r9, rax
+  mov r8, [rbx+0x8]            ; r0 是参数：load-on-miss
+  cmp r8, r9
+  jl  %bb15
+%bb4:
+  mov r9, r8
+  sub r9, 0x3                  ; r3 = r0 - 3
+%bb5:                          ; in: valid={r0..r3}, dirty={r1,r2,r3}, tag=INT64
+  cmp rsi, r9
+  jge %bb15
+%bb6:                          ; 展开 4 次的循环体：没有 load，也没有 store
+  add rdi, rsi
+  add rsi, 0x1
+  add rdi, rsi
+  add rsi, 0x1
+  add rdi, rsi
+  add rsi, 0x1
+  add rdi, rsi
+  add rsi, 0x1
+  jmp %bb5
+%bb15:                         ; 余数循环
+  cmp rsi, r8
+  jge %bb19
+  add rdi, rsi
+  add rsi, 0x1
+  jmp %bb15
+%bb19:                         ; ret 前：一次性写回 3 个 dirty slot（payload + tag）
+  mov [rbx+0x28], rsi
+  mov qword [rbx+0x20], 0xb
+  mov [rbx+0x18], rdi
+  mov qword [rbx+0x10], 0xb
+  mov [rbx+0x38], r9
+  mov qword [rbx+0x30], 0xb
+  ...                          ; ret r1
 ```
 
-每轮 load 从 3 次降到 0；store 数不变（4 次，吞吐 ≥1/周期，不是瓶颈）。
+改为写回（WB）之前，`%bb6` 有 8 条运算和 16 条 store。现在只剩 8 条 `add`，写回集中在函数
+出口，每次调用只执行一次。
 
-**就地计算**（实测后补上）：第一版结果先算在 scratch（`mov rax, rsi; add rax, 10;
-mov [mem], rax; mov rsi, rax`），`test_arith` 反而慢 6%——本机（Meteor Lake）对「store
-后紧跟同址 load」转发很快，而两条 reg-reg mov 都落在依赖链上。现在 `rc_dst`：若 `rd`
-已提升且同类、且不是第二操作数，就直接在 `P(rd)` 里算（`add rsi, 10; mov [mem], rsi`），
-链上只剩运算本身。除法仍走 `RAX/RDX`（`idiv` 固定寄存器），比较的 `setcc` 仍走 `AL`。
+**test_float_arith**（r1→XMM1、r2→XMM2、r3→RSI、r0→RDI）：
 
-### 15.7 为什么保持 §1 不变量（及其证明义务）
+```asm
+%bb4:                          ; in: r1/r3 dirty（FLOAT64 / INT64）
+addsd xmm1, xmm2               ; r1 += r2   ← 链上只有 addsd 的 4 周期
+add   rsi, 1                   ; r3 += 1    ← 链上只有 1 周期
+cmp   rsi, rdi
+jl    %bb4                     ; 回边：目标入口同样认为 r1/r3 脏，不需要写回
+```
 
-- 不变量 1/2：写穿保证每条指令边界的内存状态与 v1 **逐字节相同**，GC 点上对象位置、
-  `stack_top`、tag 全部不变，§14.1 的枚举规则原样成立。物理寄存器里的副本**从不是
-  唯一持有者**，GC 不需要看到它；GC 点作废全部副本，所以将来即使是移动式 GC
-  也不会让副本里的旧指针被继续使用。
-- 不变量 3：帧结构、调用路径不变。
-- 唯一新增的风险是**副本陈旧**。对策：
-  1. 规则单一真源：发射器本身就是数据流转移函数（15.5），不存在两份规则。
-     缓存感知的指令必须在**任何内部分支 / raise 之前**取完全部操作数（如除法先取被除数
-     和除数再判零），保证一条指令只有一个缓存状态。
-  2. **运行期自检**：环境变量 `KOALA_JIT_CHECK_CACHE=1`（任何构建）时，每次命中副本前
-     发射 `cmp P(rN), [rbx+N*16+8]; je ok; ud2`（XMM 先 `movq r11, xmmN` 再按位比较，
-     NaN 也能比对）。全量 lit 在「自检 + 阈值 1」下通过；人为制造漏作废时进程以
-     SIGILL 崩在具体指令上（已验证）。
-  3. 回归测试 `test/test-run/test_jit_regcache.kl`：跨回边的 int/float 链、循环中夹
-     `get_field`（非感知指令写提升寄存器，且写之前副本有效）、循环中夹调用、汇合点一侧
-     经调用重定义、寄存器移位 helper + 除法（RCX/RDX）、自尾调用（入口预装）、浮点比较 /
-     融合浮点跳转。五种模式：JIT / `KOALA_JIT=0` / 阈值 1 / 阈值 1 + 自检 / trace
-     （断言 `isum`/`fsum`/`tail_sum` 确有提升）。
-  4. 变异验证（全部使测试失败）：`get_field` 当感知、寄存器移位当感知、`call` 当感知、
-     去掉入口预装、汇合不取交、`rc_def` 不刷新副本、去掉非感知指令前后两处作废。
-     等价变异：只去掉前 / 后一处作废、不可达 pc（终结指令之后且非跳转目标）的状态清零。
+**就地计算（`rc_dst`）**：如果结果先算在 scratch 里再复制（`mov rax, rsi; add rax, 10;
+mov rsi, rax`），两条 reg-reg mov 都会落在依赖链上。实测 `test_arith` 因此慢了 6%。
+`rc_dst` 的规则是：rd 已提升、类别相同、且不是第二操作数时，直接在 `P(rd)` 里计算
+（`add rsi, 10`），依赖链上只剩运算本身。除法仍走 `RAX/RDX`（`idiv` 使用固定寄存器），
+比较的 `setcc` 仍走 `AL`。
 
-### 15.8 收益：预估 vs 实测（Core Ultra 7 155H，release）
+### 15.7 不变量与证明义务
 
-实测：同一 release 二进制，`KOALA_JIT_REGCACHE=0` 对比默认，hyperfine `-N -w 2 -m 8`，
-单位 ms（均值）。
+**§1 不变量 1（GC 只靠 KoalaState 枚举）**：GC 只可能在非缓存感知指令（helper / 运行时 / 调用）
+中发生，而这些指令执行前已写回全部 dirty。此外，引用永远不会是 dirty（只有标量走 WB），
+所以即使在两个 GC 点之间，内存里的对象引用也都是新的。物理寄存器里的副本从来不是对象的
+唯一持有者，GC 不需要扫描它们。GC 点之后副本全部作废，将来改成移动式 GC 也不会用到旧指针。
 
-| bench | 链上变化 | 预估 | 关 | 开 | 实测 |
-| --- | --- | --- | ---: | ---: | ---: |
-| test_float_arith | 9c → 4c（addsd） | ~1.8–2× | 190 | 54 | **3.51×** |
-| test_float_logic | 浮点比较 + 计数链进寄存器 | ~1.1–1.3× | 233 | 110 | **2.11×** |
-| loop-sum | 6c → 1–2c | ~1.5–2× | 75 | 54 | 1.38× |
-| sum | 自尾调用链经寄存器 | ~1.4–1.8× | 104 | 77 | 1.35× |
-| test_bitwise | 位运算链 | — | 215 | 163 | 1.32× |
-| shuffle | store 吞吐瓶颈 | ~1.1–1.3× | 86 | 76 | 1.14× |
-| tak | 比较 / 参数读 | ≈ 0 | 153 | 138 | 1.10× |
-| test_arith / test_uint_arith | `idiv` 主导 | ~1.2–1.4× | 507 / 475 | 502 / 470 | 1.01× |
-| test_logic_chain | 两次 `idiv` + 分支预测失败主导 | ~1.1–1.3× | 448 | 449 | 1.00× |
-| fib / ack | 调用密集，调用点全部作废 | ≈ 0 | 815 / 260 | 819 / 263 | ≈1.0× |
+**§1 不变量 2（TValue 寄存器文件）**：措辞从「每条指令边界都与 v1 一致」放宽为「**在任何
+可能读内存的点上一致**」，也就是 15.3 写回点表中的每一行。两个写回点之间，内存可以落后于
+副本，但只有本函数的机器码能观察到这段时间，而机器码读 dirty 的 slot 总是读副本。
 
-test_float_arith 从 190ms 到 54ms，已接近 luajit（46ms）。整数除法类基准受 `idiv`
-（~15–40 周期）支配，链上省下的 4–5 周期占比很小。
+**§1 不变量 3（帧与解释器同构）**：帧结构和调用路径都不变。traceback、`kl_jit_refill_cf`、
+JIT→JIT 直调看到的帧，都是在调用点或出口写回之后的帧。
 
-若 shuffle 类测得确为 store 吞吐瓶颈，后续可加「15.9 延迟写回」：dirty 副本只在 GC 点 /
-出口 / 非感知指令前写回（仍满足不变量 1，但内存不再逐条与 v1 一致，需改写不变量 2 的措辞，
-且错误路径要先写回）。**先做写穿版，用实测决定是否值得。**
+**错误路径**：`emit_raise_at` 先 `rc_flush_cold` 再进入错误尾声。store 只放在冷路径上，热
+路径的状态不变。缓存感知的指令必须**在任何内部分支或 raise 之前取完全部操作数**（例如
+除法先取被除数和除数，再判零），这样每条指令只有一个缓存状态。
+
+**两类风险的对策**：
+
+1. **规则只有一份**：发射器本身就是数据流转移函数（15.5）。
+2. **运行期自检**：设置 `KOALA_JIT_CHECK_CACHE=1`（任何构建都可用）后，每次命中 **clean**
+   副本前发射 `cmp P(rN), [rbx+N*16+8]; je ok; ud2`。XMM 先 `movq r11, xmmN` 再按位比较，
+   NaN 也能比对。dirty 的副本按定义和内存不同，不做比较（`rc_get`）。如果出现漏作废，
+   进程会以 SIGILL 崩在具体那条指令上。
+3. **回归测试** `test/test-run/test_jit_regcache.kl`，覆盖以下场景：
+   - 写穿时期就有的场景：跨回边的 int/float 链（`isum`/`fsum`）；循环中有 `get_field` /
+     `set_field`（`field_loop`/`field_over`/`flush_use`，非缓存感知指令读写提升寄存器）；循环中有
+     调用（`call_loop`）；汇合点一侧经调用重定义（`join_loop`）；寄存器移位 helper 和除法
+     （`shift_div`，用到 RCX/RDX）；自尾调用（`tail_sum`，入口预装）；浮点比较和融合浮点跳转
+     （`fcount`）。
+   - 写回（WB）新增：`UINT64` tag 的写回（WB）（`ubig`、`ufib`）；`BOOL` tag（`flag_loop`）；
+     `int.not` 用待写 tag（`not_loop`、`not_last`、`unot_last`）；展开后的循环（`unroll_sum`）；
+     XMM↔GPR 类别不符时写回（`ffib`、`mix`、`mix2`）；除零错误路径上有 dirty slot（`div_late`，
+     检查 `Error: division by zero`）。
+   - 七个 RUN：默认 JIT、`KOALA_JIT=0`、阈值 1、阈值 1 + 自检、阈值 1 + `KOALA_JIT_WB=wt`、
+     阈值 1 + 自检 + `--domtree --unroll`、trace（检查 `isum`/`fsum`/`tail_sum` 确实被提升）。
+4. **变异验证**：
+
+| 变异 | 结果 |
+| --- | --- |
+| 去掉 `ret` 前的写回 | 测试失败 |
+| 去掉跳转边上的写回（`emit_jump` 中的 `rc_edge_flush`） | 测试失败 |
+| 写回时写错 tag | 测试失败 |
+| `int.not` 不用待写 tag（读内存 tag） | 测试失败（`not_last` / `unot_last`） |
+| `move` 不用待写 tag | 测试失败（`mix` / `mix2`） |
+| GPR↔XMM 类别不符时不写回 | 测试失败（`ffib` / `mix`） |
+| 去掉非缓存感知指令前的写回 | 超时或崩溃 |
+| 去掉落入跳转目标时的写回 | 超时或崩溃 |
+| 去掉错误路径上的冷写回（`rc_flush_cold`） | **存活**：Koala 没有 catch，出错的帧之后不会再被读取 |
+
+   写穿时期的变异也都会让测试失败：`get_field` 当成缓存感知指令、寄存器移位当成缓存感知指令、`call`
+   当成缓存感知指令、去掉入口预装、汇合时不取交、`rc_def` 不刷新副本、同时去掉非缓存感知指令前后
+   两处作废。冷写回目前不可观察，保留它是为了将来支持 catch 或在错误路径上检查帧时，
+   不变量 2 依然成立。
+5. **差分**：所有 test-run 和 bench 都在「阈值 1 + 自检」下与解释器比对输出。少数几个
+   （`test_jit_direct_call_deep` 等栈溢出类、`bench/ack`）在 `KOALA_JIT_WB=wt` 下同样不一致，而且
+   重复运行本身也不确定（溢出时省略的重复行数不同、输出了时间），和写回（WB）无关。
+
+### 15.8 收益（Core Ultra 7 155H，release）
+
+同一个 release 二进制，`++ --recursive-self-inline --domtree --unroll`，hyperfine
+`-N -w 2 -m 8`，单位 ms（均值）。「无缓存」一列是写穿版上线时 `KOALA_JIT_REGCACHE=0` 的数据
+（当时没有展开），luajit 一列来自 `bench-table.md`。
+
+| bench | 无缓存 | WT（`KOALA_JIT_WB=wt`） | WB（默认） | WT → WB | luajit JIT |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| loop-sum | 75 | 54 | **33** | **1.64×** | 47 |
+| test_float_logic | 233 | 106 | **85** | 1.25× | 63 |
+| test_bitwise | 215 | 159 | **139** | 1.14× | — |
+| test_arith | 507 | 487 | 477 | 1.02× | — |
+| test_float_arith | 190 | 55 | 55 | 1.00× | 47 |
+| sum | 104 | 78 | 77 | 1.01× | 47 |
+| shuffle | 86 | 73 | 73 | 1.00× | 20 |
+| tak | 153 | 140 | 143 | ≈1.0× | 150 |
+| test_uint_arith | 475 | 459 | 465 | ≈1.0× | — |
+| test_logic_chain | 448 | 436 | 437 | ≈1.0× | 340 |
+| fib | — | 279 | 278 | ≈1.0× | 700 |
+| ack | 260 | 252 | 254 | ≈1.0× | 80 |
+
+分析：
+
+- **loop-sum**：写穿时循环体每趟 16 次 store，受 store 端口限制。改成写回（WB）后循环体里
+  没有 store，从 54ms 降到 33ms（`bench-table.sh` 多次取均值为 30ms），**比 luajit 快 1.57×**。
+- **test_float_logic / test_bitwise**：循环体中有多条链写回，省掉 store 后分别快 25% 和 14%。
+- **test_float_arith**：每轮只有 2 条链，各 1 条 store，store buffer 能全部吸收，依赖链延迟才是
+  瓶颈。写穿版已经把链移到寄存器里了，所以写回（WB）对它没有额外收益。
+- **sum / shuffle**：循环靠自尾调用跳回 pc 0。pc 0 的入口还有一条来自外部调用的边，这条边
+  全 clean，所以汇合后 pc 0 入口全 clean，每次 `jmp pc0` 前都要写回全部 dirty slot，和写穿等价。
+- **fib / ack / tak**：调用密集，调用点前要全部写回，和写穿等价。
+- **`idiv` 主导的基准**（test_arith / test_uint_arith / test_logic_chain）：`idiv` 要 15–40
+  周期，省掉的 store 占比很小。
 
 ### 15.9 实现记录（`src/jit/jit.c`）
 
-- `rc_*` 一组函数：`rc_gpr`/`rc_xmm`（取操作数副本，miss 时 load）、`rc_load_gpr`/
-  `rc_load_xmm`（把操作数搬到指定寄存器，含跨类 `movq`）、`rc_alu`/`rc_sse`（与内存或
-  副本运算）、`rc_dst`（就地计算的目标）、`rc_def`/`rc_def_imm`（写穿后刷新副本）、
-  `rc_emit_preload`。`emit_jump` 记边。
-- 缓存感知（`rc_aware`）：`move`、`load_int_imm`/`load_uint_imm`/`loadk`/`load_tag`、
-  int/uint 全部 ALU / 比较 / 融合跳转（含 `_imm`、立即数移位、寄存器与立即数除模）、
-  `int.neg`/`int.not`、float 四则 / `neg` / 比较 / 融合跳转、`land`/`lor`/`lnot`、
-  `jmp`/`jmp_true`/`jmp_false`/`jmp_ref_*_null`、`ret*`、自尾调用。其余（调用、寄存器移位、
-  `float.mod`、类型转换、字段、`new` 等）为非感知。
-- 不提升的情形：没有寄存器得分 ≥ 8 时第 0 遍输出即最终输出，与 v1 一致。
-- trace：有提升时在函数头前打印 `[jit] regcache @f: r1=rsi r2=xmm1 ... (N passes)`。
-- 编码器新增 `movaps`/`movq xmm↔gpr`/SSE reg-reg/`ucomisd reg-reg`/`ud2`，反汇编同步。
-- 后续可选：「延迟写回」（见上文）、更细的非感知指令作废（只作废其 def）。
+**数据结构**：
+
+- `RcSlot { vm, phys, xmm }`：提升寄存器表 `j->rc[]`，最多 `RC_MAX` 个；
+- `RcState { valid, dirty, tag[RC_MAX] }`，`RC_TAG_TOP = -1`；
+- `JitCtx` 中的相关字段：
+  - 当前状态：`rc_valid` / `rc_dirty` / `rc_tag[]`；
+  - 数据流：`rc_in[]`（上一遍的入口状态）、`rc_meet[]`（本遍的汇合）、`rc_pred[]`、`rc_jt[]`；
+  - 开关：`rc_wb`（`KOALA_JIT_WB`）、`rc_cur_aware`（当前指令是否缓存感知）、
+    `rc_check`、`rc_preload`。
+
+**函数**：
+
+| 函数 | 作用 |
+| --- | --- |
+| `rc_select` / `rc_vote*` | 第 0 遍投票，按得分选出提升寄存器和类别（15.4） |
+| `rc_state_top` | 乐观初值：全部 valid 和 dirty，tag 为 TOP |
+| `rc_edge` | 把当前状态汇合进 `rc_meet[t]`（valid / dirty 求交，tag 必须一致） |
+| `rc_edge_flush` | 边离开前，写回目标入口不持有的 dirty slot |
+| `rc_emit_flush` | 发射一个 slot 的写回：payload（`mov`/`movsd`）+ 立即数 tag |
+| `rc_flush(mask)` | 写回 mask 中的 dirty slot，并清除 dirty |
+| `rc_flush_cold` | 错误路径：只发 store，不改状态 |
+| `rc_mem(vm)` | 读 rN 内存前写回该 slot |
+| `rc_dirty_tag(vm)` | rN 是 dirty 时返回待写 tag，否则返回 -1 |
+| `rc_get` | 让副本 valid（miss 时 load）；自检只检查 clean 副本 |
+| `rc_gpr` / `rc_xmm` | 作为 ALU 第二操作数取副本；类别不符时先写回再返回 -1 |
+| `rc_load_gpr` / `rc_load_xmm` | 把操作数搬到指定寄存器（含跨类 `movq`） |
+| `rc_alu` / `rc_sse` | 和副本或内存运算 |
+| `rc_dst` | 就地计算的目标寄存器（15.6） |
+| `rc_wb_tag` / `rc_wb_slot` | 判断这次写能否走 WB |
+| `rc_store` / `rc_store_imm` | 写 rd：能走 WB 就只设置 dirty 和 tag，否则写穿并调用 `rc_def` |
+| `rc_def` | 写穿后刷新副本，设为 valid 并清除 dirty |
+| `rc_emit_preload` | pc 0 是跳转目标时，入口预装全部副本 |
+
+**缓存感知指令（`rc_aware`）**：
+
+- `move`、`load_int_imm` / `load_uint_imm` / `loadk` / `load_tag`；
+- int / uint 的全部 ALU、比较、融合跳转（含 `_imm` 形式、立即数移位、寄存器和立即数的除模）；
+- `int.neg` / `int.not`；
+- float 四则运算、`neg`、比较、融合跳转；
+- `land` / `lor` / `lnot`；
+- `jmp` / `jmp_true` / `jmp_false` / `jmp_ref_*_null`；
+- `ret*`（执行前全部写回）；
+- 自尾调用。
+
+其余指令都是非缓存感知的：调用、寄存器移位、`float.mod`、类型转换、字段访问、`new` 等。
+运行期才能确定 tag 的写（例如源寄存器 clean 时的 `int.not`）仍然写穿。
+
+**其他**：
+
+- 没有寄存器得分 ≥ 8 时，第 0 遍的输出就是最终输出，与 v1 相同。
+- trace：有提升时，在函数头前打印 `[jit] regcache @f: r1=rsi r2=xmm1 ... (N passes)`。
+- 编码器新增 `movaps`、`movq xmm↔gpr`、SSE reg-reg、`ucomisd reg-reg`、`ud2`，反汇编同步支持。
+- 后续可选：细化非缓存感知指令的作废范围（只作废它的 def）；把外部入口和自尾调用入口分开
+  （例如在预装之后放一个循环头），让自尾调用的边可以带着 dirty 回到循环头，这样 sum /
+  shuffle 也能受益。
 
 ## 16. 阶段 3：分块代码区（Chunked Code Arena）
 
@@ -1082,7 +1325,7 @@ chunk）。全量 lit 在 `KOALA_JIT_CODE_CHUNK=4096 KOALA_JIT_THRESHOLD=1` 下�
 
 ```
 osr_T:  序言（与正常入口相同：push rbp/rbx，保存 out/ks，rbx = regs）
-        按 rc_in[T] 从内存装载寄存器缓存副本（§15，与入口预装同一函数）
+        按 rc_in[T].valid 从内存装载寄存器缓存副本（§15，与入口预装同一函数）
         jmp pc_map[T]
 ```
 
@@ -1112,8 +1355,11 @@ if (co->jit && (stub = jit_osr_lookup(co->jit, T)) && jit_params_ok(regs, nparam
 （§1）。在后向跳转的那一刻，内存里已经是完整状态，原生代码在 `pc_map[T]` 处需要的只有：
 
 1. `rbx = regs`、帧槽里的 `out`/`ks`：序言建立，与正常入口相同。
-2. 寄存器缓存副本 `rc_in[T]`：桩从内存装载，和入口预装的道理一样（副本只承诺
-   「等于内存 payload」）。
+2. 寄存器缓存副本 `rc_in[T]`：桩从内存装载 `valid` 中的 slot，和入口预装的道理一样。
+   `rc_in[T].dirty` 中的 slot 装载后与内存相等，原生代码仍把它们当作脏，只会在之后
+   多写回一次。写回的 tag 是 `rc_in[T].tag`，它在所有前驱边上一致，也就是该寄存器在
+   T 处的静态类型，和解释器写入内存的 tag 相同。因此桩不需要先写回，也不需要单独的
+   「全不脏」入口状态。
 3. `ks->stack_top`、`ks->cf`：解释器执行到回边时与正常入口时相同（`_eval_frame` 在
    调用前后会恢复 `stack_top`，帧已经链接）。
 

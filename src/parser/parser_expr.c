@@ -1440,9 +1440,11 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
 
     TypeSpec *inst_ts;
     if (ts->kind == TYPE_GENERIC_VAR) {
+        if (strcmp(ts->generic_var.owner, origin->name) != 0) return ts;
         TypeParamSymbol *tp_sym = vector_get(kls_tps, ts->generic_var.index);
         ASSERT(tp_sym);
-        if (!strcmp(tp_sym->name, ts->generic_var.name)) {
+        if (!strcmp(tp_sym->name, ts->generic_var.name) &&
+            (ts->sym_id < 0 || tp_sym->id == ts->sym_id)) {
             if (tp_sym->which == TP_INFER) {
                 ASSERT(sym->arg);
                 inst_ts = sym->arg;
@@ -1472,9 +1474,11 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
     } else if (type_is_valist(ts)) {
         TypeSpec *src = ts->va_list.src;
         if (src->kind == TYPE_GENERIC_VAR) {
+            if (strcmp(src->generic_var.owner, origin->name) != 0) return ts;
             TypeParamSymbol *tp_sym = vector_get(kls_tps, src->generic_var.index);
             ASSERT(tp_sym);
-            if (!strcmp(tp_sym->name, src->generic_var.name)) {
+            if (!strcmp(tp_sym->name, src->generic_var.name) &&
+                (src->sym_id < 0 || tp_sym->id == src->sym_id)) {
                 TypeSpec *inst_src_ts;
                 if (tp_sym->which == TP_INFER) {
                     ASSERT(sym->arg);
@@ -1507,6 +1511,15 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
     } else if (ts->kind == TYPE_OPTIONAL) {
         TypeSpec *src = instance_type_spec(ts->opt.src, origin, sym, ps);
         inst_ts = optional_type_spec_intern(src);
+    } else if (ts->kind == TYPE_PROTO) {
+        Vector *args = vector_create_ptr();
+        TypeSpec *arg;
+        vector_foreach(arg, ts->proto_type.args) {
+            TypeSpec *inst_arg = instance_type_spec(arg, origin, sym, ps);
+            vector_push_back(args, &inst_arg);
+        }
+        TypeSpec *ret = instance_type_spec(ts->proto_type.ret, origin, sym, ps);
+        inst_ts = func_type_spec_intern(args, ret);
     } else {
         inst_ts = ts;
     }

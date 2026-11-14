@@ -1,0 +1,39 @@
+pub class Box[T] {
+    let value T
+
+    pub func __init__(value T) { self.value = value }
+
+    pub func pair() (int, T) { return (7, self.value) }
+
+    pub func optional() (int, T)? { return (8, self.value) }
+
+    pub func nested() list[(int, T)] {
+        return list[(int, T)]((7, self.value))
+    }
+
+    pub func identity[U](value list[(int, U)]) list[(int, U)] {
+        return value
+    }
+
+    pub func apply(fn func(T) T) T { return fn(self.value) }
+
+    pub func apply_int(fn func(int) int) int { return fn(4) }
+
+    pub func from_class(fn func() T) T { return fn() }
+
+    pub func map[U](fn func(T) U) U { return fn(self.value) }
+}
+
+pub class CallbackOnly[T] {
+    pub func __init__() {}
+
+    pub func apply(fn func(T) int) int { return 7 }
+
+    pub func generic[U](fn func(U) int) int { return 8 }
+
+    pub func make[U](fn func() U) U { return fn() }
+
+    pub func second[U, V](fn func() V) V { return fn() }
+}
+
+pub func run[T](fn func() T) T { return fn() }
