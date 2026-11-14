@@ -67,6 +67,14 @@ func run_repl(session Session, cfg Config) {
             if os.isatty(1) { printf("\x1b[2J\x1b[3J\x1b[H") }
             continue
         }
+        if line == "/compact" {
+            session.compact(mode == "agent")
+            continue
+        }
+        if line == "/context" {
+            session.show_context(mode == "agent")
+            continue
+        }
         if line == "/models" {
             if let models = session.list_models() {
                 for m in models { print("  " + m) }
@@ -140,7 +148,7 @@ class _ChatCompleter : readline.Completer {
 
     func __init__(_session Session) {
         session = _session
-        commands = ["/quit", "/exit", "/reset", "/clear", "/model", "/models", "/file", "/agent", "/chat"]
+        commands = ["/quit", "/exit", "/reset", "/clear", "/compact", "/context", "/model", "/models", "/file", "/agent", "/chat"]
         models = nil
         file_text = ""
         file_matches = list[str]()

@@ -18,6 +18,7 @@ pub class Session {
     var model str
     let messages list[dict[str, str]]
     var _agent Agent?
+    var _last_tokens int
 
     pub func __init__(_client openai.Client, _cfg Config, _key str) {
         client = _client
@@ -26,6 +27,7 @@ pub class Session {
         model = _cfg.model
         messages = list[dict[str, str]]()
         _agent = nil
+        _last_tokens = 0
         reset()
     }
 
@@ -35,6 +37,7 @@ pub class Session {
         messages.clear()
         messages.append({"role": "system", "content": cfg.system_prompt})
         _agent = nil
+        _last_tokens = 0
     }
 
     /// The model currently in use.
@@ -66,6 +69,7 @@ pub class Session {
             return resp
         }
         messages.append({"role": "assistant", "content": resp.choices[0].message.content})
+        _last_tokens = resp.usage.prompt_tokens
         maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens)
         return resp
     }
@@ -81,6 +85,35 @@ pub class Session {
             _agent = a
             a.run(task, model)
         }
+    }
+
+    /// Manually compact the active conversation (/compact): the agent's in
+    /// agent mode, else the chat's.
+    pub func compact(is_agent bool) {
+        if is_agent {
+            if let a = _agent {
+                a.compact(model)
+            } else {
+                print("(no agent conversation yet)")
+            }
+        } else {
+            compact_now(client, model, cfg, messages)
+        }
+    }
+
+    /// Show the context window size and last usage ratio (/context).
+    pub func show_context(is_agent bool) {
+        var used = _last_tokens
+        var which = "chat"
+        if is_agent {
+            which = "agent"
+            if let a = _agent { used = a.last_tokens() } else { used = 0 }
+        }
+        let window = cfg.context_window
+        let tenths = used * 1000 / window
+        let pct = str(tenths / 10) + "." + str(tenths % 10) + "%"
+        print("[" + which + "] context: " + str(used) + " / " + str(window) + " tokens (" + pct + ")")
+        print("auto-compaction at " + str(COMPACT_PERCENT) + "% (" + str(window * COMPACT_PERCENT / 100) + " tokens)")
     }
 
     /// The model ids the endpoint offers (GET {base_url}/models), or nil

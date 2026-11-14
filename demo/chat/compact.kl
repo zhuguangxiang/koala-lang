@@ -2,10 +2,12 @@
  * demo/chat — context compaction.
  *
  * The model is stateless: every call re-sends the whole message list, which
- * grows until it hits the context window. When a request's prompt tokens
- * reach a threshold of the window, summarize the older history with a
- * separate model call and replace it with the summary, keeping the system
- * message and the most recent turns. Shared by chat and agent modes.
+ * grows until it hits the context window. Compaction summarizes the older
+ * history with a separate model call and replaces it with the summary,
+ * keeping the system message and the most recent turns. It runs either
+ * automatically when a request reaches a threshold of the window
+ * (maybe_compact), or on demand via /compact (compact_now). Shared by chat
+ * and agent modes.
  */
 
 import "koala/openai" as openai
@@ -18,14 +20,34 @@ const KEEP_RECENT = 4
 
 const SUMMARIZE_PROMPT = "You summarize conversations. Produce a concise summary that preserves key facts, decisions, the current task, code state, file paths, and any important results. Output only the summary, no preamble."
 
-/// If the last request used at least COMPACT_PERCENT of the context window,
-/// summarize the older messages and replace them with the summary, keeping
-/// the system message and the most recent KEEP_RECENT messages. Mutates
-/// `messages` in place; a no-op below the threshold or on summary failure.
+/// Auto-compaction: if the last request used at least COMPACT_PERCENT of
+/// the context window, summarize the older history. Mutates `messages`.
 func maybe_compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]], prompt_tokens int) {
     let limit = cfg.context_window * COMPACT_PERCENT / 100
     if prompt_tokens < limit { return }
-    if messages.len() <= KEEP_RECENT + 2 { return }
+    if _compact(client, model, cfg, messages) {
+        print("(context compacted: " + str(prompt_tokens) + " tokens reached " + str(COMPACT_PERCENT) + "% of " + str(cfg.context_window) + "; older history summarized)")
+    }
+}
+
+/// Manual compaction (the /compact command), regardless of token usage.
+func compact_now(client openai.Client, model str, cfg Config, messages list[dict[str, str]]) {
+    if messages.len() <= KEEP_RECENT + 2 {
+        print("(nothing to compact)")
+        return
+    }
+    if _compact(client, model, cfg, messages) {
+        print("(context compacted)")
+    } else {
+        print("(compaction failed: summary request error)")
+    }
+}
+
+/// Summarize the older messages and replace them with the summary, keeping
+/// the system message and the most recent KEEP_RECENT messages. Mutates
+/// `messages` in place; true if compacted, false if too short or on failure.
+func _compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]]) bool {
+    if messages.len() <= KEEP_RECENT + 2 { return false }
 
     // The older history to summarize: everything between the system message
     // and the most recent KEEP_RECENT messages.
@@ -36,7 +58,7 @@ func maybe_compact(client openai.Client, model str, cfg Config, messages list[di
         i += 1
     }
     let summary = _summarize(client, model, cfg, old)
-    if summary == nil { return }
+    if summary == nil { return false }
 
     let recent = list[dict[str, str]]()
     var j = messages.len() - KEEP_RECENT
@@ -49,7 +71,7 @@ func maybe_compact(client openai.Client, model str, cfg Config, messages list[di
     messages.append(system)
     messages.append({"role": "user", "content": "[Summary of the earlier conversation]\n" + summary})
     for m in recent { messages.append(m) }
-    print("(context compacted: " + str(prompt_tokens) + " tokens reached " + str(COMPACT_PERCENT) + "% of " + str(cfg.context_window) + "; older history summarized)")
+    return true
 }
 
 /// Ask the model to summarize `old` messages; nil on failure.

@@ -17,8 +17,9 @@
 ///   mode, where each plain line runs the coding loop (write/compile/run
 ///   until done); /chat switches back. The prompt shows [chat] / [agent].
 /// Commands (both modes): /quit /exit Ctrl-D leave, /reset clears the
-///   conversation, /clear clears the screen, /file PATH (or @PATH) loads a
-///   file, /model shows or switches the model (/model NAME), /models lists
+///   conversation, /clear clears the screen, /compact summarizes old history
+///   now, /context shows window size and usage, /file PATH (or @PATH) loads
+///   a file, /model shows or switches the model (/model NAME), /models lists
 ///   the endpoint's models. Tab completes the /commands, model names after
 ///   /model, paths after /file.
 ///

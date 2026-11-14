@@ -27,12 +27,14 @@ pub class Agent {
     let cfg Config
     let workdir str
     let messages list[dict[str, str]]
+    var _last_tokens int
 
     pub func __init__(_client openai.Client, _cfg Config) {
         client = _client
         cfg = _cfg
         workdir = _setup_workdir()
         messages = list[dict[str, str]]()
+        _last_tokens = 0
         messages.append({"role": "system", "content": AGENT_PROMPT})
         print("(agent work dir: " + workdir + ")")
     }
@@ -52,6 +54,7 @@ pub class Agent {
             }
             let text = resp.choices[0].message.content
             messages.append({"role": "assistant", "content": text})
+            _last_tokens = resp.usage.prompt_tokens
             maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens)
 
             let block = _parse_block(text)
@@ -71,6 +74,14 @@ pub class Agent {
         }
         print("(step limit " + str(MAX_STEPS) + " reached; stopping)")
     }
+
+    /// Manually compact the agent conversation (/compact).
+    pub func compact(model str) {
+        compact_now(client, model, cfg, messages)
+    }
+
+    /// Prompt tokens used by the last request (/context).
+    pub func last_tokens() int { return _last_tokens }
 }
 
 /// The first fenced block in `text` as (info, body), or nil when there is
