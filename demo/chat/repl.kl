@@ -15,17 +15,17 @@ func _is_blank(line str) bool {
 
 /// Run the chat loop against `session` until /quit, /exit or Ctrl-D.
 /// Owns all terminal I/O: the prompt, command dispatch, and rendering of
-/// each reply. The conversation itself lives in `session`.
-func run_repl(session Session) {
+/// each reply. The conversation lives in `session`, settings in `cfg`.
+func run_repl(session Session, cfg Config) {
     // False on the first run, when there is no history file yet.
-    readline.read_history_file(HISTORY)
+    readline.read_history_file(cfg.history_file)
     readline.set_history_length(200)
 
     // The prompt in bold cyan on a terminal; plain on a pipe.
     var prompt = "you> "
     if os.isatty(1) { prompt = "\x01\x1b[1;36m\x02you>\x01\x1b[0m\x02 " }
 
-    print("Chat with " + MODEL + ". /quit or Ctrl-D to leave, /reset to clear the history, @FILE to load a file.")
+    print("Chat with " + cfg.model + ". /quit or Ctrl-D to leave, /reset to clear, @FILE to load a file, /model to switch models.")
     while let line = readline.input(prompt) {
         // blank lines (and the "" Ctrl-C returns) are not sent
         if _is_blank(line) { continue }
@@ -33,6 +33,28 @@ func run_repl(session Session) {
         if line == "/reset" {
             session.reset()
             print("(the history is cleared)")
+            continue
+        }
+        if line == "/models" {
+            if let models = session.list_models() {
+                for m in models { print("  " + m) }
+            } else {
+                print("(cannot list models)")
+            }
+            continue
+        }
+        if line == "/model" {
+            print("(current model: " + session.current_model() + ")")
+            continue
+        }
+        if line.starts_with("/model ") {
+            let name = line.substr(7, line.len())
+            if name == "" {
+                print("(current model: " + session.current_model() + ")")
+            } else {
+                session.set_model(name)
+                print("(model set to " + name + ")")
+            }
             continue
         }
         if line.starts_with("@") {
@@ -54,5 +76,5 @@ func run_repl(session Session) {
         printf("({} tokens)\n", resp.usage.total_tokens)
     }
 
-    readline.write_history_file(HISTORY)
+    readline.write_history_file(cfg.history_file)
 }

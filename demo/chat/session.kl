@@ -1,25 +1,28 @@
 /*
- * demo/chat — the conversation.
+ * demo/chat — the conversation and model selection.
  */
 
 import "std/fs"
 import "koala/openai" as openai
-
-/// The system message that starts every conversation.
-const SYSTEM_PROMPT = "You are a helpful assistant. Answer concisely."
+from "koala/http" import Url, Request, Client
+from "koala/json" import parse_str, Object
 
 /// An ordered conversation of OpenAI-format messages, starting with a
-/// system prompt. Session owns every mutation of the message list and the
-/// turn-taking with the model, so callers never touch the raw messages.
+/// system prompt. Session owns the message list, the turn-taking with the
+/// model, and the current model (switchable mid-chat). Settings come from
+/// `cfg`; `key` is the credential used for the model-list query.
 pub class Session {
     let client openai.Client
-    let model str
+    let cfg Config
+    let key str
+    var model str
     let messages list[dict[str, str]]
 
-    /// Start a fresh conversation against `_client` using `_model`.
-    pub func __init__(_client openai.Client, _model str) {
+    pub func __init__(_client openai.Client, _cfg Config, _key str) {
         client = _client
-        model = _model
+        cfg = _cfg
+        key = _key
+        model = _cfg.model
         messages = list[dict[str, str]]()
         reset()
     }
@@ -27,8 +30,14 @@ pub class Session {
     /// Clear the conversation back to the single system message.
     pub func reset() {
         messages.clear()
-        messages.append({"role": "system", "content": SYSTEM_PROMPT})
+        messages.append({"role": "system", "content": cfg.system_prompt})
     }
+
+    /// The model currently in use.
+    pub func current_model() str { return model }
+
+    /// Switch the model used for subsequent turns.
+    pub func set_model(name str) { model = name }
 
     /// Load `path` into the conversation as a user message. Return the
     /// number of characters added, or nil when the file cannot be read.
@@ -36,7 +45,7 @@ pub class Session {
     /// back well.
     pub func load_file(path str) int? {
         if !fs.is_file(path) { return nil }
-        let text = fs.read_str(path, MAX_CODE_BYTES)
+        let text = fs.read_str(path, cfg.max_code_bytes)
         let content = "File: " + path + "\n```\n" + text + "\n```\n"
         messages.append({"role": "user", "content": content})
         return content.len()
@@ -47,12 +56,43 @@ pub class Session {
     /// stays consistent for a retry; on success the reply is appended.
     pub func ask(text str) openai.ChatCompletion {
         messages.append({"role": "user", "content": text})
-        let resp = client.chat.completions.create(model, messages, 0.7, 1024)
+        let resp = client.chat.completions.create(model, messages, cfg.temperature, cfg.max_tokens)
         if !resp.ok() {
             messages.pop()
             return resp
         }
         messages.append({"role": "assistant", "content": resp.choices[0].message.content})
         return resp
+    }
+
+    /// The model ids the endpoint offers (GET {base_url}/models), or nil
+    /// when the request fails or the response is unexpected.
+    pub func list_models() list[str]? {
+        let base = Url.parse(cfg.base_url)
+        if base == nil { return nil }
+        let url = Url(base.scheme(), base.host(), base.port(), base.path() + "/models")
+        let req = Request.get(url)
+        req.header("Authorization", "Bearer " + key)
+        req.header("Accept", "application/json")
+        let resp = Client().stream(req, 15000)
+        if resp == nil { return nil }
+        let buf = Buffer()
+        while let chunk = resp.read() { buf.write(chunk) }
+        let status = resp.status()
+        resp.close()
+        if status != 200 { return nil }
+        let root = parse_str(buf.to_str())
+        if root is Object {
+            if "data" in root {
+                let out = list[str]()
+                for item in root.get_array("data").value {
+                    if item is Object {
+                        if "id" in item { out.append(item.get_str("id")) }
+                    }
+                }
+                return out
+            }
+        }
+        return nil
     }
 }

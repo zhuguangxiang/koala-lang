@@ -1,29 +1,90 @@
 /*
- * demo/chat — connection and runtime configuration.
+ * demo/chat — configuration, loaded entirely from config.json.
+ *
+ * There are no built-in defaults: config.json (in the working directory,
+ * or the file named by $CHAT_CONFIG) must exist and provide every field.
+ * The API key is deliberately NOT config — see resolve_key().
  */
 
+import "std/fs"
 import "std/os"
-import "koala/openai" as openai
+import "koala/readline"
+from "koala/json" import parse_file, Object, Float, Integer
 
-/// The model to chat with.
-const MODEL = "deepseek-chat"
+/// Runtime configuration. Every field is required and comes from
+/// config.json; a missing file or field is a fatal error.
+pub class Config {
+    pub let model str
+    pub let base_url str
+    pub let history_file str
+    pub let max_code_bytes int
+    pub let temperature float
+    pub let max_tokens int
+    pub let system_prompt str
 
-/// The DeepSeek endpoint (OpenAI-compatible).
-const BASE_URL = "https://api.deepseek.com"
-
-/// The readline history file, kept between runs.
-const HISTORY = ".chat_cli_history"
-
-/// The biggest file @ accepts; fs.read_str panics above the cap.
-const MAX_CODE_BYTES = 1048576
-
-/// The API key: DEEPSEEK_API_KEY when set, else the demo fallback.
-func resolve_key() str {
-    if let key = os.getenv("DEEPSEEK_API_KEY") { return key }
-    return "sk-63570c4b930d48fd84c81c54be56f192"
+    pub func __init__() {
+        let obj = _load_object()
+        model = _str(obj, "model")
+        base_url = _str(obj, "base_url")
+        history_file = _str(obj, "history_file")
+        max_code_bytes = _int(obj, "max_code_bytes")
+        temperature = _float(obj, "temperature")
+        max_tokens = _int(obj, "max_tokens")
+        system_prompt = _str(obj, "system_prompt")
+    }
 }
 
-/// Build the chat client from the resolved key and endpoint.
-func new_client() openai.Client {
-    return openai.Client(resolve_key(), BASE_URL)
+/// The API key: $OPENAI_COMPAT_API_KEY when set, otherwise prompt once at
+/// startup. The key is never stored in code or config.json, and the prompt
+/// is kept out of the readline history.
+func resolve_key() str {
+    if let k = os.getenv("OPENAI_COMPAT_API_KEY") { return k }
+    readline.set_auto_history(false)
+    let entered = readline.input("API key: ")
+    readline.set_auto_history(true)
+    if let k = entered {
+        if k != "" { return k }
+    }
+    panic("no API key: set $OPENAI_COMPAT_API_KEY or enter it at startup")
+}
+
+/// The config file path: $CHAT_CONFIG, else config.json in the working dir.
+func _config_path() str {
+    if let p = os.getenv("CHAT_CONFIG") { return p }
+    return "config.json"
+}
+
+/// Load the config file as a JSON object. Fatal when missing or not an object.
+func _load_object() Object {
+    let path = _config_path()
+    if !fs.is_file(path) {
+        panic("config file not found: " + path + " (create config.json or set $CHAT_CONFIG)")
+    }
+    let root = parse_file(path)
+    if root is Object { return root }
+    panic("config file must contain a JSON object: " + path)
+}
+
+/// A required string field.
+func _str(obj Object, key str) str {
+    if key in obj { return obj.get_str(key) }
+    panic("config.json missing required field: " + key)
+}
+
+/// A required integer field.
+func _int(obj Object, key str) int {
+    if key in obj { return obj.get_int(key) }
+    panic("config.json missing required field: " + key)
+}
+
+/// A required numeric field as a float; accepts JSON floats (0.7) and
+/// integers (1) so either spelling works.
+func _float(obj Object, key str) float {
+    if key in obj {
+        let v = obj.get(key)
+        if v is Float { return v.value }
+        if v is Integer { return float(v.value) }
+        panic("config field '" + key + "' must be a number")
+    }
+    panic("config.json missing required field: " + key)
 }

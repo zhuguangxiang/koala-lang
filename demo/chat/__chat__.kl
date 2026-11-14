@@ -1,22 +1,29 @@
-/// demo/chat — a command-line chat REPL on koala/openai (DeepSeek endpoint).
+/// demo/chat — a command-line chat REPL on koala/openai (OpenAI-compatible).
 ///
 /// Usage:
 ///   source env.sh at the repository root, then
 ///       cd demo && wombat build chat && wombat run chat
 ///
-///   On a pipe it reads plain lines, so it can be scripted:
-///       printf 'hello\n/quit\n' | wombat run chat
+/// Configuration:
+///   All settings come from config.json in the working directory (or the
+///   file named by $CHAT_CONFIG); there are no built-in defaults, so the
+///   file and every field are required. A template lives at
+///   demo/chat/config.json. The API key is NOT in config: it comes from
+///   $OPENAI_COMPAT_API_KEY, or is entered at startup when unset.
 ///
-/// Commands: /quit or /exit or Ctrl-D leaves, /reset clears the history,
-/// and a line like "@path/to/file" loads that file into the conversation
-/// so the next questions can be about its code.
+/// Commands: /quit /exit Ctrl-D leave, /reset clears the conversation,
+///   @FILE loads a file, /model shows the current model, /model NAME
+///   switches it, /models lists the models the endpoint offers.
 ///
 /// Layout:
-///   config.kl   — model, endpoint, history file, API key, client
-///   session.kl  — Session: the conversation and turn-taking with the model
+///   config.kl   — Config (from config.json) and resolve_key
+///   session.kl  — Session: conversation, model selection, model listing
 ///   repl.kl     — the input loop, commands, and terminal I/O
 
+import "koala/openai" as openai
+
 func main() {
-    let session = Session(new_client(), MODEL)
-    run_repl(session)
+    let cfg = Config()
+    let key = resolve_key()
+    run_repl(Session(openai.Client(key, cfg.base_url), cfg, key), cfg)
 }
