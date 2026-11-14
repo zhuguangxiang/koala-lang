@@ -1,0 +1,8 @@
+[package]
+name = "std/itertools"
+version = "0.1.0"
+description = "Iterator combinators: enumerate, zip, filter, reduce, take, skip, chain"
+files = ["*.kl"]
+excludes = []
+dependencies = ["std/builtin"]
+natives = []

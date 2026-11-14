@@ -1,0 +1,88 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that discards the first `n` elements of a source, then yields
+/// the rest.
+///
+/// The skipped elements are consumed lazily on the first advance. If the
+/// source has fewer than `n` elements, the result is empty. `n` must be
+/// non-negative. The wrapper is stateful and cannot rewind.
+///
+/// `Skip` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `take(skip(xs, 2), 3)`.
+///
+/// Examples
+///
+/// ```kl
+/// for x in skip([1, 2, 3, 4], 2) {
+///     print(x)   // 3 / 4
+/// }
+/// for x in skip([1, 2], 10) {
+///     print(x)   // (nothing — source shorter than n)
+/// }
+/// ```
+pub class Skip[T] : Iterator[T] & Iterable[T] {
+    let source Iterator[T]
+    var to_skip int
+
+    /// Wrap `_iterable`, discarding its first `_n` elements.
+    /// Panic if `_n` is negative.
+    pub func __init__(_iterable Iterable[T], _n int) {
+        if _n < 0 { panic("skip count must be non-negative") }
+        source = _iterable.iter()
+        to_skip = _n
+    }
+
+    /// Return this same iterator; skip wrappers are single-pass.
+    /// Panic if `step != 1`: strided skipping is not supported.
+    pub func iter(step = 1) Iterator[T] {
+        if step != 1 { panic("Skip does not support step != 1") }
+        return self
+    }
+
+    /// Discard any remaining skipped elements, then return true if the
+    /// source has another element.
+    pub func has_next() bool {
+        while to_skip > 0 && source.has_next() {
+            source.next_strict()
+            to_skip = to_skip - 1
+        }
+        return source.has_next()
+    }
+
+    /// Return the next element after the skipped prefix and advance.
+    /// Panic if the source is exhausted.
+    pub func next_strict() T {
+        if !has_next() { panic("No more elements in Skip") }
+        return source.next_strict()
+    }
+
+    /// Return the next element after the skipped prefix, or `nil` if exhausted.
+    pub func next() T? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("Skip(to_skip={})", to_skip)
+    }
+}
+
+/// Return an iterator over the elements of `obj` after its first `n`.
+///
+/// Works on any `Iterable`. `n` must be non-negative. The result is lazy and
+/// single-pass; if the source has `n` or fewer elements, the result is empty.
+///
+/// Examples
+///
+/// ```kl
+/// for x in skip([1, 2, 3, 4], 2) {
+///     print(x)   // 3 / 4
+/// }
+/// ```
+pub func skip[T](obj Iterable[T], n int) Skip[T] {
+    return Skip[T](obj, n)
+}

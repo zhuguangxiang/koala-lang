@@ -1,0 +1,103 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import reduce
+
+func add(acc int, x int) int { return acc + x }
+func mul(acc int, x int) int { return acc * x }
+func sub(acc int, x int) int { return acc - x }
+func concat(acc str, x int) str { return acc + format("{}", x) }
+func len_acc(acc int, s str) int { return acc + s.len() }
+
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+    func __init__(n int) { pulls = 0; limit = n }
+    func iter(step = 1) Iterator[int] { return CountingIter(self) }
+}
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+    func __init__(s CountingSource) { src = s; cursor = 0 }
+    func has_next() bool = cursor < src.limit
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+    func next() int? { if !has_next() { return nil }; return next_strict() }
+}
+
+func sum_via_reduce(xs Iterable[int]) int {
+    return reduce(xs, 0, add)
+}
+
+// ==================== Folding ====================
+
+@test
+func test_sum() {
+    ut.assert_eq(reduce([1, 2, 3, 4], 0, add), 10)
+}
+
+@test
+func test_product() {
+    ut.assert_eq(reduce([1, 2, 3, 4], 1, mul), 24)
+}
+
+@test
+func test_empty_returns_init() {
+    ut.assert_eq(reduce(list[int](), 99, add), 99)
+    ut.assert_eq(reduce(list[int](), 1, mul), 1)
+}
+
+@test
+func test_single_element() {
+    ut.assert_eq(reduce([5], 0, add), 5)
+    ut.assert_eq(reduce([5], 10, add), 15)
+}
+
+@test
+func test_left_to_right_order() {
+    // ((10 - 1) - 2) - 3 = 4, proves left fold (not right)
+    ut.assert_eq(reduce([1, 2, 3], 10, sub), 4)
+}
+
+@test
+func test_string_concat() {
+    ut.assert_eq(reduce([1, 2, 3], "", concat), "123")
+}
+
+@test
+func test_accumulator_type_differs() {
+    // list[str] folded into int via length
+    ut.assert_eq(reduce(["a", "bb", "ccc"], 0, len_acc), 6)
+}
+
+@test
+func test_lambda() {
+    ut.assert_eq(reduce([1, 2, 3], 0, { |acc int, x int| acc + x }), 6)
+}
+
+@test
+func test_str_source() {
+    // count characters by folding str elements
+    ut.assert_eq(reduce("abc", 0, { |acc int, c str| acc + 1 }), 3)
+}
+
+// ==================== Consumption ====================
+
+@test
+func test_consumes_all() {
+    let src = CountingSource(5)
+    let total = reduce(src, 0, add)
+    ut.assert_eq(total, 10)  // 0+1+2+3+4
+    ut.assert_eq(src.pulls, 5)
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(sum_via_reduce([1, 2, 3]), 6)
+    ut.assert_eq(sum_via_reduce(list[int]()), 0)
+}

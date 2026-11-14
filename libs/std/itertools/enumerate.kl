@@ -1,0 +1,90 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that pairs each element of a source with its position,
+/// yielding `(index, element)` tuples.
+///
+/// Indexing starts at `start` (default 0) and increases by one per element,
+/// independent of the source's own iteration order. The source is consumed
+/// lazily through its iterator; the wrapper is stateful and cannot rewind.
+///
+/// `Enumerate` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `enumerate(zip(a, b))`.
+///
+/// Examples
+///
+/// ```kl
+/// for (i, ch) in enumerate("abc") {
+///     print(i, ch)   // 0 a / 1 b / 2 c
+/// }
+/// for (i, x) in Enumerate[int]([10, 20], start = 1) {
+///     print(i, x)    // 1 10 / 2 20
+/// }
+/// ```
+pub class Enumerate[T] : Iterator[(int, T)] & Iterable[(int, T)] {
+    let source Iterator[T]
+    var cursor int
+
+    /// Wrap `_iterable`, numbering its elements from `start`.
+    pub func __init__(_iterable Iterable[T], start = 0) {
+        source = _iterable.iter()
+        cursor = start
+    }
+
+    /// Return this same iterator; enumerate wrappers are single-pass.
+    /// Panic if `step != 1`: strided enumeration is not supported.
+    pub func iter(step = 1) Iterator[(int, T)] {
+        if step != 1 { panic("Enumerate does not support step != 1") }
+        return self
+    }
+
+    /// Return true if the source has another element.
+    pub func has_next() bool = source.has_next()
+
+    /// Return the next `(index, element)` pair and advance.
+    /// Panic if the iterator is exhausted.
+    pub func next_strict() (int, T) {
+        if !source.has_next() { panic("No more elements in Enumerate") }
+        let item = source.next_strict()
+        let index = cursor
+        cursor = cursor + 1
+        return (index, item)
+    }
+
+    /// Return the next `(index, element)` pair, or `nil` if exhausted.
+    pub func next() (int, T)? {
+        if !source.has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("Enumerate(cursor={})", cursor)
+    }
+}
+
+/// Return an iterator over `(index, element)` pairs of `obj`, numbering
+/// from 0.
+///
+/// Works on any `Iterable`: lists, strings, dicts, ranges, sets, and other
+/// wrappers such as `zip`. The result is lazy and single-pass. To number
+/// from a different value, construct the wrapper directly:
+/// `Enumerate[T](obj, start)`.
+///
+/// Examples
+///
+/// ```kl
+/// for (i, x) in enumerate([10, 20, 30]) {
+///     print(i, x)
+/// }
+/// let it = enumerate("abc")
+/// while let pair = it.next() {
+///     let (i, ch) = pair
+///     print(i, ch)
+/// }
+/// ```
+pub func enumerate[T](obj Iterable[T]) Enumerate[T] {
+    return Enumerate[T](obj)
+}

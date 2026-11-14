@@ -1,0 +1,31 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Fold the elements of `obj` into a single value, left to right.
+///
+/// Starting from `init`, apply `fn(acc, element)` to each element in turn
+/// and return the final accumulator. Unlike the other combinators, `reduce`
+/// consumes its source eagerly and returns a value, not an iterator.
+///
+/// The accumulator type `U` may differ from the element type `T`; it is
+/// inferred from `init`. An empty source returns `init` unchanged.
+///
+/// Examples
+///
+/// ```kl
+/// func add(acc int, x int) int { return acc + x }
+/// print(reduce([1, 2, 3], 0, add))        // 6
+///
+/// func concat(acc str, x int) str { return acc + format("{}", x) }
+/// print(reduce([1, 2, 3], "", concat))    // "123"
+/// ```
+pub func reduce[T, U](obj Iterable[T], init U, fn func(U, T) U) U {
+    var acc = init
+    let it = obj.iter()
+    while it.has_next() {
+        acc = fn(acc, it.next_strict())
+    }
+    return acc
+}

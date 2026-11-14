@@ -1,0 +1,83 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that yields at most the first `n` elements of a source.
+///
+/// Iteration stops after `n` elements have been returned, or when the source
+/// is exhausted, whichever comes first; remaining elements of the source are
+/// left unconsumed. `n` must be non-negative. The wrapper is stateful and
+/// cannot rewind.
+///
+/// `Take` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `take(filter(xs, pred), 3)`.
+///
+/// Examples
+///
+/// ```kl
+/// for x in take([1, 2, 3, 4], 2) {
+///     print(x)   // 1 / 2
+/// }
+/// for x in take([1, 2], 10) {
+///     print(x)   // 1 / 2 (source shorter than n)
+/// }
+/// ```
+pub class Take[T] : Iterator[T] & Iterable[T] {
+    let source Iterator[T]
+    var remaining int
+
+    /// Wrap `_iterable`, yielding at most `_n` elements.
+    /// Panic if `_n` is negative.
+    pub func __init__(_iterable Iterable[T], _n int) {
+        if _n < 0 { panic("take count must be non-negative") }
+        source = _iterable.iter()
+        remaining = _n
+    }
+
+    /// Return this same iterator; take wrappers are single-pass.
+    /// Panic if `step != 1`: strided taking is not supported.
+    pub func iter(step = 1) Iterator[T] {
+        if step != 1 { panic("Take does not support step != 1") }
+        return self
+    }
+
+    /// Return true if fewer than `n` elements have been returned and the
+    /// source has another element.
+    pub func has_next() bool = remaining > 0 && source.has_next()
+
+    /// Return the next element and advance.
+    /// Panic if `n` elements have already been returned or the source is exhausted.
+    pub func next_strict() T {
+        if !has_next() { panic("No more elements in Take") }
+        remaining = remaining - 1
+        return source.next_strict()
+    }
+
+    /// Return the next element, or `nil` if the limit or source is exhausted.
+    pub func next() T? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("Take(remaining={})", remaining)
+    }
+}
+
+/// Return an iterator over at most the first `n` elements of `obj`.
+///
+/// Works on any `Iterable`. `n` must be non-negative. The result is lazy and
+/// single-pass; it stops at the shorter of `n` and the source length.
+///
+/// Examples
+///
+/// ```kl
+/// for x in take([1, 2, 3, 4], 2) {
+///     print(x)   // 1 / 2
+/// }
+/// ```
+pub func take[T](obj Iterable[T], n int) Take[T] {
+    return Take[T](obj, n)
+}

@@ -1,0 +1,87 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that walks two sources in lockstep, yielding `(left, right)`
+/// tuples.
+///
+/// Iteration stops as soon as either source is exhausted, so the result has
+/// the length of the shorter source; remaining elements of the longer one
+/// are left unconsumed. Both sources are consumed lazily through their
+/// iterators; the wrapper is stateful and cannot rewind.
+///
+/// `Zip` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `enumerate(zip(a, b))`.
+///
+/// Examples
+///
+/// ```kl
+/// for (name, score) in zip(["a", "b"], [90, 80]) {
+///     print(name, score)   // a 90 / b 80
+/// }
+/// for (ch, n) in zip("abc", [0, 1, 2]) {
+///     print(ch, n)         // a 0 / b 1 / c 2
+/// }
+/// ```
+pub class Zip[T, U] : Iterator[(T, U)] & Iterable[(T, U)] {
+    let left Iterator[T]
+    let right Iterator[U]
+
+    /// Wrap two iterables, pairing their elements position by position.
+    pub func __init__(_left Iterable[T], _right Iterable[U]) {
+        left = _left.iter()
+        right = _right.iter()
+    }
+
+    /// Return this same iterator; zip wrappers are single-pass.
+    /// Panic if `step != 1`: strided zipping is not supported.
+    pub func iter(step = 1) Iterator[(T, U)] {
+        if step != 1 { panic("Zip does not support step != 1") }
+        return self
+    }
+
+    /// Return true if both sources have another element.
+    pub func has_next() bool = left.has_next() && right.has_next()
+
+    /// Return the next `(left, right)` pair and advance both sources.
+    /// Panic if the iterator is exhausted.
+    pub func next_strict() (T, U) {
+        if !has_next() { panic("No more elements in Zip") }
+        return (left.next_strict(), right.next_strict())
+    }
+
+    /// Return the next `(left, right)` pair, or `nil` if exhausted.
+    pub func next() (T, U)? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("Zip")
+    }
+}
+
+/// Return an iterator over `(left, right)` pairs drawn from two iterables,
+/// stopping at the shorter one.
+///
+/// Works on any mix of `Iterable`s: lists, strings, dicts, ranges, sets, and
+/// other wrappers. The result is lazy and single-pass. For more than two
+/// sources, nest calls: `zip(zip(a, b), c)`.
+///
+/// Examples
+///
+/// ```kl
+/// for (x, y) in zip([1, 2, 3], ["a", "b"]) {
+///     print(x, y)   // 1 a / 2 b
+/// }
+/// let it = zip("abc", [0, 1, 2, 3])
+/// while let pair = it.next() {
+///     let (ch, n) = pair
+///     print(ch, n)
+/// }
+/// ```
+pub func zip[T, U](left Iterable[T], right Iterable[U]) Zip[T, U] {
+    return Zip[T, U](left, right)
+}

@@ -1,0 +1,216 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import take, Take, filter, enumerate
+
+func is_even(x int) bool { return x % 2 == 0 }
+
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+    func __init__(n int) { pulls = 0; limit = n }
+    func iter(step = 1) Iterator[int] { return CountingIter(self) }
+}
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+    func __init__(s CountingSource) { src = s; cursor = 0 }
+    func has_next() bool = cursor < src.limit
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+    func next() int? { if !has_next() { return nil }; return next_strict() }
+}
+
+func first_three[T](xs Iterable[T]) int {
+    var n = 0
+    for x in take(xs, 3) { n = n + 1 }
+    return n
+}
+
+// ==================== Taking ====================
+
+@test
+func test_n_less_than_len() {
+    let got = list[int]()
+    for x in take([1, 2, 3, 4], 2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[1], 2)
+}
+
+@test
+func test_n_equals_len() {
+    var n = 0
+    for x in take([1, 2, 3], 3) { n = n + 1 }
+    ut.assert_eq(n, 3)
+}
+
+@test
+func test_n_greater_than_len() {
+    var n = 0
+    for x in take([1, 2], 10) { n = n + 1 }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_n_zero() {
+    let t = take([1, 2, 3], 0)
+    ut.assert_false(t.has_next())
+    ut.assert_true(t.next() == nil)
+    var n = 0
+    for x in t { n = n + 1 }
+    ut.assert_eq(n, 0)
+}
+
+@test
+func test_empty_source() {
+    let t = take(list[int](), 5)
+    ut.assert_false(t.has_next())
+    ut.assert_true(t.next() == nil)
+}
+
+@test
+func test_str_source() {
+    var got = ""
+    for c in take("abcd", 2) { got = got + c }
+    ut.assert_eq(got, "ab")
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let t = take([1, 2, 3], 2)
+    var n = 0
+    while let x = t.next() {
+        ut.assert_eq(x, n + 1)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_has_next_idempotent() {
+    let t = take([1, 2, 3], 2)
+    ut.assert_true(t.has_next())
+    ut.assert_true(t.has_next())
+    ut.assert_eq(t.next_strict(), 1)
+    ut.assert_true(t.has_next())
+    ut.assert_eq(t.next_strict(), 2)
+    ut.assert_false(t.has_next())
+    ut.assert_false(t.has_next())
+}
+
+@test
+func test_next_after_exhaustion() {
+    let t = take([1, 2], 1)
+    ut.assert_eq(t.next_strict(), 1)
+    ut.assert_true(t.next() == nil)
+    ut.assert_true(t.next() == nil)
+}
+
+@test
+func test_iter_returns_self() {
+    let t = take([1, 2, 3], 3)
+    ut.assert_eq(t.next_strict(), 1)
+    let again = t.iter()
+    ut.assert_eq(again.next_strict(), 2)
+    ut.assert_eq(t.next_strict(), 3)
+    ut.assert_true(t.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[int] = take([1, 2, 3], 2)
+    ut.assert_eq(it.next_strict(), 1)
+    ut.assert_true(it.has_next())
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(first_three([1, 2, 3, 4, 5]), 3)
+    ut.assert_eq(first_three([1]), 1)
+    ut.assert_eq(first_three(list[int]()), 0)
+}
+
+@test
+func test_fmt() {
+    let t = take([1, 2, 3], 2)
+    ut.assert_eq(format("{}", t), "Take(remaining=2)")
+    t.next_strict()
+    ut.assert_eq(format("{}", t), "Take(remaining=1)")
+}
+
+// ==================== Laziness ====================
+
+@test
+func test_no_overpull() {
+    let src = CountingSource(10)
+    var n = 0
+    for x in take(src, 3) { n = n + 1 }
+    ut.assert_eq(n, 3)
+    ut.assert_eq(src.pulls, 3)
+}
+
+@test
+func test_zero_pulls_nothing() {
+    let src = CountingSource(10)
+    let t = take(src, 0)
+    ut.assert_false(t.has_next())
+    ut.assert_eq(src.pulls, 0)
+}
+
+// ==================== Composition ====================
+
+@test
+func test_take_take() {
+    let got = list[int]()
+    for x in take(take([1, 2, 3, 4, 5], 4), 2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[1], 2)
+}
+
+@test
+func test_take_filter() {
+    let got = list[int]()
+    for x in take(filter([1, 2, 3, 4, 5, 6], is_even), 2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[1], 4)
+}
+
+@test
+func test_enumerate_take() {
+    var n = 0
+    for (i, x) in enumerate(take([10, 20, 30], 2)) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(x, (n + 1) * 10)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in Take")
+func test_next_strict_exhausted() {
+    let t = take([1], 1)
+    t.next_strict()
+    t.next_strict()
+}
+
+@should_panic("take count must be non-negative")
+func test_negative_count() {
+    take([1, 2], -1)
+}
+
+@should_panic("Take does not support step != 1")
+func test_iter_step_unsupported() {
+    let t = take([1, 2, 3], 2)
+    t.iter(2)
+}

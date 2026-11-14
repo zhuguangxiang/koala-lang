@@ -1,0 +1,21 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Iterator combinators.
+///
+/// This package grows the iteration vocabulary on top of the core `Iterator`
+/// and `Iterable` traits (which live in `std/builtin`). Every combinator is
+/// lazy and single-pass unless noted, returns a concrete iterator that is
+/// itself `Iterable`, and composes with the others.
+///
+///     from "std/itertools" import enumerate, zip, filter, take
+///
+///     for (i, x) in enumerate([10, 20, 30]) { print(i, x) }
+///     for (a, b) in zip([1, 2, 3], "ab") { print(a, b) }
+///     for x in filter([1, 2, 3, 4], is_even) { print(x) }
+///     for x in take([1, 2, 3, 4], 2) { print(x) }
+///
+/// `reduce` is the exception: it consumes its source eagerly and returns a
+/// single folded value rather than an iterator.

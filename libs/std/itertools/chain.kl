@@ -1,0 +1,81 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that yields all elements of a first source, then all elements
+/// of a second source.
+///
+/// The second source is not touched until the first is exhausted. Both
+/// sources are consumed lazily through their iterators; the wrapper is
+/// stateful and cannot rewind.
+///
+/// `Chain` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `enumerate(chain(a, b))`. For more than two
+/// sources, nest calls: `chain(chain(a, b), c)`.
+///
+/// Examples
+///
+/// ```kl
+/// for x in chain([1, 2], [3, 4]) {
+///     print(x)   // 1 / 2 / 3 / 4
+/// }
+/// for x in chain("ab", "cd") {
+///     print(x)   // a / b / c / d
+/// }
+/// ```
+pub class Chain[T] : Iterator[T] & Iterable[T] {
+    let first Iterator[T]
+    let second Iterator[T]
+
+    /// Wrap two iterables, yielding the first's elements then the second's.
+    pub func __init__(_a Iterable[T], _b Iterable[T]) {
+        first = _a.iter()
+        second = _b.iter()
+    }
+
+    /// Return this same iterator; chain wrappers are single-pass.
+    /// Panic if `step != 1`: strided chaining is not supported.
+    pub func iter(step = 1) Iterator[T] {
+        if step != 1 { panic("Chain does not support step != 1") }
+        return self
+    }
+
+    /// Return true if either source has another element.
+    pub func has_next() bool = first.has_next() || second.has_next()
+
+    /// Return the next element from the first non-exhausted source and advance.
+    /// Panic if both sources are exhausted.
+    pub func next_strict() T {
+        if first.has_next() { return first.next_strict() }
+        if second.has_next() { return second.next_strict() }
+        panic("No more elements in Chain")
+    }
+
+    /// Return the next element, or `nil` if both sources are exhausted.
+    pub func next() T? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("Chain")
+    }
+}
+
+/// Return an iterator over the elements of `a` followed by the elements of `b`.
+///
+/// Works on any mix of `Iterable`s of the same element type. The result is
+/// lazy and single-pass; `b` is not consumed until `a` is exhausted.
+///
+/// Examples
+///
+/// ```kl
+/// for x in chain([1, 2], [3, 4]) {
+///     print(x)   // 1 / 2 / 3 / 4
+/// }
+/// ```
+pub func chain[T](a Iterable[T], b Iterable[T]) Chain[T] {
+    return Chain[T](a, b)
+}

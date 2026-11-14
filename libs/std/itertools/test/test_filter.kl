@@ -1,0 +1,275 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import filter, Filter, take, enumerate
+
+func is_even(x int) bool { return x % 2 == 0 }
+func gt2(x int) bool { return x > 2 }
+func always_true(x int) bool { return true }
+func always_false(x int) bool { return false }
+func not_a(c str) bool { return c != "a" }
+
+// Predicate that counts how many times it is called.
+var pred_calls = 0
+func counting_pred(x int) bool {
+    pred_calls = pred_calls + 1
+    return x % 2 == 0
+}
+
+// Lazy source counting pulled elements.
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+    func __init__(n int) { pulls = 0; limit = n }
+    func iter(step = 1) Iterator[int] { return CountingIter(self) }
+}
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+    func __init__(s CountingSource) { src = s; cursor = 0 }
+    func has_next() bool = cursor < src.limit
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+    func next() int? { if !has_next() { return nil }; return next_strict() }
+}
+
+func count_matching[T](xs Iterable[T], pred func(T) bool) int {
+    var n = 0
+    for x in filter(xs, pred) { n = n + 1 }
+    return n
+}
+
+// ==================== Basic filtering ====================
+
+@test
+func test_basic() {
+    let got = list[int]()
+    for x in filter([1, 2, 3, 4, 5, 6], is_even) { got.append(x) }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[1], 4)
+    ut.assert_eq(got[2], 6)
+}
+
+@test
+func test_none_match() {
+    let f = filter([1, 3, 5], is_even)
+    ut.assert_false(f.has_next())
+    ut.assert_true(f.next() == nil)
+    var n = 0
+    for x in f { n = n + 1 }
+    ut.assert_eq(n, 0)
+}
+
+@test
+func test_all_match() {
+    let got = list[int]()
+    for x in filter([2, 4, 6], always_true) { got.append(x) }
+    ut.assert_eq(got.len(), 3)
+}
+
+@test
+func test_empty_source() {
+    let f = filter(list[int](), is_even)
+    ut.assert_false(f.has_next())
+    ut.assert_true(f.next() == nil)
+}
+
+@test
+func test_single_match() {
+    let f = filter([2], is_even)
+    ut.assert_true(f.has_next())
+    ut.assert_eq(f.next_strict(), 2)
+    ut.assert_true(f.next() == nil)
+}
+
+@test
+func test_single_no_match() {
+    let f = filter([1], is_even)
+    ut.assert_false(f.has_next())
+    ut.assert_true(f.next() == nil)
+}
+
+@test
+func test_str_source() {
+    var got = ""
+    for c in filter("abcabc", not_a) { got = got + c }
+    ut.assert_eq(got, "bcbc")
+}
+
+@test
+func test_lambda_predicate() {
+    let got = list[int]()
+    for x in filter([1, 2, 3, 4], { |x int| x > 2 }) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 3)
+    ut.assert_eq(got[1], 4)
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let f = filter([1, 2, 3, 4], is_even)
+    var n = 0
+    while let x = f.next() {
+        ut.assert_eq(x, (n + 1) * 2)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_has_next_idempotent() {
+    let f = filter([1, 2, 3, 4], is_even)
+    ut.assert_true(f.has_next())
+    ut.assert_true(f.has_next())
+    ut.assert_true(f.has_next())
+    ut.assert_eq(f.next_strict(), 2)
+    ut.assert_true(f.has_next())
+    ut.assert_eq(f.next_strict(), 4)
+    ut.assert_false(f.has_next())
+    ut.assert_false(f.has_next())
+}
+
+@test
+func test_next_after_exhaustion() {
+    let f = filter([2], is_even)
+    ut.assert_eq(f.next_strict(), 2)
+    ut.assert_true(f.next() == nil)
+    ut.assert_true(f.next() == nil)
+    ut.assert_false(f.has_next())
+}
+
+@test
+func test_iter_returns_self() {
+    let f = filter([1, 2, 3, 4], is_even)
+    ut.assert_eq(f.next_strict(), 2)
+    let again = f.iter()
+    ut.assert_eq(again.next_strict(), 4)
+    ut.assert_true(f.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[int] = filter([1, 2, 3, 4], is_even)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_true(it.has_next())
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(count_matching([1, 2, 3, 4], is_even), 2)
+    ut.assert_eq(count_matching(list[int](), is_even), 0)
+}
+
+@test
+func test_fmt() {
+    let f = filter([1, 2], is_even)
+    ut.assert_eq(format("{}", f), "Filter")
+}
+
+// ==================== Laziness and predicate calls ====================
+
+@test
+func test_lazy_no_prefetch() {
+    let src = CountingSource(5)
+    let f = filter(src, gt2)
+    ut.assert_eq(src.pulls, 0)
+    // first match is element 3 (index 3): pulls 0,1,2,3
+    ut.assert_true(f.has_next())
+    ut.assert_eq(src.pulls, 4)
+    ut.assert_eq(f.next_strict(), 3)
+    ut.assert_eq(src.pulls, 4)
+}
+
+@test
+func test_predicate_called_once_per_element() {
+    pred_calls = 0
+    let f = filter([1, 2, 3, 4], counting_pred)
+    ut.assert_true(f.has_next())
+    ut.assert_true(f.has_next())  // cached, must not re-call pred
+    ut.assert_eq(f.next_strict(), 2)
+    ut.assert_eq(pred_calls, 2)  // pred(1)=false, pred(2)=true
+    ut.assert_true(f.has_next())
+    ut.assert_eq(f.next_strict(), 4)
+    ut.assert_eq(pred_calls, 4)  // pred(3)=false, pred(4)=true
+}
+
+@test
+func test_lazy_full_consumption() {
+    let src = CountingSource(4)
+    var n = 0
+    for x in filter(src, always_true) { n = n + 1 }
+    ut.assert_eq(n, 4)
+    ut.assert_eq(src.pulls, 4)
+}
+
+// ==================== Nullable elements ====================
+
+@test
+func test_nullable_elements_kept() {
+    let xs = list[int?]()
+    xs.append(nil)
+    xs.append(1)
+    xs.append(nil)
+    xs.append(2)
+    // keep only the nil elements
+    let f = filter(xs, { |x int?| x == nil })
+    ut.assert_true(f.has_next())
+    ut.assert_true(f.next_strict() == nil)
+    ut.assert_true(f.has_next())
+    ut.assert_true(f.next_strict() == nil)
+    ut.assert_false(f.has_next())
+}
+
+// ==================== Composition ====================
+
+@test
+func test_take_filter() {
+    let got = list[int]()
+    for x in take(filter([1, 2, 3, 4, 5, 6], is_even), 2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[1], 4)
+}
+
+@test
+func test_enumerate_filter() {
+    var n = 0
+    for (i, x) in enumerate(filter([1, 2, 3, 4], is_even)) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(x, (n + 1) * 2)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_filter_filter() {
+    let got = list[int]()
+    for x in filter(filter([1, 2, 3, 4, 5, 6], is_even), gt2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 4)
+    ut.assert_eq(got[1], 6)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in Filter")
+func test_next_strict_exhausted() {
+    let f = filter([2], is_even)
+    f.next_strict()
+    f.next_strict()
+}
+
+@should_panic("Filter does not support step != 1")
+func test_iter_step_unsupported() {
+    let f = filter([1, 2, 3, 4], is_even)
+    f.iter(2)
+}

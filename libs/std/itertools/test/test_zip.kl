@@ -1,0 +1,391 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import zip, Zip, enumerate
+
+// A lazy source that counts how many elements have been pulled, to prove
+// zip pulls one element per side per step and never over-consumes the
+// longer source.
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+
+    func __init__(n int) {
+        pulls = 0
+        limit = n
+    }
+
+    func iter(step = 1) Iterator[int] {
+        return CountingIter(self)
+    }
+}
+
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+
+    func __init__(s CountingSource) {
+        src = s
+        cursor = 0
+    }
+
+    func has_next() bool = cursor < src.limit
+
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+
+    func next() int? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+}
+
+func count_pairs[T, U](a Iterable[T], b Iterable[U]) int {
+    var n = 0
+    for (x, y) in zip(a, b) {
+        n = n + 1
+    }
+    return n
+}
+
+// ==================== Basic pairing ====================
+
+@test
+func test_equal_lengths() {
+    var count = 0
+    for (a, b) in zip([1, 2, 3], [10, 20, 30]) {
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(b, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+}
+
+@test
+func test_left_shorter() {
+    var count = 0
+    for (a, b) in zip([1, 2], [10, 20, 30, 40]) {
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(b, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_right_shorter() {
+    var count = 0
+    for (a, b) in zip([1, 2, 3, 4], [10, 20]) {
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(b, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_single_element() {
+    var count = 0
+    for (a, b) in zip([1], [10]) {
+        ut.assert_eq(a, 1)
+        ut.assert_eq(b, 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 1)
+}
+
+@test
+func test_both_empty() {
+    let z = zip(list[int](), list[str]())
+    ut.assert_false(z.has_next())
+    ut.assert_true(z.next() == nil)
+    var count = 0
+    for (a, b) in z {
+        count = count + 1
+    }
+    ut.assert_eq(count, 0)
+}
+
+@test
+func test_one_empty() {
+    let xs = [1, 2, 3]
+    let empty = list[int]()
+    ut.assert_true(zip(empty, xs).next() == nil)
+    ut.assert_true(zip(xs, empty).next() == nil)
+    ut.assert_false(zip(empty, xs).has_next())
+    ut.assert_false(zip(xs, empty).has_next())
+}
+
+@test
+func test_mixed_types() {
+    var count = 0
+    for (n, s) in zip([1, 2], ["a", "b"]) {
+        ut.assert_eq(n, count + 1)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_str_source() {
+    var count = 0
+    for (ch, n) in zip("abc", [1, 2, 3]) {
+        ut.assert_eq(ch, "abc"[count])
+        ut.assert_eq(n, count + 1)
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+}
+
+@test
+func test_dict_source() {
+    let d = {"x": 1, "y": 2}
+    var count = 0
+    for (kv, n) in zip(d, [10, 20]) {
+        let (k, v) = kv
+        ut.assert_eq(n, (count + 1) * 10)
+        if count == 0 {
+            ut.assert_eq(k, "x")
+            ut.assert_eq(v, 1)
+        } else {
+            ut.assert_eq(k, "y")
+            ut.assert_eq(v, 2)
+        }
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_tuple_elements() {
+    var count = 0
+    for (p, n) in zip([(1, "a"), (2, "b")], [10, 20]) {
+        let (a, s) = p
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(n, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let z = zip([1, 2], [10, 20])
+    var count = 0
+    while let pair = z.next() {
+        let (a, b) = pair
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(b, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_has_next_does_not_consume() {
+    let z = zip([1, 2], [10, 20])
+    ut.assert_true(z.has_next())
+    ut.assert_true(z.has_next())
+    let (a0, b0) = z.next_strict()
+    ut.assert_eq(a0, 1)
+    ut.assert_eq(b0, 10)
+    ut.assert_true(z.has_next())
+    let (a1, b1) = z.next_strict()
+    ut.assert_eq(a1, 2)
+    ut.assert_eq(b1, 20)
+    ut.assert_false(z.has_next())
+    ut.assert_false(z.has_next())
+}
+
+@test
+func test_has_next_either_exhausted() {
+    let z = zip([1], [10, 20, 30])
+    ut.assert_true(z.has_next())
+    z.next_strict()
+    ut.assert_false(z.has_next())
+}
+
+@test
+func test_next_after_exhaustion() {
+    let z = zip([1], [10])
+    let (a, b) = z.next_strict()
+    ut.assert_eq(a, 1)
+    ut.assert_eq(b, 10)
+    ut.assert_true(z.next() == nil)
+    ut.assert_true(z.next() == nil)
+    ut.assert_false(z.has_next())
+}
+
+@test
+func test_iter_returns_self() {
+    let z = zip([1, 2, 3], [10, 20, 30])
+    let (a0, b0) = z.next_strict()
+    ut.assert_eq(a0, 1)
+    let again = z.iter()
+    let (a1, b1) = again.next_strict()
+    ut.assert_eq(a1, 2)
+    ut.assert_eq(b1, 20)
+    let (a2, b2) = z.next_strict()
+    ut.assert_eq(a2, 3)
+    ut.assert_eq(b2, 30)
+    ut.assert_true(z.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[(int, str)] = zip([1, 2], ["a", "b"])
+    let (a, s) = it.next_strict()
+    ut.assert_eq(a, 1)
+    ut.assert_eq(s, "a")
+    ut.assert_true(it.has_next())
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(count_pairs([1, 2, 3], ["a", "b"]), 2)
+    ut.assert_eq(count_pairs(list[int](), [1]), 0)
+    ut.assert_eq(count_pairs("abc", [1, 2]), 2)
+}
+
+@test
+func test_fmt() {
+    let z = zip([1], [2])
+    ut.assert_eq(format("{}", z), "Zip")
+}
+
+// ==================== Laziness ====================
+
+@test
+func test_lazy_no_prefetch() {
+    let a = CountingSource(3)
+    let b = CountingSource(5)
+    let z = zip(a, b)
+    ut.assert_eq(a.pulls, 0)
+    ut.assert_eq(b.pulls, 0)
+    ut.assert_true(z.has_next())
+    ut.assert_eq(a.pulls, 0)
+    ut.assert_eq(b.pulls, 0)
+    let (x, y) = z.next_strict()
+    ut.assert_eq(x, 0)
+    ut.assert_eq(y, 0)
+    ut.assert_eq(a.pulls, 1)
+    ut.assert_eq(b.pulls, 1)
+}
+
+@test
+func test_lazy_left_shorter_no_overpull() {
+    let a = CountingSource(3)
+    let b = CountingSource(5)
+    var count = 0
+    for (x, y) in zip(a, b) {
+        ut.assert_eq(x, count)
+        ut.assert_eq(y, count)
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+    ut.assert_eq(a.pulls, 3)
+    ut.assert_eq(b.pulls, 3)
+}
+
+@test
+func test_lazy_right_shorter_no_overpull() {
+    let a = CountingSource(5)
+    let b = CountingSource(3)
+    var count = 0
+    for (x, y) in zip(a, b) {
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+    ut.assert_eq(a.pulls, 3)
+    ut.assert_eq(b.pulls, 3)
+}
+
+// ==================== Composition ====================
+
+@test
+func test_zip_zip() {
+    var count = 0
+    for (p, n) in zip(zip([1, 2], [3, 4]), [10, 20]) {
+        let (a, b) = p
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(b, count + 3)
+        ut.assert_eq(n, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_enumerate_zip() {
+    var count = 0
+    for (i, pair) in enumerate(zip([10, 20], ["a", "b"])) {
+        let (v, s) = pair
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_zip_enumerate() {
+    var count = 0
+    for (p, n) in zip(enumerate([10, 20]), [100, 200]) {
+        let (i, v) = p
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, (count + 1) * 10)
+        ut.assert_eq(n, (count + 1) * 100)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_zip_unequal_nested() {
+    var count = 0
+    for (p, n) in zip(zip([1, 2, 3], [4, 5]), [6, 7, 8]) {
+        let (a, b) = p
+        ut.assert_eq(a, count + 1)
+        ut.assert_eq(b, count + 4)
+        ut.assert_eq(n, count + 6)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_user_iterable() {
+    let a = CountingSource(4)
+    let b = CountingSource(2)
+    var count = 0
+    for (x, y) in zip(a, b) {
+        ut.assert_eq(x, count)
+        ut.assert_eq(y, count)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+    ut.assert_eq(a.pulls, 2)
+    ut.assert_eq(b.pulls, 2)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in Zip")
+func test_next_strict_exhausted() {
+    let z = zip([1], [2])
+    z.next_strict()
+    z.next_strict()
+}
+
+@should_panic("Zip does not support step != 1")
+func test_iter_step_unsupported() {
+    let z = zip([1, 2], [3, 4])
+    z.iter(2)
+}

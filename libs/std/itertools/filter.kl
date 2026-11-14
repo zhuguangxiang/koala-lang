@@ -1,0 +1,96 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that yields only the elements of a source for which a
+/// predicate returns true.
+///
+/// The source is consumed lazily: each call to `has_next()` advances the
+/// source until a matching element is found (or the source is exhausted),
+/// and that element is buffered until `next_strict()`/`next()` returns it.
+/// Elements that fail the predicate are discarded. The wrapper is stateful
+/// and cannot rewind.
+///
+/// `Filter` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `take(filter(xs, pred), 3)`.
+///
+/// Examples
+///
+/// ```kl
+/// func is_even(x int) bool { return x % 2 == 0 }
+/// for x in filter([1, 2, 3, 4], is_even) {
+///     print(x)   // 2 / 4
+/// }
+/// for x in filter([1, 2, 3, 4], { |x int| x > 2 }) {
+///     print(x)   // 3 / 4
+/// }
+/// ```
+pub class Filter[T] : Iterator[T] & Iterable[T] {
+    let source Iterator[T]
+    let pred func(T) bool
+    let pending list[T]
+
+    /// Wrap `_iterable`, keeping only elements that satisfy `_pred`.
+    pub func __init__(_iterable Iterable[T], _pred func(T) bool) {
+        source = _iterable.iter()
+        pred = _pred
+        pending = list[T]()
+    }
+
+    /// Return this same iterator; filter wrappers are single-pass.
+    /// Panic if `step != 1`: strided filtering is not supported.
+    pub func iter(step = 1) Iterator[T] {
+        if step != 1 { panic("Filter does not support step != 1") }
+        return self
+    }
+
+    /// Return true if a matching element is available, advancing the source
+    /// past any non-matching elements to find it.
+    pub func has_next() bool {
+        if pending.len() > 0 { return true }
+        while source.has_next() {
+            let item = source.next_strict()
+            if pred(item) {
+                pending.append(item)
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Return the next matching element and advance.
+    /// Panic if no matching element remains.
+    pub func next_strict() T {
+        if !has_next() { panic("No more elements in Filter") }
+        return pending.pop()
+    }
+
+    /// Return the next matching element, or `nil` if none remains.
+    pub func next() T? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("Filter")
+    }
+}
+
+/// Return an iterator over the elements of `obj` that satisfy `pred`.
+///
+/// Works on any `Iterable`. The predicate is a named function or a
+/// non-capturing lambda. The result is lazy and single-pass.
+///
+/// Examples
+///
+/// ```kl
+/// func is_even(x int) bool { return x % 2 == 0 }
+/// for x in filter([1, 2, 3, 4], is_even) {
+///     print(x)   // 2 / 4
+/// }
+/// ```
+pub func filter[T](obj Iterable[T], pred func(T) bool) Filter[T] {
+    return Filter[T](obj, pred)
+}

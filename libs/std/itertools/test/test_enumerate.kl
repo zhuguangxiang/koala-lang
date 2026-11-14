@@ -1,0 +1,379 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import enumerate, Enumerate, zip
+
+// A lazy source that counts how many elements have been pulled, to prove
+// enumerate consumes its source one element at a time and never prefetches.
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+
+    func __init__(n int) {
+        pulls = 0
+        limit = n
+    }
+
+    func iter(step = 1) Iterator[int] {
+        return CountingIter(self)
+    }
+}
+
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+
+    func __init__(s CountingSource) {
+        src = s
+        cursor = 0
+    }
+
+    func has_next() bool = cursor < src.limit
+
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+
+    func next() int? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+}
+
+func sum_of_indices[T](xs Iterable[T]) int {
+    var total = 0
+    for (i, x) in enumerate(xs) {
+        total = total + i
+    }
+    return total
+}
+
+// ==================== Basic traversal ====================
+
+@test
+func test_basic_list() {
+    let xs = [10, 20, 30]
+    var count = 0
+    for (i, v) in enumerate(xs) {
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, xs[count])
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+}
+
+@test
+func test_single_element() {
+    var count = 0
+    for (i, v) in enumerate([42]) {
+        ut.assert_eq(i, 0)
+        ut.assert_eq(v, 42)
+        count = count + 1
+    }
+    ut.assert_eq(count, 1)
+}
+
+@test
+func test_empty() {
+    let empty = list[int]()
+    let e = enumerate(empty)
+    ut.assert_false(e.has_next())
+    ut.assert_true(e.next() == nil)
+    var count = 0
+    for (i, v) in enumerate(empty) {
+        count = count + 1
+    }
+    ut.assert_eq(count, 0)
+}
+
+@test
+func test_start_offset() {
+    let e = Enumerate[int]([10, 20, 30], 5)
+    let (i0, v0) = e.next_strict()
+    ut.assert_eq(i0, 5)
+    ut.assert_eq(v0, 10)
+    let (i1, v1) = e.next_strict()
+    ut.assert_eq(i1, 6)
+    ut.assert_eq(v1, 20)
+    let (i2, v2) = e.next_strict()
+    ut.assert_eq(i2, 7)
+    ut.assert_eq(v2, 30)
+    ut.assert_true(e.next() == nil)
+}
+
+@test
+func test_negative_start() {
+    let e = Enumerate[int]([1, 2], -2)
+    let (i0, v0) = e.next_strict()
+    ut.assert_eq(i0, -2)
+    ut.assert_eq(v0, 1)
+    let (i1, v1) = e.next_strict()
+    ut.assert_eq(i1, -1)
+    ut.assert_eq(v1, 2)
+}
+
+@test
+func test_str_source() {
+    var count = 0
+    for (i, ch) in enumerate("abc") {
+        ut.assert_eq(i, count)
+        ut.assert_eq(ch, "abc"[count])
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+}
+
+@test
+func test_dict_source() {
+    let d = {"x": 1, "y": 2}
+    var count = 0
+    for (i, kv) in enumerate(d) {
+        let (k, v) = kv
+        ut.assert_eq(i, count)
+        if count == 0 {
+            ut.assert_eq(k, "x")
+            ut.assert_eq(v, 1)
+        } else {
+            ut.assert_eq(k, "y")
+            ut.assert_eq(v, 2)
+        }
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_hashset_source() {
+    let s = hashset[int]()
+    s.add(10)
+    s.add(20)
+    s.add(30)
+    var count = 0
+    let seen = list[int]()
+    for (i, v) in enumerate(s) {
+        ut.assert_eq(i, count)
+        ut.assert_true(v in s)
+        seen.append(v)
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+    ut.assert_eq(seen.len(), 3)
+}
+
+@test
+func test_tuple_elements() {
+    let xs = [(1, "a"), (2, "b")]
+    var count = 0
+    for (i, pair) in enumerate(xs) {
+        let (n, s) = pair
+        ut.assert_eq(i, count)
+        ut.assert_eq(n, count + 1)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_large_list() {
+    let xs = list[int]()
+    for i in range(1000) {
+        xs.append(i * 2)
+    }
+    var index_sum = 0
+    var value_sum = 0
+    var count = 0
+    for (i, v) in enumerate(xs) {
+        index_sum = index_sum + i
+        value_sum = value_sum + v
+        count = count + 1
+    }
+    ut.assert_eq(count, 1000)
+    ut.assert_eq(index_sum, 499500)
+    ut.assert_eq(value_sum, 999000)
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let e = enumerate([10, 20])
+    var count = 0
+    while let pair = e.next() {
+        let (i, v) = pair
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_has_next_does_not_consume() {
+    let e = enumerate([10, 20])
+    ut.assert_true(e.has_next())
+    ut.assert_true(e.has_next())
+    ut.assert_true(e.has_next())
+    let (i, v) = e.next_strict()
+    ut.assert_eq(i, 0)
+    ut.assert_eq(v, 10)
+    ut.assert_true(e.has_next())
+    let (i1, v1) = e.next_strict()
+    ut.assert_eq(i1, 1)
+    ut.assert_eq(v1, 20)
+    ut.assert_false(e.has_next())
+    ut.assert_false(e.has_next())
+}
+
+@test
+func test_next_after_exhaustion() {
+    let e = enumerate([1])
+    let (i, v) = e.next_strict()
+    ut.assert_eq(i, 0)
+    ut.assert_eq(v, 1)
+    ut.assert_true(e.next() == nil)
+    ut.assert_true(e.next() == nil)
+    ut.assert_false(e.has_next())
+}
+
+@test
+func test_iter_returns_self() {
+    let e = enumerate([10, 20, 30])
+    let (i0, v0) = e.next_strict()
+    ut.assert_eq(i0, 0)
+    let again = e.iter()
+    let (i1, v1) = again.next_strict()
+    ut.assert_eq(i1, 1)
+    ut.assert_eq(v1, 20)
+    let (i2, v2) = e.next_strict()
+    ut.assert_eq(i2, 2)
+    ut.assert_eq(v2, 30)
+    ut.assert_true(e.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[(int, int)] = enumerate([10, 20])
+    let (i, v) = it.next_strict()
+    ut.assert_eq(i, 0)
+    ut.assert_eq(v, 10)
+    ut.assert_true(it.has_next())
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(sum_of_indices([1, 2, 3]), 3)
+    ut.assert_eq(sum_of_indices(["a", "b"]), 1)
+    ut.assert_eq(sum_of_indices(list[int]()), 0)
+}
+
+@test
+func test_fmt() {
+    let e = enumerate([10, 20])
+    ut.assert_eq(format("{}", e), "Enumerate(cursor=0)")
+    e.next_strict()
+    ut.assert_eq(format("{}", e), "Enumerate(cursor=1)")
+}
+
+// ==================== Laziness ====================
+
+@test
+func test_lazy_no_prefetch() {
+    let src = CountingSource(5)
+    let e = enumerate(src)
+    ut.assert_eq(src.pulls, 0)
+    ut.assert_true(e.has_next())
+    ut.assert_eq(src.pulls, 0)
+    let (i0, v0) = e.next_strict()
+    ut.assert_eq(i0, 0)
+    ut.assert_eq(v0, 0)
+    ut.assert_eq(src.pulls, 1)
+    let p1 = e.next()
+    ut.assert_true(p1 != nil)
+    ut.assert_eq(src.pulls, 2)
+}
+
+@test
+func test_lazy_full_consumption() {
+    let src = CountingSource(3)
+    let e = enumerate(src)
+    var count = 0
+    for (i, v) in e {
+        ut.assert_eq(v, count)
+        count = count + 1
+    }
+    ut.assert_eq(count, 3)
+    ut.assert_eq(src.pulls, 3)
+    ut.assert_true(e.next() == nil)
+    ut.assert_eq(src.pulls, 3)
+}
+
+// ==================== Composition ====================
+
+@test
+func test_enumerate_zip() {
+    var count = 0
+    for (i, pair) in enumerate(zip([10, 20], ["a", "b"])) {
+        let (v, s) = pair
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_zip_enumerate() {
+    var count = 0
+    for (p, n) in zip(enumerate([10, 20]), [100, 200]) {
+        let (i, v) = p
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, (count + 1) * 10)
+        ut.assert_eq(n, (count + 1) * 100)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_enumerate_enumerate() {
+    var count = 0
+    for (outer, inner) in enumerate(enumerate([10, 20])) {
+        let (i, v) = inner
+        ut.assert_eq(outer, count)
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, (count + 1) * 10)
+        count = count + 1
+    }
+    ut.assert_eq(count, 2)
+}
+
+@test
+func test_user_iterable() {
+    let src = CountingSource(4)
+    var count = 0
+    for (i, v) in enumerate(src) {
+        ut.assert_eq(i, count)
+        ut.assert_eq(v, count)
+        count = count + 1
+    }
+    ut.assert_eq(count, 4)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in Enumerate")
+func test_next_strict_exhausted() {
+    let e = enumerate([1])
+    e.next_strict()
+    e.next_strict()
+}
+
+@should_panic("Enumerate does not support step != 1")
+func test_iter_step_unsupported() {
+    let e = enumerate([1, 2, 3])
+    e.iter(2)
+}

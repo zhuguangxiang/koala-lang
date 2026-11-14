@@ -1,0 +1,218 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import chain, Chain, take, enumerate
+
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+    func __init__(n int) { pulls = 0; limit = n }
+    func iter(step = 1) Iterator[int] { return CountingIter(self) }
+}
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+    func __init__(s CountingSource) { src = s; cursor = 0 }
+    func has_next() bool = cursor < src.limit
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+    func next() int? { if !has_next() { return nil }; return next_strict() }
+}
+
+func chain_len[T](a Iterable[T], b Iterable[T]) int {
+    var n = 0
+    for x in chain(a, b) { n = n + 1 }
+    return n
+}
+
+// ==================== Chaining ====================
+
+@test
+func test_both_nonempty() {
+    let got = list[int]()
+    for x in chain([1, 2], [3, 4]) { got.append(x) }
+    ut.assert_eq(got.len(), 4)
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[3], 4)
+}
+
+@test
+func test_first_empty() {
+    let got = list[int]()
+    for x in chain(list[int](), [3, 4]) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 3)
+}
+
+@test
+func test_second_empty() {
+    let got = list[int]()
+    for x in chain([1, 2], list[int]()) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[1], 2)
+}
+
+@test
+func test_both_empty() {
+    let c = chain(list[int](), list[int]())
+    ut.assert_false(c.has_next())
+    ut.assert_true(c.next() == nil)
+}
+
+@test
+func test_single_elements() {
+    let got = list[int]()
+    for x in chain([1], [2]) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[1], 2)
+}
+
+@test
+func test_str_sources() {
+    var got = ""
+    for c in chain("ab", "cd") { got = got + c }
+    ut.assert_eq(got, "abcd")
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let c = chain([1, 2], [3])
+    var n = 0
+    while let x = c.next() {
+        ut.assert_eq(x, n + 1)
+        n = n + 1
+    }
+    ut.assert_eq(n, 3)
+}
+
+@test
+func test_has_next_idempotent() {
+    let c = chain([1], [2])
+    ut.assert_true(c.has_next())
+    ut.assert_true(c.has_next())
+    ut.assert_eq(c.next_strict(), 1)
+    ut.assert_true(c.has_next())
+    ut.assert_eq(c.next_strict(), 2)
+    ut.assert_false(c.has_next())
+    ut.assert_false(c.has_next())
+}
+
+@test
+func test_next_after_exhaustion() {
+    let c = chain([1], [2])
+    ut.assert_eq(c.next_strict(), 1)
+    ut.assert_eq(c.next_strict(), 2)
+    ut.assert_true(c.next() == nil)
+    ut.assert_true(c.next() == nil)
+}
+
+@test
+func test_iter_returns_self() {
+    let c = chain([1, 2], [3])
+    ut.assert_eq(c.next_strict(), 1)
+    let again = c.iter()
+    ut.assert_eq(again.next_strict(), 2)
+    ut.assert_eq(c.next_strict(), 3)
+    ut.assert_true(c.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[int] = chain([1], [2])
+    ut.assert_eq(it.next_strict(), 1)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(chain_len([1, 2], [3]), 3)
+    ut.assert_eq(chain_len(list[int](), [1]), 1)
+    ut.assert_eq(chain_len(list[int](), list[int]()), 0)
+}
+
+@test
+func test_fmt() {
+    let c = chain([1], [2])
+    ut.assert_eq(format("{}", c), "Chain")
+}
+
+// ==================== Laziness ====================
+
+@test
+func test_second_untouched_until_first_exhausted() {
+    let a = CountingSource(2)
+    let b = CountingSource(3)
+    let c = chain(a, b)
+    ut.assert_eq(c.next_strict(), 0)
+    ut.assert_eq(c.next_strict(), 1)
+    ut.assert_eq(a.pulls, 2)
+    ut.assert_eq(b.pulls, 0)  // second not touched yet
+    ut.assert_eq(c.next_strict(), 0)
+    ut.assert_eq(b.pulls, 1)  // now second is being consumed
+}
+
+@test
+func test_full_consumption_pull_counts() {
+    let a = CountingSource(2)
+    let b = CountingSource(3)
+    var n = 0
+    for x in chain(a, b) { n = n + 1 }
+    ut.assert_eq(n, 5)
+    ut.assert_eq(a.pulls, 2)
+    ut.assert_eq(b.pulls, 3)
+}
+
+// ==================== Composition ====================
+
+@test
+func test_chain_chain() {
+    let got = list[int]()
+    for x in chain(chain([1], [2]), [3]) { got.append(x) }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[2], 3)
+}
+
+@test
+func test_enumerate_chain() {
+    var n = 0
+    for (i, x) in enumerate(chain([1, 2], [3])) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(x, n + 1)
+        n = n + 1
+    }
+    ut.assert_eq(n, 3)
+}
+
+@test
+func test_take_chain() {
+    let got = list[int]()
+    for x in take(chain([1, 2], [3, 4]), 3) { got.append(x) }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[2], 3)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in Chain")
+func test_next_strict_exhausted() {
+    let c = chain([1], [2])
+    c.next_strict()
+    c.next_strict()
+    c.next_strict()
+}
+
+@should_panic("Chain does not support step != 1")
+func test_iter_step_unsupported() {
+    let c = chain([1, 2], [3, 4])
+    c.iter(2)
+}
