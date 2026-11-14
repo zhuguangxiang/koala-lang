@@ -19,9 +19,6 @@
 extern "C" {
 #endif
 
-/* max call depth, stop for this limit */
-#define MAX_CALL_DEPTH 10000
-
 static TValue vm_tag_mappings[11] = {
     bool_value(0),
     bool_value(1),
@@ -88,6 +85,12 @@ static TValue kl_call_cfunc(Object *code, TValue *args, int nargs);
 
 /* JIT entry guard; defined with the other JIT runtime helpers at the end of file. */
 static inline int jit_params_ok(TValue *regs, int nargs);
+
+static int vm_frame_fits(KoalaState *ks, TValue *base, CodeObject *code)
+{
+    size_t available = (size_t)(ks->stack_limit - base);
+    return (size_t)code->cs.nlocals + (size_t)code->cs.max_call_args <= available;
+}
 
 /* baseline JIT: count a call and compile the code once when hot */
 static inline void jit_count_call(CodeObject *co)
@@ -173,10 +176,6 @@ static inline TValue _eval_frame(KoalaState *ks, CallFrame *cf)
     cf->back = ks->cf;
     // cf->ks = ks;
     ks->cf = cf;
-    // ++ks->depth;
-
-    // ASSERT(ks->depth <= MAX_CALL_DEPTH);
-
 ext_tailcall:
     ModuleObject *m = (ModuleObject *)cf->module;
     TValue *const_pool = VECTOR_ITEMS(&m->const_pool, TValue);
@@ -245,7 +244,6 @@ error:
 done:
     /* pop frame */
     ks->cf = cf->back;
-    // --ks->depth;
     return result;
 }
 
@@ -297,6 +295,15 @@ TValue kl_call_code(Object *code, TValue *args, int nargs)
     ASSERT(IS_CODE(code));
 
     CodeObject *co = (CodeObject *)code;
+
+    if (!ks->c_stack_limit) {
+        _raise_exc_code(ks, ks->cf ? ks->cf->code : co, "cannot determine thread stack bounds");
+        return error_value;
+    }
+    if ((uintptr_t)&co <= (uintptr_t)ks->c_stack_limit || !vm_frame_fits(ks, ks->stack_top, co)) {
+        _raise_exc_code(ks, ks->cf ? ks->cf->code : co, "stack overflow");
+        return error_value;
+    }
 
     /* build a call frame */
     CallFrame *cf = _new_frame(ks, co);
@@ -437,8 +444,8 @@ static inline int jit_params_ok(TValue *regs, int nargs)
 {
     for (int i = 0; i < nargs; i++) {
         TValue *v = regs + i;
-        if (!is_int(v) && !is_uint(v) && !is_bool(v) && !is_float(v) &&
-            !is_ref(v) && !is_intf(v)) return 0;
+        if (!is_int(v) && !is_uint(v) && !is_bool(v) && !is_float(v) && !is_ref(v) && !is_intf(v))
+            return 0;
     }
     return 1;
 }
@@ -447,8 +454,7 @@ static inline int jit_params_ok(TValue *regs, int nargs)
  * kl_call_code, which leaves ks->stack_top at caller_regs + nlocals -- exactly the
  * outgoing arg area -- and the native body never moves it, so the callee frame
  * lands here just as the interpreter's OP_CALL does. */
-TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs,
-                          uint32_t pc)
+TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs, uint32_t pc)
 {
     KoalaState *ks = __ks();
     ASSERT(ks->stack_top == args);
@@ -471,8 +477,7 @@ TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs,
     return ret;
 }
 
-TValue kl_jit_call_dyn(TValue *args, TValue *out, TValue *callee, int index, int nargs,
-                       uint32_t pc)
+TValue kl_jit_call_dyn(TValue *args, TValue *out, TValue *callee, int index, int nargs, uint32_t pc)
 {
     Object *fn;
     if (!callee) {
@@ -525,6 +530,10 @@ TValue kl_jit_tail_call(TValue *args, TValue *out, Object *fn, TValue *callee, i
     /* reuse this frame, as the interpreter's OP_TAIL_CALL does */
     ASSERT(IS_CODE(fn));
     CodeObject *co = (CodeObject *)fn;
+    if (!vm_frame_fits(ks, cf->locals, co)) {
+        raise_exc_str("stack overflow");
+        goto error;
+    }
     memmove(cf->locals, args, sizeof(TValue) * nargs);
     cf->code = co;
     Object *owner = co->owner;
@@ -642,14 +651,20 @@ TValue kl_jit_num_arith(TValue *a, TValue *b, int slot, uint32_t pc)
  * primitive fast paths (int/float/uint, plus bool for eq/ne) before falling back
  * to the slot table. Builtins have no cmp slot, so the fast path is required for
  * correctness, not just speed. */
-#define JIT_NUM_CMP_CASES(X, Y)                      \
-    switch (slot) {                                  \
-        case SLOT_EQ: return bool_value((X) == (Y)); \
-        case SLOT_NE: return bool_value((X) != (Y)); \
-        case SLOT_LT: return bool_value((X) < (Y));  \
-        case SLOT_LE: return bool_value((X) <= (Y)); \
-        case SLOT_GT: return bool_value((X) > (Y));  \
-        case SLOT_GE: return bool_value((X) >= (Y)); \
+#define JIT_NUM_CMP_CASES(X, Y) \
+    switch (slot) { \
+        case SLOT_EQ: \
+            return bool_value((X) == (Y)); \
+        case SLOT_NE: \
+            return bool_value((X) != (Y)); \
+        case SLOT_LT: \
+            return bool_value((X) < (Y)); \
+        case SLOT_LE: \
+            return bool_value((X) <= (Y)); \
+        case SLOT_GT: \
+            return bool_value((X) > (Y)); \
+        case SLOT_GE: \
+            return bool_value((X) >= (Y)); \
     }
 
 TValue kl_jit_num_cmp(TValue *a, TValue *b, int slot, uint32_t pc)
@@ -680,8 +695,7 @@ TValue kl_jit_num_cmp(TValue *a, TValue *b, int slot, uint32_t pc)
 
 /* Generic slot call with up to 3 args copied from the register file. Mirrors the
  * interpreter's kl_call_get_item/set_item/len/contains/slice/str family. */
-TValue kl_jit_slot3(TValue *a0, TValue *a1, TValue *a2, int nargs, int slot,
-                    uint32_t pc)
+TValue kl_jit_slot3(TValue *a0, TValue *a1, TValue *a2, int nargs, int slot, uint32_t pc)
 {
     KoalaState *ks = __ks();
     ks->cf->pc = pc;
@@ -719,7 +733,10 @@ TValue kl_jit_hash(TValue *obj, uint32_t pc)
     KoalaState *ks = __ks();
     ks->cf->pc = pc;
     unsigned int h = kl_call_hash(obj);
-    if (ks->exc) { trace_here(ks->cf); return error_value; }
+    if (ks->exc) {
+        trace_here(ks->cf);
+        return error_value;
+    }
     return int64_value(h);
 }
 
@@ -728,7 +745,10 @@ TValue kl_jit_fmt(TValue *obj, TValue *fmt, uint32_t pc)
     KoalaState *ks = __ks();
     ks->cf->pc = pc;
     kl_call_fmt(obj, (Formatter *)to_obj(fmt));
-    if (ks->exc) { trace_here(ks->cf); return error_value; }
+    if (ks->exc) {
+        trace_here(ks->cf);
+        return error_value;
+    }
     return nil_value;
 }
 
@@ -741,10 +761,7 @@ TValue kl_jit_print(int nargs, uint32_t pc)
     return ret;
 }
 
-TValue kl_jit_new(TypeObject *tp)
-{
-    return obj_value(kl_new_instance(tp));
-}
+TValue kl_jit_new(TypeObject *tp) { return obj_value(kl_new_instance(tp)); }
 
 TValue kl_jit_build_intern(int tag, int count)
 {

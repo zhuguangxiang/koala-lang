@@ -42,6 +42,7 @@ set(PARSER_SRC
     parser/opt/const_copy_prop.c
     parser/opt/dce.c
     parser/opt/inline.c
+    parser/opt/inline_cost.c
     parser/opt/unroll.c
     parser/opt/cfg_bb_opt.c
     parser/opt/normalize.c

@@ -81,6 +81,8 @@ void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
 
 void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(ks->cf->code, str); }
 
+void _raise_exc_code(KoalaState *ks, CodeObject *code, char *str) { ks->exc = _new_exc(code, str); }
+
 char *kl_exc_get_msg(Object *exc)
 {
     if (!exc) return NULL;
@@ -174,10 +176,7 @@ static void print_source_line(const char *filename, int target_line)
     fclose(fp);
 }
 
-static int same_str(const char *a, const char *b)
-{
-    return a == b || (a && b && !strcmp(a, b));
-}
+static int same_str(const char *a, const char *b) { return a == b || (a && b && !strcmp(a, b)); }
 
 static int same_traceback(TraceBack *a, TraceBack *b)
 {

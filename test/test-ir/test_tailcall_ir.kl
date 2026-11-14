@@ -1,0 +1,90 @@
+// RUN: koalac %s --isel --tail-call --dump=lir | filecheck %s --check-prefix=TAIL
+// RUN: koalac %s --isel --tail-call --recursive-self-inline --dump=lir | filecheck %s --check-prefix=TAIL
+// RUN: koalac %s --isel --dump=lir | filecheck %s --check-prefix=OFF
+
+func rotate(n int, a int, b int, c int) int {
+    if n == 0 { return a }
+    return rotate(n - 1, b, c, a)
+}
+
+func branches(n int) int {
+    if n <= 0 { return n }
+    if n < 10 { return branches(n - 1) }
+    return branches(n - 2)
+}
+
+func non_tail(n int) int {
+    if n <= 0 { return n }
+    return non_tail(n - 1) + 1
+}
+
+func nested(n int) int {
+    if n <= 0 { return n }
+    return nested(nested(n - 1))
+}
+
+func even(n int) bool {
+    if n == 0 { return true }
+    return odd(n - 1)
+}
+
+func odd(n int) bool {
+    if n == 0 { return false }
+    return even(n - 1)
+}
+
+class Counter {
+    func down(n int) int {
+        if n <= 0 { return n }
+        return self.down(n - 1)
+    }
+}
+
+// TAIL-LABEL: --- IR Dump After isel [@rotate] ---
+// TAIL: [[TEMP:%[0-9]+]] = local int64
+// TAIL-NEXT: move [[TEMP]] int64, %a int64
+// TAIL-NEXT: move %a int64, %b int64
+// TAIL-NEXT: move %b int64, %c int64
+// TAIL-NEXT: move %c int64, [[TEMP]] int64
+// TAIL-NEXT: tail_call @rotate, nargs=4
+// TAIL-LABEL: --- IR Dump After isel [@branches] ---
+// TAIL-COUNT-2: tail_call @branches, nargs=1
+// TAIL-NOT: tail_call @branches
+// TAIL-LABEL: --- IR Dump After isel [@non_tail] ---
+// TAIL-NOT: tail_call @non_tail
+// TAIL: call @non_tail, nargs=1
+// TAIL-NEXT: {{.*}}int.add_imm
+// TAIL-NOT: tail_call @non_tail
+// TAIL-LABEL: --- IR Dump After isel [@nested] ---
+// TAIL: call @nested, nargs=1
+// TAIL-NEXT: tail_call @nested, nargs=1
+// TAIL-LABEL: --- IR Dump After isel [@even] ---
+// TAIL: tail_call @odd, nargs=1
+// TAIL-LABEL: --- IR Dump After isel [@odd] ---
+// TAIL: tail_call @even, nargs=1
+// TAIL-LABEL: --- IR Dump After isel [@Counter::down] ---
+// TAIL: tail_call @Counter:down, nargs=2
+
+// OFF-LABEL: --- IR Dump After isel [@rotate] ---
+// OFF-NOT: tail_call
+// OFF: [[ROT:%[0-9]+]] = call @rotate, nargs=4
+// OFF-NEXT: ret [[ROT]] int64
+// OFF-LABEL: --- IR Dump After isel [@branches] ---
+// OFF-NOT: tail_call
+// OFF-COUNT-2: call @branches, nargs=1
+// OFF-NOT: tail_call
+// OFF-LABEL: --- IR Dump After isel [@non_tail] ---
+// OFF-NOT: tail_call
+// OFF: call @non_tail, nargs=1
+// OFF-LABEL: --- IR Dump After isel [@nested] ---
+// OFF-NOT: tail_call
+// OFF-COUNT-2: call @nested, nargs=1
+// OFF-NOT: tail_call
+// OFF-LABEL: --- IR Dump After isel [@even] ---
+// OFF: call @odd, nargs=1
+// OFF-LABEL: --- IR Dump After isel [@odd] ---
+// OFF: call @even, nargs=1
+// OFF-LABEL: --- IR Dump After isel [@Counter::down] ---
+// OFF: [[DOWN:%[0-9]+]] = call @Counter:down, nargs=2
+// OFF-NEXT: ret [[DOWN]] int64
+// OFF-NOT: tail_call

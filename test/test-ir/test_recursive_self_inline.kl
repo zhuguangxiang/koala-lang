@@ -1,0 +1,89 @@
+// RUN: koalac %s --opt --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s
+// RUN: koalac %s --inline --opt --dump=inline-ir,recursive-self-inline-ir | filecheck %s --check-prefix=OFF
+// RUN: koalac %s --opt --ssa --recursive-self-inline --dump=recursive-self-inline-ir 2>&1 | filecheck %s --check-prefix=SSA-OFF
+// RUN: koalac %s --ssa --opt --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s --check-prefix=CHECK
+//
+// The static 50/50 branch estimate limits fib to seven levels. Mutual recursion
+// is not expanded.
+
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+// CHECK-LABEL: --- IR Dump After recursive-self-inline ---
+// CHECK-NEXT:  func @fib(
+// CHECK-COUNT-256: call @fib
+// CHECK-NOT: call @fib
+// CHECK-LABEL: func @block_budget(
+// CHECK-COUNT-4: call @block_budget
+// CHECK-NOT: call @block_budget
+// CHECK-LABEL: func @linear(
+// CHECK-COUNT-9: sub
+// CHECK-NOT: sub
+// CHECK-LABEL: func @guarded(
+// CHECK-COUNT-8: sub
+// CHECK-NOT: sub
+// CHECK-LABEL: func @wide(
+// CHECK-COUNT-256: call @wide
+// CHECK-NOT: call @wide
+// CHECK-LABEL: func @asymmetric(
+// CHECK-COUNT-19: call @asymmetric
+// CHECK-NOT: call @asymmetric
+// CHECK-NOT: func @mutual_a
+// CHECK-NOT: func @mutual_b
+// CHECK-NOT: func @too_many_calls
+//
+// OFF-LABEL: --- IR Dump After inline ---
+// OFF-NEXT:  func @fib(
+// OFF: call @fib
+// OFF: call @fib
+// OFF-NOT: IR Dump After recursive-self-inline
+// SSA-OFF: warning: --recursive-self-inline needs --opt, ignored
+// SSA-OFF-NOT: IR Dump After recursive-self-inline
+
+func block_budget(n int) int {
+    if n == 0 { return 0 }
+    if n == 1 { return 1 }
+    if n == 2 { return 2 }
+    if n == 3 { return 3 }
+    return block_budget(n - 1) + block_budget(n - 2)
+}
+
+func linear(n int) int {
+    return linear(n - 1) + 1
+}
+
+func guarded(n int) int {
+    if n <= 0 { return n }
+    return guarded(n - 1) + 1
+}
+
+func wide(n int) int {
+    return wide(n - 1) + wide(n - 2)
+}
+
+func asymmetric(n int, a bool, b bool, c bool) int {
+    if n < 0 { return n }
+    if a {
+        if b {
+            if c { return asymmetric(n - 1, a, b, c) + 1 }
+        }
+    }
+    return asymmetric(n - 2, a, b, c) + 1
+}
+
+func mutual_a(n int) int {
+    if n <= 0 { return n }
+    return mutual_b(n - 1)
+}
+
+func mutual_b(n int) int {
+    if n <= 0 { return n }
+    return mutual_a(n - 1)
+}
+
+func too_many_calls(n int) int {
+    if n <= 0 { return n }
+    return too_many_calls(n - 1) + too_many_calls(n - 2) + too_many_calls(n - 3)
+}

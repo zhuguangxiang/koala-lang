@@ -27,17 +27,17 @@ extern "C" {
 /* pthread */
 __thread ThreadState *__ts;
 
-/* The calling thread's native stack floor plus a margin. JIT direct self calls
- * (no C frames between levels) check rsp against it. */
+/* The calling thread's native stack floor plus a margin for error handling. */
 static char *c_stack_limit(void)
 {
     pthread_attr_t attr;
     void *addr = NULL;
     size_t size = 0;
     if (pthread_getattr_np(pthread_self(), &attr) != 0) return NULL;
-    pthread_attr_getstack(&attr, &addr, &size);
+    int status = pthread_attr_getstack(&attr, &addr, &size);
     pthread_attr_destroy(&attr);
-    if (!addr || size <= 2 * C_STACK_MARGIN) return NULL;
+    if (status != 0 || !addr) return NULL;
+    if (size <= C_STACK_MARGIN) return (char *)addr + size;
     return (char *)addr + C_STACK_MARGIN;
 }
 

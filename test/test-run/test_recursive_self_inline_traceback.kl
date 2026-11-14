@@ -1,0 +1,30 @@
+// RUN: koala %s ++ --recursive-self-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --recursive-self-inline 2>&1 | filecheck %s
+// RUN: koala %s 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s 2>&1 | filecheck %s
+
+func fail(n int) int {
+    if n == 0 { return 10 / n }
+    return fail(n - 1) + 1
+}
+
+func main() {
+    print(fail(2))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_recursive_self_inline_traceback.kl", line 7, in fail
+// CHECK-NEXT:     if n == 0 { return 10 / n }
+// CHECK-NEXT:   File "{{.*}}test_recursive_self_inline_traceback.kl", line 8, in fail
+// CHECK-NEXT:     return fail(n - 1) + 1
+// CHECK-NEXT:   File "{{.*}}test_recursive_self_inline_traceback.kl", line 8, in fail
+// CHECK-NEXT:     return fail(n - 1) + 1
+// CHECK-NEXT:   File "{{.*}}test_recursive_self_inline_traceback.kl", line 12, in main
+// CHECK-NEXT:     print(fail(2))
+// CHECK: Error: division by zero
+
+// RUN: koalac %s --opt --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s --check-prefix=IR
+// IR-LABEL: func @fail(
+// IR: self-inline-cont
+// IR: div
+// IR: call @fail

@@ -1,0 +1,22 @@
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline | filecheck %s
+// RUN: koalac %s --cgen --tail-call --write-klc -o %t.klc
+// RUN: sh -c 'ulimit -s 256; exec env KOALA_JIT=0 koala "$1"' _ %t.klc 2>&1 | filecheck %s --check-prefix=BOUNDS
+
+func depth(n int) int {
+    if n == 0 { return 0 }
+    return depth(n - 1) + 1
+}
+
+func tail(n int, acc int) int {
+    if n == 0 { return acc }
+    return tail(n - 1, acc + 1)
+}
+
+func main() {
+    print(depth(1500))
+    print(tail(1000000, 0))
+}
+
+// CHECK: 1500
+// CHECK-NEXT: 1000000
+// BOUNDS: Error: stack overflow

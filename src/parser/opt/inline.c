@@ -21,6 +21,8 @@
 
 #include "atom.h"
 #include "cmd.h"
+#include "domtree.h"
+#include "inline_cost.h"
 #include "mm.h"
 #include "opt.h"
 #include "symbol.h"
@@ -480,6 +482,251 @@ void kl_inline(KlrModule *m)
     ptr_map_fini(&states);
 
     if (dump_inline_ir_enabled()) dump_funcs(m);
+}
+
+#define SELF_INLINE_MAX_BLOCKS 16
+#define SELF_INLINE_MAX_INSNS  32
+
+typedef struct _SelfInlineBody {
+    KlrBasicBlock *blocks[SELF_INLINE_MAX_BLOCKS];
+    KlrInsn *insns[SELF_INLINE_MAX_BLOCKS][SELF_INLINE_MAX_INSNS];
+    int sizes[SELF_INLINE_MAX_BLOCKS];
+    KlrInsn *calls[RECURSIVE_INLINE_MAX_CALLS];
+    int nblocks;
+    int ncalls;
+    int ninsns;
+    int nreturns;
+} SelfInlineBody;
+
+typedef struct _SelfInlineCopy {
+    KlrBasicBlock *continuation;
+    KlrBasicBlock *entry;
+    KlrValue *result;
+} SelfInlineCopy;
+
+typedef struct _SelfInlineWork {
+    KlrInsn *call;
+    SelfInlineCopy copy;
+    int probability;
+} SelfInlineWork;
+
+static int self_inline_body(KlrFunc *fn, SelfInlineBody *body)
+{
+    memset(body, 0, sizeof(*body));
+    if (fn->no_inline || fn->has_tailcall || type_is_no_type(fn->ts) || !subst_type(fn->ts, NULL))
+        return 0;
+    KlrParam *param;
+    vector_foreach(param, &fn->params) {
+        if (param->def_count || !subst_type(param->ts, NULL) ||
+            (param->ts && param->ts->kind == TYPE_VA_LIST))
+            return 0;
+    }
+
+    int total = 0;
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        if (body->nblocks == SELF_INLINE_MAX_BLOCKS) return 0;
+        int b = body->nblocks++;
+        body->blocks[b] = bb;
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            KlrInsn *next = insn_next(insn, bb);
+            if (tail_call_enabled() && insn_is(insn, OP_IR_CALL) && next && insn_is(next, OP_RET) &&
+                insn_oper_value(next, 0) == (KlrValue *)insn)
+                return 0;
+            if (++total > SELF_INLINE_MAX_INSNS || insn_is(insn, OP_IR_PHI) ||
+                insn_is(insn, OP_UNREACHABLE) || insn_is(insn, OP_RET_VOID) ||
+                (insn_is(insn, OP_RET) && !is_movable_value(insn_oper_value(insn, 0))) ||
+                (insn != insn_last(bb) && insn_is_terminator(insn)) || insn->tp_args ||
+                (insn->ts && !subst_type(insn->ts, NULL)) ||
+                (insn->target_ts && !subst_type(insn->target_ts, NULL)))
+                return 0;
+            body->insns[b][body->sizes[b]++] = insn;
+            if (insn_is(insn, OP_RET)) ++body->nreturns;
+            if (direct_callee(insn, fn->module) == fn) {
+                if (body->ncalls == RECURSIVE_INLINE_MAX_CALLS) return 0;
+                body->calls[body->ncalls++] = insn;
+            }
+        }
+        KlrInsn *last = insn_last(bb);
+        if (!last || (!insn_or(last, OP_RET, OP_JMP) && !insn_is(last, OP_IR_JMP_COND))) return 0;
+    }
+    body->ninsns = total;
+    return body->nblocks && body->ncalls;
+}
+
+static void self_inline_prepare(KlrFunc *fn, SelfInlineBody *body, KlrInsn *call,
+                                SelfInlineCopy *copy, KlrInsn **nested)
+{
+    HashMap map, site_map;
+    hashmap_init(&map, _ptr_equal_);
+    hashmap_init(&site_map, _ptr_equal_);
+
+    KlrInlineSite *site = mm_alloc_obj(site);
+    site->func_name = runtime_func_name(fn);
+    site->filename = call->loc.filename;
+    site->loc = call->loc.loc;
+    site->parent = call->loc.inlined_at;
+
+    KlrBuilder before;
+    klr_builder_before(&before, call);
+    KlrParam *param;
+    vector_foreach(param, &fn->params) {
+        KlrValue *arg = insn_oper_value(call, i__ + 1);
+        KlrValue *local = build_local_copy(&before, arg, param->ts);
+        ptr_map_put(&map, param, local);
+    }
+    copy->result = klr_build_local_var(&before, call->ts, "");
+    copy->continuation = klr_add_block(call->bb, "self-inline-cont");
+
+    for (int b = 0; b < body->nblocks; b++) {
+        KlrBasicBlock *cloned = klr_append_block((KlrValue *)fn, body->blocks[b]->name);
+        ptr_map_put(&map, body->blocks[b], cloned);
+        if (b == 0) copy->entry = cloned;
+    }
+
+    for (int b = 0; b < body->nblocks; b++) {
+        KlrBuilder builder;
+        KlrBasicBlock *cloned = ptr_map_get(&map, body->blocks[b]);
+        klr_builder_end(&builder, cloned);
+        for (int i = 0; i < body->sizes[b]; i++) {
+            KlrInsn *insn = body->insns[b][i];
+            if (insn_is(insn, OP_RET)) continue;
+            KlrInsn *clone = klr_build_clone(&builder, insn, insn->ts);
+            if (insn->loc.filename) {
+                clone->loc = insn->loc;
+                clone->loc.inlined_at = rebase_site(insn->loc.inlined_at, site, &site_map);
+            } else {
+                clone->loc = call->loc;
+            }
+            clone->flags |= KLR_INSN_FLAGS_INLINED;
+            ptr_map_put(&map, insn, clone);
+        }
+    }
+
+    for (int b = 0; b < body->nblocks; b++) {
+        KlrBasicBlock *cloned = ptr_map_get(&map, body->blocks[b]);
+        for (int i = 0; i < body->sizes[b]; i++) {
+            KlrInsn *insn = body->insns[b][i];
+            if (insn_is(insn, OP_RET)) {
+                KlrValue *val = insn_oper_value(insn, 0);
+                KlrValue *mapped = ptr_map_get(&map, val);
+                KlrBuilder builder;
+                klr_builder_end(&builder, cloned);
+                klr_build_move(&builder, copy->result, mapped ? mapped : val);
+                klr_build_jmp(&builder, copy->continuation);
+                continue;
+            }
+            KlrInsn *clone = ptr_map_get(&map, insn);
+            for (int j = 0; j < insn->num_opers; j++) {
+                KlrValue *val = insn_oper_value(insn, j);
+                KlrValue *mapped = val ? ptr_map_get(&map, val) : NULL;
+                klr_init_clone_oper(clone, insn, j, mapped ? mapped : val);
+            }
+        }
+        KlrEdge *edge;
+        edge_out_foreach(edge, body->blocks[b]) {
+            if (edge->dst == fn->ebb) continue;
+            KlrBasicBlock *dst = ptr_map_get(&map, edge->dst);
+            ASSERT(dst);
+            klr_link_edge(cloned, dst);
+        }
+    }
+    for (int i = 0; i < body->ncalls; i++) nested[i] = ptr_map_get(&map, body->calls[i]);
+    ptr_map_fini(&map);
+    ptr_map_fini(&site_map);
+}
+
+static void self_inline_finish(KlrInsn *call, SelfInlineCopy *copy)
+{
+    KlrBasicBlock *bb = call->bb;
+    KlrInsn *insn = insn_next(call, bb);
+    while (insn) {
+        KlrInsn *next = insn_next(insn, bb);
+        list_remove(&insn->bb_link);
+        list_push_back(&copy->continuation->insn_list, &insn->bb_link);
+        insn->bb = copy->continuation;
+        --bb->num_insns;
+        ++copy->continuation->num_insns;
+        insn = next;
+    }
+    KlrEdge *edge, *next_edge;
+    edge_out_foreach_safe(edge, next_edge, bb) {
+        klr_link_edge(copy->continuation, edge->dst);
+        klr_remove_edge(edge);
+    }
+    replace_all_uses_with(copy->result, (KlrValue *)call);
+    klr_erase_insn(call);
+    KlrBuilder builder;
+    klr_builder_end(&builder, bb);
+    klr_build_jmp(&builder, copy->entry);
+}
+
+static int self_inline_func(KlrFunc *fn)
+{
+    SelfInlineBody body;
+    if (!self_inline_body(fn, &body)) return 0;
+
+    SelfInlineWork work[RECURSIVE_INLINE_MAX_SITES];
+    int probabilities[RECURSIVE_INLINE_MAX_CALLS];
+    recursive_inline_call_probabilities(fn, body.calls, body.ncalls, probabilities);
+    int queued = 0, prepared = 0;
+    for (int i = 0; i < body.ncalls; i++) {
+        if (recursive_inline_probability_allowed(probabilities[i]))
+            work[queued++] =
+                (SelfInlineWork){ .call = body.calls[i], .probability = probabilities[i] };
+    }
+    RecursiveInlineCost cost;
+    recursive_inline_cost_init(&cost, body.ninsns, body.nreturns, vector_size(&fn->params),
+                               body.nblocks);
+    int level_end = queued;
+
+    // Prepare all copies from the unchanged body before splitting any call blocks.
+    for (int depth = 1; queued > prepared && depth <= RECURSIVE_INLINE_MAX_DEPTH; depth++) {
+        int level_count = level_end - prepared;
+        if (!recursive_inline_cost_allow_level(&cost, depth, level_count)) break;
+        while (prepared < level_end) {
+            SelfInlineWork *item = &work[prepared++];
+            KlrInsn *nested[RECURSIVE_INLINE_MAX_CALLS];
+            self_inline_prepare(fn, &body, item->call, &item->copy, nested);
+            if (depth < RECURSIVE_INLINE_MAX_DEPTH) {
+                for (int i = 0; i < body.ncalls; i++) {
+                    int probability =
+                        recursive_inline_probability_product(item->probability, probabilities[i]);
+                    if (!recursive_inline_probability_allowed(probability)) continue;
+                    ASSERT(queued < RECURSIVE_INLINE_MAX_SITES);
+                    work[queued++] =
+                        (SelfInlineWork){ .call = nested[i], .probability = probability };
+                }
+            }
+        }
+        level_end = queued;
+    }
+    for (int i = 0; i < prepared; i++) self_inline_finish(work[i].call, &work[i].copy);
+    if (!prepared) return 0;
+    klr_func_free_domtree(fn);
+    if (dump_recursive_inline_ir_enabled()) {
+        fprintf(stdout, "--- IR Dump After recursive-self-inline ---\n");
+        klr_print_func(fn, stdout);
+    }
+    return prepared;
+}
+
+int kl_recursive_self_inline(KlrModule *m)
+{
+    if (!m || m->errors > 0) return 0;
+    int count = 0;
+    KlrFunc *fn;
+    func_foreach(fn, m) {
+        if (fn) count += self_inline_func(fn);
+    }
+    KlrKlass *kls;
+    vector_foreach(kls, &m->klasses) {
+        func_foreach(fn, kls) {
+            if (fn) count += self_inline_func(fn);
+        }
+    }
+    return count;
 }
 
 #ifdef __cplusplus

@@ -1,7 +1,8 @@
 // RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: sh -c 'ulimit -s 32768 || exit 1; exec env KOALA_JIT=0 koala "$1" ++ --no-inline' _ %s 2>&1 | filecheck %s
 // Deep mutual recursion through JIT direct calls with large frames: the VM
 // stack (not the native stack) runs out first and raises "stack overflow".
-// (The interpreter overflows the C stack here: no KOALA_JIT=0 run.)
 
 func big_a(n int) int {
     var a = n + 1

@@ -1,0 +1,67 @@
+// RUN: koala %s ++ --recursive-self-inline | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --recursive-self-inline | filecheck %s
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// RUN: koalac %s --opt --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s --check-prefix=IR
+
+class Log {
+    var value int = 0
+
+    func count(n int) int {
+        if n <= 0 { return self.value }
+        return self.count(n - 1) + 1
+    }
+}
+
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+// Each recursive call must keep its own argument snapshot and preserve order.
+func visit(n int, log Log) int {
+    log.value = log.value * 10 + n
+    if n <= 0 { return 1 }
+    let a = visit(n - 1, log)
+    log.value = log.value * 10 + n
+    return a + visit(n - 2, log)
+}
+
+func with_loop(n int, seed int) int {
+    var sum = seed
+    var i = 0
+    while i < 2 {
+        sum = sum + n
+        i = i + 1
+    }
+    if n <= 0 { return sum }
+    return with_loop(n - 1, sum) + n
+}
+
+func main() {
+    var i = 0
+    while i < 3 {
+        let log = Log()
+        print(fib(-1), fib(0), fib(1), fib(10), visit(2, log), log.value)
+        print(with_loop(3, 5), Log().count(3))
+        i = i + 1
+    }
+}
+
+// CHECK: -1 0 1 55 3 2100920
+// CHECK-NEXT: 23 3
+// CHECK-NEXT: -1 0 1 55 3 2100920
+// CHECK-NEXT: 23 3
+// CHECK-NEXT: -1 0 1 55 3 2100920
+// CHECK-NEXT: 23 3
+// IR-LABEL: func @visit(
+// IR: set_field
+// IR: self-inline-cont
+// IR-COUNT-128: call @visit
+// IR-NOT: call @visit
+// IR-LABEL: func @with_loop(
+// IR: self-inline-cont
+// IR: call @with_loop
+// IR-LABEL: func @Log:count(
+// IR: self-inline-cont
+// IR: call @Log:count

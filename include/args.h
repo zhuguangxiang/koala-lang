@@ -13,19 +13,20 @@ extern "C" {
 #define MAX_PATH_LEN 1024
 
 typedef struct KoalaOptions {
-    int compile_only;            // -c
-    int enable_ssa;              // --ssa
-    int enable_int_trap;         // --int-trap
-    int enable_float_trap;       // --float-trap
-    int test_mode;               // --test
-    int strip_lineinfo;          // --strip-lineinfo
-    int disable_inline;          // --no-inline
-    int enable_domtree;          // --domtree
-    int enable_unroll;           // --unroll
-    char *dump;                  // --dump=<list>
-    const char *output;          // -o <file>
-    const char *input;           // input file
-    char pkg_name[MAX_PATH_LEN]; // --package-name=<name>
+    int compile_only;                 // -c
+    int enable_ssa;                   // --ssa
+    int enable_int_trap;              // --int-trap
+    int enable_float_trap;            // --float-trap
+    int test_mode;                    // --test
+    int strip_lineinfo;               // --strip-lineinfo
+    int disable_inline;               // --no-inline
+    int enable_domtree;               // --domtree
+    int enable_unroll;                // --unroll
+    int enable_recursive_self_inline; // --recursive-self-inline
+    char *dump;                       // --dump=<list>
+    const char *output;               // -o <file>
+    const char *input;                // input file
+    char pkg_name[MAX_PATH_LEN];      // --package-name=<name>
     char argc;
     char **argv;
 } KoalaOptions;

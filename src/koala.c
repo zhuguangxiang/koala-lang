@@ -117,8 +117,8 @@ static char *make_temp_klc(void)
 
 static int compile(const char *input, const char *output, KoalaOptions *opt)
 {
-    char buf_2[32];
-    char *argv[20];
+    char buf_2[160];
+    char *argv[24];
     int n = 0;
 
     argv[n++] = "koalac";
@@ -153,6 +153,10 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
 
     if (opt->enable_unroll) {
         argv[n++] = "--unroll";
+    }
+
+    if (opt->enable_recursive_self_inline) {
+        argv[n++] = "--recursive-self-inline";
     }
 
     if (opt->dump) {

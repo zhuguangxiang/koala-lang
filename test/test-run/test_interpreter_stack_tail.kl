@@ -1,0 +1,52 @@
+// RUN: sh -c 'ulimit -s 32768 || exit 1; exec env KOALA_JIT=0 koala "$1" ++ --no-inline' _ %s 2>&1 | filecheck %s
+// RUN: sh -c 'ulimit -s 32768 || exit 1; exec env KOALA_JIT_THRESHOLD=1 koala "$1" ++ --no-inline' _ %s 2>&1 | filecheck %s
+// RUN: koalac %s --cgen --fusion --tail-call --dump=code | filecheck %s --check-prefix=CODE
+// The final descend frame fits, but replacing it with large exceeds the VM stack.
+
+func large(n int) int {
+    let a = n + 1
+    let b = n + 2
+    let c = n + 3
+    let d = n + 4
+    let e = n + 5
+    let f = n + 6
+    let g = n + 7
+    let h = n + 8
+    let i = n + 9
+    let j = n + 10
+    let k = n + 11
+    let l = n + 12
+    let m = n + 13
+    let o = n + 14
+    let p = n + 15
+    let q = n + 16
+    return a + b + c + d + e + f + g + h + i + j + k + l + m + o + p + q
+}
+
+func descend(n int) int {
+    let a = n + 1
+    let b = n + 2
+    let c = n + 3
+    let d = n + 4
+    let e = n + 5
+    let f = n + 6
+    let g = n + 7
+    let h = n + 8
+    if n == 0 { return large(n) }
+    return descend(n - 1) + a + b + c + d + e + f + g + h
+}
+
+func main() {
+    print(descend(0))
+    print(descend(14562))
+}
+
+// CHECK: 136
+// CHECK: in descend
+// CHECK-NEXT: if n == 0 { return large(n) }
+// CHECK: Error: stack overflow
+// CODE: @large:
+// CODE-NEXT: {{.*}}nlocals: 16, max_call_args: 0
+// CODE: @descend:
+// CODE-NEXT: {{.*}}nlocals: 9, max_call_args: 1
+// CODE: tail_call flg=8

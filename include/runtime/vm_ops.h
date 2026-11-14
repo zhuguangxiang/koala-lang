@@ -580,6 +580,10 @@ TARGET(OP_TAIL_CALL) {
 
     ASSERT(IS_CODE(fn));
     CodeObject *callee_co = (CodeObject *)fn;
+    if (!vm_frame_fits(ks, regs, callee_co)) {
+        raise_exc_str("stack overflow");
+        goto error;
+    }
 
     // reuse this frame: the arguments become the callee's first locals
     memmove(regs, args, sizeof(TValue) * imm);

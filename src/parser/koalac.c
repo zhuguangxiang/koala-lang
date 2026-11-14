@@ -34,6 +34,7 @@ static void usage(void)
         "  --inline             Inline small functions of the current module.\n"
         "  --domtree            Build the dominator tree.\n"
         "  --unroll             Unroll small counted loops (needs --opt and --domtree).\n"
+        "  --recursive-self-inline  Inline direct self-recursive calls (needs --opt).\n"
         "  --opt                Enable optimization passes (default).\n"
         "  --isel               Enable instruction selection stage.\n"
         "  --lsra               Enable linear scan register allocator.\n"
@@ -52,6 +53,7 @@ static void usage(void)
         "                           ir        - optimized IR (after opt passes)\n"
         "                           domtree   - dominator tree info\n"
         "                           unroll-ir - IR after loop unrolling\n"
+        "                           recursive-self-inline-ir - IR after recursive self inlining\n"
         "                           lir       - LIR (after isel/regalloc)\n"
         "                           vreg      - dump virtual register info\n"
         "                           code      - codegen output\n"
@@ -130,6 +132,8 @@ static DumpFlags parse_dump_flags(const char *s)
             flags |= DUMP_DOMTREE;
         else if (str_equal(tok, "unroll-ir"))
             flags |= DUMP_UNROLL_IR;
+        else if (str_equal(tok, "recursive-self-inline-ir"))
+            flags |= DUMP_RECURSIVE_INLINE_IR;
         else if (str_equal(tok, "lir"))
             flags |= DUMP_LIR;
         else if (str_equal(tok, "vreg"))
@@ -183,6 +187,7 @@ static void parse_command(int argc, char *argv[])
         { "inline", no_argument, 0, 16 },
         { "domtree", no_argument, 0, 17 },
         { "unroll", no_argument, 0, 18 },
+        { "recursive-self-inline", no_argument, 0, 19 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -281,6 +286,10 @@ static void parse_command(int argc, char *argv[])
 
             case 18:
                 cmd_opt.enable_unroll = 1;
+                break;
+
+            case 19:
+                cmd_opt.enable_recursive_self_inline = 1;
                 break;
 
             case 'o': {
@@ -589,6 +598,14 @@ static int compile(ParserModule *pm)
 
     if (opt_enabled()) {
         kl_optimize(m);
+    }
+
+    if (recursive_self_inline_enabled()) {
+        if (!opt_enabled()) {
+            fprintf(stderr, "warning: --recursive-self-inline needs --opt, ignored\n");
+        } else if (kl_recursive_self_inline(m)) {
+            kl_optimize(m);
+        }
     }
 
     // unrolling needs the dominator tree, re-optimize the unrolled loops

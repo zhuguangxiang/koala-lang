@@ -31,6 +31,7 @@ void _raise_exc_fmt(KoalaState *ks, char *fmt, ...);
     } while (0)
 
 void _raise_exc_str(KoalaState *ks, char *str);
+void _raise_exc_code(KoalaState *ks, CodeObject *code, char *str);
 
 #define raise_exc_str(str) \
     do { \

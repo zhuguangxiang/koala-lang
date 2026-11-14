@@ -1,0 +1,19 @@
+// RUN: koala %s ++ --recursive-self-inline | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --recursive-self-inline | filecheck %s
+// RUN: koalac %s --opt --tail-call --cgen --recursive-self-inline --dump=code | filecheck %s --check-prefix=CODE
+// RUN: koalac %s --opt --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s --check-prefix=INLINE
+
+func sum(n int, acc int) int {
+    if n == 0 { return acc }
+    return sum(n - 1, acc + n)
+}
+
+func main() {
+    print(sum(1000000, 0))
+}
+
+// CHECK: 500000500000
+// CODE-LABEL: @sum[
+// CODE: tail_call flg=0, #2
+// INLINE-LABEL: func @sum(
+// INLINE: self-inline-cont

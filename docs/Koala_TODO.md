@@ -5041,6 +5041,21 @@ VanDrunen, Hosking, "Value-Based Partial Redundancy Elimination", CC 2004。
     嵌套 / 循环后读计数器 / 倒数 / 常量在左 / if-else / 0 趟 / 步长 / lambda / 死代码除零 / 接近 INT64_MAX）、
     `test/test-run/test_unroll_traceback.kl`（展开后 traceback 行号不变）。
   - 性能：`test/test-bench/test_unroll.kl`，结果见 `test/test-bench/README.md`。
+- 直接自递归内联：`--recursive-self-inline` 默认关闭，在首次 opt 后逐层展开当前模块的直接自调用，
+  最多八层，然后重跑 opt；不处理互递归。`inline_cost.c` 借鉴 GCC 的成本参数、阈值按 Koala 调整：
+  每层预估总量不超过 4096 个 KLR 指令单位（不是 GCC 伪指令）和 1024 个基本块；用静态 50/50 分支
+  估算调用概率，逐层相乘，不超过 0.5% 的调用点不展开。估算不考虑循环次数和真实 profile，
+  fib 目前实际展开七层。
+  原函数限制为 16 个基本块、32 条指令、两个自调用，并跳过 void、开放泛型、变长参数、
+  被写的参数、PHI 和不支持的终止指令。启用尾调用优化时跳过含尾调用的函数，保留尾调用优化。
+  `--dump=recursive-self-inline-ir`
+  输出变换后、再次优化前的 IR，例如
+  `koalac bench/fib.kl --opt --recursive-self-inline --dump=recursive-self-inline-ir`。
+  需要 opt；`--ssa` 默认关闭 opt，`koalac --ssa --opt` 可同时启用，`koala ++ --ssa` 会跳过并警告。
+  内联保留 traceback 逻辑帧，但真实栈帧减少，栈溢出阈值可能改变。
+  测试：`test/test-ir/test_recursive_self_inline.kl`、
+  `test/test-run/test_recursive_self_inline.kl`、`test/test-run/test_recursive_self_inline_traceback.kl`、
+  `test/test-run/test_recursive_self_inline_tailcall.kl`、`test/test-c/test_inline_cost.c`。
 
 ### 103.5 参考（暂不实现）
 
@@ -5221,9 +5236,13 @@ JIT review 发现的错误（JIT 开 / `KOALA_JIT=0` 输出不同或崩溃），
 - **性能**：`bench/fib.kl` 0.79s → 0.81s（debug）。
 - **测试**：`test/test-run/test_jit_selfcall.kl`、`test_jit_selfcall_error.kl`、`test_jit_div_zero.kl`、`test_jit_stack_overflow.kl`（仅 JIT，见下）；`test_tailcall_traceback.kl` 加 JIT 开的 RUN。均双跑（JIT 开 / `KOALA_JIT=0`），已做变异验证。
 
-**review 中顺带发现的解释器问题（未修）**：
+**review 中顺带发现的解释器问题**：
 
-- [ ] 解释器无递归深度检查：`f(10000000)` 非尾递归在 `KOALA_JIT=0` 下段错误（`_new_frame` 只 ASSERT）。应抛 `stack overflow`，之后 `test_jit_stack_overflow.kl` 可加 `KOALA_JIT=0` 的 RUN。
+- [x] 解释器深递归栈溢出：建帧前检查线程原生栈边界（保留 256 KiB 余量）和 VM 栈空间，
+  不设固定递归层数；溢出或线程栈不大于 256 KiB 时抛 `stack overflow`。线程栈边界不可获取时
+  明确报错，不跳过检查。尾调用复用帧时也检查被调函数的 VM 栈需求，尾递归不增加深度。
+  测试：`test_jit_stack_overflow.kl`、`test_jit_direct_call_frames.kl`、
+  `test_interpreter_stack.kl`、`test_interpreter_stack_tail.kl`。
 - [ ] `str(p)`，`p` 是带 `__str__` 的用户类：`OP_STR` 触发 `to_obj` 断言。
 - [ ] 用户类定义 `__len__`：报 `slot 10 is not implmented`（未进 slot 表）。
 
@@ -5252,7 +5271,7 @@ JIT review 发现的错误（JIT 开 / `KOALA_JIT=0` 输出不同或崩溃），
 - **不变量 ASSERT**：`kl_jit_call_helper` 检查 `args == cf->locals + cf->nlocals`（帧精确描述其寄存器，GC 依赖）。
 - **测试**：`test_jit_direct_call.kl`（三跑：方法/void/nil 实参/尾调用被调者且 rd 在调用区/尾调用回落解释器/错误逐帧 traceback）、`test_jit_direct_call_deep.kl`（5 万层互递归 + 栈溢出）、`test_jit_direct_call_frames.kl`（大帧互递归，VM 栈先溢出）。13 个变异捕获 12 个；剩余 1 个（去掉 nil 实参守卫）为等价变异——静态类型保证实参，nil 进 JIT 代码同样正确，守卫只为与 `kl_call_code` 一致。
 - **性能**：调用密集基准 0.89s → 0.51s（解释器 1.64s）；fib/ack/tak 是 self-only，不变。
-- **遗留**：解释器无深度检查，非尾互递归约 1 万层即 C 栈溢出 segfault（JIT 下可达 10 万层并正常抛 stack overflow）——属 §108 解释器问题。
+- **解释器栈溢出**：原来的非尾互递归 C 栈溢出问题已修，见 §108；实际可达层数取决于线程栈和 VM 栈空间。
 
 ## 111. JIT 代码质量（阶段 3，2026-11-15，进行中）
 

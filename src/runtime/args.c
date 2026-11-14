@@ -31,6 +31,7 @@ static void print_usage(const char *prog)
         "  --no-inline          Do not inline functions (inlined by default).\n"
         "  --domtree            Build the dominator tree.\n"
         "  --unroll             Unroll small counted loops (needs --domtree).\n"
+        "  --recursive-self-inline  Inline direct self-recursive calls (needs opt).\n"
         "  --int-trap           Enable trap checking for integer cast.\n"
         "  --float-trap         Enable trap checking for float cast.\n"
         "  --dump=<list>        Dump internal information.\n"
@@ -41,6 +42,7 @@ static void print_usage(const char *prog)
         "                           ir        - optimized IR (after opt passes)\n"
         "                           domtree   - dominator tree info\n"
         "                           unroll-ir - IR after loop unrolling\n"
+        "                           recursive-self-inline-ir - IR after recursive self inlining\n"
         "                           lir       - LIR (after isel/regalloc)\n"
         "                           vreg      - dump virtual register info\n"
         "                           code      - codegen output\n"
@@ -137,6 +139,9 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
             case 10:
                 opt->enable_unroll = 1;
                 break;
+            case 11:
+                opt->enable_recursive_self_inline = 1;
+                break;
             default:
                 return -1;
         }
@@ -197,6 +202,7 @@ int kl_parse_args(int argc, char *argv[])
         { "no-inline", no_argument, 0, 8 },
         { "domtree", no_argument, 0, 9 },
         { "unroll", no_argument, 0, 10 },
+        { "recursive-self-inline", no_argument, 0, 11 },
         { 0, 0, 0, 0 },
     };
 

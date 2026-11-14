@@ -24,6 +24,7 @@ typedef enum _DumpFlags {
     DUMP_INLINE_IR = 1 << 7,
     DUMP_DOMTREE = 1 << 8,
     DUMP_UNROLL_IR = 1 << 9,
+    DUMP_RECURSIVE_INLINE_IR = 1 << 10,
     DUMP_ALL = 0xFFFFFFFF,
 } DumpFlags;
 
@@ -33,6 +34,7 @@ typedef struct _CompileOptions {
     int enable_inline;
     int enable_domtree;
     int enable_unroll;
+    int enable_recursive_self_inline;
     int enable_opt;
     int enable_isel;
     int enable_lsra;
@@ -50,33 +52,35 @@ typedef struct _CompileOptions {
 
 extern CompileOptions cmd_opt;
 
-#define genir_enabled()     (cmd_opt.enable_genir)
-#define ssa_enabled()       (cmd_opt.enable_ssa)
-#define inline_enabled()    (cmd_opt.enable_inline)
-#define opt_enabled()       (cmd_opt.enable_opt)
-#define domtree_enabled()   (cmd_opt.enable_domtree)
-#define unroll_enabled()    (cmd_opt.enable_unroll)
-#define isel_enabled()      (cmd_opt.enable_isel)
-#define fusion_enabled()    (cmd_opt.enable_fusion)
-#define lsra_enabled()      (cmd_opt.enable_lsra)
-#define cgen_enabled()      (cmd_opt.enable_cgen)
-#define tail_call_enabled() (cmd_opt.enable_tail_call)
-#define is_build_stdlib()   (cmd_opt.build_stdlib)
-#define write_klc_enabled() (cmd_opt.enable_write_klc)
-#define int_cast_mode()     (cmd_opt.enable_int_trap ? 0 : 1)
-#define float_cast_mode()   (cmd_opt.enable_float_trap ? 0 : 1)
-#define strip_lineinfo()    (cmd_opt.strip_lineinfo)
+#define genir_enabled()                 (cmd_opt.enable_genir)
+#define ssa_enabled()                   (cmd_opt.enable_ssa)
+#define inline_enabled()                (cmd_opt.enable_inline)
+#define opt_enabled()                   (cmd_opt.enable_opt)
+#define domtree_enabled()               (cmd_opt.enable_domtree)
+#define unroll_enabled()                (cmd_opt.enable_unroll)
+#define recursive_self_inline_enabled() (cmd_opt.enable_recursive_self_inline)
+#define isel_enabled()                  (cmd_opt.enable_isel)
+#define fusion_enabled()                (cmd_opt.enable_fusion)
+#define lsra_enabled()                  (cmd_opt.enable_lsra)
+#define cgen_enabled()                  (cmd_opt.enable_cgen)
+#define tail_call_enabled()             (cmd_opt.enable_tail_call)
+#define is_build_stdlib()               (cmd_opt.build_stdlib)
+#define write_klc_enabled()             (cmd_opt.enable_write_klc)
+#define int_cast_mode()                 (cmd_opt.enable_int_trap ? 0 : 1)
+#define float_cast_mode()               (cmd_opt.enable_float_trap ? 0 : 1)
+#define strip_lineinfo()                (cmd_opt.strip_lineinfo)
 
-#define dump_no_opt_ir_enabled() ((cmd_opt.dump & DUMP_NO_OPT_IR) != 0)
-#define dump_ssa_enabled()       ((cmd_opt.dump & DUMP_SSA_IR) != 0)
-#define dump_ir_enabled()        ((cmd_opt.dump & DUMP_IR) != 0)
-#define dump_lir_enabled()       ((cmd_opt.dump & DUMP_LIR) != 0)
-#define dump_vreg_enabled()      ((cmd_opt.dump & DUMP_VREG) != 0)
-#define dump_code_enabled()      ((cmd_opt.dump & DUMP_CODE) != 0)
-#define dump_itable_enabled()    ((cmd_opt.dump & DUMP_ITABLE) != 0)
-#define dump_inline_ir_enabled() ((cmd_opt.dump & DUMP_INLINE_IR) != 0)
-#define dump_domtree_enabled()   ((cmd_opt.dump & DUMP_DOMTREE) != 0)
-#define dump_unroll_ir_enabled() ((cmd_opt.dump & DUMP_UNROLL_IR) != 0)
+#define dump_no_opt_ir_enabled()           ((cmd_opt.dump & DUMP_NO_OPT_IR) != 0)
+#define dump_ssa_enabled()                 ((cmd_opt.dump & DUMP_SSA_IR) != 0)
+#define dump_ir_enabled()                  ((cmd_opt.dump & DUMP_IR) != 0)
+#define dump_lir_enabled()                 ((cmd_opt.dump & DUMP_LIR) != 0)
+#define dump_vreg_enabled()                ((cmd_opt.dump & DUMP_VREG) != 0)
+#define dump_code_enabled()                ((cmd_opt.dump & DUMP_CODE) != 0)
+#define dump_itable_enabled()              ((cmd_opt.dump & DUMP_ITABLE) != 0)
+#define dump_inline_ir_enabled()           ((cmd_opt.dump & DUMP_INLINE_IR) != 0)
+#define dump_domtree_enabled()             ((cmd_opt.dump & DUMP_DOMTREE) != 0)
+#define dump_unroll_ir_enabled()           ((cmd_opt.dump & DUMP_UNROLL_IR) != 0)
+#define dump_recursive_inline_ir_enabled() ((cmd_opt.dump & DUMP_RECURSIVE_INLINE_IR) != 0)
 
 #ifdef __cplusplus
 }

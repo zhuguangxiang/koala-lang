@@ -530,8 +530,30 @@ if (co->jit && jit_params_ok(cf->locals, nargs)) {
   提升到物理寄存器，并做 int64 拆箱（方案 B）。
 - **无 deopt**：v1 用编译期 bail 替代运行期去优化，简单但粒度粗
   （一条不支持即整函数放弃）。v2 可考虑按基本块编译或运行期守卫 + deopt。
-- **数值已覆盖 int64/uint64/窄整型/float64/bool**：对象/字符串未支持。
+- **数值与对象已覆盖**：int64/uint64/窄整型/float64/bool（§5.4–5.6）+ 对象/容器/字符串/
+  引用/接口（A/B 组，§5.7）。
 - **代码缓存不回收**：进程级常驻，长生命周期多函数场景需 LRU/引用计数。
+
+### 10.1 v1 opcode 覆盖定格（Drop Bear）
+
+以 `vm_ops.h` 的真实 `TARGET` handler 为准（173 个），JIT 覆盖了 VM 支持的**全部可执行
+opcode**，仅 3 个例外：
+
+| op | 原因 | 处理 |
+| --- | --- | --- |
+| `OP_REF_EQ` / `OP_REF_NE` | 解释器里是 `OP_NYI`（abort），非真实运行 op | 不覆盖（VM 未实现） |
+| `OP_UNREACHABLE` | 真实 op，panic 抛 "unreachable code executed" | **有意不覆盖**：含它的函数 bail 回解释器，语义无损 |
+
+**与 `opcode_list.h` 全量核对**（排除 IR 伪指令 `OP_IR_*`/`OP_BINARY_*`/`OP_UNARY_*` 及
+结构性 `OP_DATA`/`OP_WIDE`）：178 个非 IR opcode 中，VM 自身尚未支持的有——
+
+- **对象同一性比较**：`OP_REF_EQ`/`OP_REF_NE`（NYI）+ `OP_JMP_REF_EQ`/`OP_JMP_REF_NE`
+  （无 handler）。即对象 `==`/`!=` 按引用比较这一语言特性 VM 还没实现，JIT 自然不覆盖。
+- `OP_DOWNCAST_INTF`：已定义但编译器未发射、VM 无 handler（保留 op）。
+- `OP_DATA`（调用 payload 数据槽）/`OP_WIDE`（宽操作数前缀）：结构性，非可执行指令，无需 handler。
+
+结论：**JIT 没有落后于 VM**——VM 能跑的 opcode JIT 都能跑（UNREACHABLE 有意除外）；
+剩余缺口是 VM/语言层面的对象同一性比较，属 VM 待实现特性，非 JIT 欠账。
 
 ## 11. 环境变量
 

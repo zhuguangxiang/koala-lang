@@ -1192,6 +1192,8 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   → 泛型特化（@specialized 实例化）
   → 函数内联（inline.c，--inline；koala 默认开启）
   → 优化（opt.c，PassManager）             → 常量/复制传播、CFG 清理、DCE
+  → 直接自递归内联（--recursive-self-inline，可选）→ 再优化
+  → 循环展开（--unroll，可选）             → 再优化
   → SSA 构造 → SCCP → SSA 析构（phi 合并） → SSA 级优化
   → 指令选择（isel.c）                     → 类型特化操作码（reg-reg / reg-imm 双形态）
   → 线性扫描寄存器分配（liveness.c 活跃区间 + lsra.c 分配，LIR）
@@ -1199,7 +1201,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   → .klc 产出（write_klc.c；read_klc.c 反向加载）
 ```
 
-每个阶段可用命令行独立开关启用（--irgen / --ssa / --inline / --opt / --domtree / --unroll / --isel / --lsra / --cgen；`koala` 默认开启内联，`++ --no-inline` 关闭），并提供逐级 dump（no-opt-ir / inline-ir / ssa / ir / domtree / unroll-ir / lir / vreg / code / itable）——与"无隐藏特性"原则一脉相承：**编译器的每一步中间产物都可观察**。
+每个阶段可用命令行独立开关启用（--irgen / --ssa / --inline / --opt / --recursive-self-inline / --domtree / --unroll / --isel / --lsra / --cgen；`koala` 默认开启普通内联，`++ --no-inline` 关闭），并提供逐级 dump（no-opt-ir / inline-ir / recursive-self-inline-ir / ssa / ir / domtree / unroll-ir / lir / vreg / code / itable）——与"无隐藏特性"原则一脉相承：**编译器的每一步中间产物都可观察**。
 
 ### 11.2 IR 设计（KLR）
 
@@ -1217,6 +1219,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
   - **SSA 构造 + SCCP**（稀疏条件常量传播：TOP/常量/BOTTOM 三值格 + meet 运算 + 双 worklist，教科书级实现）+ SSA 析构（phi 合并）
 - **指令选择**：表驱动规则把泛型二元运算（OP_BINARY_*）降级为类型特化操作码（OP_INT_ADD / OP_UINT_DIV …），并支持 reg-imm 立即数形态与交换律换序——与 CPython 3.11 特化自适应解释器殊途同归，而 Koala 在编译期一次完成。变量 cast 在此降级为 OP_INT_CAST / OP_FLOAT_CAST / OP_FLOAT_TO_INT / OP_INT_TO_FLOAT，目标类型与 trap/wrap 模式一起编码进 cast_flag（§5.1）。
 - **函数内联**（koalac `--inline`；`koala` 默认传入，`koala x.kl ++ --no-inline` 关闭，见 `Koala_TODO.md` §98）：在泛型特化之后、优化之前运行（`src/parser/opt/inline.c`），`--dump=inline-ir` 输出内联后的 IR，可与 `--dump=no-opt-ir` 对比。
+- **直接自递归内联**（`--recursive-self-inline`，默认关闭）：首次 opt 后展开当前模块的直接自调用，再重跑 opt；不展开互递归。独立成本模型 `src/parser/opt/inline_cost.c` 借鉴 GCC 的递归深度、体积和概率参数，但阈值按 Koala 调整：最多 8 层，每层预估函数总量不超过 4096 个 KLR 指令单位和 1024 个基本块；这不是 GCC 伪指令或机器码字节数。没有 profile 时，每个到达调用点必须经过的二选一分支按 50% 估计，汇合路径不重复折半；嵌套副本的概率相乘，概率不超过 0.5% 的调用点不展开。这只是静态近似，不模拟循环次数或 GCC 的全部启发式；例如 fib 两个自调用各估为 50%，当前展开七层。原函数限于有返回值、至多 16 个基本块、32 条指令和两个自调用；跳过可变参数、开放泛型、参数被写、PHI 和不支持的终止指令。启用尾调用优化时，含尾调用的函数优先保留尾调用，不做递归内联。`--dump=recursive-self-inline-ir` 输出被修改函数在再次优化前的 IR。依赖 opt；现有 `--ssa` 选项会关闭 opt，`koalac` 可按 `--ssa --opt` 的顺序同时启用，`koala ++ --ssa` 则会警告并跳过本 pass。内联可能改变真实栈帧数和栈溢出阈值。
 - **支配树**（`src/parser/klr/domtree.c`，基于 `src/common/dominance.c` 的 Cooper–Harvey–Kennedy 2001 算法）：只依赖 CFG，非 SSA 和 SSA IR 都能用；节点为 start、`bb_list` 中的块和 end。提供 `klr_idom` / `klr_dominates`（O(1)）/ `klr_is_back_edge`，以及支配边界；`--domtree` 开关（默认关闭）在优化之后运行支配树 pass，结果存入 `KlrFunc.domtree`，`--dump=domtree` 只打印这个结果（支配树、支配边界和回边），不开 `--domtree` 时不输出。供后续循环识别、循环展开、递归内联与 GVN 使用（见 `Koala_TODO.md` §103）。
 - **循环完全展开**（koalac / `koala` 的 `--unroll`，默认关闭，需要 `--opt` 和 `--domtree`；`src/parser/opt/unroll.c`）：在优化之后，用支配树找最内层自然循环，识别常量初值、常量步长、与常量比较退出的计数循环，模拟出头块进入次数 K（<= 16，总指令数 <= 256），剥离 K 份副本（保留每份的出口，计数器的读换成每趟的常量），再重跑优化折叠掉残留循环；嵌套循环逐轮由内向外展开。`--dump=unroll-ir` 输出展开后的 IR（见 `Koala_TODO.md` §103.4）。
   - **范围**：只内联**当前模块**内只有一个基本块的函数、方法、静态方法（典型是 class 的 get/set），不涉及外模块；指令数有上限，含变长参数、被写的参数（尾调用）、`unreachable` 的函数不内联。
