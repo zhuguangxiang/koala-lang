@@ -1,0 +1,87 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that applies a function to each element of a source,
+/// yielding the results.
+///
+/// The element type may change: a source of `T` becomes an iterator of `U`,
+/// where `U` is the function's return type. The source is consumed lazily,
+/// one element per advance; the wrapper is stateful and cannot rewind.
+///
+/// `MapIter` is itself `Iterable`: `iter()` returns the same iterator, so
+/// wrappers compose, e.g. `filter(map(xs, fn), pred)`.
+///
+/// Examples
+///
+/// ```kl
+/// func double(x int) int { return x * 2 }
+/// for v in map([1, 2, 3], double) {
+///     print(v)   // 2 / 4 / 6
+/// }
+/// func to_str(x int) str { return format("{}", x) }
+/// for s in map([1, 2], to_str) {
+///     print(s)   // "1" / "2"
+/// }
+/// ```
+pub class MapIter[T, U] : Iterator[U] & Iterable[U] {
+    let source Iterator[T]
+    let fn func(T) U
+
+    /// Wrap `_iterable`, applying `_fn` to each element.
+    pub func __init__(_iterable Iterable[T], _fn func(T) U) {
+        source = _iterable.iter()
+        fn = _fn
+    }
+
+    /// Return this same iterator; map wrappers are single-pass.
+    /// Panic if `step != 1`: strided mapping is not supported.
+    pub func iter(step = 1) Iterator[U] {
+        if step != 1 { panic("MapIter does not support step != 1") }
+        return self
+    }
+
+    /// Return true if the source has another element.
+    pub func has_next() bool = source.has_next()
+
+    /// Return the function applied to the next source element, and advance.
+    /// Panic if the source is exhausted.
+    pub func next_strict() U {
+        if !source.has_next() { panic("No more elements in MapIter") }
+        return fn(source.next_strict())
+    }
+
+    /// Return the function applied to the next source element, or `nil` if
+    /// the source is exhausted.
+    pub func next() U? {
+        if !source.has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("MapIter")
+    }
+}
+
+/// Return an iterator over `fn` applied to each element of `obj`.
+///
+/// Works on any `Iterable`. The function is a named function or a
+/// non-capturing lambda; its return type becomes the element type of the
+/// result. The result is lazy and single-pass.
+///
+/// Examples
+///
+/// ```kl
+/// func double(x int) int { return x * 2 }
+/// for v in map([1, 2, 3], double) {
+///     print(v)   // 2 / 4 / 6
+/// }
+/// for v in map([1, 2, 3], { |x int| x * x }) {
+///     print(v)   // 1 / 4 / 9
+/// }
+/// ```
+pub func map[T, U](obj Iterable[T], fn func(T) U) MapIter[T, U] {
+    return MapIter[T, U](obj, fn)
+}

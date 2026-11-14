@@ -1,0 +1,294 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import map, MapIter, filter, enumerate, take, zip
+
+func double(x int) int { return x * 2 }
+func to_str(x int) str { return format("{}", x) }
+func is_even(x int) bool { return x % 2 == 0 }
+func excl(c str) str { return c + "!" }
+func maybe_nil(x int) int? {
+    if x > 2 { return nil }
+    return x
+}
+
+var fn_calls = 0
+func counting_double(x int) int {
+    fn_calls = fn_calls + 1
+    return x * 2
+}
+
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+    func __init__(n int) { pulls = 0; limit = n }
+    func iter(step = 1) Iterator[int] { return CountingIter(self) }
+}
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+    func __init__(s CountingSource) { src = s; cursor = 0 }
+    func has_next() bool = cursor < src.limit
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+    func next() int? { if !has_next() { return nil }; return next_strict() }
+}
+
+func count_mapped[T, U](xs Iterable[T], fn func(T) U) int {
+    var n = 0
+    for v in map(xs, fn) { n = n + 1 }
+    return n
+}
+
+// ==================== Basic mapping ====================
+
+@test
+func test_basic() {
+    let got = list[int]()
+    for v in map([1, 2, 3], double) { got.append(v) }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[1], 4)
+    ut.assert_eq(got[2], 6)
+}
+
+@test
+func test_type_change() {
+    let got = list[str]()
+    for s in map([1, 2], to_str) { got.append(s) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], "1")
+    ut.assert_eq(got[1], "2")
+}
+
+@test
+func test_empty() {
+    let m = map(list[int](), double)
+    ut.assert_false(m.has_next())
+    ut.assert_true(m.next() == nil)
+    var n = 0
+    for v in m { n = n + 1 }
+    ut.assert_eq(n, 0)
+}
+
+@test
+func test_single() {
+    let m = map([5], double)
+    ut.assert_true(m.has_next())
+    ut.assert_eq(m.next_strict(), 10)
+    ut.assert_true(m.next() == nil)
+}
+
+@test
+func test_str_source() {
+    var got = ""
+    for c in map("abc", excl) { got = got + c }
+    ut.assert_eq(got, "a!b!c!")
+}
+
+@test
+func test_lambda() {
+    let got = list[int]()
+    for v in map([1, 2, 3], { |x int| x * x }) { got.append(v) }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[1], 4)
+    ut.assert_eq(got[2], 9)
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let m = map([1, 2, 3], double)
+    var n = 0
+    while let v = m.next() {
+        ut.assert_eq(v, (n + 1) * 2)
+        n = n + 1
+    }
+    ut.assert_eq(n, 3)
+}
+
+@test
+func test_has_next_idempotent() {
+    let m = map([1, 2], double)
+    ut.assert_true(m.has_next())
+    ut.assert_true(m.has_next())
+    ut.assert_eq(m.next_strict(), 2)
+    ut.assert_true(m.has_next())
+    ut.assert_eq(m.next_strict(), 4)
+    ut.assert_false(m.has_next())
+    ut.assert_false(m.has_next())
+}
+
+@test
+func test_next_after_exhaustion() {
+    let m = map([1], double)
+    ut.assert_eq(m.next_strict(), 2)
+    ut.assert_true(m.next() == nil)
+    ut.assert_true(m.next() == nil)
+    ut.assert_false(m.has_next())
+}
+
+@test
+func test_iter_returns_self() {
+    let m = map([1, 2, 3], double)
+    ut.assert_eq(m.next_strict(), 2)
+    let again = m.iter()
+    ut.assert_eq(again.next_strict(), 4)
+    ut.assert_eq(m.next_strict(), 6)
+    ut.assert_true(m.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[int] = map([1, 2], double)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_true(it.has_next())
+    let its Iterator[str] = map([1], to_str)
+    ut.assert_eq(its.next_strict(), "1")
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(count_mapped([1, 2, 3], double), 3)
+    ut.assert_eq(count_mapped([1, 2], to_str), 2)
+    ut.assert_eq(count_mapped(list[int](), double), 0)
+}
+
+@test
+func test_fmt() {
+    let m = map([1], double)
+    ut.assert_eq(format("{}", m), "MapIter")
+}
+
+// ==================== Laziness ====================
+
+@test
+func test_lazy_no_prefetch() {
+    let src = CountingSource(5)
+    let m = map(src, double)
+    ut.assert_eq(src.pulls, 0)
+    ut.assert_true(m.has_next())
+    ut.assert_eq(src.pulls, 0)
+    ut.assert_eq(m.next_strict(), 0)
+    ut.assert_eq(src.pulls, 1)
+    ut.assert_eq(m.next_strict(), 2)
+    ut.assert_eq(src.pulls, 2)
+}
+
+@test
+func test_fn_applied_once_per_element() {
+    fn_calls = 0
+    let m = map([1, 2, 3], counting_double)
+    ut.assert_eq(fn_calls, 0)
+    ut.assert_true(m.has_next())
+    ut.assert_eq(fn_calls, 0)  // has_next must not apply fn
+    ut.assert_eq(m.next_strict(), 2)
+    ut.assert_eq(fn_calls, 1)
+    ut.assert_eq(m.next_strict(), 4)
+    ut.assert_eq(fn_calls, 2)
+}
+
+@test
+func test_lazy_full_consumption() {
+    let src = CountingSource(4)
+    var n = 0
+    for v in map(src, double) { n = n + 1 }
+    ut.assert_eq(n, 4)
+    ut.assert_eq(src.pulls, 4)
+}
+
+// ==================== Nullable output ====================
+
+@test
+func test_nullable_output() {
+    let m = map([1, 2, 3], maybe_nil)
+    ut.assert_true(m.has_next())
+    ut.assert_eq(m.next_strict()!, 1)
+    ut.assert_true(m.has_next())
+    ut.assert_eq(m.next_strict()!, 2)
+    ut.assert_true(m.has_next())          // third element exists (it is nil)
+    ut.assert_true(m.next_strict() == nil)
+    ut.assert_false(m.has_next())          // now exhausted
+    ut.assert_true(m.next() == nil)
+}
+
+// ==================== Composition ====================
+
+@test
+func test_map_filter() {
+    let got = list[int]()
+    for v in map(filter([1, 2, 3, 4], is_even), double) { got.append(v) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 4)
+    ut.assert_eq(got[1], 8)
+}
+
+@test
+func test_filter_map() {
+    let got = list[int]()
+    for v in filter(map([1, 2, 3, 4], double), is_even) { got.append(v) }
+    ut.assert_eq(got.len(), 4)  // all doubled values are even
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[3], 8)
+}
+
+@test
+func test_enumerate_map() {
+    var n = 0
+    for (i, s) in enumerate(map([1, 2], to_str)) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(s, format("{}", n + 1))
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_map_map() {
+    let got = list[int]()
+    for v in map(map([1, 2], double), double) { got.append(v) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 4)
+    ut.assert_eq(got[1], 8)
+}
+
+@test
+func test_take_map() {
+    let got = list[int]()
+    for v in take(map([1, 2, 3, 4], double), 2) { got.append(v) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[1], 4)
+}
+
+@test
+func test_zip_map() {
+    var n = 0
+    for (a, b) in zip(map([1, 2], double), map([3, 4], double)) {
+        ut.assert_eq(a, (n + 1) * 2)
+        ut.assert_eq(b, (n + 3) * 2)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in MapIter")
+func test_next_strict_exhausted() {
+    let m = map([1], double)
+    m.next_strict()
+    m.next_strict()
+}
+
+@should_panic("MapIter does not support step != 1")
+func test_iter_step_unsupported() {
+    let m = map([1, 2, 3], double)
+    m.iter(2)
+}

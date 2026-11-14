@@ -827,6 +827,7 @@ for (x, y) in zip([1, 2, 3], "ab") {      // (1, "a"), (2, "b") — stops at the
 |---|---|
 | `enumerate(obj)` | `(index, element)` pairs, numbered from 0 |
 | `zip(a, b)` | `(left, right)` pairs, stops at the shorter |
+| `map(obj, fn)` | `fn` applied to each element (element type may change) |
 | `filter(obj, pred)` | elements satisfying `pred` |
 | `take(obj, n)` | first `n` elements |
 | `skip(obj, n)` | elements after the first `n` |

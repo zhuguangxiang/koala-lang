@@ -676,11 +676,13 @@ sum 104 → 77、test_bitwise 215 → 139、shuffle 86 → 73、tak 153 → 143�
 | test_float_logic（4.46×） | 浮点比较 `if res>=50.0` 每迭代调 `kl_jit_float_cmp` C helper | 阶段 3 已内联 `ucomisd`（处理 PF/NaN） |
 | test_float_arith（3.88×） | TValue 镜像：每迭代 movsd 读内存→addsd→写内存+写 tag | 阶段 3 寄存器缓存：190→55ms（§15.8） |
 | ack（2.99×） | 嵌套非尾调用每次 helper→`kl_call_code` 建帧开销 | JIT→JIT 直调 |
-| sum / shuffle（~2×） | 尾循环 TValue 每迭代 load/store + tag 写 | 拆箱 + RA |
+| sum / shuffle（~1.6× / ~3.4×） | 自尾调用回到 pc0 时，pc0 还有外部入口边，入口状态为 clean：参数的 tag 在编译期未知（v1 只以内存为权威，不引入静态类型或运行时守卫），每趟须写回 payload+tag，move 须读写内存 tag | 拆箱 + RA / 入口类型守卫 |
 | loop-sum / logic_chain（1.3–1.5×） | TValue 镜像 load/store + tag 写（已较接近） | 拆箱 + RA |
 
 结论：v1 已把可 JIT 的都 JIT 了，剩余差距集中在**代码质量**而非覆盖，对应 Yowie 三项
 （拆箱+RA、内联浮点比较、JIT 直调，见 Koala_TODO §100）。此表作为 Yowie 的优化对照基线。
+
+**v1 已收工（2026-11-14）**：Drop Bear v1 不再增加新优化，剩余差距留给 Yowie(v2)。
 
 > 注：上表为早期摸底数据；shuffle 曾受尾调用并行移动 bug 影响（Koala_TODO §104，**已修复**）。
 > 最新五方对比（koala JIT/解释器 vs LuaJIT JIT/解释器 vs Lua 5.4）见 README「Performance」。
