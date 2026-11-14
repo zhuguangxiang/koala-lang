@@ -828,10 +828,14 @@ for (x, y) in zip([1, 2, 3], "ab") {      // (1, "a"), (2, "b") — stops at the
 | `enumerate(obj)` | `(index, element)` pairs, numbered from 0 |
 | `zip(a, b)` | `(left, right)` pairs, stops at the shorter |
 | `map(obj, fn)` | `fn` applied to each element (element type may change) |
+| `flat_map(obj, fn)` | `fn` (returning `Iterable[U]`) applied to each element, results flattened |
 | `filter(obj, pred)` | elements satisfying `pred` |
+| `take_while(obj, pred)` | leading elements while `pred` holds; stops at the first failure |
 | `take(obj, n)` | first `n` elements |
 | `skip(obj, n)` | elements after the first `n` |
 | `chain(a, b)` | elements of `a` then `b` |
+| `count(start=0, step=1)` | infinite progression `start, start+step, ...` |
+| `repeat(value, n=nil)` | `value` repeated `n` times (`nil` = infinite) |
 | `reduce(obj, init, fn)` | folds to a single value (eager, not an iterator) |
 
 Except for `reduce`, each returns a lazy, single-pass iterator that is itself iterable,
@@ -839,6 +843,11 @@ so they compose: `take(filter(xs, pred), 3)`, `enumerate(chain(a, b))`. On an it
 `next_strict()` panics when exhausted and `next()` returns `nil`. `enumerate` numbers
 from 0; to start elsewhere, construct `Enumerate[T](obj, start)` directly. `reduce`'s
 accumulator type is inferred from `init` and may differ from the element type.
+`count` and `repeat` are infinite generators — bound them with `take`, e.g.
+`take(count(1, 2), 5)`, or pair them with a finite source via `zip(count(0), xs)`.
+`flat_map`'s function must declare its return type as `Iterable[U]` (not `list[U]`),
+since function types are invariant in their return type; `take_while` differs from
+`filter` in that it stops permanently at the first element failing the predicate.
 
 ### The `with` Statement
 

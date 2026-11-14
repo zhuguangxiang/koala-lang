@@ -1,0 +1,36 @@
+[package]
+name = "koala/webview"
+version = "0.1.0"
+description = "Native desktop windows via the system webview (WebKitGTK / WebView2 / WKWebView), no bundled browser"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_webview"
+# webview's public API is C ABI but its implementation is C++.
+compiler = "c++"
+sources = ["native/webview_shim.cpp"]
+# Vendored webview 0.12.0 lives in native/webview/webview.h, downloaded from:
+#   https://github.com/webview/webview (tag 0.12.0)
+#   https://raw.githubusercontent.com/webview/webview/0.12.0/core/include/webview/webview.h
+#   https://codeload.github.com/webview/webview/tar.gz/refs/tags/0.12.0
+includes = [
+    "native/webview",
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+# The backend flags come from pkg-config at build time (the build runs the
+# command through a shell). Linux needs gtk+-3.0 + webkit2gtk-4.1 dev packages;
+# swap in webkit2gtk-4.0 on older distributions.
+# Ubuntu/Debian: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+# -fpermissive: the Koala runtime headers are C (implicit void* casts); this
+# lets them compile in the C++ translation unit webview requires.
+cflags = [
+    "-O2",
+    "-std=c++20",
+    "-fpermissive",
+    "$(pkg-config --cflags gtk+-3.0 webkit2gtk-4.1)",
+]
+ldflags = [
+    "$(pkg-config --libs gtk+-3.0 webkit2gtk-4.1)",
+]

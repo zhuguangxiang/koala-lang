@@ -1,0 +1,25 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/webview"
+
+// These tests need no display: they exercise the native library load and the
+// module constants. Window lifecycle (create/run/destroy) needs a graphical
+// session and is covered by the manual example, not here, so the suite stays
+// runnable headless.
+
+@test
+func test_version() {
+    ut.assert(webview.version == "0.12.0")
+}
+
+@test
+func test_hint_constants() {
+    ut.assert(webview.HINT_NONE == 0)
+    ut.assert(webview.HINT_MIN == 1)
+    ut.assert(webview.HINT_MAX == 2)
+    ut.assert(webview.HINT_FIXED == 3)
+}

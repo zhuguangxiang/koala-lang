@@ -1,0 +1,61 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Native desktop windows backed by the system webview.
+///
+/// This package wraps the webview library (0.12.0, vendored in
+/// `native/webview/`): one lightweight native window that renders HTML using
+/// the operating system's own webview engine - WebKitGTK on Linux, WebView2 on
+/// Windows, WKWebView on macOS. No browser engine is bundled, so the footprint
+/// stays small and the window looks like a native app.
+///
+///     import "koala/webview"
+///
+///     let w = webview.Window()
+///     w.set_title("Koala")
+///     w.set_size(960, 640)
+///     w.set_html("<h1>Hello from Koala</h1>")
+///     w.run()                 // blocks until the window is closed
+///     w.destroy()
+///
+/// To show a dashboard served by `koala/http`, point the window at it instead
+/// of inlining HTML, and push live updates over `koala/sse`:
+///
+///     w.navigate("http://127.0.0.1:8080/")
+///     w.run()
+///
+/// `Window` mirrors the webview C API: `set_title`, `set_size`, `navigate`,
+/// `set_html`, `init_js` (run JS on every page load), `eval` (run JS now),
+/// `run`, `terminate` and `destroy`. Call `destroy()` when done - the runtime
+/// does not run finalizers yet, so the window is not released automatically.
+///
+/// Binding JavaScript calls back into Koala (`webview_bind`/`dispatch`) is not
+/// exposed yet; it needs a native->Koala callback with GC rooting.
+///
+/// Building the native library requires the system webview development
+/// packages. On Linux: `gtk+-3.0` and `webkit2gtk-4.1` (or `webkit2gtk-4.0` on
+/// older distributions), read via pkg-config by `__pkg__.toml`.
+
+/// Native symbols for this package live in `libkoala_webview.so`.
+link "koala_webview"
+
+/// `set_size` hint: width and height are the default size.
+pub const HINT_NONE = 0
+
+/// `set_size` hint: width and height are minimum bounds.
+pub const HINT_MIN = 1
+
+/// `set_size` hint: width and height are maximum bounds.
+pub const HINT_MAX = 2
+
+/// `set_size` hint: the window size cannot be changed by the user.
+pub const HINT_FIXED = 3
+
+/// The webview library version, as "0.12.0".
+pub let version = _version()
+
+// Native helper behind `version`. Not part of the API.
+@native
+func _version() str {}

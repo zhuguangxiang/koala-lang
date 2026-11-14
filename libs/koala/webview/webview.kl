@@ -1,0 +1,68 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A native desktop window that renders HTML with the system webview.
+///
+/// Create one with `Window()`, configure it, then call `run()` to enter the
+/// event loop (it blocks until the window is closed or `terminate()` is
+/// called). Release it with `destroy()` - the runtime does not run finalizers
+/// yet, so a window is not freed when it goes out of scope.
+///
+///     let w = webview.Window()
+///     w.set_title("Koala")
+///     w.set_size(960, 640)
+///     w.navigate("http://127.0.0.1:8080/")
+///     w.run()
+///     w.destroy()
+///
+/// Every method panics with "webview: window is destroyed" if called after
+/// `destroy()`. `debug = true` enables the webview's developer tools where the
+/// backend supports them.
+pub class Window {
+    /// Create the window. `debug` enables developer tools (backend-dependent).
+    /// Panics if the window cannot be created (e.g. no display on Linux).
+    @native
+    pub func __init__(debug bool = false) {}
+
+    /// Set the window title.
+    @native
+    pub func set_title(title str) {}
+
+    /// Set the window size in pixels. `hints` is one of `HINT_NONE` (default),
+    /// `HINT_MIN`, `HINT_MAX` or `HINT_FIXED`.
+    @native
+    pub func set_size(width int, height int, hints int = HINT_NONE) {}
+
+    /// Navigate to `url` (http(s), file, or a data URI).
+    @native
+    pub func navigate(url str) {}
+
+    /// Render `html` directly, without a navigation.
+    @native
+    pub func set_html(html str) {}
+
+    /// Inject `js` to run on every page load, before the page's own scripts.
+    @native
+    pub func init_js(js str) {}
+
+    /// Evaluate `js` in the current page now.
+    @native
+    pub func eval(js str) {}
+
+    /// Enter the event loop. Blocks until the window is closed or
+    /// `terminate()` is called.
+    @native
+    pub func run() {}
+
+    /// Stop the event loop started by `run()`, from another thread or a
+    /// callback. Safe to call before `run()`.
+    @native
+    pub func terminate() {}
+
+    /// Release the window and its native resources. Idempotent; every other
+    /// method panics afterwards.
+    @native
+    pub func destroy() {}
+}

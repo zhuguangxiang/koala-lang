@@ -1,0 +1,112 @@
+/*
+ * webview_demo.kl — 用 koala/webview 创建一个原生桌面 app。
+ *
+ * 运行（在仓库根目录，需先构建 koala/webview）：
+ *
+ *     export LD_LIBRARY_PATH=libs/koala/dist/koala:$HOME/.local/lib:$LD_LIBRARY_PATH
+ *     export KOALA_PATH=libs/koala/dist:libs/std/dist
+ *     koala demo/webview_demo.kl
+ *
+ * 它打开一个系统 webview 原生窗口（Linux 上是 WebKitGTK），渲染一个小型
+ * 交互 app：实时时钟、计数按钮、主题切换，以及由 Koala 注入的版本号。
+ * 关掉窗口即退出。
+ *
+ * 演示的 API：
+ *   Window() / set_title / set_size   创建并配置窗口
+ *   init_js(js)                       每次页面加载前注入 JS（这里把 Koala 数据带进页面）
+ *   set_html(html)                    直接渲染 HTML（也可用 navigate(url) 加载页面）
+ *   run()                             进入事件循环，阻塞直到窗口关闭
+ *   destroy()                         释放窗口（运行时暂无 finalizer，需显式调用）
+ *
+ * 进阶：把这里换成 navigate("http://127.0.0.1:8080/")，就能显示由
+ * koala/http 服务、koala/sse 实时推送的仪表盘——桌面 ML 看板就是这么搭的。
+ */
+
+import "koala/webview"
+
+// 页面 UI：纯 HTML/CSS/JS，自包含。Koala 侧的数据通过 init_js 注入到
+// window.KOALA_VERSION，页面脚本直接读取。
+const PAGE = """
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --fg:#e6e8eb; --muted:#8b93a1; --accent:#4ade80; }
+  body.light { --bg:#f4f5f7; --card:#ffffff; --fg:#1a1d24; --muted:#6b7280; --accent:#16a34a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg);
+         color:var(--fg); height:100vh; display:flex; flex-direction:column; }
+  header { padding:20px 28px; border-bottom:1px solid rgba(128,128,128,.2);
+           display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:18px; margin:0; font-weight:600; }
+  header .ver { color:var(--muted); font-size:13px; }
+  main { flex:1; display:flex; gap:20px; padding:28px; flex-wrap:wrap; align-content:flex-start; }
+  .card { background:var(--card); border:1px solid rgba(128,128,128,.18);
+          border-radius:12px; padding:22px; min-width:220px; flex:1; }
+  .card h2 { font-size:13px; color:var(--muted); margin:0 0 12px; font-weight:500;
+             text-transform:uppercase; letter-spacing:.04em; }
+  .big { font-size:40px; font-weight:600; font-variant-numeric:tabular-nums; }
+  button { margin-top:14px; background:var(--accent); color:#04120a; border:none;
+           border-radius:8px; padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid rgba(128,128,128,.35); }
+  footer { padding:14px 28px; color:var(--muted); font-size:12px;
+           border-top:1px solid rgba(128,128,128,.2); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Koala Desktop App</h1>
+    <span class="ver">webview <span id="ver">...</span></span>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Live clock</h2>
+      <div class="big" id="clock">--:--:--</div>
+    </div>
+    <div class="card">
+      <h2>Counter</h2>
+      <div class="big" id="count">0</div>
+      <button id="inc">Click +1</button>
+    </div>
+    <div class="card">
+      <h2>Theme</h2>
+      <div class="big" id="theme-name">Dark</div>
+      <button class="ghost" id="toggle">Toggle theme</button>
+    </div>
+  </main>
+  <footer>Native window rendered by the system webview — no bundled browser. Data injected from Koala via init_js.</footer>
+  <script>
+    document.getElementById('ver').textContent = window.KOALA_VERSION || '?';
+    function tick(){
+      var d = new Date();
+      var p = function(n){ return (n<10?'0':'')+n; };
+      document.getElementById('clock').textContent = p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+    }
+    tick(); setInterval(tick, 1000);
+    var n = 0;
+    document.getElementById('inc').onclick = function(){
+      n++; document.getElementById('count').textContent = n;
+    };
+    document.getElementById('toggle').onclick = function(){
+      document.body.classList.toggle('light');
+      document.getElementById('theme-name').textContent =
+        document.body.classList.contains('light') ? 'Light' : 'Dark';
+    };
+  </script>
+</body>
+</html>
+"""
+
+func main() {
+    let w = webview.Window()
+    w.set_title("Koala Desktop App")
+    w.set_size(900, 640)
+
+    // 把 Koala 侧的数据注入页面：init_js 在每次页面加载前执行，
+    // 页面脚本即可读取 window.KOALA_VERSION。
+    w.init_js("window.KOALA_VERSION = '" + webview.version + "';")
+
+    w.set_html(PAGE)
+    w.run()        // 阻塞，直到用户关闭窗口
+    w.destroy()
+}
