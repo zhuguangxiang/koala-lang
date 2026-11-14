@@ -523,6 +523,8 @@ Symbol *stbl_add_func_instance(HashMap *stbl, FuncSymbol *origin, char *mangled_
             ArgInfo *_real_param = mm_alloc_obj(_real_param);
             _real_param->name = arg->name;
             _real_param->ts = vector_get(real_arg_types, i__);
+            _real_param->has_dfl_val = arg->has_dfl_val;
+            _real_param->dfl_val = arg->dfl_val;
             vector_push_back(real_params, &_real_param);
         }
         sym->real_params = real_params;

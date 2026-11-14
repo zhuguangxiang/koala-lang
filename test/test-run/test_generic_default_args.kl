@@ -1,0 +1,61 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+
+func main() {
+    print(wrap("hello"))
+    // CHECK: (99, hello, default)
+    print(wrap("hello", 7))
+    // CHECK-NEXT: (7, hello, default)
+    print(wrap[str]("hello", label = "named"))
+    // CHECK-NEXT: (99, hello, named)
+    print(wrap(label = "reverse", tag = 8, x = "hello"))
+    // CHECK-NEXT: (8, hello, reverse)
+    print(wrap(5))
+    // CHECK-NEXT: (99, 5, default)
+    print(forward("forwarded"))
+    // CHECK-NEXT: (99, forwarded, default)
+    print(special(3))
+    // CHECK-NEXT: (42, 3)
+    print(special[int](4, tag = 9))
+    // CHECK-NEXT: (9, 4)
+    print(special("erased"))
+    // CHECK-NEXT: (42, erased)
+    print(optional("hello"))
+    // CHECK-NEXT: (hello, nil)
+    print(optional[str]("hello", tag = 7))
+    // CHECK-NEXT: (hello, 7)
+    print(optional("hello", nil))
+    // CHECK-NEXT: (hello, nil)
+    print(optional_special(3))
+    // CHECK-NEXT: (3, nil)
+    print(optional_special(3, tag = 7))
+    // CHECK-NEXT: (3, 7)
+    print(optional_special[int](3, tag = nil))
+    // CHECK-NEXT: (3, nil)
+    print(optional_special[int](3, 8))
+    // CHECK-NEXT: (3, 8)
+    print(optional_special("erased"))
+    // CHECK-NEXT: (erased, nil)
+}
+
+func wrap[T](x T, tag int = 99, label str = "default") (int, T, str) {
+    return (tag, x, label)
+}
+
+@specialized(int)
+func special[T](x T, tag int = 42) (int, T) {
+    return (tag, x)
+}
+
+func forward[T](x T) (int, T, str) {
+    return wrap(x)
+}
+
+func optional[T](x T, tag int? = nil) (T, int?) {
+    return (x, tag)
+}
+
+@specialized(int)
+func optional_special[T](x T, tag int? = nil) (T, int?) {
+    return (x, tag)
+}

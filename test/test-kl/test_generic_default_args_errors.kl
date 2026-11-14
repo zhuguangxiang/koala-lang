@@ -1,0 +1,15 @@
+// RUN: ! koalac %s | filecheck %s
+
+func wrap[T](x T, tag int = 99) T {
+    return x
+}
+
+wrap("hello", "wrong")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+wrap[str]("hello", tag = "wrong")
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+wrap(tag = 7)
+// CHECK: expected at least
+wrap("hello", 7, 8)
+// CHECK: too many positional arguments in function call.
+// CHECK-NOT: {{.}}

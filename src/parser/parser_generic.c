@@ -1040,6 +1040,8 @@ void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserSta
             ArgInfo *_param = mm_alloc_obj(_param);
             _param->name = arg->name;
             _param->ts = arg_ts;
+            _param->has_dfl_val = arg->has_dfl_val;
+            _param->dfl_val = arg->dfl_val;
             vector_push_back(arg_infos, &_param);
         }
 
