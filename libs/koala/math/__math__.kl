@@ -124,3 +124,165 @@ pub func isnan(x float) bool {}
 /// Return `true` if `x` is positive or negative infinity.
 @native
 pub func isinf(x float) bool {}
+
+//
+// Additional constants
+//
+
+/// The mathematical constant τ (tau) = 2π ≈ 6.28318530717958647692.
+pub const TAU = 6.28318530717958647692
+
+//
+// Integer number-theory functions
+//
+
+/// Return the greatest common divisor of `a` and `b` (always non-negative).
+///
+/// `gcd(0, 0)` is 0. Negative inputs are treated by absolute value.
+pub func gcd(a int, b int) int {
+    var x = a
+    var y = b
+    if x < 0 { x = 0 - x }
+    if y < 0 { y = 0 - y }
+    while y != 0 {
+        let t = y
+        y = x % y
+        x = t
+    }
+    return x
+}
+
+/// Return the least common multiple of `a` and `b` (always non-negative).
+///
+/// `lcm(a, 0)` and `lcm(0, b)` are 0.
+pub func lcm(a int, b int) int {
+    if a == 0 || b == 0 { return 0 }
+    let g = gcd(a, b)
+    let result = (a / g) * b
+    if result < 0 { return 0 - result }
+    return result
+}
+
+/// Return `n!` (n factorial).
+///
+/// Panic if `n` is negative, or if the result overflows int64 (n > 20).
+pub func factorial(n int) int {
+    if n < 0 { panic("math.factorial: negative input") }
+    var result = 1
+    var i = 2
+    while i <= n {
+        if result > INT64_MAX / i { panic("math.factorial: overflow") }
+        result = result * i
+        i = i + 1
+    }
+    return result
+}
+
+/// Return the number of ways to choose `k` items from `n` (binomial coefficient).
+///
+/// Returns 0 if `k < 0` or `k > n`. May overflow int64 for large `n`.
+pub func comb(n int, k int) int {
+    if k < 0 || k > n { return 0 }
+    var kk = k
+    if kk > n - kk { kk = n - kk }
+    var result = 1
+    var i = 1
+    while i <= kk {
+        result = result * (n - kk + i) / i
+        i = i + 1
+    }
+    return result
+}
+
+/// Return the number of ways to arrange `k` items from `n` (permutations).
+///
+/// Returns 0 if `k < 0` or `k > n`. May overflow int64 for large `n`.
+pub func perm(n int, k int) int {
+    if k < 0 || k > n { return 0 }
+    var result = 1
+    var i = 0
+    while i < k {
+        result = result * (n - i)
+        i = i + 1
+    }
+    return result
+}
+
+//
+// Angle conversion
+//
+
+/// Convert `x` radians to degrees.
+pub func degrees(x float) float {
+    return x * (180.0 / PI)
+}
+
+/// Convert `x` degrees to radians.
+pub func radians(x float) float {
+    return x * (PI / 180.0)
+}
+
+//
+// Floating-point helpers
+//
+
+/// Return `true` if `a` and `b` are close within a tolerance.
+///
+/// Uses `abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)`.
+/// `rel_tol` defaults to 1e-9, `abs_tol` to 0.0. NaN is never close to anything.
+pub func isclose(a float, b float, rel_tol = 1e-9, abs_tol = 0.0) bool {
+    if a == b { return true }
+    if isinf(a) || isinf(b) { return false }
+    let diff = abs(a - b)
+    let scale = max(abs(a), abs(b))
+    return diff <= max(rel_tol * scale, abs_tol)
+}
+
+/// Return `x` truncated toward zero to an integral value (as a float).
+pub func trunc(x float) float {
+    if x >= 0.0 { return floor(x) }
+    return ceil(x)
+}
+
+/// Return the floating-point remainder of `x / y` (C-style, sign of `x`).
+///
+/// Panic if `y` is zero.
+pub func fmod(x float, y float) float {
+    if y == 0.0 { panic("math.fmod: zero divisor") }
+    return x - trunc(x / y) * y
+}
+
+/// Return the Euclidean norm `sqrt(x*x + y*y)`.
+///
+/// Note: computed directly, so it may overflow for very large inputs.
+pub func hypot(x float, y float) float {
+    return sqrt(x * x + y * y)
+}
+
+/// Return the cube root of `x` (defined for negative `x`).
+pub func cbrt(x float) float {
+    if x < 0.0 { return 0.0 - pow(0.0 - x, 1.0 / 3.0) }
+    return pow(x, 1.0 / 3.0)
+}
+
+/// Return `2` raised to the power `x`.
+pub func exp2(x float) float {
+    return pow(2.0, x)
+}
+
+/// Return `log(1 + x)`.
+///
+/// Panic if `x < -1`. Note: computed as `log(1+x)`, so it loses precision for
+/// very small `x` (a libm-backed version would be more accurate there).
+pub func log1p(x float) float {
+    if x < -1.0 { panic("math.log1p: domain error") }
+    return log(1.0 + x)
+}
+
+/// Return `exp(x) - 1`.
+///
+/// Note: computed as `exp(x)-1`, so it loses precision for very small `x`
+/// (a libm-backed version would be more accurate there).
+pub func expm1(x float) float {
+    return exp(x) - 1.0
+}
