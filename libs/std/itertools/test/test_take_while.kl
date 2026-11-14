@@ -1,0 +1,224 @@
+// RUN: koala --test %s
+
+import "std/ut"
+from "std/itertools" import take_while, TakeWhile, take, map, enumerate
+
+func is_pos(x int) bool { return x > 0 }
+func is_even(x int) bool { return x % 2 == 0 }
+func lt2(x int) bool { return x < 2 }
+
+class CountingSource : Iterable[int] {
+    var pulls int
+    var limit int
+    func __init__(n int) { pulls = 0; limit = n }
+    func iter(step = 1) Iterator[int] { return CountingIter(self) }
+}
+class CountingIter : Iterator[int] {
+    let src CountingSource
+    var cursor int
+    func __init__(s CountingSource) { src = s; cursor = 0 }
+    func has_next() bool = cursor < src.limit
+    func next_strict() int {
+        if !has_next() { panic("CountingIter exhausted") }
+        src.pulls = src.pulls + 1
+        let v = cursor
+        cursor = cursor + 1
+        return v
+    }
+    func next() int? { if !has_next() { return nil }; return next_strict() }
+}
+
+func tw_count[T](xs Iterable[T], pred func(T) bool) int {
+    var n = 0
+    for v in take_while(xs, pred) { n = n + 1 }
+    return n
+}
+
+// ==================== Basic take-while ====================
+
+@test
+func test_basic() {
+    let got = list[int]()
+    for x in take_while([1, 2, -1, 3], is_pos) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 1)
+    ut.assert_eq(got[1], 2)
+}
+
+@test
+func test_all_match() {
+    let got = list[int]()
+    for x in take_while([1, 2, 3], is_pos) { got.append(x) }
+    ut.assert_eq(got.len(), 3)
+}
+
+@test
+func test_none_match() {
+    let t = take_while([-1, 2, 3], is_pos)
+    ut.assert_false(t.has_next())
+    ut.assert_true(t.next() == nil)
+}
+
+@test
+func test_stops_permanently() {
+    // 5 fails; 6 is even but must NOT be yielded
+    let got = list[int]()
+    for x in take_while([2, 4, 5, 6], is_even) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[1], 4)
+}
+
+@test
+func test_empty_source() {
+    let t = take_while(list[int](), is_pos)
+    ut.assert_false(t.has_next())
+    ut.assert_true(t.next() == nil)
+}
+
+@test
+func test_str_source() {
+    var got = ""
+    for c in take_while("aab", { |c str| c == "a" }) { got = got + c }
+    ut.assert_eq(got, "aa")
+}
+
+// ==================== Iterator protocol ====================
+
+@test
+func test_while_let() {
+    let t = take_while([1, 2, -1, 3], is_pos)
+    var n = 0
+    while let x = t.next() {
+        ut.assert_eq(x, n + 1)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_has_next_idempotent() {
+    let t = take_while([1, 2, -1], is_pos)
+    ut.assert_true(t.has_next())
+    ut.assert_true(t.has_next())
+    ut.assert_eq(t.next_strict(), 1)
+    ut.assert_true(t.has_next())
+    ut.assert_eq(t.next_strict(), 2)
+    ut.assert_false(t.has_next())
+    ut.assert_false(t.has_next())
+}
+
+@test
+func test_next_after_predicate_fails() {
+    let t = take_while([1, -1, 2], is_pos)
+    ut.assert_eq(t.next_strict(), 1)
+    ut.assert_true(t.next() == nil)
+    ut.assert_true(t.next() == nil)
+    ut.assert_false(t.has_next())
+}
+
+@test
+func test_iter_returns_self() {
+    let t = take_while([1, 2, 3], is_pos)
+    ut.assert_eq(t.next_strict(), 1)
+    let again = t.iter()
+    ut.assert_eq(again.next_strict(), 2)
+    ut.assert_eq(t.next_strict(), 3)
+    ut.assert_true(t.next() == nil)
+}
+
+@test
+func test_trait_assignment() {
+    let it Iterator[int] = take_while([1, 2, -1], is_pos)
+    ut.assert_eq(it.next_strict(), 1)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_generic_context() {
+    ut.assert_eq(tw_count([1, 2, -1, 3], is_pos), 2)
+    ut.assert_eq(tw_count([1, 2, 3], is_pos), 3)
+    ut.assert_eq(tw_count([-1], is_pos), 0)
+}
+
+@test
+func test_fmt() {
+    let t = take_while([1], is_pos)
+    ut.assert_eq(format("{}", t), "TakeWhile")
+}
+
+// ==================== Laziness ====================
+
+@test
+func test_lazy_stops_at_failure() {
+    let src = CountingSource(5)  // 0,1,2,3,4
+    let got = list[int]()
+    for x in take_while(src, lt2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)  // 0,1
+    ut.assert_eq(got[0], 0)
+    ut.assert_eq(got[1], 1)
+    // pulled 0,1 (yielded) and 2 (failed, consumed); 3,4 untouched
+    ut.assert_eq(src.pulls, 3)
+}
+
+// ==================== Nullable elements ====================
+
+@test
+func test_nullable_elements() {
+    let xs = list[int?]()
+    xs.append(nil)
+    xs.append(nil)
+    xs.append(1)
+    let t = take_while(xs, { |x int?| x == nil })
+    ut.assert_true(t.has_next())
+    ut.assert_true(t.next_strict() == nil)
+    ut.assert_true(t.has_next())
+    ut.assert_true(t.next_strict() == nil)
+    ut.assert_false(t.has_next())  // stopped at 1
+}
+
+// ==================== Composition ====================
+
+@test
+func test_take_take_while() {
+    let got = list[int]()
+    for x in take(take_while([1, 2, 3, 4], is_pos), 2) { got.append(x) }
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[1], 2)
+}
+
+@test
+func test_enumerate_take_while() {
+    var n = 0
+    for (i, x) in enumerate(take_while([1, 2, -1], is_pos)) {
+        ut.assert_eq(i, n)
+        ut.assert_eq(x, n + 1)
+        n = n + 1
+    }
+    ut.assert_eq(n, 2)
+}
+
+@test
+func test_take_while_map() {
+    let got = list[int]()
+    for x in take_while(map([1, 2, 3], { |x int| x * 2 }), { |x int| x < 5 }) { got.append(x) }
+    ut.assert_eq(got.len(), 2)  // 2,4 (6 fails)
+    ut.assert_eq(got[0], 2)
+    ut.assert_eq(got[1], 4)
+}
+
+// ==================== Error branches ====================
+
+@should_panic("No more elements in TakeWhile")
+func test_next_strict_exhausted() {
+    let t = take_while([1, -1], is_pos)
+    t.next_strict()
+    t.next_strict()
+}
+
+@should_panic("TakeWhile does not support step != 1")
+func test_iter_step_unsupported() {
+    let t = take_while([1, 2], is_pos)
+    t.iter(2)
+}

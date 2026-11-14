@@ -1,0 +1,99 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that yields elements from the start of a source while a
+/// predicate holds, stopping permanently at the first element that fails it.
+///
+/// Unlike `filter` (which scans the whole source and keeps every match),
+/// `TakeWhile` stops at the first non-matching element; that element is
+/// consumed from the source but not yielded, and nothing after it is yielded
+/// even if later elements would match. The wrapper is stateful and cannot
+/// rewind.
+///
+/// `TakeWhile` is itself `Iterable`: `iter()` returns the same iterator.
+///
+/// Examples
+///
+/// ```kl
+/// func is_pos(x int) bool { return x > 0 }
+/// for x in take_while([1, 2, -1, 3], is_pos) {
+///     print(x)   // 1 / 2  (stops at -1; 3 is not reached)
+/// }
+/// ```
+pub class TakeWhile[T] : Iterator[T] & Iterable[T] {
+    let source Iterator[T]
+    let pred func(T) bool
+    let pending list[T]
+    var done bool
+
+    /// Wrap `_iterable`, yielding its leading elements that satisfy `_pred`.
+    pub func __init__(_iterable Iterable[T], _pred func(T) bool) {
+        source = _iterable.iter()
+        pred = _pred
+        pending = list[T]()
+        done = false
+    }
+
+    /// Return this same iterator; take-while wrappers are single-pass.
+    /// Panic if `step != 1`: strided take-while is not supported.
+    pub func iter(step = 1) Iterator[T] {
+        if step != 1 { panic("TakeWhile does not support step != 1") }
+        return self
+    }
+
+    /// Return true if the next leading element satisfies the predicate.
+    /// Once an element fails (or the source ends), always returns false.
+    pub func has_next() bool {
+        if done { return false }
+        if pending.len() > 0 { return true }
+        if !source.has_next() {
+            done = true
+            return false
+        }
+        let item = source.next_strict()
+        if pred(item) {
+            pending.append(item)
+            return true
+        }
+        done = true
+        return false
+    }
+
+    /// Return the next leading element and advance.
+    /// Panic if the predicate has failed or the source is exhausted.
+    pub func next_strict() T {
+        if !has_next() { panic("No more elements in TakeWhile") }
+        return pending.pop()
+    }
+
+    /// Return the next leading element, or `nil` once the predicate fails.
+    pub func next() T? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("TakeWhile")
+    }
+}
+
+/// Return an iterator over the leading elements of `obj` that satisfy `pred`,
+/// stopping at the first element that fails it.
+///
+/// Works on any `Iterable`. The result is lazy and single-pass. Unlike
+/// `filter`, it does not resume after a non-matching element.
+///
+/// Examples
+///
+/// ```kl
+/// func is_pos(x int) bool { return x > 0 }
+/// for x in take_while([1, 2, -1, 3], is_pos) {
+///     print(x)   // 1 / 2
+/// }
+/// ```
+pub func take_while[T](obj Iterable[T], pred func(T) bool) TakeWhile[T] {
+    return TakeWhile[T](obj, pred)
+}

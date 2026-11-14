@@ -1,0 +1,102 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator that applies a function returning an iterable to each element
+/// of a source, then flattens the results into a single stream.
+///
+/// `flat_map` is `map` followed by concatenation: each source element expands
+/// into zero or more output elements. Empty inner iterables contribute
+/// nothing. The source and inner iterables are consumed lazily; the wrapper
+/// is stateful and cannot rewind.
+///
+/// Note: the mapping function must declare its return type as `Iterable[U]`
+/// (not a concrete `list[U]`), because function types are invariant in their
+/// return type. E.g. `func words(s str) Iterable[str] { return s.split(" ") }`.
+///
+/// `FlatMapIter` is itself `Iterable`: `iter()` returns the same iterator.
+///
+/// Examples
+///
+/// ```kl
+/// func words(s str) Iterable[str] { return s.split(" ") }
+/// for w in flat_map(["a b", "c d"], words) {
+///     print(w)   // a / b / c / d
+/// }
+/// ```
+pub class FlatMapIter[T, U] : Iterator[U] & Iterable[U] {
+    let source Iterator[T]
+    let fn func(T) Iterable[U]
+    var inner Iterator[U]?
+
+    /// Wrap `_iterable`, expanding each element via `_fn` and flattening.
+    pub func __init__(_iterable Iterable[T], _fn func(T) Iterable[U]) {
+        source = _iterable.iter()
+        fn = _fn
+        inner = nil
+    }
+
+    /// Return this same iterator; flat-map wrappers are single-pass.
+    /// Panic if `step != 1`: strided flat-mapping is not supported.
+    pub func iter(step = 1) Iterator[U] {
+        if step != 1 { panic("FlatMapIter does not support step != 1") }
+        return self
+    }
+
+    /// Return true if any remaining inner iterable has an element, advancing
+    /// the source past exhausted or empty inner iterables to find it.
+    pub func has_next() bool {
+        if let it = inner {
+            if it.has_next() { return true }
+        }
+        while source.has_next() {
+            let next_inner = fn(source.next_strict()).iter()
+            if next_inner.has_next() {
+                inner = next_inner
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Return the next flattened element and advance.
+    /// Panic if no element remains.
+    pub func next_strict() U {
+        if !has_next() { panic("No more elements in FlatMapIter") }
+        return inner!.next_strict()
+    }
+
+    /// Return the next flattened element, or `nil` if none remains.
+    pub func next() U? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    /// Format the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_str("FlatMapIter")
+    }
+}
+
+/// Return an iterator that expands each element of `obj` via `fn` and
+/// flattens the results.
+///
+/// `fn` must return `Iterable[U]` (declare its return type as such). The
+/// result is lazy and single-pass; empty inner iterables are skipped.
+///
+/// Examples
+///
+/// ```kl
+/// func words(s str) Iterable[str] { return s.split(" ") }
+/// for w in flat_map(["a b", "c d"], words) {
+///     print(w)   // a / b / c / d
+/// }
+/// func dup(x int) Iterable[int] { return [x, x] }
+/// for v in flat_map([1, 2], dup) {
+///     print(v)   // 1 / 1 / 2 / 2
+/// }
+/// ```
+pub func flat_map[T, U](obj Iterable[T], fn func(T) Iterable[U]) FlatMapIter[T, U] {
+    return FlatMapIter[T, U](obj, fn)
+}
