@@ -21,6 +21,21 @@ func test_find_ws_root(start str) str {
     return ""
 }
 
+/// The shell command that runs one test file with the workspace's
+/// `KOALA_PATH` and `LD_LIBRARY_PATH`.
+///
+/// `no_jit` adds `KOALA_JIT=0`. Without it `KOALA_JIT` is left as the
+/// caller had it, so an exported value still applies. The setting is
+/// inherited by any process a test spawns in turn.
+func test_command(ws_parent str, koala_path str, ld_path str, rel str, no_jit bool) str {
+    var jit = ""
+    if no_jit { jit = "KOALA_JIT=0 " }
+    return "cd " + ws_parent +
+           " && KOALA_PATH=" + koala_path +
+           " LD_LIBRARY_PATH=" + ld_path +
+           " " + jit + "koala --test " + rel
+}
+
 /// Run only `<ws_root>/test/*.kl`.
 ///
 /// A missing `test/` or an empty `test/` returns 0. Each `.kl` file is
@@ -34,7 +49,7 @@ func test_find_ws_root(start str) str {
 ///
 /// Test paths are `<ws_name>/test/<file>.kl`, relative to the
 /// workspace's parent, matching the base that `build_workspace` uses.
-func run_ws_dir_tests(ws_root str) int {
+func run_ws_dir_tests(ws_root str, no_jit bool = false) int {
     let test_dir = fs.Path(ws_root).cat("test").to_str()
     if !fs.exists(test_dir) {
         print("wombat test: no test directory in ws/test/")
@@ -73,10 +88,7 @@ func run_ws_dir_tests(ws_root str) int {
         let rel = ws_name + "/test/" + name
         print("")
         printf("🚀 Running: koala --test {}\n", rel)
-        let full = "cd " + ws_parent +
-                   " && KOALA_PATH=" + koala_path +
-                   " LD_LIBRARY_PATH=" + ld_path +
-                   " koala --test " + rel
+        let full = test_command(ws_parent, koala_path, ld_path, rel, no_jit)
         let rc = os.system(full)
         print("")
         total += 1
@@ -113,7 +125,9 @@ func run_ws_dir_tests(ws_root str) int {
 /// A directory package has tests when `<dir>/<pkg.test>` exists. A
 /// single-file package has no `<dir>/test/`; its tests live in
 /// `ws/test/` and are handled by the workspace-level pass.
-pub func test_all(target str) int {
+///
+/// `no_jit` runs every test process with `KOALA_JIT=0`.
+pub func test_all(target str, no_jit bool = false) int {
     // `@`: only ws/test/*.kl. Independent branch, does not touch the
     // directory-package logic below.
     if target == "@" {
@@ -122,7 +136,7 @@ pub func test_all(target str) int {
             print("wombat test: '@' requires a workspace")
             return 1
         }
-        return run_ws_dir_tests(ws_root)
+        return run_ws_dir_tests(ws_root, no_jit)
     }
 
     // Single-file targets are not supported yet. Independent branch,
@@ -223,10 +237,7 @@ pub func test_all(target str) int {
             print("")
             printf("🚀 Running: koala --test {}\n", rel)
 
-            let full = "cd " + ws_parent +
-                       " && KOALA_PATH=" + koala_path +
-                       " LD_LIBRARY_PATH=" + ld_path +
-                       " koala --test " + rel
+            let full = test_command(ws_parent, koala_path, ld_path, rel, no_jit)
 
             let rc = os.system(full)
 
@@ -253,10 +264,7 @@ pub func test_all(target str) int {
                 let rel = ws_name + "/test/" + name
                 print("")
                 printf("🚀 Running: koala --test {}\n", rel)
-                let full = "cd " + ws_parent +
-                           " && KOALA_PATH=" + koala_path +
-                           " LD_LIBRARY_PATH=" + ld_path +
-                           " koala --test " + rel
+                let full = test_command(ws_parent, koala_path, ld_path, rel, no_jit)
                 let rc = os.system(full)
                 print("")
                 total += 1

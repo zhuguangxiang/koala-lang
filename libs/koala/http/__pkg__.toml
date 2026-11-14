@@ -1,7 +1,7 @@
 [package]
 name = "koala/http"
 version = "0.1.0"
-description = "HTTP/1.1 client over TCP and TLS"
+description = "HTTP/1.1 client over TCP and TLS, and a blocking server over TCP"
 dependencies = []
 natives = []
 

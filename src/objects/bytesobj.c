@@ -249,17 +249,7 @@ static TValue _bytes_tostr(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
     const char *base = (const char *)bytes->data + bytes->offset;
-    size_t size = bytes->size;
-
-    /* Conversion, not display: a bytes object doubles as an I/O buffer, so the
-     * result stops at the first NUL exactly like a C string. Printing goes
-     * through fmt instead, which escapes and shows every byte. Callers that
-     * need the whole filled-in region of a buffer slice it first:
-     * buf.view(0, n).to_str(). */
-    const char *nul = memchr(base, '\0', size);
-    if (nul) size = (size_t)(nul - base);
-
-    return obj_value(kl_new_nstr((char *)base, size));
+    return obj_value(kl_new_nstr((char *)base, bytes->size));
 }
 
 static const char hex_digits[] = "0123456789abcdef";

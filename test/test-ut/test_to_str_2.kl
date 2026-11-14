@@ -81,7 +81,7 @@ func test_generic_tostring_bound() {
 
 @test
 func test_bytes_to_str_method() {
-    // bytes.to_str() is a UTF-8 decoding operation that may panic if the bytes are not valid UTF-8.
+    // bytes.to_str() decodes UTF-8, replacing invalid bytes with U+FFFD.
     // So only used as an explicit method, not via str(bs) syntax.
     ut.assert_eq(b"hello".to_str(), "hello")
     ut.assert_eq(b"".to_str(), "")

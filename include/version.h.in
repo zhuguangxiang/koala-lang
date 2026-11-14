@@ -16,7 +16,10 @@ extern "C" {
 #define KOALA_VERSION_MINOR ${KOALA_VERSION_MINOR}
 #define KOALA_VERSION_PATCH ${KOALA_VERSION_PATCH}
 #define KOALA_VERSION_STRING "${KOALA_VERSION}"
-#define KOALA_VERSION ((${KOALA_VERSION_MAJOR} << 16) + (${KOALA_VERSION_MINOR} << 8) + ${KOALA_VERSION_PATCH})
+/* Packed into the uint32_t version field of a .klc header:
+ * major bits 24-31, minor bits 8-23, patch bits 0-7. Minor gets 16 bits
+ * because it tracks the commit count and outgrows 8. */
+#define KOALA_VERSION ((${KOALA_VERSION_MAJOR} << 24) + (${KOALA_VERSION_MINOR} << 8) + ${KOALA_VERSION_PATCH})
 /* clang-format on */
 
 #ifdef __cplusplus

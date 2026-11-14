@@ -1,0 +1,72 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Lazily produced response bodies.
+///
+/// `Response.stream` takes a `Body` instead of a fixed `bytes`, so a
+/// response can be written as it is produced rather than buffered whole
+/// in memory: a file being downloaded, a server-sent event stream, a
+/// generated report. The server frames each chunk as HTTP chunked
+/// encoding, which is what lets a body of unknown length share a
+/// keep-alive connection.
+
+import "std/fs"
+
+/// A source of response body bytes, pulled one chunk at a time.
+pub trait Body {
+    /// The next chunk, or nil once the body is exhausted. An empty
+    /// chunk is skipped rather than treated as the end, so a source
+    /// that has nothing ready yet can return one.
+    func read() bytes?
+
+    /// Release whatever the source holds. The server calls this once,
+    /// whether the body finished or the connection failed.
+    func close()
+}
+
+/// A body that streams a file from disk, for downloads.
+///
+///     let body = FileBody.open("/srv/big.iso")!
+///     return Response.stream(200, "application/octet-stream", body)
+///
+/// The file is closed when the body is closed, including when the peer
+/// disconnects part-way through.
+pub class FileBody : Body {
+    let _file fs.File
+    let _chunk int
+    var _done bool = false
+    var _closed bool = false
+
+    pub func __init__(file fs.File, chunk int = 16384) {
+        _file = file
+        _chunk = chunk
+    }
+
+    /// Open `path` for streaming. Nil when the file cannot be opened.
+    /// `chunk` is the read size in bytes.
+    pub static func open(path str, chunk int = 16384) FileBody? {
+        if let f = fs.open(path, "r") {
+            return FileBody(f, chunk)
+        }
+        return nil
+    }
+
+    pub func read() bytes? {
+        if _done { return nil }
+        let buf = bytes(_chunk)
+        let n = _file.read(buf)
+        if n <= 0 {
+            _done = true
+            return nil
+        }
+        return buf[0:n]
+    }
+
+    pub func close() {
+        if _closed { return }
+        _closed = true
+        _file.close()
+    }
+}

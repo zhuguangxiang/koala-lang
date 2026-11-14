@@ -1,0 +1,24 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// Deep mutual (non-self) recursion through JIT direct calls: frames come from
+// an empty ks->cf_cache (refilled out of line) and must not fall back to the
+// C-recursive helper path; unbounded depth raises "stack overflow".
+// (The interpreter overflows the C stack here: no KOALA_JIT=0 run.)
+
+func fa(n int) int {
+    if n == 0 { return 0 }
+    return fb(n - 1) + 1
+}
+func fb(n int) int {
+    if n == 0 { return 0 }
+    return fa(n - 1) + 1
+}
+
+func main() {
+    print(fa(50000))
+    // CHECK: 50000
+    print(fa(10000000))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_direct_call_deep.kl", line {{9|13}}, in {{fa|fb}}
+// CHECK: Error: stack overflow

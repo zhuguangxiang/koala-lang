@@ -99,6 +99,12 @@ static const X86OpDef ops_sse[] = {
 #undef X
 };
 
+static const X86OpDef ops_sse66[] = {
+#define X(name, op, mask, enc, mn) {op, mask, enc, mn},
+    X86_OPS_SSE66_LIST
+#undef X
+};
+
 static const X86OpDef *find_op(const X86OpDef *tbl, size_t n, uint8_t byte)
 {
     for (size_t i = 0; i < n; i++)
@@ -117,6 +123,7 @@ typedef struct {
     int rex; /* REX byte, or 0 when absent */
     int rex_w, rex_r, rex_x, rex_b;
     int f2; /* F2 mandatory prefix (SSE2 scalar double) */
+    int p66; /* 66 mandatory prefix (ucomisd, movq) */
 } Dis;
 
 static int rd_u8(Dis *d)
@@ -214,6 +221,9 @@ size_t jit_disasm_one(const uint8_t *p, size_t avail, size_t off, char *out,
     if (b == 0xF2) { /* SSE2 scalar-double mandatory prefix */
         d.f2 = 1;
         b = rd_u8(&d);
+    } else if (b == 0x66) { /* SSE2 66-prefixed (ucomisd) */
+        d.p66 = 1;
+        b = rd_u8(&d);
     }
     if (b >= 0x40 && b <= 0x4F) { /* REX prefix */
         d.rex = b;
@@ -233,6 +243,9 @@ size_t jit_disasm_one(const uint8_t *p, size_t avail, size_t off, char *out,
         opcode = rd_u8(&d);
         if (d.f2)
             def = find_op(ops_sse, sizeof(ops_sse) / sizeof(ops_sse[0]), (uint8_t)opcode);
+        else if (d.p66)
+            def = find_op(ops_sse66, sizeof(ops_sse66) / sizeof(ops_sse66[0]),
+                          (uint8_t)opcode);
         else
             def = find_op(ops0f, sizeof(ops0f) / sizeof(ops0f[0]), (uint8_t)opcode);
     } else {
@@ -423,8 +436,22 @@ size_t jit_disasm_one(const uint8_t *p, size_t avail, size_t off, char *out,
         case X86_ENC_SSE_REG_RM:
             mm = rd_u8(&d);
             reg = ((mm >> 3) & 7) + (d.rex_r ? 8 : 0);
-            rm_operand(&d, mm, rmstr, sizeof(rmstr));
+            if ((mm >> 6) == 3) /* xmm, xmm */
+                snprintf(rmstr, sizeof(rmstr), "%s", xmm_name[((mm & 7) + (d.rex_b ? 8 : 0)) & 15]);
+            else
+                rm_operand(&d, mm, rmstr, sizeof(rmstr));
             snprintf(out, outsz, "%s %s, %s", mn, xmm_name[reg & 15], rmstr);
+            break;
+
+        case X86_ENC_MOVQ_XMM_GPR:
+        case X86_ENC_MOVQ_GPR_XMM:
+            mm = rd_u8(&d);
+            reg = ((mm >> 3) & 7) + (d.rex_r ? 8 : 0);
+            rm_operand(&d, mm, rmstr, sizeof(rmstr));
+            if (def->enc == X86_ENC_MOVQ_XMM_GPR)
+                snprintf(out, outsz, "%s %s, %s", mn, xmm_name[reg & 15], rmstr);
+            else
+                snprintf(out, outsz, "%s %s, %s", mn, rmstr, xmm_name[reg & 15]);
             break;
 
         case X86_ENC_SSE_RM_REG:

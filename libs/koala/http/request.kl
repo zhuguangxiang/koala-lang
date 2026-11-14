@@ -13,6 +13,9 @@
 /// request always carries exactly one `Host` field (RFC 7230 §5.4).
 /// `Content-Length` is added when the body is non-empty and the caller
 /// has not already set it.
+
+import "std/socket" as so
+
 pub class Request {
     let _method str
     let _url Url
@@ -29,6 +32,14 @@ pub class Request {
     pub func method() str { return _method }
     pub func url() Url { return _url }
     pub func body() bytes { return _body }
+    pub func headers() list[list[str]] { return _headers }
+
+    /// Header lookup, case-insensitive. Returns the first matching
+    /// value, or nil when absent. The read side of `header`; a handler
+    /// uses it to see what the client sent.
+    pub func header_value(name str) str? {
+        return _header_value(_headers, name)
+    }
 
     /// Build a GET request with no body and no extra headers.
     pub static func get(url Url) Request {
@@ -40,6 +51,21 @@ pub class Request {
         let r = Request("POST", url, list[list[str]](), body)
         r.header("Content-Type", "application/octet-stream")
         return r
+    }
+
+    /// Parse a complete request from the bytes a client sent: the
+    /// receiving counterpart of `to_bytes`.
+    ///
+    /// `data` must hold the whole message, sized by Content-Length or
+    /// chunked encoding. Returns nil on a malformed request line, head,
+    /// or authority. The request target becomes `url().path()`, and the
+    /// Host field supplies the authority when the target is origin-form.
+    pub static func parse(data bytes) Request? {
+        let parser = _Parser.request()
+        if parser == nil { return nil }
+        let req = _parse_request(parser, data)
+        parser.close()
+        return req
     }
 
     /// Set a header, replacing the value of an existing field with the
@@ -114,4 +140,62 @@ func _write_field(buf Buffer, name str, value str) {
 func _header_name_eq(a str, b str) bool {
     if a.len() != b.len() { return false }
     return a.lower() == b.lower()
+}
+
+// ---------------------------------------------------------------------
+// Server-side request parsing
+// ---------------------------------------------------------------------
+
+// Parse one whole request. Nil on a parse error or a message cut short.
+func _parse_request(parser _Parser, data bytes) Request? {
+    let n = parser.feed(data, _STATE_COMPLETE)
+    if n < 0 { return nil }
+    if parser.state() < _STATE_COMPLETE {
+        if !parser.finish() { return nil }
+    }
+    return _request_of(parser)
+}
+
+// The request `parser` has parsed. Valid once its state is COMPLETE.
+// Shared with the server, which feeds a connection piece by piece.
+func _request_of(parser _Parser) Request? {
+    let headers = parser.headers()
+    let url = _target_url(parser.url(), _header_value(headers, "Host"))
+    if let u = url {
+        return Request(parser.method(), u, headers, parser.take_body())
+    }
+    return nil
+}
+
+// The Url for a request target (RFC 7230 §5.3). Absolute-form carries
+// its own authority; origin-form "/path" and asterisk-form "*" take it
+// from the Host field. A target with no authority at all still parses,
+// so an HTTP/1.0 client that sends no Host is not rejected.
+func _target_url(target str, host str?) Url? {
+    if target.len() == 0 { return nil }
+    if target.starts_with("http://") || target.starts_with("https://") {
+        return Url.parse(target)
+    }
+
+    var authority = ""
+    if let h = host { authority = h }
+    if authority.len() == 0 { return Url("http", "", 80, target) }
+
+    let (h, p) = so.split_host_port(authority) else {
+        // No port: the field names the host alone. A colon that
+        // split_host_port rejected is a malformed authority.
+        if authority.index(":") >= 0 { return nil }
+        return Url("http", authority, 80, target)
+    }
+    return Url("http", h, p, target)
+}
+
+// First value of `name`, case-insensitive. Nil when absent.
+func _header_value(headers list[list[str]], name str) str? {
+    var i = 0
+    while i < headers.len() {
+        if _header_name_eq(headers[i][0], name) { return headers[i][1] }
+        i += 1
+    }
+    return nil
 }

@@ -174,12 +174,40 @@ static void print_source_line(const char *filename, int target_line)
     fclose(fp);
 }
 
+static int same_str(const char *a, const char *b)
+{
+    return a == b || (a && b && !strcmp(a, b));
+}
+
+static int same_traceback(TraceBack *a, TraceBack *b)
+{
+    return a->lineno == b->lineno && a->pc == b->pc && same_str(a->funcname, b->funcname) &&
+           same_str(a->filename, b->filename);
+}
+
+/* identical consecutive entries (deep recursion) print at most this many times */
+#define TB_REPEAT_MAX 3
+
+static void print_repeated(int n)
+{
+    if (n > 0) printf("  [Previous line repeated %d more time%s]\n", n, n > 1 ? "s" : "");
+}
+
 static void print_tracebacks(Exception *exc)
 {
     printf("\nTraceback (most recent call last):\n");
 
     TraceBack *tb;
+    TraceBack *last = NULL;
+    int count = 0;
     vector_foreach_ptr(tb, &exc->tracebacks) {
+        if (last && same_traceback(last, tb)) {
+            if (++count > TB_REPEAT_MAX) continue;
+        } else {
+            if (last) print_repeated(count - TB_REPEAT_MAX);
+            last = tb;
+            count = 1;
+        }
         if (!tb->funcname) {
             // a frame reused by tail calls to other functions (as Lua does)
             printf("  (... %d tail call%s ...)\n", tb->lineno, tb->lineno > 1 ? "s" : "");
@@ -190,6 +218,7 @@ static void print_tracebacks(Exception *exc)
             printf("  [pc %04u] in %s\n", tb->pc, tb->funcname);
         }
     }
+    print_repeated(count - TB_REPEAT_MAX);
 
     fflush(stdout);
 }

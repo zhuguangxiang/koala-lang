@@ -48,6 +48,9 @@ typedef struct _HttpParser {
     // Offset, from the start of the message, where the body starts.
     int64_t body_offset;
     Buffer reason;
+    // The request target, as it appeared on the request line. Requests
+    // only; a response has no target.
+    Buffer url;
     Buffer field;
     Buffer value;
     HeaderPair *headers;
@@ -67,6 +70,8 @@ static void clear_message(HttpParser *hp)
 
     FINI_BUF(hp->reason);
     INIT_BUF(hp->reason);
+    FINI_BUF(hp->url);
+    INIT_BUF(hp->url);
     FINI_BUF(hp->field);
     INIT_BUF(hp->field);
     FINI_BUF(hp->value);
@@ -86,6 +91,15 @@ static int on_status(llhttp_t *p, const char *at, size_t len)
 {
     HttpParser *hp = p->data;
     buf_write_nstr(&hp->reason, at, (int)len);
+    return HPE_OK;
+}
+
+// The request target. May arrive in pieces when the request line is
+// split across feeds.
+static int on_url(llhttp_t *p, const char *at, size_t len)
+{
+    HttpParser *hp = p->data;
+    buf_write_nstr(&hp->url, at, (int)len);
     return HPE_OK;
 }
 
@@ -167,6 +181,7 @@ static llhttp_settings_t *get_settings(void)
     }
     llhttp_settings_init(&g_settings);
     g_settings.on_status = on_status;
+    g_settings.on_url = on_url;
     g_settings.on_header_field = on_header_field;
     g_settings.on_header_value = on_header_value;
     g_settings.on_header_value_complete = on_header_value_complete;
@@ -308,6 +323,30 @@ static TValue _http_parser_reason(TValue *self, TValue *args, int nargs)
     return kl_val_nstr(BUF_STR(hp->reason), BUF_LEN(hp->reason));
 }
 
+// func http_parser_method(p int) str
+//
+// The request method, uppercased as llhttp normalizes it. A request
+// parser sets it from the request line; a response parser leaves it at
+// 0, so only call this on a request parser.
+static TValue _http_parser_method(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    HttpParser *hp = (HttpParser *)(intptr_t)kl_arg_int(0);
+    llhttp_method_t method = (llhttp_method_t)llhttp_get_method(&hp->parser);
+    return kl_val_str((char *)llhttp_method_name(method));
+}
+
+// func http_parser_url(p int) str
+//
+// The request target exactly as it arrived: origin-form "/path?q=1",
+// absolute-form "http://host/path", or "*". Requests only.
+static TValue _http_parser_url(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    HttpParser *hp = (HttpParser *)(intptr_t)kl_arg_int(0);
+    return kl_val_nstr(BUF_STR(hp->url), BUF_LEN(hp->url));
+}
+
 // func http_parser_header_count(p int) int
 static TValue _http_parser_header_count(TValue *self, TValue *args, int nargs)
 {
@@ -437,6 +476,8 @@ void http_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "http_parser_state", _http_parser_state);
     kl_reg_func(lib, "http_parser_status", _http_parser_status);
     kl_reg_func(lib, "http_parser_reason", _http_parser_reason);
+    kl_reg_func(lib, "http_parser_method", _http_parser_method);
+    kl_reg_func(lib, "http_parser_url", _http_parser_url);
     kl_reg_func(lib, "http_parser_header_count", _http_parser_header_count);
     kl_reg_func(lib, "http_parser_header_name", _http_parser_header_name);
     kl_reg_func(lib, "http_parser_header_value", _http_parser_header_value);

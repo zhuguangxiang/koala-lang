@@ -34,7 +34,7 @@ func test_udp_send_recv() {
     let rr = server.recv_from(buf)
     ut.assert_eq(rr.status(), so.IO_OK)
     ut.assert_eq(rr.n(), 5)
-    ut.assert_eq(buf.to_str(), "hello")
+    ut.assert_eq(buf.view(0, rr.n()).to_str(), "hello")
 
     // Server → client, using the peer address from the datagram.
     let peer = rr.peer()!
@@ -46,7 +46,15 @@ func test_udp_send_recv() {
     let cr = client.recv_from(buf2)
     ut.assert_eq(cr.status(), so.IO_OK)
     ut.assert_eq(cr.n(), 5)
-    ut.assert_eq(buf2.to_str(), "world")
+    ut.assert_eq(buf2.view(0, cr.n()).to_str(), "world")
+
+    // NUL is data within the received datagram, not a string terminator.
+    let binary = b"A\x00B"
+    ut.assert_eq(client.send_to(binary, server_addr).n(), 3)
+    let nr = server.recv_from(buf)
+    ut.assert_eq(nr.status(), so.IO_OK)
+    ut.assert_eq(nr.n(), 3)
+    ut.assert_eq(buf.view(0, nr.n()).to_str().to_bytes(), binary)
 
     client.close()
     server.close()
@@ -89,14 +97,14 @@ func test_udp_peek_from() {
     let pr = s.peek_from(pbuf)
     ut.assert_eq(pr.status(), so.IO_OK)
     ut.assert_eq(pr.n(), 6)
-    ut.assert_eq(pbuf.to_str(), "peekme")
+    ut.assert_eq(pbuf.view(0, pr.n()).to_str(), "peekme")
 
     // The next recv_from returns the same datagram.
     let rbuf = bytes(65535)
     let rr = s.recv_from(rbuf)
     ut.assert_eq(rr.status(), so.IO_OK)
     ut.assert_eq(rr.n(), 6)
-    ut.assert_eq(rbuf.to_str(), "peekme")
+    ut.assert_eq(rbuf.view(0, rr.n()).to_str(), "peekme")
 
     client.close()
     s.close()
@@ -123,7 +131,7 @@ func test_udp_connected_client() {
     let rr = s.recv_from(buf)
     ut.assert_eq(rr.status(), so.IO_OK)
     ut.assert_eq(rr.n(), 4)
-    ut.assert_eq(buf.to_str(), "ping")
+    ut.assert_eq(buf.view(0, rr.n()).to_str(), "ping")
 
     // Reply to the client and read on the connected side.
     let peer = rr.peer()!
@@ -132,7 +140,8 @@ func test_udp_connected_client() {
     let rbuf = bytes(65535)
     let cr = (client as so.UdpConn)!.recv_from(rbuf)
     ut.assert_eq(cr.status(), so.IO_OK)
-    ut.assert_eq(rbuf.to_str(), "pong")
+    ut.assert_eq(cr.n(), 4)
+    ut.assert_eq(rbuf.view(0, cr.n()).to_str(), "pong")
 
     client.close()
     s.close()

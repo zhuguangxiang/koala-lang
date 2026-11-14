@@ -19,6 +19,12 @@ pub class TlsOptions {
     /// connection is then open to anyone in the middle.
     var _skip_verify bool = false
 
+    /// PEM text of the certificates to trust, in place of the system
+    /// store. Empty uses the system store. This is how a client trusts
+    /// a private CA or a self-signed server certificate without
+    /// turning verification off.
+    var _ca_pem str = ""
+
     /// Construct a TlsOptions with every field at its declared default.
     pub func __init__() {}
 
@@ -30,6 +36,9 @@ pub class TlsOptions {
 
     /// Whether certificate verification is skipped.
     pub func skip_verify() bool { return _skip_verify }
+
+    /// PEM text of the trusted certificates, or "" for the system store.
+    pub func ca_pem() str { return _ca_pem }
 
     /// Set the handshake timeout.
     pub func set_handshake_timeout_ms(ms int) TlsOptions {
@@ -46,6 +55,13 @@ pub class TlsOptions {
     /// Skip or restore certificate verification.
     pub func set_skip_verify(on bool) TlsOptions {
         _skip_verify = on
+        return self
+    }
+
+    /// Trust the certificates in `pem` instead of the system store.
+    /// Pass "" to go back to the system store.
+    pub func set_ca_pem(pem str) TlsOptions {
+        _ca_pem = pem
         return self
     }
 }

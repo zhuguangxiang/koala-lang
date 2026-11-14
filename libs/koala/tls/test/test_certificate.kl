@@ -1,0 +1,182 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Certificate tests: generation, PEM loading, and every failure path.
+// No network and no handshake here; test_tls_server.kl covers those.
+//
+// The positive from_pem / from_files cases need a certificate and its
+// matching key, which self_signed cannot export (the private key never
+// leaves the native context). Those cases generate a pair with the
+// openssl command and skip when it is not installed.
+
+import "std/ut"
+import "std/os"
+import "std/fs"
+from "koala/tls" import Certificate
+
+// A certificate and key pair on disk, or nil when openssl is missing.
+func openssl_pair() (str, str)? {
+    if os.which("openssl") == nil { return nil }
+    let cert = fs.make_temp_file("koala_cert", ".pem")!
+    let key = fs.make_temp_file("koala_key", ".pem")!
+    let r = os.output("openssl", [
+        "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+        "-subj", "/CN=localhost",
+        "-keyout", key.to_str(), "-out", cert.to_str()])
+    let (code, _, _) = r else { return nil }
+    if code != 0 { return nil }
+    return (cert.to_str(), key.to_str())
+}
+
+@test
+func test_self_signed_produces_pem() {
+    let cert = Certificate.self_signed("localhost")!
+    let pem = cert.cert_pem()
+    ut.assert_true(pem.starts_with("-----BEGIN CERTIFICATE-----"))
+    ut.assert_true(pem.ends_with("-----END CERTIFICATE-----\n"))
+    // The public certificate only: the private key must not leak.
+    ut.assert_true(pem.index("PRIVATE KEY") < 0)
+    cert.close()
+}
+
+@test
+func test_self_signed_multiple_names() {
+    let cert = Certificate.self_signed("localhost,example.com,127.0.0.1")!
+    ut.assert_true(cert.cert_pem().len() > 0)
+    cert.close()
+}
+
+@test
+func test_self_signed_ip_only() {
+    let cert = Certificate.self_signed("127.0.0.1")!
+    ut.assert_true(cert.cert_pem().len() > 0)
+    cert.close()
+}
+
+@test
+func test_self_signed_ipv6() {
+    let cert = Certificate.self_signed("::1")!
+    ut.assert_true(cert.cert_pem().len() > 0)
+    cert.close()
+}
+
+@test
+func test_self_signed_spaces_trimmed() {
+    let cert = Certificate.self_signed(" localhost , 127.0.0.1 ")!
+    ut.assert_true(cert.cert_pem().len() > 0)
+    cert.close()
+}
+
+@test
+func test_self_signed_empty_names() {
+    ut.assert_true(Certificate.self_signed("") == nil)
+}
+
+@test
+func test_self_signed_only_separators() {
+    ut.assert_true(Certificate.self_signed(",,") == nil)
+}
+
+@test
+func test_self_signed_bad_days() {
+    ut.assert_true(Certificate.self_signed("localhost", 0) == nil)
+    ut.assert_true(Certificate.self_signed("localhost", -1) == nil)
+}
+
+@test
+func test_self_signed_custom_days() {
+    let cert = Certificate.self_signed("localhost", 1)!
+    ut.assert_true(cert.cert_pem().len() > 0)
+    cert.close()
+}
+
+@test
+func test_cert_pem_after_close() {
+    let cert = Certificate.self_signed("localhost")!
+    cert.close()
+    ut.assert_eq(cert.cert_pem(), "")
+}
+
+@test
+func test_close_twice() {
+    let cert = Certificate.self_signed("localhost")!
+    cert.close()
+    cert.close()
+    ut.assert_eq(cert.cert_pem(), "")
+}
+
+@test
+func test_with_block_closes() {
+    let cert = Certificate.self_signed("localhost")!
+    with cert {
+        ut.assert_true(cert.cert_pem().len() > 0)
+    }
+    ut.assert_eq(cert.cert_pem(), "")
+}
+
+@test
+func test_from_pem_garbage() {
+    ut.assert_true(Certificate.from_pem("not a certificate", "not a key") == nil)
+}
+
+@test
+func test_from_pem_empty() {
+    ut.assert_true(Certificate.from_pem("", "") == nil)
+}
+
+@test
+func test_from_files_missing() {
+    ut.assert_true(Certificate.from_files("/no/such/cert.pem", "/no/such/key.pem") == nil)
+}
+
+@test
+func test_from_files_cert_only_missing_key() {
+    let (cert_path, _) = openssl_pair() else { return }
+    ut.assert_true(Certificate.from_files(cert_path, "/no/such/key.pem") == nil)
+    fs.remove(cert_path)
+}
+
+@test
+func test_from_pem_openssl_pair() {
+    let (cert_path, key_path) = openssl_pair() else { return }
+    let cert = Certificate.from_pem(fs.read_str(cert_path), fs.read_str(key_path))
+    ut.assert_true(cert != nil)
+    ut.assert_true(cert!.cert_pem().starts_with("-----BEGIN CERTIFICATE-----"))
+    cert!.close()
+    fs.remove(cert_path)
+    fs.remove(key_path)
+}
+
+@test
+func test_from_files_openssl_pair() {
+    let (cert_path, key_path) = openssl_pair() else { return }
+    let cert = Certificate.from_files(cert_path, key_path)
+    ut.assert_true(cert != nil)
+    cert!.close()
+    fs.remove(cert_path)
+    fs.remove(key_path)
+}
+
+@test
+func test_from_pem_mismatched_key() {
+    let (cert_path, key_path) = openssl_pair() else { return }
+
+    // A second, unrelated pair: valid PEM, but its key does not match
+    // the first certificate.
+    let other_cert = fs.make_temp_file("koala_other_cert", ".pem")!
+    let other_key = fs.make_temp_file("koala_other_key", ".pem")!
+    let r = os.output("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes",
+        "-days", "1", "-subj", "/CN=other",
+        "-keyout", other_key.to_str(), "-out", other_cert.to_str()])
+    let (code, _, _) = r else { return }
+    if code != 0 { return }
+
+    let cert = Certificate.from_pem(fs.read_str(cert_path), fs.read_str(other_key.to_str()))
+    ut.assert_true(cert == nil)
+    fs.remove(cert_path)
+    fs.remove(key_path)
+    fs.remove(other_cert.to_str())
+    fs.remove(other_key.to_str())
+}

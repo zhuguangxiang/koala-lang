@@ -1,0 +1,166 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Protocol-level tests for Request.parse: every request-target form,
+// body framing, and failure path, with no socket involved.
+
+import "std/ut"
+from "koala/http" import Url, Request
+
+func parse(s str) Request? {
+    return Request.parse(s.to_bytes())
+}
+
+@test
+func test_parse_origin_form() {
+    let r = parse("GET /hello?a=1 HTTP/1.1\r\nHost: example.com:8080\r\n\r\n")!
+    ut.assert_eq(r.method(), "GET")
+    ut.assert_eq(r.url().path(), "/hello?a=1")
+    ut.assert_eq(r.url().host(), "example.com")
+    ut.assert_eq(r.url().port(), 8080)
+    ut.assert_eq(r.body().len(), 0)
+}
+
+@test
+func test_parse_host_without_port() {
+    let r = parse("GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")!
+    ut.assert_eq(r.url().host(), "example.com")
+    ut.assert_eq(r.url().port(), 80)
+}
+
+@test
+func test_parse_host_ipv6() {
+    let r = parse("GET / HTTP/1.1\r\nHost: [::1]:9000\r\n\r\n")!
+    ut.assert_eq(r.url().host(), "::1")
+    ut.assert_eq(r.url().port(), 9000)
+}
+
+@test
+func test_parse_absolute_form() {
+    // A proxy-style request carries its own authority; the Host field
+    // must not override it.
+    let r = parse("GET http://other.com/p HTTP/1.1\r\nHost: example.com\r\n\r\n")!
+    ut.assert_eq(r.url().host(), "other.com")
+    ut.assert_eq(r.url().path(), "/p")
+}
+
+@test
+func test_parse_absolute_form_https() {
+    let r = parse("GET https://other.com/p HTTP/1.1\r\nHost: h\r\n\r\n")!
+    ut.assert_true(r.url().is_tls())
+    ut.assert_eq(r.url().port(), 443)
+}
+
+@test
+func test_parse_asterisk_form() {
+    let r = parse("OPTIONS * HTTP/1.1\r\nHost: example.com\r\n\r\n")!
+    ut.assert_eq(r.method(), "OPTIONS")
+    ut.assert_eq(r.url().path(), "*")
+    ut.assert_eq(r.url().host(), "example.com")
+}
+
+@test
+func test_parse_no_host() {
+    // An HTTP/1.0 client may send no Host; the target still parses.
+    let r = parse("GET /x HTTP/1.0\r\n\r\n")!
+    ut.assert_eq(r.url().path(), "/x")
+    ut.assert_eq(r.url().host(), "")
+}
+
+@test
+func test_parse_content_length_body() {
+    let r = parse("POST /up HTTP/1.1\r\nHost: h\r\nContent-Length: 5\r\n\r\nhello")!
+    ut.assert_eq(r.method(), "POST")
+    ut.assert_eq(r.body().to_str(), "hello")
+}
+
+@test
+func test_parse_chunked_body() {
+    let r = parse("POST /up HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n\r\n" +
+                  "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n")!
+    ut.assert_eq(r.body().to_str(), "hello world")
+}
+
+@test
+func test_parse_head_has_no_body() {
+    let r = parse("HEAD / HTTP/1.1\r\nHost: h\r\n\r\n")!
+    ut.assert_eq(r.method(), "HEAD")
+    ut.assert_eq(r.body().len(), 0)
+}
+
+@test
+func test_parse_header_value_case_insensitive() {
+    let r = parse("GET / HTTP/1.1\r\nHost: h\r\nContent-Type: text/plain\r\n\r\n")!
+    ut.assert_eq(r.header_value("content-type")!, "text/plain")
+    ut.assert_eq(r.header_value("CONTENT-TYPE")!, "text/plain")
+    ut.assert_true(r.header_value("X-Absent") == nil)
+}
+
+@test
+func test_parse_headers_keep_arrival_order() {
+    let r = parse("GET / HTTP/1.1\r\nHost: h\r\nX-A: 1\r\nX-B: 2\r\n\r\n")!
+    let hs = r.headers()
+    ut.assert_eq(hs.len(), 3)
+    ut.assert_eq(hs[0][0], "Host")
+    ut.assert_eq(hs[1][0], "X-A")
+    ut.assert_eq(hs[2][0], "X-B")
+}
+
+@test
+func test_parse_duplicate_headers_kept() {
+    let r = parse("GET / HTTP/1.1\r\nHost: h\r\nSet-Cookie: a=1\r\nSet-Cookie: b=2\r\n\r\n")!
+    ut.assert_eq(r.headers().len(), 3)
+    // The first value wins, as Response.header does.
+    ut.assert_eq(r.header_value("Set-Cookie")!, "a=1")
+}
+
+@test
+func test_parse_roundtrip_from_to_bytes() {
+    let u = Url.parse("http://example.com:8080/submit")!
+    let sent = Request.post(u, "hello".to_bytes())
+    let r = Request.parse(sent.to_bytes())!
+    ut.assert_eq(r.method(), "POST")
+    ut.assert_eq(r.url().path(), "/submit")
+    ut.assert_eq(r.url().host(), "example.com")
+    ut.assert_eq(r.url().port(), 8080)
+    ut.assert_eq(r.body().to_str(), "hello")
+}
+
+@test
+func test_parse_malformed_header_line() {
+    ut.assert_true(parse("GET / HTTP/1.1\r\nBroken-Header\r\n\r\n") == nil)
+}
+
+@test
+func test_parse_malformed_request_line() {
+    ut.assert_true(parse("NOT-A-REQUEST\r\n\r\n") == nil)
+}
+
+@test
+func test_parse_truncated_body() {
+    ut.assert_true(parse("POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 5\r\n\r\nhi") == nil)
+}
+
+@test
+func test_parse_truncated_head() {
+    ut.assert_true(parse("GET / HTTP/1.1\r\nHost: h\r\n") == nil)
+}
+
+@test
+func test_parse_empty_input() {
+    ut.assert_true(parse("") == nil)
+}
+
+@test
+func test_parse_bad_host_port() {
+    ut.assert_true(parse("GET / HTTP/1.1\r\nHost: h:abc\r\n\r\n") == nil)
+}
+
+@test
+func test_parse_unsupported_method() {
+    // llhttp knows a fixed method table; an unknown verb is a parse
+    // error, not a request the handler gets to see.
+    ut.assert_true(parse("FROB / HTTP/1.1\r\nHost: h\r\n\r\n") == nil)
+}

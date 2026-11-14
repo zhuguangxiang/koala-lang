@@ -29,7 +29,8 @@ extern "C" {
 #define ITEM_INLINE_PC   13
 #define ITEM_MAX         14
 
-#define KLC_ENUM_METADATA_VERSION ((0 << 16) | (30 << 8) | 0)
+/* Same layout as KOALA_VERSION: major 24-31, minor 8-23, patch 0-7. */
+#define KLC_ENUM_METADATA_VERSION ((0 << 24) | (30 << 8) | 0)
 
 typedef struct _KlcFile {
     char *path;

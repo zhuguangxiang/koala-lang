@@ -1,0 +1,24 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// Unbounded direct self recursion in JIT code raises "stack overflow" (VM or
+// native stack) instead of crashing; the repeated traceback lines collapse.
+// (The interpreter has no depth check yet: no KOALA_JIT=0 run.)
+
+func depth(n int) int {
+    if n == 0 { return 0 }
+    return depth(n - 1) + 1
+}
+
+func main() {
+    print(depth(10000000))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_stack_overflow.kl", line 8, in depth
+// CHECK-NEXT:     return depth(n - 1) + 1
+// CHECK-NEXT:   File "{{.*}}test_jit_stack_overflow.kl", line 8, in depth
+// CHECK-NEXT:     return depth(n - 1) + 1
+// CHECK-NEXT:   File "{{.*}}test_jit_stack_overflow.kl", line 8, in depth
+// CHECK-NEXT:     return depth(n - 1) + 1
+// CHECK-NEXT:   [Previous line repeated {{[0-9]+}} more times]
+// CHECK-NEXT:   File "{{.*}}test_jit_stack_overflow.kl", line 12, in main
+// CHECK: Error: stack overflow

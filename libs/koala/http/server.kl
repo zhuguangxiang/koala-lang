@@ -1,0 +1,353 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A blocking HTTP/1.1 server.
+///
+/// Koala has no threads or coroutines, so every entry point blocks the
+/// calling thread and connections are served one at a time. A slow
+/// client holds the whole server; that is the cost of the model, not a
+/// bug in it.
+///
+/// Three blocking variants, innermost first:
+///
+///   - `accept()` + `serve_conn(conn, handler)` — drive one connection
+///   - `serve_once(handler)` — accept one connection, serve it, return
+///   - `serve(handler)` — accept connections until the server is closed
+///
+/// `serve_once` is what a test drives: bind, dial from the same thread,
+/// then serve the pending connection. `serve` is the running server.
+///
+///     let srv = Server.listen("127.0.0.1:8080")!
+///     srv.serve({ |req| Response.text(200, "hello " + req.url().path()) })
+///
+/// `listen_tls` is the same server over HTTPS, presenting a
+/// `tls.Certificate` on every connection.
+///
+/// Within one connection requests are served in order and the
+/// connection is reused when both sides allow it, so a keep-alive
+/// client pays for one handshake. Every path closes the connection
+/// before returning.
+
+import "std/socket" as so
+import "koala/tls"
+
+/// What the server calls for each request it parses.
+type Handler = func(Request) Response
+
+/// A listening HTTP server.
+pub class Server : Withable {
+    let _listener so.TcpListener
+    let _cert tls.Certificate?
+    var _read_timeout_ms int = 5000
+    var _handshake_timeout_ms int = 5000
+    var _accept_timeout_ms int = 0
+    // Go's DefaultMaxHeaderBytes. A body limit is opt-in, as in Go:
+    // 0 means unlimited, and a server facing untrusted clients should
+    // set one.
+    var _max_header_bytes int = 1048576
+    var _max_body_bytes int = 0
+    var _closed bool = false
+
+    func __init__(listener so.TcpListener, cert tls.Certificate?) {
+        _listener = listener
+        _cert = cert
+    }
+
+    /// Bind and listen on "host:port". Port 0 asks the OS for a free
+    /// port, which `port()` then reports. Nil when the bind fails.
+    pub static func listen(addr str, options so.ListenOptions? = nil) Server? {
+        if let l = so.listen(addr, options) {
+            return Server((l as so.TcpListener)!, nil)
+        }
+        return nil
+    }
+
+    /// Bind and listen for HTTPS, presenting `cert` on every connection.
+    /// The certificate is borrowed, not owned: closing it while the
+    /// server listens makes further handshakes fail.
+    pub static func listen_tls(addr str, cert tls.Certificate,
+                               options so.ListenOptions? = nil) Server? {
+        if let l = so.listen(addr, options) {
+            return Server((l as so.TcpListener)!, cert)
+        }
+        return nil
+    }
+
+    /// The address actually bound, which differs from the requested one
+    /// when port 0 was asked for.
+    pub func local_addr() so.SocketAddr { return _listener.local_addr() }
+
+    /// The port actually bound.
+    pub func port() int { return _listener.local_addr().port() }
+
+    /// Bound each read on an accepted connection, in milliseconds.
+    /// 0 waits forever. A stalled client otherwise holds the server.
+    /// A timeout part-way through a request answers 408; an idle
+    /// keep-alive connection just closes.
+    pub func set_read_timeout(ms int) { _read_timeout_ms = ms }
+
+    /// Bound the TLS handshake, in milliseconds. 0 waits forever.
+    /// Only meaningful for a server created with `listen_tls`.
+    pub func set_handshake_timeout(ms int) { _handshake_timeout_ms = ms }
+
+    /// Bound how long `accept` waits for a connection, in milliseconds.
+    /// 0 waits forever. On expiry `accept` returns nil and `serve`
+    /// returns, so this is also how a caller bounds an idle server.
+    pub func set_accept_timeout(ms int) { _accept_timeout_ms = ms }
+
+    /// Cap the request head (request line plus headers) in bytes.
+    /// 0 removes the cap. Over it, the request is answered 431.
+    pub func set_max_header_bytes(n int) { _max_header_bytes = n }
+
+    /// Cap the request body in bytes. 0, the default, is unlimited.
+    /// Over it, the request is answered 413.
+    pub func set_max_body_bytes(n int) { _max_body_bytes = n }
+
+    /// Accept one connection, blocking, and complete its TLS handshake
+    /// when this is an HTTPS server. Nil when the server is closed or
+    /// the accept failed. The caller owns the connection and hands it
+    /// to `serve_conn`; this is the variant for a caller that drives
+    /// its own accept loop.
+    ///
+    /// A client that fails the handshake is dropped and the next one
+    /// accepted: one bad client is not a broken listener.
+    pub func accept() so.Conn? {
+        if _accept_timeout_ms > 0 { _listener.set_deadline(_accept_timeout_ms) }
+        while !_closed {
+            let r = _listener.accept()
+            if r.status() != so.IO_OK { return nil }
+            let tcp = r.conn()!
+            if let cert = _cert {
+                let c = tls.TlsConn.accept(tcp, cert, _handshake_timeout_ms)
+                if let tc = c { return tc }
+                tcp.close()
+                continue
+            }
+            return tcp
+        }
+        return nil
+    }
+
+    /// Accept and serve connections, blocking, until `close` is called
+    /// from a handler. An accept failure ends the loop: with no way to
+    /// retry concurrently, spinning on a broken listener helps nobody.
+    pub func serve(handler Handler) {
+        while !_closed {
+            let conn = accept()
+            if let c = conn {
+                serve_conn(c, handler)
+            } else {
+                return
+            }
+        }
+    }
+
+    /// Accept one connection and serve it to completion, blocking.
+    /// False when the server is closed or the accept failed.
+    pub func serve_once(handler Handler) bool {
+        let conn = accept()
+        if let c = conn {
+            serve_conn(c, handler)
+            return true
+        }
+        return false
+    }
+
+    /// Serve one accepted connection, blocking, until the peer closes,
+    /// a read times out, or either side asks for `Connection: close`.
+    ///
+    /// The connection is closed on return; the caller must not use it
+    /// afterwards. A malformed request gets a 400 and a close, since
+    /// its framing and keep-alive intent cannot be trusted. An oversized
+    /// head gets 431, an oversized body 413, and a request cut short by
+    /// a read timeout 408.
+    pub func serve_conn(conn so.Conn, handler Handler) {
+        conn.set_read_timeout(_read_timeout_ms)
+
+        let parser = _Parser.request()
+        if parser == nil {
+            conn.close()
+            return
+        }
+
+        var pending = bytes(0)
+        loop {
+            let (req, rest, err) = _read_request(conn, parser, pending,
+                                                 _max_header_bytes, _max_body_bytes)
+            pending = rest
+            if let r = req {
+                let resp = handler(r)
+                let keep = _keep_alive(parser, resp)
+                if !keep { resp.set_header("Connection", "close") }
+                // HEAD gets the head a GET would, and no body
+                // (RFC 7231 §4.3.2). Sending one would corrupt the next
+                // response on a keep-alive connection.
+                var written = false
+                if resp.is_stream() {
+                    written = _write_stream(conn, resp, r.method() == "HEAD")
+                } else {
+                    var out bytes
+                    if r.method() == "HEAD" {
+                        out = resp._to_bytes(bytes(0))
+                    } else {
+                        out = resp.to_bytes()
+                    }
+                    written = conn.write(out) == out.len()
+                }
+                if !written { break }
+                if !keep { break }
+                parser.reset()
+            } else {
+                if err > 0 { _send_error(conn, err) }
+                break
+            }
+        }
+
+        parser.close()
+        conn.close()
+    }
+
+    /// Stop accepting and release the listening socket. Safe to call
+    /// twice. A connection already being served runs to completion.
+    pub func close() {
+        if _closed { return }
+        _closed = true
+        _listener.close()
+    }
+
+    pub func __enter__() {}
+
+    pub func __exit__() { close() }
+}
+
+// Read one whole request, starting with `pending` bytes left over from
+// the previous message on this connection.
+//
+// Returns (request, leftover, status). Leftover bytes belong to a
+// pipelined next request. Status is 0 for a clean end — EOF, reset, or
+// a timeout on an idle connection — where there is nothing to answer,
+// and an HTTP status when the peer should be told what went wrong.
+//
+// `max_head` and `max_body` cap the message in bytes; 0 removes a cap.
+// They are checked against the bytes the parser has actually consumed,
+// so a pipelined batch is not charged to the message being read.
+func _read_request(conn so.Conn, parser _Parser, pending bytes,
+                   max_head int, max_body int) (Request?, bytes, int) {
+    var rest = pending
+    var total = pending.len()
+    let scratch = bytes(4096)
+    loop {
+        if rest.len() == 0 {
+            let n = conn.read(scratch)
+            if n == 0 { return (nil, bytes(0), 0) }
+            if n < 0 {
+                // -2 is an expired read timeout. A request already in
+                // flight gets 408; an idle keep-alive connection, where
+                // nothing has arrived, just closes.
+                if n == -2 && total > 0 { return (nil, bytes(0), 408) }
+                return (nil, bytes(0), 0)
+            }
+            rest = scratch[0:n]
+            total += n
+        }
+
+        let fed = parser.feed(rest, _STATE_COMPLETE)
+        if fed < 0 { return (nil, bytes(0), 400) }
+        rest = rest[fed:rest.len()]
+
+        // Checked after the feed as well as before the next read, so a
+        // message that completes in one feed is still measured.
+        let used = total - rest.len()
+        if parser.state() < _STATE_BODY {
+            if max_head > 0 && used > max_head { return (nil, bytes(0), 431) }
+        } else {
+            let head = parser.body_offset()
+            if max_head > 0 && head > max_head { return (nil, bytes(0), 431) }
+            if max_body > 0 && used - head > max_body { return (nil, bytes(0), 413) }
+        }
+
+        if parser.state() >= _STATE_COMPLETE {
+            if let req = _request_of(parser) { return (req, rest, 0) }
+            return (nil, bytes(0), 400)
+        }
+
+        // feed consumed all it could. Bytes it refused while the
+        // message is still incomplete mean a malformed message; an
+        // empty rest means the next read supplies the remainder.
+        if rest.len() > 0 { return (nil, bytes(0), 400) }
+    }
+}
+
+// Whether to keep the connection open for another request. llhttp
+// already accounts for the request's Connection field and version; the
+// handler can still force a close through the response.
+func _keep_alive(parser _Parser, resp Response) bool {
+    if !parser.keep_alive() { return false }
+    if let v = resp.header("Connection") {
+        if v.lower() == "close" { return false }
+    }
+    return true
+}
+
+// An error response for a request that could not be parsed. Always
+// closes: the request's own framing and keep-alive intent are unknown.
+func _send_error(conn so.Conn, status int) {
+    let body = (_reason_phrase(status) + "\n").to_bytes()
+    let resp = Response.of(status, "text/plain; charset=utf-8", body)
+    resp.set_header("Connection", "close")
+    conn.write(resp.to_bytes())
+}
+
+// Write a streaming response: the head with chunked framing, then each
+// chunk as the source yields it, then the terminating chunk.
+//
+// The source is closed on every path — a failed write, a HEAD request
+// that must send no body, and normal completion — so a file or a
+// connection behind it is never left open.
+func _write_stream(conn so.Conn, resp Response, head_only bool) bool {
+    resp.set_header("Transfer-Encoding", "chunked")
+    let head = resp._to_bytes(bytes(0))
+    if conn.write(head) != head.len() {
+        if let s = resp.source() { s.close() }
+        return false
+    }
+
+    let src = resp.source()!
+    if head_only {
+        src.close()
+        return true
+    }
+
+    var ok = true
+    loop {
+        let piece = src.read()
+        if let p = piece {
+            // An empty chunk means "nothing ready", not "finished".
+            if p.len() == 0 { continue }
+            let frame = _chunk_frame(p)
+            if conn.write(frame) != frame.len() {
+                ok = false
+                break
+            }
+        } else {
+            break
+        }
+    }
+    src.close()
+    if !ok { return false }
+
+    let end = "0\r\n\r\n".to_bytes()
+    return conn.write(end) == end.len()
+}
+
+// One chunked-encoding frame: length in hex, CRLF, the bytes, CRLF.
+func _chunk_frame(data bytes) bytes {
+    let buf = Buffer()
+    buf.write_str(format("{:x}", data.len()))
+    buf.write_str("\r\n")
+    buf.write(data)
+    buf.write_str("\r\n")
+    return buf.to_bytes()
+}

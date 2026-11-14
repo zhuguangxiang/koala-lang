@@ -1,0 +1,38 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// Deep mutual recursion through JIT direct calls with large frames: the VM
+// stack (not the native stack) runs out first and raises "stack overflow".
+// (The interpreter overflows the C stack here: no KOALA_JIT=0 run.)
+
+func big_a(n int) int {
+    var a = n + 1
+    var b = a * 2
+    var c = b - 3
+    var d = c + a
+    var e = d * b
+    var f = e - c
+    var g = f + d
+    var h = g * 2
+    if n == 0 { return h }
+    return big_b(n - 1) + a + b + c + d + e + f + g + h
+}
+func big_b(n int) int {
+    var a = n + 2
+    var b = a * 3
+    var c = b - 4
+    var d = c + a
+    var e = d * b
+    var f = e - c
+    var g = f + d
+    var h = g * 3
+    if n == 0 { return h }
+    return big_a(n - 1) + a + b + c + d + e + f + g + h
+}
+
+func main() {
+    print(big_a(100) > 0)
+    // CHECK: true
+    print(big_a(100000000))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK: Error: stack overflow

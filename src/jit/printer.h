@@ -37,6 +37,9 @@ void jit_print_code(const char *name, const uint32_t *insns, int n,
  * pc >= 0 points at the offending instruction; pc < 0 means a structural
  * reason with no specific instruction (e.g. non-module owner).
  */
+/* the opcode name of a bytecode word */
+const char *jit_op_name(uint32_t insn);
+
 void jit_print_bail(const char *name, int pc, uint32_t insn, const char *reason,
                     FILE *fp);
 

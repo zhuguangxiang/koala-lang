@@ -64,7 +64,10 @@ func resolve_ws_package(ws_root str, name str) str {
 ///
 /// so the program can import `.klc` files and load native `.so` files
 /// built by `wombat build` without the caller setting either by hand.
-pub func run(target str, args list[str]) int {
+///
+/// `no_jit` adds `KOALA_JIT=0` for the program. Without it `KOALA_JIT`
+/// is left as the caller had it, so an exported value still applies.
+pub func run(target str, args list[str], no_jit bool = false) int {
     var file = target
 
     if !target.ends_with(".kl") && !target.ends_with(".klc") {
@@ -121,6 +124,10 @@ pub func run(target str, args list[str]) int {
         buf.write_str("LD_LIBRARY_PATH=")
         quote_arg(buf, lp)
         buf.write_byte(' ')
+    }
+
+    if no_jit {
+        buf.write_str("KOALA_JIT=0 ")
     }
 
     buf.write_str("koala ")

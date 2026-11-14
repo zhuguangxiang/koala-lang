@@ -54,8 +54,13 @@ class Commands {
                                  epilog="<target> may be a .kl source file, a .klc artifact, " +
                                         "or a name without extension, which is looked up as " +
                                         "<name>.klc, then <name>.kl. Extra arguments are " +
-                                        "forwarded to the program.")
+                                        "forwarded to the program.\n" +
+                                        "\n" +
+                                        "Options must come before <target>: everything after " +
+                                        "it belongs to the program.")
         run.add_argument("target", help="What to run")
+        run.add_argument("--no-jit", action="store_true",
+                         help="Run with the JIT disabled (sets KOALA_JIT=0 for the program)")
         run.add_argument("args", nargs=cli.REMAINDER, help="Arguments for the program")
 
         let test_epilog = "targets:\n" +
@@ -70,6 +75,8 @@ class Commands {
                                   epilog=test_epilog,
                                   formatter_class=cli.RawDescriptionHelpFormatter)
         test.add_argument("target", nargs="?", default=".", help="What to test")
+        test.add_argument("--no-jit", action="store_true",
+                          help="Run every test with the JIT disabled (sets KOALA_JIT=0)")
 
         let fmt = sub.add_parser("fmt", help="Format source code",
                                  epilog="Formats every `.kl` file in the workspace or package.")
@@ -125,8 +132,11 @@ func dispatch(argv list[str]) int {
         let force = (args.get("force")! as bool)!
         return wb.build_all(_value(args, "dir"), _value(args, "output"), force)
     }
-    if cmd == "test" { return cmd_test(_value(args, "target")) }
-    if cmd == "run" { return wb.run(_value(args, "target"), (args.get("args")! as list[str])!) }
+    if cmd == "test" { return cmd_test(_value(args, "target"), _flag(args, "no_jit")) }
+    if cmd == "run" {
+        return wb.run(_value(args, "target"), (args.get("args")! as list[str])!,
+                      _flag(args, "no_jit"))
+    }
     if cmd == "clean" { return wb.clean_all(_value(args, "dir"), (args.get("yes")! as bool)!) }
 
     // check, fmt, doc
@@ -139,10 +149,15 @@ func _value(args cli.Namespace, name str) str {
     return (args.get(name)! as str)!
 }
 
-/// `wombat test [target]`
+// The bool value of a store_true flag.
+func _flag(args cli.Namespace, name str) bool {
+    return (args.get(name)! as bool)!
+}
+
+/// `wombat test [target] [--no-jit]`
 ///
 /// `target` may be `@` (only `ws/test/*.kl`), a directory (workspace
 /// or single package), or a `.kl` / `.klc` file (not supported yet).
-func cmd_test(target str) int {
-    return wb.test_all(target)
+func cmd_test(target str, no_jit bool) int {
+    return wb.test_all(target, no_jit)
 }

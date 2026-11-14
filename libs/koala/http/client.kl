@@ -16,13 +16,22 @@ import "koala/tls"
 /// Zero value is usable: every call dials its own connection, since
 /// there is no pool. A `Client` exists so callers can hold one and so
 /// the policy fields have a home when they land.
+///
+/// `options` configures TLS for every request this client sends:
+/// `set_skip_verify(true)` for a self-signed server, or
+/// `set_ca_pem(...)` to trust a private CA with verification still on.
+/// nil keeps the default, which verifies against the system store and
+/// bounds the handshake at 5s.
 pub class Client {
-    pub func __init__() {
+    let _tls tls.TlsOptions?
+
+    pub func __init__(options tls.TlsOptions? = nil) {
+        _tls = options
     }
 
     /// Send `req` and return the response. The one core method.
     func do(req Request) Response? {
-        let conn = _dial(req.url())
+        let conn = _dial(req.url(), _tls)
         if conn == nil { return nil }
         return _send_on(conn, req)
     }
@@ -41,22 +50,22 @@ pub class Client {
     /// of httpx's `client.stream(...)`. The head is read on first
     /// access; see `StreamResponse`.
     pub func stream(req Request, timeout_ms int = 5000) StreamResponse? {
-        return _send_stream(req, timeout_ms)
+        return _send_stream(req, timeout_ms, _tls)
     }
 }
 
 /// GET `url` with a one-shot default client.
-pub func get(url Url) Response? { return _do(Request.get(url)) }
+pub func get(url Url) Response? { return _do(Request.get(url), nil) }
 
 /// POST `body` to `url` with a one-shot default client.
-pub func post(url Url, body bytes) Response? { return _do(Request.post(url, body)) }
+pub func post(url Url, body bytes) Response? { return _do(Request.post(url, body), nil) }
 
 /// Send `req` and return the parsed response.
 ///
 /// The one shared path behind `get` and `post`. Public so callers can
 /// send a hand-built Request.
-func _do(req Request) Response? {
-    let conn = _dial(req.url())
+func _do(req Request, options tls.TlsOptions?) Response? {
+    let conn = _dial(req.url(), options)
     if conn == nil { return nil }
     return _send_on(conn, req)
 }
@@ -109,13 +118,13 @@ func _read_from(conn so.Conn, parser _Parser) Response? {
 }
 
 // Pick the transport by scheme. Private: the public surface is
-// Client / get / post.
-func _dial(url Url) so.Conn? {
+// Client / get / post. `options` nil means the default TLS policy.
+func _dial(url Url, options tls.TlsOptions?) so.Conn? {
     let addr = url.host() + ":" + str(url.port())
     if url.is_tls() {
         // Same bound as the read timeout in _send_on: a stalled peer
         // must not block the handshake forever.
-        let opts = tls.TlsOptions().set_handshake_timeout_ms(5000)
+        let opts = options ?? tls.TlsOptions().set_handshake_timeout_ms(5000)
         return tls.dial(addr, opts)
     }
     return so.dial(addr, so.SocketTypeSpec.tcp())

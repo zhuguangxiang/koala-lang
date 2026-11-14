@@ -1,0 +1,26 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// An error raised deep in a direct self call unwinds every level, each one in
+// the traceback, instead of being used as a value.
+
+func f(n int, s int) int {
+    if n == 0 { return 1 << s }
+    let r = f(n - 1, s)
+    return r + 1
+}
+
+func main() {
+    print(f(2, 100))
+    print("not reached")
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_selfcall_error.kl", line 7, in f
+// CHECK-NEXT:     if n == 0 { return 1 << s }
+// CHECK-NEXT:   File "{{.*}}test_jit_selfcall_error.kl", line 8, in f
+// CHECK-NEXT:     let r = f(n - 1, s)
+// CHECK-NEXT:   File "{{.*}}test_jit_selfcall_error.kl", line 8, in f
+// CHECK-NEXT:     let r = f(n - 1, s)
+// CHECK-NEXT:   File "{{.*}}test_jit_selfcall_error.kl", line 13, in main
+// CHECK: Error: shift count out of range
+// CHECK-NOT: not reached

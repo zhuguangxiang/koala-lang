@@ -1,0 +1,154 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// RUN: koala %s --test
+
+// --no-jit: the flag must reach the child process as KOALA_JIT=0, and
+// must leave KOALA_JIT alone when it is not given.
+//
+// Both entry points are covered by running a real program that records
+// what it sees: `wb.run` on a script, and `wb.test_all` on a workspace
+// whose single test records the same thing.
+
+import "koala/wombat" as wb
+import "std/fs"
+import "std/os"
+import "std/ut"
+
+// What the ambient environment says. The no-flag cases assert that the
+// child sees this same value, not that it is unset: this suite may
+// itself be running under --no-jit.
+func _ambient() str {
+    if let v = os.getenv("KOALA_JIT") { return v }
+    return ""
+}
+
+// A program that writes the KOALA_JIT it sees into `marker`. An unset
+// variable is recorded as the empty string.
+func _recorder(marker str) str {
+    return "import \"std/os\"\n" +
+        "import \"std/fs\"\n" +
+        "func main() {\n" +
+        "    var s = \"\"\n" +
+        "    if let v = os.getenv(\"KOALA_JIT\") { s = v }\n" +
+        "    fs.write_str(\"" + marker + "\", s)\n" +
+        "}\n"
+}
+
+// The same program as a @test, for the workspace fixture.
+func _recorder_test(marker str) str {
+    return "import \"std/os\"\n" +
+        "import \"std/fs\"\n" +
+        "import \"std/ut\"\n" +
+        "@test\n" +
+        "func test_record() {\n" +
+        "    var s = \"\"\n" +
+        "    if let v = os.getenv(\"KOALA_JIT\") { s = v }\n" +
+        "    fs.write_str(\"" + marker + "\", s)\n" +
+        "    ut.assert_true(true)\n" +
+        "}\n"
+}
+
+// A workspace with one package whose single test records KOALA_JIT.
+func _workspace(marker str) str {
+    let root = fs.make_temp_dir("wombat_nojit")!.cat("nojit").to_str()
+    fs.mkdir(root)
+    fs.mkdir(fs.Path(root).cat("p").to_str())
+    fs.mkdir(fs.Path(root).cat("p").cat("test").to_str())
+    fs.write_str(fs.Path(root).cat("__ws__.toml").to_str(),
+                 "[workspace]\nname = \"nojit\"\nversion = \"0.1.0\"\npackages = [\"p\"]\n")
+    fs.write_str(fs.Path(root).cat("p").cat("__pkg__.toml").to_str(),
+                 "[package]\nname = \"nojit/p\"\ndependencies = []\nnatives = []\n")
+    fs.write_str(fs.Path(root).cat("p").cat("p.kl").to_str(),
+                 "pub func one() int { return 1 }\n")
+    fs.write_str(fs.Path(root).cat("p").cat("test").cat("test_env.kl").to_str(),
+                 _recorder_test(marker))
+    return root
+}
+
+func _read(marker str) str {
+    return fs.read_str(marker)
+}
+
+func _reset(marker str) {
+    fs.write_str(marker, "sentinel")
+}
+
+@test
+func test_run_no_jit_sets_zero() {
+    let dir = fs.make_temp_dir("wombat_nojit_run")!
+    let marker = dir.cat("marker").to_str()
+    let script = dir.cat("rec.kl").to_str()
+    fs.write_str(script, _recorder(marker))
+
+    _reset(marker)
+    ut.assert_eq(wb.run(script, list[str](), true), 0)
+    ut.assert_eq(_read(marker), "0")
+    fs.remove_all(dir)
+}
+
+@test
+func test_run_without_flag_leaves_env_alone() {
+    let dir = fs.make_temp_dir("wombat_nojit_run")!
+    let marker = dir.cat("marker").to_str()
+    let script = dir.cat("rec.kl").to_str()
+    fs.write_str(script, _recorder(marker))
+
+    // The ambient value must survive, whatever it is.
+    _reset(marker)
+    ut.assert_eq(wb.run(script, list[str](), false), 0)
+    ut.assert_eq(_read(marker), _ambient())
+    fs.remove_all(dir)
+}
+
+@test
+func test_run_default_is_jit_on() {
+    let dir = fs.make_temp_dir("wombat_nojit_run")!
+    let marker = dir.cat("marker").to_str()
+    let script = dir.cat("rec.kl").to_str()
+    fs.write_str(script, _recorder(marker))
+
+    // The two-argument form still works and does not disable the JIT.
+    _reset(marker)
+    ut.assert_eq(wb.run(script, list[str]()), 0)
+    ut.assert_eq(_read(marker), _ambient())
+    fs.remove_all(dir)
+}
+
+@test
+func test_test_all_no_jit_sets_zero() {
+    let dir = fs.make_temp_dir("wombat_nojit_ws")!
+    let marker = dir.cat("marker").to_str()
+    let root = _workspace(marker)
+
+    _reset(marker)
+    ut.assert_eq(wb.test_all(root, true), 0)
+    ut.assert_eq(_read(marker), "0")
+    fs.remove_all(dir)
+}
+
+@test
+func test_test_all_without_flag_leaves_env_alone() {
+    let dir = fs.make_temp_dir("wombat_nojit_ws")!
+    let marker = dir.cat("marker").to_str()
+    let root = _workspace(marker)
+
+    _reset(marker)
+    ut.assert_eq(wb.test_all(root, false), 0)
+    ut.assert_eq(_read(marker), _ambient())
+    fs.remove_all(dir)
+}
+
+@test
+func test_test_all_default_is_jit_on() {
+    let dir = fs.make_temp_dir("wombat_nojit_ws")!
+    let marker = dir.cat("marker").to_str()
+    let root = _workspace(marker)
+
+    _reset(marker)
+    ut.assert_eq(wb.test_all(root), 0)
+    ut.assert_eq(_read(marker), _ambient())
+    fs.remove_all(dir)
+}

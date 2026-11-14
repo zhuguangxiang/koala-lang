@@ -52,6 +52,8 @@ typedef enum {
     X86_ENC_POP,          /* opcode-reg                       (58+r)     */
     X86_ENC_SSE_REG_RM,   /* F2 0F: dst = xmm, src = r/m      (movsd 10) */
     X86_ENC_SSE_RM_REG,   /* F2 0F: dst = r/m, src = xmm      (movsd 11) */
+    X86_ENC_MOVQ_XMM_GPR, /* 66 REX.W 0F 6E: dst = xmm, src = r64        */
+    X86_ENC_MOVQ_GPR_XMM, /* 66 REX.W 0F 7E: dst = r64 (r/m), src = xmm  */
 } X86Enc;
 
 /* ------------------------------------------------------------------ +
@@ -142,7 +144,9 @@ typedef enum {
     X(X86_IMUL,  0xAF, 0xFF, X86_ENC_REG_RM,    "imul")  \
     X(X86_MOVZX, 0xB6, 0xFF, X86_ENC_MOVZX,     "movzx") \
     X(X86_JCC,   0x80, 0xF0, X86_ENC_JCC_REL32, "j")     \
-    X(X86_SETCC, 0x90, 0xF0, X86_ENC_SETCC,     "set")
+    X(X86_SETCC, 0x90, 0xF0, X86_ENC_SETCC,     "set")   \
+    X(X86_MOVAPS, 0x28, 0xFF, X86_ENC_SSE_REG_RM, "movaps") \
+    X(X86_UD2,   0x0B, 0xFF, X86_ENC_NONE,      "ud2")
 
 /* ------------------------------------------------------------------ +
  |  SSE2 scalar double (F2 prefix + 0F xx); matched on the 0F byte      |
@@ -154,5 +158,13 @@ typedef enum {
     X(X86_MULSD,       0x59, 0xFF, X86_ENC_SSE_REG_RM, "mulsd") \
     X(X86_SUBSD,       0x5C, 0xFF, X86_ENC_SSE_REG_RM, "subsd") \
     X(X86_DIVSD,       0x5E, 0xFF, X86_ENC_SSE_REG_RM, "divsd")
+
+/* ------------------------------------------------------------------ +
+ |  SSE2 packed/compare (66 prefix + 0F xx); matched on the 0F byte    |
+ + ------------------------------------------------------------------ */
+#define X86_OPS_SSE66_LIST \
+    X(X86_UCOMISD, 0x2E, 0xFF, X86_ENC_SSE_REG_RM,   "ucomisd") \
+    X(X86_MOVQ_X_G, 0x6E, 0xFF, X86_ENC_MOVQ_XMM_GPR, "movq")    \
+    X(X86_MOVQ_G_X, 0x7E, 0xFF, X86_ENC_MOVQ_GPR_XMM, "movq")
 
 #endif /* _KOALA_CPU_X86_64_OPS_H_ */

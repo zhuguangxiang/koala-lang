@@ -1,14 +1,12 @@
 // RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
 //
 // bytes has two deliberately different renderings:
 //
 //   fmt     -- what `print` uses -- is a display form. It escapes every byte
 //              and never stops early, so embedded NULs stay visible.
-//   to_str  is a conversion. It behaves like a C string and stops at the
-//              first NUL, because a bytes object doubles as an I/O buffer.
-//
-// Do not "unify" them: making to_str skip NULs silently changes every
-// buffer-to-string call site (socket recv_from, fs.read_bytes, ...).
+//   to_str  decodes the entire sequence as UTF-8, including NULs, replacing
+//           invalid bytes with U+FFFD.
 
 func main() {
     // ---------------------------------------------------------------
@@ -41,24 +39,22 @@ func main() {
     print(bytes(65))
 
     // ---------------------------------------------------------------
-    // to_str: conversion, stops at the first NUL
+    // to_str: decode the complete sequence, including NUL
     // ---------------------------------------------------------------
 
     // no NUL inside: every byte is converted
     print("s=" + b"hello".to_str())
 
-    // NUL in the middle: the tail is dropped
-    print("s=" + b"AB\x00CD".to_str())
+    // Embedded, leading, and trailing NULs survive a round trip.
+    print(b"AB\x00CD".to_str().to_bytes().to_hex())
     print("n=" + str(b"AB\x00CD".to_str().len()))
-
-    // leading NUL: the result is empty
+    print(b"\x00AB\x00".to_str().to_bytes().to_hex())
     print("n=" + str(b"\x00\x01\x02".to_str().len()))
-
-    // a fresh bytes(64) read buffer converts to the empty string
     print("n=" + str(bytes(64).to_str().len()))
 
-    // slicing first does not help: to_str still stops at a NUL
-    print("n=" + str(b"AB\x00CD".view(0, 5).to_str().len()))
+    // A view decodes only its own bytes, even with NULs and invalid UTF-8.
+    print(b"xA\x00\xe4\xbd\xa0\xffZy".view(1, 8).to_str().to_bytes().to_hex())
+    print(b"\xff\x00\xfe".to_str().to_bytes().to_hex())
 }
 
 // fmt: every byte, escaped, single line
@@ -71,10 +67,12 @@ func main() {
 // CHECK: b"\xFF\xFE"
 // CHECK: (65 bytes)
 
-// to_str: stops at the first NUL
+// to_str: NULs are preserved and invalid UTF-8 is replaced
 // CHECK: s=hello
-// CHECK: s=AB
-// CHECK: n=2
-// CHECK: n=0
-// CHECK: n=0
-// CHECK: n=2
+// CHECK-NEXT: 4142004344
+// CHECK-NEXT: n=5
+// CHECK-NEXT: 00414200
+// CHECK-NEXT: n=3
+// CHECK-NEXT: n=64
+// CHECK-NEXT: 4100e4bda0efbfbd5a
+// CHECK-NEXT: efbfbd00efbfbd

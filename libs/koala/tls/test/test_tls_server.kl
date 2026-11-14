@@ -1,0 +1,271 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// TLS server handshake tests.
+//
+// A TLS handshake needs both ends active at once, so one thread cannot
+// drive both the way the plain-TCP loopback tests do: the client's
+// SSL_connect would block before the server ever accepted. The client
+// therefore runs in a child koala process. The parent listens, spawns
+// the child, then accepts — the child blocks in its handshake until the
+// parent gets there.
+//
+// The child inherits KOALA_PATH and LD_LIBRARY_PATH from this process,
+// so it loads the same freshly built native library.
+
+import "std/ut"
+import "std/os"
+import "std/fs"
+import "std/socket" as so
+from "koala/tls" import Certificate, TlsConn
+
+// A listener with an accept deadline: a child that fails to start must
+// fail the test rather than hang the whole suite in accept.
+func listen() so.TcpListener {
+    let l = (so.listen("127.0.0.1:0", nil)! as so.TcpListener)!
+    l.set_deadline(15000)
+    return l
+}
+
+// A child that skips verification, writes "ping", and prints the reply.
+let ECHO = "import \"std/sys\"\n" +
+    "import \"koala/tls\"\n" +
+    "func main() {\n" +
+    "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0], opts)\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(5000)\n" +
+    "    c.write_str(\"ping\")\n" +
+    "    let buf = bytes(64)\n" +
+    "    let n = c.read(buf)\n" +
+    "    if n <= 0 { print(\"READ-FAIL\"); c.close(); return }\n" +
+    "    print(buf[0:n].to_str())\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A child that verifies: a self-signed certificate must be rejected.
+let VERIFY = "import \"std/sys\"\n" +
+    "import \"koala/tls\"\n" +
+    "func main() {\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0])\n" +
+    "    if c == nil { print(\"REJECTED\"); return }\n" +
+    "    print(\"ACCEPTED\")\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A child that connects over plain TCP and says nothing.
+let SILENT = "import \"std/sys\"\n" +
+    "import \"std/socket\" as so\n" +
+    "func main() {\n" +
+    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[0], so.SocketTypeSpec.tcp())\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(5000)\n" +
+    "    c.read(bytes(16))\n" +
+    "    print(\"DONE\")\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A child that speaks plain HTTP to a TLS port.
+let PLAINTEXT = "import \"std/sys\"\n" +
+    "import \"std/socket\" as so\n" +
+    "func main() {\n" +
+    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[0], so.SocketTypeSpec.tcp())\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(5000)\n" +
+    "    c.write_str(\"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")\n" +
+    "    c.read(bytes(64))\n" +
+    "    print(\"DONE\")\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A child that sends 256 KiB and prints the length of the echo.
+let LARGE = "import \"std/sys\"\n" +
+    "import \"koala/tls\"\n" +
+    "func main() {\n" +
+    "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0], opts)\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(10000)\n" +
+    "    var chunk = \"\"\n" +
+    "    var i = 0\n" +
+    "    while i < 1024 { chunk += \"b\"; i += 1 }\n" +
+    "    var payload = \"\"\n" +
+    "    var j = 0\n" +
+    "    while j < 256 { payload += chunk; j += 1 }\n" +
+    "    c.write_str(payload)\n" +
+    "    let all = c.read_to_end()\n" +
+    "    if all == nil { print(\"READ-FAIL\"); c.close(); return }\n" +
+    "    print(str(all.len()))\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A child that completes the handshake, then says nothing.
+let SILENT_TLS = "import \"std/sys\"\n" +
+    "import \"koala/tls\"\n" +
+    "func main() {\n" +
+    "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0], opts)\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(5000)\n" +
+    "    c.read(bytes(16))\n" +
+    "    print(\"DONE\")\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// Write `script` to a temp file and run it as a child koala process
+// with `port` as its only argument. Returns the process and the script
+// path, which `finish` removes once the child is done.
+func spawn(script str, port int) (os.Process, str) {
+    let f = fs.make_temp_file("koala_tls_child", ".kl")!
+    fs.write_str(f, script)
+    let p = os.run("koala", [f.to_str(), str(port)])!
+    return (p, f.to_str())
+}
+
+// Collect the child's stdout, killing it if it overstays, and remove
+// the temporary script. "" when the child produced nothing.
+func finish(p os.Process, path str) str {
+    let r = p.communicate(nil, 30.0)
+    fs.remove(path)
+    let (out, _) = r else {
+        p.kill()
+        p.wait()
+        return ""
+    }
+    return out.to_str()
+}
+
+@test
+func test_tls_server_echo() {
+    let cert = Certificate.self_signed("localhost,127.0.0.1")!
+    let listener = listen()
+    let (p, path) = spawn(ECHO, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    let c = TlsConn.accept(tcp, cert, 5000)
+    ut.assert_true(c != nil)
+    let buf = bytes(64)
+    let n = c!.read(buf)
+    ut.assert_eq(n, 4)
+    c!.write_str("pong:" + buf[0:n].to_str())
+    c!.close()
+
+    ut.assert_eq(finish(p, path), "pong:ping\n")
+    listener.close()
+    cert.close()
+}
+
+@test
+func test_tls_server_rejects_untrusted_client() {
+    // The client verifies and the certificate is self-signed, so the
+    // handshake must fail on the client side.
+    let cert = Certificate.self_signed("localhost,127.0.0.1")!
+    let listener = listen()
+    let (p, path) = spawn(VERIFY, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    let c = TlsConn.accept(tcp, cert, 5000)
+    if let tc = c { tc.close() } else { tcp.close() }
+
+    ut.assert_eq(finish(p, path), "REJECTED\n")
+    listener.close()
+    cert.close()
+}
+
+@test
+func test_tls_server_handshake_timeout() {
+    let cert = Certificate.self_signed("localhost")!
+    let listener = listen()
+    let (p, path) = spawn(SILENT, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    // A client that never sends a ClientHello must not hold the server.
+    let c = TlsConn.accept(tcp, cert, 300)
+    ut.assert_true(c == nil)
+    tcp.close()
+
+    ut.assert_eq(finish(p, path), "DONE\n")
+    listener.close()
+    cert.close()
+}
+
+@test
+func test_tls_server_rejects_plaintext() {
+    let cert = Certificate.self_signed("localhost")!
+    let listener = listen()
+    let (p, path) = spawn(PLAINTEXT, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    let c = TlsConn.accept(tcp, cert, 5000)
+    ut.assert_true(c == nil)
+    tcp.close()
+
+    ut.assert_eq(finish(p, path), "DONE\n")
+    listener.close()
+    cert.close()
+}
+
+@test
+func test_tls_server_large_payload() {
+    let cert = Certificate.self_signed("localhost,127.0.0.1")!
+    let listener = listen()
+    let (p, path) = spawn(LARGE, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    let c = TlsConn.accept(tcp, cert, 5000)!
+    c.set_read_timeout(10000)
+
+    // Read exactly what the child sends, then echo it. Echoing while the
+    // child is still writing deadlocks once both socket buffers fill,
+    // and reading to EOF would block: the child keeps the connection
+    // open while it waits for the echo.
+    let got = c.read_exact(262144)
+    ut.assert_true(got != nil)
+    if let all = got {
+        ut.assert_eq(all.len(), 262144)
+        c.write(all)
+    }
+    c.close()
+
+    ut.assert_eq(finish(p, path), "262144\n")
+    listener.close()
+    cert.close()
+}
+
+@test
+func test_tls_server_accept_after_cert_close() {
+    let cert = Certificate.self_signed("localhost")!
+    let listener = listen()
+    let (p, path) = spawn(ECHO, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    cert.close()
+    // A closed certificate has no context left to accept against.
+    let c = TlsConn.accept(tcp, cert, 1000)
+    ut.assert_true(c == nil)
+    tcp.close()
+
+    ut.assert_eq(finish(p, path), "DIAL-FAIL\n")
+    listener.close()
+}
+
+@test
+func test_tls_server_read_timeout() {
+    let cert = Certificate.self_signed("localhost,127.0.0.1")!
+    let listener = listen()
+    let (p, path) = spawn(SILENT_TLS, listener.local_addr().port())
+
+    let tcp = listener.accept().conn()!
+    let c = TlsConn.accept(tcp, cert, 5000)!
+    // Handshake done, but the client sends no application data: the
+    // read timeout is the underlying fd's, which SSL_read inherits.
+    c.set_read_timeout(200)
+    ut.assert_eq(c.read(bytes(16)), -2)
+    c.close()
+
+    ut.assert_eq(finish(p, path), "DONE\n")
+    listener.close()
+    cert.close()
+}

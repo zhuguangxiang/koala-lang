@@ -13,8 +13,8 @@ func test_fs_toplevel_funcs() {
     let buf = bytes(64)
     let n = fs.read_bytes("/tmp/kl_fs_test.txt", buf)
     ut.assert_eq(n, 18)
-    print(buf.to_str().len())
-    ut.assert_eq(buf.to_str(), "hello koala 你好")
+    print(buf.view(0, n).to_str().len())
+    ut.assert_eq(buf.view(0, n).to_str(), "hello koala 你好")
 
     // read_bytes with a small buffer -> stops when full
     let small = bytes(5)
@@ -80,6 +80,10 @@ func test_fs_read_all() {
     // An explicit larger cap is honored; -1 means unlimited.
     ut.assert_eq(fs.read_all("/tmp/kl_fs_ra.txt", 1024).len(), 18)
     ut.assert_eq(fs.read_all("/tmp/kl_fs_ra.txt", -1).len(), 18)
+
+    // Text containing NUL is not truncated.
+    ut.assert(fs.write_bytes("/tmp/kl_fs_ra.txt", b"a\x00b"))
+    ut.assert_eq(fs.read_str("/tmp/kl_fs_ra.txt").to_bytes(), b"a\x00b")
 
     fs.remove("/tmp/kl_fs_ra.txt")
     fs.remove("/tmp/kl_fs_ra_empty.bin")

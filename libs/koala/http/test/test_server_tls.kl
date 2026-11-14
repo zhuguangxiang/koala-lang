@@ -1,0 +1,305 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// End-to-end HTTPS tests for the blocking server.
+//
+// The client runs in a child koala process: a TLS handshake needs both
+// ends active at once, so the single-thread loopback trick the plain
+// HTTP tests use would deadlock here. The parent listens, spawns the
+// child, then serves — the child blocks in its handshake until the
+// parent accepts.
+//
+// The child speaks HTTP over a raw tls.dial rather than through
+// http.Client: the client has no way to pass TlsOptions yet, so it
+// cannot skip verification or trust a self-signed certificate.
+
+import "std/ut"
+import "std/os"
+import "std/fs"
+import "std/socket" as so
+from "koala/http" import Server, Request, Response
+from "koala/tls" import Certificate
+
+// One client, several request shapes, selected by its second argument.
+let CLIENT = "import \"std/sys\"\n" +
+    "import \"koala/tls\"\n" +
+    "func main() {\n" +
+    "    let port = sys.args()[0]\n" +
+    "    let mode = sys.args()[1]\n" +
+    "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + port, opts)\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(10000)\n" +
+    "    if mode == \"get\" {\n" +
+    "        c.write_str(\"GET /hello HTTP/1.1\\r\\nHost: h\\r\\nConnection: close\\r\\n\\r\\n\")\n" +
+    "    } else if mode == \"post\" {\n" +
+    "        c.write_str(\"POST /up HTTP/1.1\\r\\nHost: h\\r\\nContent-Length: 7\\r\\n\" +\n" +
+    "                    \"Connection: close\\r\\n\\r\\npayload\")\n" +
+    "    } else if mode == \"keepalive\" {\n" +
+    "        c.write_str(\"GET /one HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\" +\n" +
+    "                    \"GET /two HTTP/1.1\\r\\nHost: h\\r\\nConnection: close\\r\\n\\r\\n\")\n" +
+    "    } else if mode == \"head\" {\n" +
+    "        c.write_str(\"HEAD /hello HTTP/1.1\\r\\nHost: h\\r\\nConnection: close\\r\\n\\r\\n\")\n" +
+    "    } else if mode == \"large\" {\n" +
+    "        var chunk = \"\"\n" +
+    "        var i = 0\n" +
+    "        while i < 1024 { chunk += \"c\"; i += 1 }\n" +
+    "        var payload = \"\"\n" +
+    "        var j = 0\n" +
+    "        while j < 128 { payload += chunk; j += 1 }\n" +
+    "        c.write_str(\"POST /up HTTP/1.1\\r\\nHost: h\\r\\nContent-Length: \" +\n" +
+    "                    str(payload.len()) + \"\\r\\nConnection: close\\r\\n\\r\\n\")\n" +
+    "        c.write_str(payload)\n" +
+    "    } else {\n" +
+    "        c.write_str(\"GET /nope HTTP/1.1\\r\\nHost: h\\r\\nConnection: close\\r\\n\\r\\n\")\n" +
+    "    }\n" +
+    "    let all = c.read_to_end()\n" +
+    "    if all == nil { print(\"READ-FAIL\"); c.close(); return }\n" +
+    "    print(all.to_str())\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A client that speaks plain HTTP to the TLS port: its handshake fails.
+let BAD = "import \"std/sys\"\n" +
+    "import \"std/socket\" as so\n" +
+    "func main() {\n" +
+    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[0], so.SocketTypeSpec.tcp())\n" +
+    "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
+    "    c.set_read_timeout(5000)\n" +
+    "    c.write_str(\"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")\n" +
+    "    c.read(bytes(64))\n" +
+    "    print(\"DONE\")\n" +
+    "    c.close()\n" +
+    "}\n"
+
+// A client that goes through http.Client rather than a raw tls.dial,
+// with the TLS policy selected by its second argument: "skip" turns
+// verification off, "ca" trusts the PEM file named by the fourth
+// argument, anything else leaves the default policy in place.
+let HTTP_CLIENT = "import \"std/sys\"\n" +
+    "import \"std/fs\"\n" +
+    "from \"koala/http\" import Client, Url\n" +
+    "from \"koala/tls\" import TlsOptions\n" +
+    "func main() {\n" +
+    "    let mode = sys.args()[1]\n" +
+    "    var opts TlsOptions? = nil\n" +
+    "    if mode == \"skip\" { opts = TlsOptions().set_skip_verify(true) }\n" +
+    "    if mode == \"ca\" { opts = TlsOptions().set_ca_pem(fs.read_str(sys.args()[2])) }\n" +
+    "    let url = Url.parse(\"https://127.0.0.1:\" + sys.args()[0] + \"/hello\")!\n" +
+    "    let r = Client(opts).get(url)\n" +
+    "    if r == nil { print(\"NIL\"); return }\n" +
+    "    print(str(r.status()) + \" \" + r.body().to_str())\n" +
+    "}\n"
+
+func echo(req Request) Response {
+    return Response.text(200, req.method() + " " + req.url().path() + " body=" + req.body().to_str())
+}
+
+func echo_raw(req Request) Response {
+    return Response.of(200, "application/octet-stream", req.body())
+}
+
+func not_found(req Request) Response {
+    return Response.text(404, "no such path\n")
+}
+
+func spawn(script str, port int, mode str, extra str = "") (os.Process, str) {
+    let f = fs.make_temp_file("koala_https_child", ".kl")!
+    fs.write_str(f, script)
+    let p = os.run("koala", [f.to_str(), str(port), mode, extra])!
+    return (p, f.to_str())
+}
+
+func finish(p os.Process, path str) str {
+    let r = p.communicate(nil, 30.0)
+    fs.remove(path)
+    let (out, _) = r else {
+        p.kill()
+        p.wait()
+        return ""
+    }
+    return out.to_str()
+}
+
+// The exact wire bytes: the child's print appends one newline, which is
+// not part of the response.
+func wire(p os.Process, path str) str {
+    let out = finish(p, path)
+    if out.len() == 0 { return out }
+    return out[0:out.len() - 1]
+}
+
+// A certificate and an HTTPS server on a free port.
+func setup() (Server, Certificate) {
+    let cert = Certificate.self_signed("localhost,127.0.0.1")!
+    let srv = Server.listen_tls("127.0.0.1:0", cert)!
+    srv.set_handshake_timeout(5000)
+    return (srv, cert)
+}
+
+@test
+func test_https_get() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "get")
+    ut.assert_true(srv.serve_once(echo))
+    let out = finish(p, path)
+    ut.assert_true(out.starts_with("HTTP/1.1 200 OK\r\n"))
+    ut.assert_true(out.index("GET /hello body=") >= 0)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_post_body() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "post")
+    srv.serve_once(echo)
+    ut.assert_true(finish(p, path).index("POST /up body=payload") >= 0)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_keep_alive_pipelined() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "keepalive")
+    ut.assert_true(srv.serve_once(echo))
+    let out = finish(p, path)
+    ut.assert_eq(out.split("HTTP/1.1 200 OK").len(), 3)
+    ut.assert_true(out.index("GET /one body=") >= 0)
+    ut.assert_true(out.index("GET /two body=") >= 0)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_head_has_no_body() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "head")
+    srv.serve_once(echo)
+    let out = wire(p, path)
+    ut.assert_true(out.starts_with("HTTP/1.1 200 OK\r\n"))
+    // The head a GET would return, and nothing after the blank line.
+    ut.assert_true(out.ends_with("\r\n\r\n"))
+    ut.assert_true(out.index("Content-Length: 17\r\n") >= 0)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_404() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "nope")
+    srv.serve_once(not_found)
+    let out = finish(p, path)
+    ut.assert_true(out.starts_with("HTTP/1.1 404 Not Found\r\n"))
+    ut.assert_true(out.index("no such path\n") >= 0)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_large_body() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "large")
+    srv.serve_once(echo_raw)
+    let out = wire(p, path)
+    ut.assert_true(out.starts_with("HTTP/1.1 200 OK\r\n"))
+    ut.assert_true(out.index("Content-Length: 131072\r\n") >= 0)
+    ut.assert_eq(out.len(), 131072 + out.index("\r\n\r\n") + 4)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_bad_handshake_then_good_client() {
+    let (srv, cert) = setup()
+    srv.set_handshake_timeout(2000)
+    // The plain-HTTP client fails the handshake; the server must drop
+    // it and still serve the next one.
+    let (bad, bad_path) = spawn(BAD, srv.port(), "")
+    let (good, good_path) = spawn(CLIENT, srv.port(), "get")
+    ut.assert_true(srv.serve_once(echo))
+    ut.assert_true(finish(good, good_path).index("GET /hello body=") >= 0)
+    ut.assert_eq(finish(bad, bad_path), "DONE\n")
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_accept_then_serve_conn() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(CLIENT, srv.port(), "get")
+    let conn = srv.accept()
+    ut.assert_true(conn != nil)
+    if let c = conn { srv.serve_conn(c, echo) }
+    ut.assert_true(finish(p, path).index("GET /hello body=") >= 0)
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_listen_tls_bad_addr() {
+    let cert = Certificate.self_signed("localhost")!
+    ut.assert_true(Server.listen_tls("not-an-address", cert, nil) == nil)
+    cert.close()
+}
+
+@test
+func test_https_with_block_closes() {
+    let cert = Certificate.self_signed("localhost")!
+    let srv = Server.listen_tls("127.0.0.1:0", cert)!
+    with srv {
+        ut.assert_true(srv.port() > 0)
+    }
+    ut.assert_true(!srv.serve_once(echo))
+    cert.close()
+}
+
+// ---- http.Client with a TLS policy ----
+
+@test
+func test_https_client_skip_verify() {
+    let (srv, cert) = setup()
+    let (p, path) = spawn(HTTP_CLIENT, srv.port(), "skip")
+    srv.serve_once(echo)
+    ut.assert_eq(finish(p, path), "200 GET /hello body=\n")
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_client_trusts_custom_ca() {
+    // Verification stays on: the client trusts exactly this certificate.
+    let (srv, cert) = setup()
+    let ca = fs.make_temp_file("koala_https_ca", ".pem")!
+    fs.write_str(ca, cert.cert_pem())
+    let (p, path) = spawn(HTTP_CLIENT, srv.port(), "ca", ca.to_str())
+    srv.serve_once(echo)
+    ut.assert_eq(finish(p, path), "200 GET /hello body=\n")
+    fs.remove(ca.to_str())
+    srv.close()
+    cert.close()
+}
+
+@test
+func test_https_client_default_rejects_self_signed() {
+    let (srv, cert) = setup()
+    let ca = fs.make_temp_file("koala_https_ca", ".pem")!
+    fs.write_str(ca, cert.cert_pem())
+
+    // An untrusted client and a trusting one. The server must drop the
+    // first handshake and still serve the second: a rejected client is
+    // not a broken listener.
+    let (bad, bad_path) = spawn(HTTP_CLIENT, srv.port(), "default")
+    let (good, good_path) = spawn(HTTP_CLIENT, srv.port(), "ca", ca.to_str())
+    ut.assert_true(srv.serve_once(echo))
+
+    ut.assert_eq(finish(bad, bad_path), "NIL\n")
+    ut.assert_eq(finish(good, good_path), "200 GET /hello body=\n")
+    fs.remove(ca.to_str())
+    srv.close()
+    cert.close()
+}

@@ -1,0 +1,96 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A TLS server identity: a certificate chain and its private key.
+///
+/// One Certificate owns one native server context, so a process can
+/// serve several names with different keys. `close` releases it; a
+/// Server holds its certificate for as long as it listens.
+///
+///     let cert = Certificate.self_signed("localhost,127.0.0.1")!
+///     let srv = Server.listen_tls("127.0.0.1:8443", cert)!
+
+import "std/fs"
+
+// The four @native declarations below mirror native/certificate.c. They
+// are not part of the package's public API.
+
+/// A server context from PEM text. Returns 0 on failure.
+@native
+func tls_cert_from_pem(cert str, key str) int {}
+
+/// A server context with a generated self-signed certificate. `names`
+/// is comma-separated. Returns 0 on failure.
+@native
+func tls_cert_self_signed(names str, days int) int {}
+
+/// Release a server context.
+@native
+func tls_cert_free(cert int) {}
+
+/// The leaf certificate as PEM text, or "".
+@native
+func tls_cert_pem(cert int) str {}
+
+/// A certificate chain and private key for a TLS server.
+pub class Certificate : Withable {
+    var _ctx int
+
+    func __init__(ctx int) {
+        _ctx = ctx
+    }
+
+    /// Load PEM text. `cert` is the leaf followed by any intermediate
+    /// certificates, in order; `key` is its private key.
+    ///
+    /// Nil when either PEM is malformed, the key does not match the
+    /// certificate, or the context cannot be created.
+    pub static func from_pem(cert str, key str) Certificate? {
+        let ctx = tls_cert_from_pem(cert, key)
+        if ctx == 0 { return nil }
+        return Certificate(ctx)
+    }
+
+    /// Load PEM files from disk. Nil when either file is missing or
+    /// `from_pem` rejects its contents.
+    pub static func from_files(cert_path str, key_path str) Certificate? {
+        if !fs.exists(cert_path) { return nil }
+        if !fs.exists(key_path) { return nil }
+        return Certificate.from_pem(fs.read_str(cert_path), fs.read_str(key_path))
+    }
+
+    /// Generate a self-signed certificate: RSA 2048, SHA-256, valid for
+    /// `days`, covering every name in the comma-separated `names`.
+    /// Entries that parse as an IP literal become IP subjectAltNames,
+    /// the rest DNS ones; the first name is also the common name.
+    ///
+    /// The certificate is its own CA, so a client can trust it directly
+    /// instead of skipping verification. For development and tests: a
+    /// real deployment uses a certificate from a CA the client already
+    /// trusts.
+    pub static func self_signed(names str, days int = 365) Certificate? {
+        let ctx = tls_cert_self_signed(names, days)
+        if ctx == 0 { return nil }
+        return Certificate(ctx)
+    }
+
+    /// The leaf certificate as PEM text, for handing to clients as a
+    /// trust anchor. "" once the certificate is closed.
+    pub func cert_pem() str {
+        return tls_cert_pem(_ctx)
+    }
+
+    /// Release the native context. Safe to call twice; a server still
+    /// using this certificate can no longer accept handshakes.
+    pub func close() {
+        if _ctx == 0 { return }
+        tls_cert_free(_ctx)
+        _ctx = 0
+    }
+
+    pub func __enter__() {}
+
+    pub func __exit__() { close() }
+}

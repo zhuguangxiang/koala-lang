@@ -126,9 +126,7 @@ pub class SSEDecoder {
         } else if fieldname == "data" {
             _data.append(value)
         } else if fieldname == "id" {
-            // An id containing NUL is ignored, as per the spec. Koala
-            // str cannot carry NUL (bytes.to_str stops at it), so this
-            // guard is defensive only.
+            // An id containing NUL is ignored, as per the spec.
             if value.to_bytes().index(0) < 0 { _last_event_id = value }
         } else if fieldname == "retry" {
             let n = _parse_int(value)

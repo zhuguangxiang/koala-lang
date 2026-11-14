@@ -5,14 +5,15 @@
 
 import "std/socket" as so
 
-// The four @native declarations below mirror conn.c. They are not part
+// The five @native declarations below mirror conn.c. They are not part
 // of the package's public API; TlsConn calls them and callers only see
 // the class.
 
 /// Wrap an established TCP fd in a TLS session. Returns 0 on failure.
-/// `verify` false accepts any certificate.
+/// `verify` false accepts any certificate. `ca_pem`, when non-empty,
+/// replaces the system trust store for this connection only.
 @native
-func tls_conn_new(fd int, hostname str, verify bool) int {}
+func tls_conn_new(fd int, hostname str, verify bool, ca_pem str) int {}
 
 /// Read up to `buf.len()` bytes. >0 count, 0 EOF, -1 error, -2 timeout.
 @native
@@ -25,6 +26,11 @@ func tls_write(ssl int, data bytes) int {}
 /// Tear down the TLS session. Does not close the underlying fd.
 @native
 func tls_conn_close(ssl int) {}
+
+/// Run the server handshake over an established fd against a
+/// certificate context. Returns 0 on failure.
+@native
+func tls_accept(cert int, fd int) int {}
 
 /// A TLS connection over an already-connected TCP socket.
 ///
@@ -58,9 +64,33 @@ pub class TlsConn : so.Conn {
         }
 
         let verify = !opts.skip_verify()
-        let h = tls_conn_new(tcp.fd(), name, verify)
+        let h = tls_conn_new(tcp.fd(), name, verify, opts.ca_pem())
 
         if timeout > 0 {
+            tcp.set_read_timeout(0)
+            tcp.set_write_timeout(0)
+        }
+
+        if h == 0 { return nil }
+        return TlsConn(h, tcp)
+    }
+
+    /// Perform the server handshake over `tcp`, presenting `cert`.
+    /// Returns nil when the handshake fails; `tcp` is left open either
+    /// way, since the caller owns it.
+    ///
+    /// The server-side counterpart of `wrap`. `timeout_ms` bounds the
+    /// handshake and is cleared afterwards, as `wrap` does; 0 waits
+    /// forever, which lets a silent client hold the server.
+    pub static func accept(tcp so.TcpConn, cert Certificate, timeout_ms int = 0) TlsConn? {
+        if timeout_ms > 0 {
+            tcp.set_read_timeout(timeout_ms)
+            tcp.set_write_timeout(timeout_ms)
+        }
+
+        let h = tls_accept(cert._ctx, tcp.fd())
+
+        if timeout_ms > 0 {
             tcp.set_read_timeout(0)
             tcp.set_write_timeout(0)
         }

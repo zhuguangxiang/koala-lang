@@ -1,0 +1,74 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s
+// Inline float compares (ucomisd) must match C semantics exactly: every
+// comparison with NaN is false except !=, and -0.0 == 0.0. Both the bool form
+// (OP_FLOAT_*) and the fused branch form (OP_JMP_FLOAT_*) are checked.
+
+func b2i(x bool) int {
+    if x { return 1 }
+    return 0
+}
+
+// bool form: 1 then eq ne lt le gt ge (fixed width, so CHECK can't match a
+// substring of a wrong result)
+func vals(a float64, b float64) int {
+    return 1000000 + b2i(a == b) * 100000 + b2i(a != b) * 10000 + b2i(a < b) * 1000 +
+        b2i(a <= b) * 100 + b2i(a > b) * 10 + b2i(a >= b)
+}
+
+// branch form
+func j_eq(a float64, b float64) int { if a == b { return 1 } return 0 }
+func j_ne(a float64, b float64) int { if a != b { return 1 } return 0 }
+func j_lt(a float64, b float64) int { if a < b { return 1 } return 0 }
+func j_le(a float64, b float64) int { if a <= b { return 1 } return 0 }
+func j_gt(a float64, b float64) int { if a > b { return 1 } return 0 }
+func j_ge(a float64, b float64) int { if a >= b { return 1 } return 0 }
+
+func jumps(a float64, b float64) int {
+    return 1000000 + j_eq(a, b) * 100000 + j_ne(a, b) * 10000 + j_lt(a, b) * 1000 +
+        j_le(a, b) * 100 + j_gt(a, b) * 10 + j_ge(a, b)
+}
+
+func check(a float64, b float64) {
+    var r = 0
+    var s = 0
+    var i = 0
+    while i < 20 {
+        r = vals(a, b)
+        s = jumps(a, b)
+        i = i + 1
+    }
+    print(r)
+    print(s)
+}
+
+func main() {
+    let inf float64 = 1.0e400
+    let nan float64 = inf - inf
+    check(1.0, 2.0)
+    check(2.0, 1.0)
+    check(1.5, 1.5)
+    check(-0.0, 0.0)
+    check(nan, 1.0)
+    check(1.0, nan)
+    check(nan, nan)
+    check(inf, inf)
+}
+
+// CHECK: {{^}}1011100{{$}}
+// CHECK-NEXT: {{^}}1011100{{$}}
+// CHECK-NEXT: {{^}}1010011{{$}}
+// CHECK-NEXT: {{^}}1010011{{$}}
+// CHECK-NEXT: {{^}}1100101{{$}}
+// CHECK-NEXT: {{^}}1100101{{$}}
+// CHECK-NEXT: {{^}}1100101{{$}}
+// CHECK-NEXT: {{^}}1100101{{$}}
+// CHECK-NEXT: {{^}}1010000{{$}}
+// CHECK-NEXT: {{^}}1010000{{$}}
+// CHECK-NEXT: {{^}}1010000{{$}}
+// CHECK-NEXT: {{^}}1010000{{$}}
+// CHECK-NEXT: {{^}}1010000{{$}}
+// CHECK-NEXT: {{^}}1010000{{$}}
+// CHECK-NEXT: {{^}}1100101{{$}}
+// CHECK-NEXT: {{^}}1100101{{$}}

@@ -1,0 +1,477 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// End-to-end tests for the blocking server on loopback.
+//
+// One thread drives both ends: the TCP handshake completes inside dial,
+// so the connection waits in the backlog while the client sends, and
+// serve_once then accepts and answers it. A client that reads its
+// response lazily (Client.stream) or a raw socket both work here; a
+// blocking Client.get would deadlock, since it waits for an answer
+// before the server has accepted.
+
+import "std/ut"
+import "std/socket" as so
+from "koala/http" import Server, Request, Response, Url, Client, StreamResponse
+
+func echo(req Request) Response {
+    return Response.text(200, req.method() + " " + req.url().path() + " body=" + req.body().to_str())
+}
+
+func echo_raw(req Request) Response {
+    return Response.of(200, "application/octet-stream", req.body())
+}
+
+func not_found(req Request) Response {
+    return Response.text(404, "no such path\n")
+}
+
+func closing(req Request) Response {
+    let r = Response.text(200, "bye")
+    r.set_header("Connection", "close")
+    return r
+}
+
+// Drain a streamed response body into one string.
+func drain(resp StreamResponse) str {
+    var s = ""
+    loop {
+        let piece = resp.read()
+        if let p = piece {
+            s += p.to_str()
+        } else {
+            break
+        }
+    }
+    return s
+}
+
+// A client request that asks the server to close, so serve_once returns
+// without waiting out the read timeout.
+func close_req(srv Server, path str) Request {
+    let req = Request.get(Url("http", "127.0.0.1", srv.port(), path))
+    req.header("Connection", "close")
+    return req
+}
+
+func dial(srv Server) so.Conn {
+    return so.dial("127.0.0.1:" + str(srv.port()), so.SocketTypeSpec.tcp())!
+}
+
+@test
+func test_serve_once_get() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let resp = Client().stream(close_req(srv, "/hello"))!
+    ut.assert_true(srv.serve_once(echo))
+    ut.assert_eq(resp.status(), 200)
+    ut.assert_eq(drain(resp), "GET /hello body=")
+    resp.close()
+    srv.close()
+}
+
+@test
+func test_serve_once_post_body() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let req = Request.post(Url("http", "127.0.0.1", srv.port(), "/up"), "payload".to_bytes())
+    req.header("Connection", "close")
+    let resp = Client().stream(req)!
+    srv.serve_once(echo)
+    ut.assert_eq(drain(resp), "POST /up body=payload")
+    resp.close()
+    srv.close()
+}
+
+@test
+func test_handler_reads_request_headers() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let req = close_req(srv, "/")
+    req.header("X-Token", "secret")
+    let resp = Client().stream(req)!
+    srv.serve_once({ |r| Response.text(200, r.header_value("x-token")!) })
+    ut.assert_eq(drain(resp), "secret")
+    resp.close()
+    srv.close()
+}
+
+@test
+func test_handler_expression_lambda() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let resp = Client().stream(close_req(srv, "/lambda"))!
+    srv.serve_once({ |r| Response.text(200, "hi " + r.url().path()) })
+    ut.assert_eq(drain(resp), "hi /lambda")
+    resp.close()
+    srv.close()
+}
+
+@test
+func test_accept_then_serve_conn() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("GET /sc HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    let accepted = srv.accept()!
+    srv.serve_conn(accepted, echo)
+    ut.assert_true(conn.read_to_end()!.to_str().index("GET /sc body=") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_keep_alive_pipelined() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    // Two requests in one write: the server must answer both on the
+    // same connection and close only after the second asks it to.
+    conn.write_str("GET /one HTTP/1.1\r\nHost: h\r\n\r\n")
+    conn.write_str("GET /two HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    ut.assert_true(srv.serve_once(echo))
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_eq(all.split("HTTP/1.1 200 OK").len(), 3)
+    ut.assert_true(all.index("GET /one body=") >= 0)
+    ut.assert_true(all.index("GET /two body=") >= 0)
+    ut.assert_true(all.index("Connection: close") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_keep_alive_first_response_has_no_close() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("GET /one HTTP/1.1\r\nHost: h\r\n\r\n" +
+                   "GET /two HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    // Only the second response carries Connection: close.
+    ut.assert_eq(all.split("Connection: close").len(), 2)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_handler_forces_close() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    // No Connection field: HTTP/1.1 defaults to keep-alive, but the
+    // handler overrides it.
+    conn.write_str("GET / HTTP/1.1\r\nHost: h\r\n\r\n")
+    srv.serve_once(closing)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.index("Connection: close") >= 0)
+    ut.assert_true(all.index("bye") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_http10_closes() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("GET / HTTP/1.0\r\n\r\n")
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.starts_with("HTTP/1.1 200 OK\r\n"))
+    ut.assert_true(all.index("Connection: close") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_malformed_request_gets_400() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("GET / HTTP/1.1\r\nBroken-Header\r\n\r\n")
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.starts_with("HTTP/1.1 400 Bad Request\r\n"))
+    ut.assert_true(all.index("Connection: close") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_unknown_verb_gets_400() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("FROB / HTTP/1.1\r\nHost: h\r\n\r\n")
+    srv.serve_once(echo)
+    ut.assert_true(conn.read_to_end()!.to_str().starts_with("HTTP/1.1 400 Bad Request\r\n"))
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_handler_404() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let resp = Client().stream(close_req(srv, "/nope"))!
+    srv.serve_once(not_found)
+    ut.assert_eq(resp.status(), 404)
+    ut.assert_eq(drain(resp), "no such path\n")
+    resp.close()
+    srv.close()
+}
+
+@test
+func test_chunked_request_body() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("POST /up HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: chunked\r\n" +
+                   "Connection: close\r\n\r\n5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n")
+    srv.serve_once(echo)
+    ut.assert_true(conn.read_to_end()!.to_str().index("body=hello world") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_large_body_spans_many_reads() {
+    // 64 KiB, far past the 4096-byte read scratch, so the request is
+    // assembled from many reads and the response from many writes.
+    var chunk = ""
+    var i = 0
+    while i < 1024 {
+        chunk += "a"
+        i += 1
+    }
+    var payload = ""
+    var j = 0
+    while j < 64 {
+        payload += chunk
+        j += 1
+    }
+
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("POST /up HTTP/1.1\r\nHost: h\r\nContent-Length: " + str(payload.len()) +
+                   "\r\nConnection: close\r\n\r\n")
+    conn.write_str(payload)
+    srv.serve_once(echo_raw)
+    let back = Response.parse(conn.read_to_end()!)!
+    ut.assert_eq(back.status(), 200)
+    ut.assert_eq(back.body().len(), payload.len())
+    ut.assert_eq(back.body().to_str(), payload)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_head_sends_no_body() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("HEAD / HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    srv.serve_once({ |r| Response.text(200, "hello") })
+    // Content-Length is the length the body would have had; no body
+    // follows the blank line.
+    ut.assert_eq(conn.read_to_end()!.to_str(),
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+        "Connection: close\r\n" +
+        "Content-Length: 5\r\n" +
+        "\r\n")
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_head_then_get_keep_alive() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("HEAD / HTTP/1.1\r\nHost: h\r\n\r\n" +
+                   "GET /after HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    let parts = all.split("HTTP/1.1 200 OK\r\n")
+    ut.assert_eq(parts.len(), 3)
+    // A body on the HEAD response would leave parts[1] ending in it
+    // instead of the blank line, and shift the GET response.
+    ut.assert_true(parts[1].ends_with("\r\n\r\n"))
+    ut.assert_true(parts[2].index("GET /after body=") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_read_timeout_does_not_hang() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_read_timeout(200)
+    let conn = dial(srv)
+    // Connected but silent: serve_once must give up, not block forever.
+    ut.assert_true(srv.serve_once(echo))
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_client_eof_ends_connection() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.close()
+    ut.assert_true(srv.serve_once(echo))
+    srv.close()
+}
+
+@test
+func test_serve_once_after_close() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.close()
+    ut.assert_true(!srv.serve_once(echo))
+    ut.assert_true(srv.accept() == nil)
+    // close is idempotent.
+    srv.close()
+}
+
+@test
+func test_with_block_closes_server() {
+    let srv = Server.listen("127.0.0.1:0")!
+    with srv {
+        ut.assert_true(srv.port() > 0)
+    }
+    ut.assert_true(!srv.serve_once(echo))
+}
+
+@test
+func test_local_addr_reports_bound_port() {
+    let srv = Server.listen("127.0.0.1:0")!
+    ut.assert_true(srv.port() > 0)
+    ut.assert_eq(srv.local_addr().port(), srv.port())
+    srv.close()
+}
+
+@test
+func test_listen_bad_addr() {
+    ut.assert_true(Server.listen("not-an-address", nil) == nil)
+}
+
+// serve() runs until a handler closes the server. Lambdas cannot
+// capture locals, so the handler reaches the server through a global.
+var g_srv Server? = nil
+var g_hits int = 0
+
+func stop_server(req Request) Response {
+    g_hits += 1
+    let s = g_srv!
+    s.close()
+    return Response.text(200, "stopped")
+}
+
+@test
+func test_serve_loop_stops_on_close() {
+    let srv = Server.listen("127.0.0.1:0")!
+    g_srv = srv
+    g_hits = 0
+    let conn = dial(srv)
+    conn.write_str("GET / HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    srv.serve(stop_server)
+    ut.assert_eq(g_hits, 1)
+    ut.assert_true(conn.read_to_end()!.to_str().index("stopped") >= 0)
+    conn.close()
+}
+
+// ---- Size limits and timeout statuses ----
+
+func repeat(c str, n int) str {
+    var s = ""
+    var i = 0
+    while i < n {
+        s += c
+        i += 1
+    }
+    return s
+}
+
+@test
+func test_max_header_bytes_431() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_max_header_bytes(64)
+    let conn = dial(srv)
+    conn.write_str("GET / HTTP/1.1\r\nHost: h\r\nX-Big: " + repeat("x", 200) + "\r\n\r\n")
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.starts_with("HTTP/1.1 431 Request Header Fields Too Large\r\n"))
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_max_body_bytes_413() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_max_body_bytes(8)
+    let conn = dial(srv)
+    conn.write_str("POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 100\r\n" +
+                   "Connection: close\r\n\r\n")
+    conn.write_str(repeat("y", 100))
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.starts_with("HTTP/1.1 413 Payload Too Large\r\n"))
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_generous_limits_allow_normal_request() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_max_header_bytes(4096)
+    srv.set_max_body_bytes(4096)
+    let conn = dial(srv)
+    conn.write_str("POST /ok HTTP/1.1\r\nHost: h\r\nContent-Length: 5\r\n" +
+                   "Connection: close\r\n\r\nhello")
+    srv.serve_once(echo)
+    ut.assert_true(conn.read_to_end()!.to_str().index("POST /ok body=hello") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_zero_caps_are_unlimited() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_max_header_bytes(0)
+    srv.set_max_body_bytes(0)
+    let conn = dial(srv)
+    conn.write_str("POST /big HTTP/1.1\r\nHost: h\r\nX-Big: " + repeat("x", 2000) +
+                   "\r\nContent-Length: 2000\r\nConnection: close\r\n\r\n")
+    conn.write_str(repeat("z", 2000))
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.starts_with("HTTP/1.1 200 OK\r\n"))
+    ut.assert_true(all.index(repeat("z", 2000)) >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_read_timeout_partial_request_408() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_read_timeout(200)
+    let conn = dial(srv)
+    // A head that never ends: the request is in flight when the read
+    // timeout expires, so the peer is told 408.
+    conn.write_str("GET / HTTP/1.1\r\nHost: h\r\nX-Partial: ")
+    srv.serve_once(echo)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.starts_with("HTTP/1.1 408 Request Timeout\r\n"))
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_read_timeout_idle_is_silent() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_read_timeout(200)
+    let conn = dial(srv)
+    // Nothing arrived at all: an idle connection closes without a
+    // response, rather than being sent a 408 it never asked for.
+    ut.assert_true(srv.serve_once(echo))
+    ut.assert_eq(conn.read_to_end()!.len(), 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_accept_timeout_ends_serve() {
+    let srv = Server.listen("127.0.0.1:0")!
+    srv.set_accept_timeout(200)
+    // No client ever connects: accept gives up instead of blocking.
+    ut.assert_true(!srv.serve_once(echo))
+    srv.close()
+}

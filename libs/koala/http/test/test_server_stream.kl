@@ -1,0 +1,372 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Streaming response tests: the chunked wire format, source lifecycle,
+// keep-alive after a stream, HEAD, and FileBody downloads.
+//
+// Plain HTTP on loopback, so one thread drives both ends: the client
+// writes first, then serve_once accepts and answers.
+
+import "std/ut"
+import "std/fs"
+import "std/socket" as so
+from "koala/http" import Server, Request, Response, Body, FileBody, Client, Url
+
+// A Body over a fixed list of chunks, counting how often it is closed.
+class ChunkBody : Body {
+    let _chunks list[bytes]
+    var _i int = 0
+    pub var closed int = 0
+
+    pub func __init__(chunks list[bytes]) { _chunks = chunks }
+
+    pub func read() bytes? {
+        if _i >= _chunks.len() { return nil }
+        let c = _chunks[_i]
+        _i += 1
+        return c
+    }
+
+    pub func close() { closed += 1 }
+}
+
+// The most recent body a handler produced, so a test can inspect its
+// lifecycle. Lambdas cannot capture locals, hence the global.
+var g_body ChunkBody? = nil
+
+func streamed(chunks list[bytes]) Response {
+    let b = ChunkBody(chunks)
+    g_body = b
+    return Response.stream(200, "text/plain", b)
+}
+
+func chunks_of(parts list[str]) list[bytes] {
+    let out = list[bytes]()
+    for p in parts { out.append(p.to_bytes()) }
+    return out
+}
+
+func h_two(req Request) Response {
+    return streamed(chunks_of(["hello", " world"]))
+}
+
+func h_empty_chunks(req Request) Response {
+    return streamed(chunks_of(["", "a", "", "b", ""]))
+}
+
+func h_no_chunks(req Request) Response {
+    return streamed(list[bytes]())
+}
+
+func h_many(req Request) Response {
+    let parts = list[str]()
+    var i = 0
+    while i < 200 {
+        parts.append("chunk-" + str(i) + ";")
+        i += 1
+    }
+    return streamed(chunks_of(parts))
+}
+
+// Lambdas cannot capture locals, so the handlers that need test data
+// read it from globals.
+var g_big str = ""
+var g_path str = ""
+var g_chunk int = 16384
+
+func h_big(req Request) Response {
+    return streamed(chunks_of([g_big]))
+}
+
+// Streams for /s, a fixed body for anything else: exercises a chunked
+// response followed by a Content-Length one on the same connection.
+func h_mixed(req Request) Response {
+    if req.url().path() == "/s" {
+        return streamed(chunks_of(["hello", " world"]))
+    }
+    return Response.text(200, "GET " + req.url().path() + " body=")
+}
+
+func h_file(req Request) Response {
+    return Response.stream(200, "application/octet-stream", FileBody.open(g_path, g_chunk)!)
+}
+
+func dial(srv Server) so.Conn {
+    return so.dial("127.0.0.1:" + str(srv.port()), so.SocketTypeSpec.tcp())!
+}
+
+func get_req(srv Server, path str) str {
+    return "GET " + path + " HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n"
+}
+
+// ---- object level ----
+
+@test
+func test_stream_response_api() {
+    let b = ChunkBody(chunks_of(["x"]))
+    let r = Response.stream(200, "text/plain", b)
+    ut.assert_true(r.is_stream())
+    ut.assert_true(r.source() != nil)
+    ut.assert_eq(r.header("Content-Type")!, "text/plain")
+    ut.assert_eq(r.status(), 200)
+    ut.assert_eq(r.reason(), "OK")
+    // A fixed body is not a stream.
+    ut.assert_true(!Response.text(200, "x").is_stream())
+    ut.assert_true(Response.text(200, "x").source() == nil)
+}
+
+@test
+func test_stream_no_content_type() {
+    let r = Response.stream(204, "", ChunkBody(list[bytes]()))
+    ut.assert_true(r.header("Content-Type") == nil)
+}
+
+// ---- wire format ----
+
+@test
+func test_stream_exact_wire() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/s"))
+    srv.serve_once(h_two)
+    ut.assert_eq(conn.read_to_end()!.to_str(),
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/plain\r\n" +
+        "Connection: close\r\n" +
+        "Transfer-Encoding: chunked\r\n" +
+        "\r\n" +
+        "5\r\nhello\r\n" +
+        "6\r\n world\r\n" +
+        "0\r\n\r\n")
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_stream_empty_chunks_skipped() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/s"))
+    srv.serve_once(h_empty_chunks)
+    let all = conn.read_to_end()!.to_str()
+    // Empty chunks mean "nothing ready", so only a and b are framed.
+    ut.assert_true(all.index("1\r\na\r\n1\r\nb\r\n0\r\n\r\n") >= 0)
+    ut.assert_true(all.index("0\r\n\r\n1\r\n") < 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_stream_no_chunks_is_just_terminator() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/s"))
+    srv.serve_once(h_no_chunks)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.ends_with("\r\n\r\n0\r\n\r\n"))
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_stream_hex_length_over_15() {
+    // A chunk longer than 15 bytes needs more than one hex digit.
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/s"))
+    var big = ""
+    var i = 0
+    while i < 300 {
+        big += "q"
+        i += 1
+    }
+    g_big = big
+    srv.serve_once(h_big)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.index("12c\r\n" + big + "\r\n") >= 0)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_stream_many_chunks_reassemble() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/s"))
+    srv.serve_once(h_many)
+    let all = conn.read_to_end()!.to_str()
+    var expect = ""
+    var i = 0
+    while i < 200 {
+        expect += "chunk-" + str(i) + ";"
+        i += 1
+    }
+    // Strip the framing and compare the payload.
+    let body = all[all.index("\r\n\r\n") + 4:all.len()]
+    var joined = ""
+    var rest = body
+    loop {
+        let nl = rest.index("\r\n")
+        if nl < 0 { break }
+        let size = rest[0:nl]
+        if size == "0" { break }
+        let start = nl + 2
+        let n = _unhex(size)
+        joined += rest[start:start + n]
+        rest = rest[start + n + 2:rest.len()]
+    }
+    ut.assert_eq(joined, expect)
+    conn.close()
+    srv.close()
+}
+
+func _unhex(s str) int {
+    let b = s.to_bytes()
+    var v = 0
+    var i = 0
+    while i < b.len() {
+        let c = int(b[i])
+        var d = 0
+        if c >= 48 && c <= 57 { d = c - 48 } else { d = c - 87 }
+        v = v * 16 + d
+        i += 1
+    }
+    return v
+}
+
+// ---- lifecycle ----
+
+@test
+func test_stream_source_closed_once() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/s"))
+    srv.serve_once(h_two)
+    conn.read_to_end()
+    ut.assert_eq(g_body!.closed, 1)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_stream_head_sends_no_body_and_closes_source() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str("HEAD /s HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    srv.serve_once(h_two)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_true(all.ends_with("\r\n\r\n"))
+    ut.assert_true(all.index("hello") < 0)
+    ut.assert_eq(g_body!.closed, 1)
+    conn.close()
+    srv.close()
+}
+
+@test
+func test_stream_then_get_keep_alive() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    // A chunked stream followed by a fixed-body request on the same
+    // connection: the terminator is what lets the peer frame the first.
+    conn.write_str("GET /s HTTP/1.1\r\nHost: h\r\n\r\n" +
+                   "GET /two HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n")
+    srv.serve_once(h_mixed)
+    let all = conn.read_to_end()!.to_str()
+    ut.assert_eq(all.split("HTTP/1.1 200 OK").len(), 3)
+    ut.assert_true(all.index("5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n") >= 0)
+    ut.assert_true(all.index("GET /two body=") >= 0)
+    conn.close()
+    srv.close()
+}
+
+// ---- FileBody ----
+
+@test
+func test_file_body_streams_a_file() {
+    let f = fs.make_temp_file("koala_stream", ".bin")!
+    var content = ""
+    var i = 0
+    while i < 5000 {
+        content += "file-content-" + str(i) + "\n"
+        i += 1
+    }
+    fs.write_str(f, content)
+
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/download"))
+    g_path = f.to_str()
+    g_chunk = 1024
+    srv.serve_once(h_file)
+    let all = conn.read_to_end()!.to_str()
+    let body = all[all.index("\r\n\r\n") + 4:all.len()]
+    var joined = ""
+    var rest = body
+    loop {
+        let nl = rest.index("\r\n")
+        if nl < 0 { break }
+        let size = rest[0:nl]
+        if size == "0" { break }
+        let start = nl + 2
+        let n = _unhex(size)
+        joined += rest[start:start + n]
+        rest = rest[start + n + 2:rest.len()]
+    }
+    ut.assert_eq(joined, content)
+    conn.close()
+    srv.close()
+    fs.remove(f.to_str())
+}
+
+@test
+func test_file_body_missing_file() {
+    ut.assert_true(FileBody.open("/no/such/file.bin") == nil)
+}
+
+@test
+func test_file_body_closes_its_descriptor() {
+    let f = fs.make_temp_file("koala_stream_fd", ".bin")!
+    fs.write_str(f, "some bytes to stream")
+    let before = fs.list_dir("/proc/self/fd").len()
+
+    let srv = Server.listen("127.0.0.1:0")!
+    let conn = dial(srv)
+    conn.write_str(get_req(srv, "/download"))
+    g_path = f.to_str()
+    g_chunk = 16384
+    srv.serve_once(h_file)
+    conn.read_to_end()
+    conn.close()
+    srv.close()
+
+    ut.assert_eq(fs.list_dir("/proc/self/fd").len(), before)
+    fs.remove(f.to_str())
+}
+
+// ---- client round trip ----
+
+@test
+func test_stream_read_by_http_client() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let req = Request.get(Url("http", "127.0.0.1", srv.port(), "/s"))
+    req.header("Connection", "close")
+    let resp = Client().stream(req)!
+    srv.serve_once(h_two)
+
+    ut.assert_eq(resp.status(), 200)
+    ut.assert_eq(resp.header("Transfer-Encoding")!, "chunked")
+    var body = ""
+    loop {
+        let piece = resp.read()
+        if let p = piece {
+            body += p.to_str()
+        } else {
+            break
+        }
+    }
+    ut.assert_eq(body, "hello world")
+    resp.close()
+    srv.close()
+}

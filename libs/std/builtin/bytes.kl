@@ -255,8 +255,9 @@ pub class bytes : Sequence[uint8] {
 
     /// Decode the bytes as UTF-8 and return a new `str`.
     ///
-    /// An invalid byte becomes U+FFFD. The str stops at the first NUL byte,
-    /// as a C string does: use `view(0, n).to_str()` for the filled part of a buffer.
+    /// NUL bytes are preserved; each invalid byte becomes U+FFFD, so decoding
+    /// invalid UTF-8 is lossy. For an I/O buffer, use `view(0, n).to_str()`
+    /// to decode only the bytes read.
     @native
     pub func to_str() str {}
 

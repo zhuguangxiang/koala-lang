@@ -31,3 +31,11 @@ echo "=============================================="
 # Per-command environment. Not exported, so this script leaves
 # KOALA_PATH alone after it exits.
 KOALA_PATH="$DIST/:$KOALA_PATH" wombat test
+
+echo ""
+echo "=============================================="
+echo " workspace: test (JIT disabled)"
+echo "=============================================="
+
+# Run tests with JIT disabled
+KOALA_PATH="$DIST/:$KOALA_PATH" KOALA_JIT=0 wombat test

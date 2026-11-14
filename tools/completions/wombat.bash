@@ -33,31 +33,55 @@ _wombat() {
             fi
             ;;
         run)
-            # `wombat run <target> [args...]`
+            # `wombat run [--no-jit] <target> [args...]`
             #
             # <target> may be a package name, a .kl source file, or a
             # .klc artifact. Arguments after <target> belong to the
             # program, so no wombat-level candidates are offered there.
-            if [ "$COMP_CWORD" -eq 2 ]; then
-                if [[ "$cur" == -* ]]; then
-                    COMPREPLY=()
-                    compopt +o default
-                else
-                    local dirs="$( _wombat_ws_dirs )"
-                    local files="$( compgen -f -X '!*.@(kl|klc)' -- "$cur" 2>/dev/null )"
-                    COMPREPLY=( $(compgen -W "$dirs $files" -- "$cur") )
-                fi
-            else
+            #
+            # The target is the first non-option word after the
+            # subcommand, not necessarily the word at COMP_CWORD 2:
+            # --no-jit may come before it.
+            local i seen_target=0
+            for (( i=2; i < COMP_CWORD; i++ )); do
+                case "${COMP_WORDS[i]}" in
+                    -*) ;;
+                    *) seen_target=1; break ;;
+                esac
+            done
+            if [ "$seen_target" -eq 1 ]; then
                 # Program arguments: no wombat-level candidates.
                 COMPREPLY=()
                 compopt +o default
+            elif [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "--no-jit" -- "$cur") )
+            else
+                local dirs="$( _wombat_ws_dirs )"
+                local files="$( compgen -f -X '!*.@(kl|klc)' -- "$cur" 2>/dev/null )"
+                COMPREPLY=( $(compgen -W "$dirs $files" -- "$cur") )
             fi
             ;;
-        test|check|fmt|doc|clean)
+        test)
+            # `wombat test [--no-jit] [target]`; `@` means only ws/test/.
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "--no-jit" -- "$cur") )
+            else
+                COMPREPLY=( $(compgen -W "@ $(_wombat_ws_dirs)" -- "$cur") )
+            fi
+            ;;
+        check|fmt|doc)
             # `wombat <cmd> [pkg]`: only workspace/package directories.
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=()
                 compopt +o default
+            else
+                COMPREPLY=( $(compgen -W "$(_wombat_ws_dirs)" -- "$cur") )
+            fi
+            ;;
+        clean)
+            # `wombat clean [dir] [-y]`
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=( $(compgen -W "-y --yes" -- "$cur") )
             else
                 COMPREPLY=( $(compgen -W "$(_wombat_ws_dirs)" -- "$cur") )
             fi

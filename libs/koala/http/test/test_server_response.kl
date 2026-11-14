@@ -1,0 +1,155 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Protocol-level tests for Response.to_bytes and the response builders:
+// exact wire output, framing rules, and the parse round trip.
+
+import "std/ut"
+from "koala/http" import Response, ResponseHead
+
+@test
+func test_write_text() {
+    ut.assert_eq(Response.text(200, "hello").to_bytes().to_str(),
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+        "Content-Length: 5\r\n" +
+        "\r\n" +
+        "hello")
+}
+
+@test
+func test_write_html() {
+    ut.assert_eq(Response.html(200, "<h1>hi</h1>").to_bytes().to_str(),
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/html; charset=utf-8\r\n" +
+        "Content-Length: 11\r\n" +
+        "\r\n" +
+        "<h1>hi</h1>")
+}
+
+@test
+func test_write_json() {
+    ut.assert_eq(Response.json(201, "{\"a\":1}").to_bytes().to_str(),
+        "HTTP/1.1 201 Created\r\n" +
+        "Content-Type: application/json\r\n" +
+        "Content-Length: 7\r\n" +
+        "\r\n" +
+        "{\"a\":1}")
+}
+
+@test
+func test_write_empty_body_still_framed() {
+    // Content-Length: 0 is what lets a keep-alive peer frame the
+    // response, so it is written even with no body.
+    ut.assert_eq(Response.of(404, "", bytes(0)).to_bytes().to_str(),
+        "HTTP/1.1 404 Not Found\r\n" +
+        "Content-Length: 0\r\n" +
+        "\r\n")
+}
+
+@test
+func test_write_no_content_type() {
+    ut.assert_eq(Response.of(204, "", bytes(0)).to_bytes().to_str(),
+        "HTTP/1.1 204 No Content\r\n" +
+        "Content-Length: 0\r\n" +
+        "\r\n")
+}
+
+@test
+func test_write_unknown_status_has_no_reason() {
+    // The grammar allows an empty reason-phrase; no trailing space is
+    // written for a code with no known phrase.
+    let h = ResponseHead(499, "", list[list[str]]())
+    ut.assert_eq(Response(h, bytes(0)).to_bytes().to_str(),
+        "HTTP/1.1 499\r\n" +
+        "Content-Length: 0\r\n" +
+        "\r\n")
+}
+
+@test
+func test_write_head_defaults_body_offset() {
+    // A server-built head has no body offset to report.
+    let h = ResponseHead(200, "OK", list[list[str]]())
+    ut.assert_eq(h.body_offset(), 0)
+}
+
+@test
+func test_set_header_replaces_in_place() {
+    let r = Response.text(200, "hi")
+    r.set_header("X-A", "1")
+    r.set_header("X-B", "2")
+    r.set_header("x-a", "3")
+    ut.assert_eq(r.to_bytes().to_str(),
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+        "X-A: 3\r\n" +
+        "X-B: 2\r\n" +
+        "Content-Length: 2\r\n" +
+        "\r\n" +
+        "hi")
+}
+
+@test
+func test_set_header_replaces_content_type() {
+    let r = Response.text(200, "hi")
+    r.set_header("content-type", "application/octet-stream")
+    ut.assert_eq(r.header("Content-Type")!, "application/octet-stream")
+    // Replaced in place, not appended. Content-Length is added at
+    // serialization time, so it is not in the stored list.
+    ut.assert_eq(r.headers().len(), 1)
+}
+
+@test
+func test_caller_content_length_wins() {
+    let r = Response.text(200, "hi")
+    r.set_header("Content-Length", "99")
+    let s = r.to_bytes().to_str()
+    ut.assert_eq(s,
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+        "Content-Length: 99\r\n" +
+        "\r\n" +
+        "hi")
+}
+
+@test
+func test_transfer_encoding_suppresses_content_length() {
+    let r = Response.of(200, "text/plain", "hello".to_bytes())
+    r.set_header("Transfer-Encoding", "chunked")
+    ut.assert_eq(r.to_bytes().to_str(),
+        "HTTP/1.1 200 OK\r\n" +
+        "Content-Type: text/plain\r\n" +
+        "Transfer-Encoding: chunked\r\n" +
+        "\r\n" +
+        "hello")
+}
+
+@test
+func test_write_then_parse_roundtrip() {
+    let sent = Response.text(200, "round trip")
+    let back = Response.parse(sent.to_bytes())!
+    ut.assert_eq(back.status(), 200)
+    ut.assert_eq(back.reason(), "OK")
+    ut.assert_eq(back.body().to_str(), "round trip")
+    ut.assert_eq(back.header("Content-Type")!, "text/plain; charset=utf-8")
+    ut.assert_eq(back.header("Content-Length")!, "10")
+}
+
+@test
+func test_write_then_parse_empty_body() {
+    let back = Response.parse(Response.of(404, "", bytes(0)).to_bytes())!
+    ut.assert_eq(back.status(), 404)
+    ut.assert_eq(back.body().len(), 0)
+}
+
+@test
+func test_reason_phrases() {
+    ut.assert_eq(Response.of(200, "", bytes(0)).reason(), "OK")
+    ut.assert_eq(Response.of(301, "", bytes(0)).reason(), "Moved Permanently")
+    ut.assert_eq(Response.of(400, "", bytes(0)).reason(), "Bad Request")
+    ut.assert_eq(Response.of(404, "", bytes(0)).reason(), "Not Found")
+    ut.assert_eq(Response.of(500, "", bytes(0)).reason(), "Internal Server Error")
+    ut.assert_eq(Response.of(503, "", bytes(0)).reason(), "Service Unavailable")
+}

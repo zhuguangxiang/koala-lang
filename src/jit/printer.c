@@ -51,6 +51,8 @@ static const OpFormat jit_op_formats[] = {
 #undef X
 };
 
+const char *jit_op_name(uint32_t insn) { return jit_op_names[insn >> 24]; }
+
 /* Decode one bytecode word into an IR-style instruction text. */
 static void format_insn_text(uint32_t insn, uint32_t payload, int pc, char *out,
                              size_t outsz)

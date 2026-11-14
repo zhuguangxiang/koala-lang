@@ -593,10 +593,16 @@ TARGET(OP_TAIL_CALL) {
     ASSERT(ks->stack_top <= ks->stack_base + ks->stack_size);
 
     jit_count_call(callee_co);
-    if (callee_co->jit && jit_params_ok(regs, imm)) {
+    while (callee_co->jit && jit_params_ok(regs, imm)) {
         // the frame is linked already; an error has been traced by the helper
-        callee_co->jit->fn(regs, &result);
-        goto done;
+        callee_co->jit->fn(regs, &result, ks);
+        // direct self calls in native code leave stack_top behind
+        ks->stack_top = regs + cf->nlocals;
+        if (result.tag != JIT_TAG_TAILCALL) goto done;
+        // the native code tail-called another function: the frame now runs it
+        callee_co = cf->code;
+        imm = (int)result.ival;
+        if (!callee_co->jit || !jit_params_ok(regs, imm)) goto ext_tailcall;
     }
 
     if (cf->module != old_module) goto ext_tailcall;

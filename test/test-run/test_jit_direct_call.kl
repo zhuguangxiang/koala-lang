@@ -1,0 +1,117 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=3 koala %s ++ --no-inline 2>&1 | filecheck %s
+// JIT -> JIT direct calls: a real CallFrame per call (traceback, GC walk),
+// callees that tail call, nil arguments (interpreter fallback), void calls,
+// methods, and an error unwinding through several direct frames.
+
+class W {
+    var n = 0
+    func add(k int) {
+        if k > 100 { self.reset() } else { self.n = self.n + k }
+    }
+    func reset() { self.n = 0 }
+}
+
+func len_or(s str?, d int) int {
+    if s == nil { return d }
+    return s.len()
+}
+
+// a nil argument reaching a tail call target continues in the interpreter
+func fwd(s str?) int {
+    return len_or(s, 7)
+}
+func fwd_nil(d int) int {
+    return len_or(nil, d)
+}
+
+// callee tail calls another function: the trampoline completes inside the call
+// (ping(5, 100) writes its result into its own second argument slot)
+func even(n int) bool {
+    if n == 0 { return true }
+    return odd(n - 1)
+}
+func odd(n int) bool {
+    if n == 0 { return false }
+    return even(n - 1)
+}
+
+func ping(n int, acc int) int {
+    if n == 0 { return acc }
+    return pong(n - 1, acc + 1)
+}
+func pong(n int, acc int) int {
+    if n == 0 { return acc }
+    return ping(n - 1, acc + 1)
+}
+
+func add3(a int, b int, c int) int = a + b + c
+
+func sum(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + add3(i, 1, 2)
+        i = i + 1
+    }
+    return s
+}
+
+func fa(n int) int {
+    if n == 0 { return 0 }
+    return fb(n - 1) + 1
+}
+func fb(n int) int {
+    if n == 0 { return 0 }
+    return fa(n - 1) + 1
+}
+
+func inner(x int, y int) int {
+    return x / y
+}
+func middle(x int, y int) int {
+    return inner(x, y) + 1
+}
+
+func main() {
+    var w = W()
+    w.add(5)
+    w.add(7)
+    print(w.n)
+    // CHECK: 12
+    w.add(500)
+    print(w.n)
+    // CHECK-NEXT: 0
+
+    print(len_or("abc", -1), len_or(nil, -1))
+    // CHECK-NEXT: 3 -1
+    print(fwd("ab"), fwd(nil), fwd(nil))
+    // CHECK-NEXT: 2 7 7
+    print(fwd_nil(8), fwd_nil(9))
+    // CHECK-NEXT: 8 9
+
+    // the result register (rd) lies in the caller's call area
+    print(even(10), odd(7), even(7))
+    // CHECK-NEXT: true true false
+    print(ping(1, 0), ping(5, 100))
+    // CHECK-NEXT: 1 105
+
+    print(sum(1000))
+    // CHECK-NEXT: 502500
+
+    print(fa(5000))
+    // CHECK-NEXT: 5000
+
+    print(middle(7, 2))
+    // CHECK-NEXT: 4
+    print(middle(7, 0))
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_direct_call.kl", line 71, in inner
+// CHECK-NEXT:     return x / y
+// CHECK-NEXT:   File "{{.*}}test_jit_direct_call.kl", line 74, in middle
+// CHECK-NEXT:     return inner(x, y) + 1
+// CHECK-NEXT:   File "{{.*}}test_jit_direct_call.kl", line 108, in main
+// CHECK: Error: division by zero

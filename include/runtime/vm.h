@@ -57,6 +57,10 @@ typedef struct _KoalaState {
 
     /* stack top pointer */
     TValue *stack_top;
+    /* stack_base + stack_size, read by JIT code to check the stack */
+    TValue *stack_limit;
+    /* lowest native stack address JIT direct self calls may grow to */
+    char *c_stack_limit;
 
     /* call frame cache */
     CallFrame *cf_cache;

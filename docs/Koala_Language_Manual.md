@@ -615,7 +615,8 @@ character per step, and `s[a:b]`, the positions taken and returned by `index`, `
 `count`, the offsets of `koala/re` and the widths of `format` are all in characters. The text is
 stored as UTF-8: `s.to_bytes()` gives the bytes, and its `len()` is the size in bytes. A `str`
 made from invalid UTF-8, as by `bytes.to_str()` on data read from a file or a socket, has U+FFFD
-in place of each invalid byte, so every `str` is valid UTF-8.
+in place of each invalid byte, so every `str` is valid UTF-8. `bytes.to_str()` decodes the entire
+byte sequence, including NULs; it is lossy for invalid UTF-8. Keep binary data as `bytes`.
 
 On an all-ASCII `str`, `s[i]` is direct. On other text it starts from the last index used, so
 walking a string forward or backward costs O(1) per step, and a random index scans at most 64

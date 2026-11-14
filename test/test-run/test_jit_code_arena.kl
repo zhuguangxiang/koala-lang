@@ -1,0 +1,292 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_CODE_CHUNK=4096 KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_STATS=1 KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s --check-prefix=PACK
+// RUN: env KOALA_JIT_STATS=1 KOALA_JIT_CODE_CHUNK=4096 KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s --check-prefix=SPLIT
+// JIT code arena (DESIGN §16): compiled functions are packed into shared
+// chunks instead of one mapping each. Small functions share pages (PACK), and
+// with 4KB chunks (SPLIT) the code spans many chunks, `big` needs a chunk of
+// its own, and functions compiled earlier must stay executable after later
+// code is written next to them.
+
+// compiled first; its error epilogue (the end of its code) is followed
+// directly by the next function's code
+func fdiv(x int, y int) int {
+    return x / y
+}
+func f0(x int) int { return x * 2 + 0 }
+func f1(x int) int { return x * 3 + 1 }
+func f2(x int) int { return x * 4 + 2 }
+func f3(x int) int { return x * 5 + 3 }
+func f4(x int) int { return x * 6 + 4 }
+func f5(x int) int { return x * 7 + 5 }
+func f6(x int) int { return x * 8 + 6 }
+func f7(x int) int { return x * 9 + 7 }
+func f8(x int) int { return x * 10 + 8 }
+func f9(x int) int { return x * 11 + 9 }
+func f10(x int) int { return x * 12 + 10 }
+func f11(x int) int { return x * 13 + 11 }
+func f12(x int) int { return x * 14 + 12 }
+func f13(x int) int { return x * 15 + 13 }
+func f14(x int) int { return x * 16 + 14 }
+func f15(x int) int { return x * 17 + 15 }
+func f16(x int) int { return x * 18 + 16 }
+func f17(x int) int { return x * 19 + 17 }
+func f18(x int) int { return x * 20 + 18 }
+func f19(x int) int { return x * 21 + 19 }
+func f20(x int) int { return x * 22 + 20 }
+func f21(x int) int { return x * 23 + 21 }
+func f22(x int) int { return x * 24 + 22 }
+func f23(x int) int { return x * 25 + 23 }
+func f24(x int) int { return x * 26 + 24 }
+func f25(x int) int { return x * 27 + 25 }
+func f26(x int) int { return x * 28 + 26 }
+func f27(x int) int { return x * 29 + 27 }
+func f28(x int) int { return x * 30 + 28 }
+func f29(x int) int { return x * 31 + 29 }
+func f30(x int) int { return x * 32 + 30 }
+func f31(x int) int { return x * 33 + 31 }
+func f32(x int) int { return x * 34 + 32 }
+func f33(x int) int { return x * 35 + 33 }
+func f34(x int) int { return x * 36 + 34 }
+func f35(x int) int { return x * 37 + 35 }
+func f36(x int) int { return x * 38 + 36 }
+func f37(x int) int { return x * 39 + 37 }
+func f38(x int) int { return x * 40 + 38 }
+func f39(x int) int { return x * 41 + 39 }
+
+// > 4KB of machine code: larger than a 4KB chunk
+func big(n int) int {
+    var s = n
+    s = (s * 3 + 0) % 1000003
+    s = (s * 4 + 1) % 1000003
+    s = (s * 5 + 2) % 1000003
+    s = (s * 6 + 3) % 1000003
+    s = (s * 7 + 4) % 1000003
+    s = (s * 8 + 5) % 1000003
+    s = (s * 9 + 6) % 1000003
+    s = (s * 3 + 7) % 1000003
+    s = (s * 4 + 8) % 1000003
+    s = (s * 5 + 9) % 1000003
+    s = (s * 6 + 10) % 1000003
+    s = (s * 7 + 11) % 1000003
+    s = (s * 8 + 12) % 1000003
+    s = (s * 9 + 13) % 1000003
+    s = (s * 3 + 14) % 1000003
+    s = (s * 4 + 15) % 1000003
+    s = (s * 5 + 16) % 1000003
+    s = (s * 6 + 17) % 1000003
+    s = (s * 7 + 18) % 1000003
+    s = (s * 8 + 19) % 1000003
+    s = (s * 9 + 20) % 1000003
+    s = (s * 3 + 21) % 1000003
+    s = (s * 4 + 22) % 1000003
+    s = (s * 5 + 23) % 1000003
+    s = (s * 6 + 24) % 1000003
+    s = (s * 7 + 25) % 1000003
+    s = (s * 8 + 26) % 1000003
+    s = (s * 9 + 27) % 1000003
+    s = (s * 3 + 28) % 1000003
+    s = (s * 4 + 29) % 1000003
+    s = (s * 5 + 30) % 1000003
+    s = (s * 6 + 31) % 1000003
+    s = (s * 7 + 32) % 1000003
+    s = (s * 8 + 33) % 1000003
+    s = (s * 9 + 34) % 1000003
+    s = (s * 3 + 35) % 1000003
+    s = (s * 4 + 36) % 1000003
+    s = (s * 5 + 37) % 1000003
+    s = (s * 6 + 38) % 1000003
+    s = (s * 7 + 39) % 1000003
+    s = (s * 8 + 40) % 1000003
+    s = (s * 9 + 41) % 1000003
+    s = (s * 3 + 42) % 1000003
+    s = (s * 4 + 43) % 1000003
+    s = (s * 5 + 44) % 1000003
+    s = (s * 6 + 45) % 1000003
+    s = (s * 7 + 46) % 1000003
+    s = (s * 8 + 47) % 1000003
+    s = (s * 9 + 48) % 1000003
+    s = (s * 3 + 49) % 1000003
+    s = (s * 4 + 50) % 1000003
+    s = (s * 5 + 51) % 1000003
+    s = (s * 6 + 52) % 1000003
+    s = (s * 7 + 53) % 1000003
+    s = (s * 8 + 54) % 1000003
+    s = (s * 9 + 55) % 1000003
+    s = (s * 3 + 56) % 1000003
+    s = (s * 4 + 57) % 1000003
+    s = (s * 5 + 58) % 1000003
+    s = (s * 6 + 59) % 1000003
+    s = (s * 7 + 60) % 1000003
+    s = (s * 8 + 61) % 1000003
+    s = (s * 9 + 62) % 1000003
+    s = (s * 3 + 63) % 1000003
+    s = (s * 4 + 64) % 1000003
+    s = (s * 5 + 65) % 1000003
+    s = (s * 6 + 66) % 1000003
+    s = (s * 7 + 67) % 1000003
+    s = (s * 8 + 68) % 1000003
+    s = (s * 9 + 69) % 1000003
+    s = (s * 3 + 70) % 1000003
+    s = (s * 4 + 71) % 1000003
+    s = (s * 5 + 72) % 1000003
+    s = (s * 6 + 73) % 1000003
+    s = (s * 7 + 74) % 1000003
+    s = (s * 8 + 75) % 1000003
+    s = (s * 9 + 76) % 1000003
+    s = (s * 3 + 77) % 1000003
+    s = (s * 4 + 78) % 1000003
+    s = (s * 5 + 79) % 1000003
+    s = (s * 6 + 80) % 1000003
+    s = (s * 7 + 81) % 1000003
+    s = (s * 8 + 82) % 1000003
+    s = (s * 9 + 83) % 1000003
+    s = (s * 3 + 84) % 1000003
+    s = (s * 4 + 85) % 1000003
+    s = (s * 5 + 86) % 1000003
+    s = (s * 6 + 87) % 1000003
+    s = (s * 7 + 88) % 1000003
+    s = (s * 8 + 89) % 1000003
+    s = (s * 9 + 90) % 1000003
+    s = (s * 3 + 91) % 1000003
+    s = (s * 4 + 92) % 1000003
+    s = (s * 5 + 93) % 1000003
+    s = (s * 6 + 94) % 1000003
+    s = (s * 7 + 95) % 1000003
+    s = (s * 8 + 96) % 1000003
+    s = (s * 9 + 97) % 1000003
+    s = (s * 3 + 98) % 1000003
+    s = (s * 4 + 99) % 1000003
+    s = (s * 5 + 100) % 1000003
+    s = (s * 6 + 101) % 1000003
+    s = (s * 7 + 102) % 1000003
+    s = (s * 8 + 103) % 1000003
+    s = (s * 9 + 104) % 1000003
+    s = (s * 3 + 105) % 1000003
+    s = (s * 4 + 106) % 1000003
+    s = (s * 5 + 107) % 1000003
+    s = (s * 6 + 108) % 1000003
+    s = (s * 7 + 109) % 1000003
+    s = (s * 8 + 110) % 1000003
+    s = (s * 9 + 111) % 1000003
+    s = (s * 3 + 112) % 1000003
+    s = (s * 4 + 113) % 1000003
+    s = (s * 5 + 114) % 1000003
+    s = (s * 6 + 115) % 1000003
+    s = (s * 7 + 116) % 1000003
+    s = (s * 8 + 117) % 1000003
+    s = (s * 9 + 118) % 1000003
+    s = (s * 3 + 119) % 1000003
+    s = (s * 4 + 120) % 1000003
+    s = (s * 5 + 121) % 1000003
+    s = (s * 6 + 122) % 1000003
+    s = (s * 7 + 123) % 1000003
+    s = (s * 8 + 124) % 1000003
+    s = (s * 9 + 125) % 1000003
+    s = (s * 3 + 126) % 1000003
+    s = (s * 4 + 127) % 1000003
+    s = (s * 5 + 128) % 1000003
+    s = (s * 6 + 129) % 1000003
+    s = (s * 7 + 130) % 1000003
+    s = (s * 8 + 131) % 1000003
+    s = (s * 9 + 132) % 1000003
+    s = (s * 3 + 133) % 1000003
+    s = (s * 4 + 134) % 1000003
+    s = (s * 5 + 135) % 1000003
+    s = (s * 6 + 136) % 1000003
+    s = (s * 7 + 137) % 1000003
+    s = (s * 8 + 138) % 1000003
+    s = (s * 9 + 139) % 1000003
+    s = (s * 3 + 140) % 1000003
+    s = (s * 4 + 141) % 1000003
+    s = (s * 5 + 142) % 1000003
+    s = (s * 6 + 143) % 1000003
+    s = (s * 7 + 144) % 1000003
+    s = (s * 8 + 145) % 1000003
+    s = (s * 9 + 146) % 1000003
+    s = (s * 3 + 147) % 1000003
+    s = (s * 4 + 148) % 1000003
+    s = (s * 5 + 149) % 1000003
+    s = (s * 6 + 150) % 1000003
+    s = (s * 7 + 151) % 1000003
+    s = (s * 8 + 152) % 1000003
+    s = (s * 9 + 153) % 1000003
+    s = (s * 3 + 154) % 1000003
+    s = (s * 4 + 155) % 1000003
+    s = (s * 5 + 156) % 1000003
+    s = (s * 6 + 157) % 1000003
+    s = (s * 7 + 158) % 1000003
+    s = (s * 8 + 159) % 1000003
+    return s
+}
+
+func all(x int) int {
+    var s = 0
+    s = s + f0(x)
+    s = s + f1(x)
+    s = s + f2(x)
+    s = s + f3(x)
+    s = s + f4(x)
+    s = s + f5(x)
+    s = s + f6(x)
+    s = s + f7(x)
+    s = s + f8(x)
+    s = s + f9(x)
+    s = s + f10(x)
+    s = s + f11(x)
+    s = s + f12(x)
+    s = s + f13(x)
+    s = s + f14(x)
+    s = s + f15(x)
+    s = s + f16(x)
+    s = s + f17(x)
+    s = s + f18(x)
+    s = s + f19(x)
+    s = s + f20(x)
+    s = s + f21(x)
+    s = s + f22(x)
+    s = s + f23(x)
+    s = s + f24(x)
+    s = s + f25(x)
+    s = s + f26(x)
+    s = s + f27(x)
+    s = s + f28(x)
+    s = s + f29(x)
+    s = s + f30(x)
+    s = s + f31(x)
+    s = s + f32(x)
+    s = s + f33(x)
+    s = s + f34(x)
+    s = s + f35(x)
+    s = s + f36(x)
+    s = s + f37(x)
+    s = s + f38(x)
+    s = s + f39(x)
+    return s
+}
+
+func main() {
+    var t = 0
+    var i = 0
+    while i < 3 {
+        t = t + fdiv(i + 7, 1) + all(i) + big(i)
+        i = i + 1
+    }
+    // the first functions again, after everything else was written
+    print(t, f0(7), f39(7), all(5), big(9))
+    print(fdiv(1, 0))
+    print("not reached")
+}
+
+// CHECK: 1922547 14 326 5080 580942
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_code_arena.kl", line 16, in fdiv
+// CHECK: Error: division by zero
+// CHECK-NOT: not reached
+// 40+ functions in fewer than 40 pages (one mapping each would need >= 1 page each)
+// PACK: [jit stats] compiled {{[4-9][0-9]}}, not compiled 0
+// PACK: [jit stats] code {{[0-9]+}} bytes, {{[1-3]?[0-9]}} pages, 1 chunks
+// SPLIT: [jit stats] compiled {{[4-9][0-9]}}, not compiled 0
+// SPLIT: [jit stats] code {{[0-9]+}} bytes, {{[0-9]+}} pages, {{[2-9]|[1-9][0-9]+}} chunks

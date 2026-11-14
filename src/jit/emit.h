@@ -106,7 +106,7 @@ void emit_sub_rsp_imm32(EmitBuf *b, int32_t imm);
 void emit_add_rsp_imm32(EmitBuf *b, int32_t imm);
 
 /* XMM registers (encoding order). */
-enum { XMM0 = 0, XMM1 = 1, XMM2 = 2, XMM3 = 3 };
+enum { XMM0 = 0, XMM1 = 1, XMM2 = 2, XMM3 = 3, XMM4 = 4, XMM5 = 5, XMM6 = 6, XMM7 = 7 };
 
 /* SSE2 scalar-double opcode bytes (the 0F xx byte after the F2 prefix). */
 enum { SSE_ADD = 0x58, SSE_MUL = 0x59, SSE_SUB = 0x5C, SSE_DIV = 0x5E };
@@ -116,6 +116,18 @@ enum { SSE_ADD = 0x58, SSE_MUL = 0x59, SSE_SUB = 0x5C, SSE_DIV = 0x5E };
 void emit_movsd_reg_mem(EmitBuf *b, int xmm, int base, int32_t disp);
 void emit_movsd_mem_reg(EmitBuf *b, int base, int32_t disp, int xmm);
 void emit_sse_reg_mem(EmitBuf *b, int op, int xmm, int base, int32_t disp);
+/* ucomisd xmm, [base+disp]: unordered compare; NaN sets ZF=PF=CF=1. */
+void emit_ucomisd_reg_mem(EmitBuf *b, int xmm, int base, int32_t disp);
+/* Register forms: dst = dst OP src; ucomisd a, c; full xmm copy; bit moves
+ * between xmm and r64 (movq). */
+void emit_sse_reg_reg(EmitBuf *b, int op, int dst, int src);
+void emit_ucomisd_reg_reg(EmitBuf *b, int a, int c);
+void emit_movaps_reg_reg(EmitBuf *b, int dst, int src);
+void emit_movq_xmm_gpr(EmitBuf *b, int xmm, int gpr);
+void emit_movq_gpr_xmm(EmitBuf *b, int gpr, int xmm);
+
+/* ud2: trap (used by the KOALA_JIT_CHECK_CACHE self-check). */
+void emit_ud2(EmitBuf *b);
 
 #ifdef __cplusplus
 }

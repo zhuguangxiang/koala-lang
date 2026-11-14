@@ -38,6 +38,15 @@ func http_parser_status(p int) int {}
 @native
 func http_parser_reason(p int) str {}
 
+/// The request method, e.g. "GET". Request parsers only.
+@native
+func http_parser_method(p int) str {}
+
+/// The request target as it arrived: "/path?q=1", an absolute URL, or
+/// "*". Request parsers only.
+@native
+func http_parser_url(p int) str {}
+
 @native
 func http_parser_header_count(p int) int {}
 
@@ -79,6 +88,9 @@ const _STATE_COMPLETE = 2
 // llhttp's parser type for responses.
 const _KIND_RESPONSE = 2
 
+// llhttp's parser type for requests.
+const _KIND_REQUEST = 1
+
 // A parser for one message at a time, over the native handle.
 //
 // Nothing frees the handle on its own yet, so the owner calls close()
@@ -97,9 +109,18 @@ class _Parser {
         return _Parser(p)
     }
 
+    // A request parser, or nil when the native side cannot make one.
+    static func request() _Parser? {
+        let p = http_parser_new(_KIND_REQUEST)
+        if p == 0 { return nil }
+        return _Parser(p)
+    }
+
     func state() int { return http_parser_state(_p) }
     func status() int { return http_parser_status(_p) }
     func reason() str { return http_parser_reason(_p) }
+    func method() str { return http_parser_method(_p) }
+    func url() str { return http_parser_url(_p) }
     func body_offset() int { return http_parser_body_offset(_p) }
     func take_body() bytes { return http_parser_take_body(_p) }
 
@@ -140,6 +161,16 @@ class _Parser {
     func finish() bool {
         return http_parser_finish(_p) == 0
     }
+
+    // Whether the connection can carry another message after this one.
+    func keep_alive() bool { return http_parser_keep_alive(_p) }
+
+    // The reason for the last parse error, or "" when there is none.
+    func error() str { return http_parser_error(_p) }
+
+    // Drop the current message and get ready for the next one on the
+    // same connection.
+    func reset() { http_parser_reset(_p) }
 
     func close() {
         http_parser_free(_p)

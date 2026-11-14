@@ -1,0 +1,81 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// JIT and interpreter agree: direct self calls keep ks->stack_top per level,
+// void self calls, '~' on uint, and signed division by -1.
+
+// each level builds a tuple through ks->stack_top while deeper levels run
+func tuples(n int, x int) int {
+    if n == 0 { return 0 }
+    let t = (x, x + 1)
+    let r = tuples(n - 1, x + 10)
+    return r + t[0] * 100 + t[1]
+}
+
+// only the deepest level calls helpers, so stack_top is left n levels up
+func leaf(n int, x int) int {
+    if n == 0 {
+        let t = (x, x + 1)
+        return t[1]
+    }
+    return leaf(n - 1, x + 1) + 1
+}
+
+// a tail call into native code: the reused frame gets stack_top reset too
+func wrap(n int) int {
+    return leaf(n, 1)
+}
+
+// a void self call has no result register
+func count_down(n int) {
+    if n == 0 { return }
+    count_down(n - 1)
+}
+
+func bit_not(x uint) uint {
+    return ~x
+}
+
+func div(x int, y int) int {
+    return x / y
+}
+
+func mod(x int, y int) int {
+    return x % y
+}
+
+func udiv(x uint, y uint) uint {
+    return x / y
+}
+
+func main() {
+    print(tuples(3, 1))
+    // native levels move stack_top; a stale value would leak VM stack per call
+    var sum = 0
+    var i = 0
+    while i < 20000 {
+        sum += leaf(8, 1) + wrap(8)
+        i += 1
+    }
+    print(sum)
+    count_down(1000)
+    print("void ok")
+    print(bit_not(5))
+    let mn = -9223372036854775807 - 1
+    print(div(mn, -1))
+    print(mod(mn, -1))
+    print(div(-7, 2))
+    print(mod(-7, 2))
+    print(div(7, -1))
+    print(udiv(18446744073709551615, 2))
+}
+
+// CHECK: 3336
+// CHECK-NEXT: 720000
+// CHECK-NEXT: void ok
+// CHECK-NEXT: 18446744073709551610
+// CHECK-NEXT: -9223372036854775808
+// CHECK-NEXT: 0
+// CHECK-NEXT: -3
+// CHECK-NEXT: -1
+// CHECK-NEXT: -7
+// CHECK-NEXT: 9223372036854775807

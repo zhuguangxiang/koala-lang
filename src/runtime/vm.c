@@ -3,7 +3,11 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE /* pthread_getattr_np */
+#endif
 #include "vm.h"
+#include <pthread.h>
 #include "atom.h"
 #include "excobj.h"
 #include "log.h"
@@ -17,8 +21,25 @@ extern "C" {
 /* max stack size */
 #define MAX_STACK_SIZE (2 * 64 * 1024)
 
+/* native stack kept free below c_stack_limit for C helpers and the runtime */
+#define C_STACK_MARGIN (256 * 1024)
+
 /* pthread */
 __thread ThreadState *__ts;
+
+/* The calling thread's native stack floor plus a margin. JIT direct self calls
+ * (no C frames between levels) check rsp against it. */
+static char *c_stack_limit(void)
+{
+    pthread_attr_t attr;
+    void *addr = NULL;
+    size_t size = 0;
+    if (pthread_getattr_np(pthread_self(), &attr) != 0) return NULL;
+    pthread_attr_getstack(&attr, &addr, &size);
+    pthread_attr_destroy(&attr);
+    if (!addr || size <= 2 * C_STACK_MARGIN) return NULL;
+    return (char *)addr + C_STACK_MARGIN;
+}
 
 KoalaState *kl_new_ks(void)
 {
@@ -27,6 +48,8 @@ KoalaState *kl_new_ks(void)
     ks->stack_base = aligned_alloc(16, sizeof(TValue) * MAX_STACK_SIZE);
     ks->stack_top = ks->stack_base;
     ks->stack_size = MAX_STACK_SIZE;
+    ks->stack_limit = ks->stack_base + MAX_STACK_SIZE;
+    ks->c_stack_limit = c_stack_limit();
     return ks;
 }
 

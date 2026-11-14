@@ -22,9 +22,11 @@ static TValue _probe(TValue *self, TValue *args, int nargs)
 }
 
 void tls_conn_register(NativeLib *lib);
+void tls_cert_register(NativeLib *lib);
 
 void tls_native_lib_init(NativeLib *lib)
 {
     kl_reg_func(lib, "probe", _probe);
     tls_conn_register(lib);
+    tls_cert_register(lib);
 }

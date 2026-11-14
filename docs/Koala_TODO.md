@@ -5185,9 +5185,9 @@ cgen 的窥孔优化保持不变，优化都在 LSRA 里做。
 - **traceback**：帧记录被复用的次数，打印为 `(... N tail calls ...)`（同 Lua）。
 - **JIT**：只编译 flag 0；带其他尾调用的函数留在解释器（`src/jit/jit.c` 的唯一改动）。
 - **测试**：`test/test-run/test_tailcall_other.kl`（互递归 1e6 层、参数互换、函数值、lambda、trait 方法、native、方法互调、字节码编码）、`test_tailcall_import.kl`（导入函数）、`test_tailcall_traceback.kl`。
-- **已知**：JIT 下整数除零直接 SIGFPE，与尾调用无关，见 §107。
+- **已知**：JIT 下整数除零直接 SIGFPE，与尾调用无关，见 §107（已修，§108）。
 
-## 107. JIT 下整数除零直接 SIGFPE（2026-11-14，待修，JIT 范围）
+## 107. JIT 下整数除零直接 SIGFPE（2026-11-14，已修，见 §108）
 
 ```koala
 func boom(x int) int {
@@ -5204,3 +5204,64 @@ func main() {
 - **原因**：`src/jit/jit.c` 的 `emit_div_rrr`（`OP_INT_DIV` / `OP_INT_MOD` / `OP_UINT_DIV` / `OP_UINT_MOD`）直接发 `cqo + idiv` / `div`，除数为 0 时没有检查；`INT64_MIN / -1` 同样会触发 `#DE`（解释器回绕为 `INT64_MIN`）。`emit_div_rrimm` 的立即数为 0 / -1 时也要确认。
 - **修法建议**：除法前比较除数，为 0 时跳到慢路径（调用 runtime helper 抛 `division by zero`，或 bail 回解释器）；有符号再判断 `rs == INT64_MIN && rt == -1`，结果取 `INT64_MIN`（取模为 0），与解释器一致。
 - **测试**：修好后 `test/test-run/test_tailcall_traceback.kl` 可以去掉 `KOALA_JIT=0`，并补一个 JIT 下除零 / `INT64_MIN / -1` 的回归测试。
+
+## 108. JIT 正确性修复（阶段 0，2026-11-15，已完成）
+
+JIT review 发现的错误（JIT 开 / `KOALA_JIT=0` 输出不同或崩溃），全部修好；设计见 `src/jit/DESIGN.md` §4、§5.3。
+
+- **原生签名**：`fn(regs, out, ks)`，`out` 永不为 NULL；帧布局 `[rbp-16]` out、`[rbp-24]` ks、`[rbp-40]` scratch。
+- **纯自递归直调**（`emit_self_call`）：
+  - void 自调用崩溃（`out = NULL`）→ 结果写本帧 scratch 槽。
+  - 深层错误被当作值继续算（`f(2, 100)` 里 `1 << 100` 得 `1`）→ 返回后检查 `TAG_ERROR`，`kl_jit_self_error` 逐层 traceback，走错误尾声。
+  - `ks->stack_top` 不随层推进，helper（建 tuple、print、slot 调 koala 代码）写到上层寄存器（结果 524 vs 3336）→ self-only 函数的 helper 调用前设 `stack_top`；`kl_call_code` / `OP_TAIL_CALL` 在原生返回后复位。
+  - 无栈检查，深递归段错误 → 检查 VM 栈（`ks->stack_limit`）和原生栈（`ks->c_stack_limit`，`pthread_getattr_np` + 256KB 余量），抛 `stack overflow`。
+- **除法**：除数 0 抛 `division by zero`（`kl_jit_raise_at`）；有符号除数 -1 得 `-rs`、余 0。立即数 0 / -1 bail。
+- **`~`**：源为 uint64 时结果 tag 为 UINT64（原恒为 INT64，`~5u` 得 -6）。
+- **traceback**：连续相同条目最多打印 3 条，其余折叠为 `[Previous line repeated N more times]`（`src/objects/excobj.c`）。
+- **性能**：`bench/fib.kl` 0.79s → 0.81s（debug）。
+- **测试**：`test/test-run/test_jit_selfcall.kl`、`test_jit_selfcall_error.kl`、`test_jit_div_zero.kl`、`test_jit_stack_overflow.kl`（仅 JIT，见下）；`test_tailcall_traceback.kl` 加 JIT 开的 RUN。均双跑（JIT 开 / `KOALA_JIT=0`），已做变异验证。
+
+**review 中顺带发现的解释器问题（未修）**：
+
+- [ ] 解释器无递归深度检查：`f(10000000)` 非尾递归在 `KOALA_JIT=0` 下段错误（`_new_frame` 只 ASSERT）。应抛 `stack overflow`，之后 `test_jit_stack_overflow.kl` 可加 `KOALA_JIT=0` 的 RUN。
+- [ ] `str(p)`，`p` 是带 `__str__` 的用户类：`OP_STR` 触发 `to_obj` 断言。
+- [ ] 用户类定义 `__len__`：报 `slot 10 is not implmented`（未进 slot 表）。
+
+**后续（阶段 2–3，待做）**：JIT→JIT 直调 → 去冗余 tag 写、基本块内寄存器缓存、内联 `ucomisd`、共享代码区、阈值调整。
+
+## 109. JIT 覆盖率（阶段 1，2026-11-15，已完成）
+
+`KOALA_JIT_STATS=1` 统计 `test/test-run/*.kl` + `bench/*.kl`：编译 1744 / 未编译 2730 → **4474 / 0**。设计见 `src/jit/DESIGN.md` §5.2、§5.3、§7。
+
+- **统计**：`KOALA_JIT_STATS=1` 退出时打印编译数和按原因排序的 bail 计数（`jit_bail`；`printer.c` 加 `jit_op_name`）。
+- **opcode**：`OP_MAKE_INTF`（`kl_jit_make_intf`）、`OP_UPCAST_INTF`（内联）、`OP_NIL_CHECK`（内联，nil 抛 forced unwrap）、`OP_LOAD_FUNC`（编译期解析）、`OP_IS` / `OP_AS`（`kl_jit_is_as`）。
+- **调用**：`OP_CALL` flag 1/2 经 `kl_jit_call_dyn`；不可调用的函数值抛 `function value is not callable`。
+- **方法**：owner 为 TypeObject 时用 `tp->module`（原先 1980 个方法全部跳过）。
+- **非自身尾调用**（flag 8/9/10）：trampoline。`kl_jit_tail_call` 照解释器复用当前帧并返回 `JIT_TAG_TAILCALL`，`kl_call_code` / 解释器 `OP_TAIL_CALL` 循环继续（被调者未编译时回落解释器），C 栈不增长；含此类尾调用的函数不走自递归直调。
+- **测试**：`test/test-run/test_jit_coverage.kl`（JIT 开 / `KOALA_JIT=0` / `KOALA_JIT_THRESHOLD=3` 三跑），13 个变异全部捕获；lit 551、ctest、`wombat test std` / `koala` 通过；`bench/fib.kl` 0.77s 无回退。
+
+## 110. JIT→JIT 直调（阶段 2，2026-11-15，已完成）
+
+非 self-only 函数里 flag=0 调用 koala 代码时，native 直接建帧并调用被调者的原生入口，不再经 `kl_jit_call_helper` → `kl_call_code`。设计见 `src/jit/DESIGN.md` §5.3、§7、§14.1。
+
+- **建帧**：帧取自 `ks->cf_cache`（空时 `kl_jit_refill_cf` 补），入 `ks->cf` 链，locals 在 VM 栈上，`stack_top` 正确推进。traceback 逐帧一致；GC 可按帧链或 `[stack_base, stack_top)` 枚举，`KoalaState` 不需新增字段（JIT 不另开栈）。
+- **慢路径**：实参 tag 守卫失败或被调者未编译时走 helper（首次调用由此触发编译）。
+- **out 别名**：`rd` 在调用区时就是被调者的实参槽，尾调用标记会覆盖它，改用 scratch 槽再拷回。
+- **尾调用**：被调者返回 `JIT_TAG_TAILCALL` 时调 `kl_jit_tail_continue`（与 `kl_call_code` 共用；回落解释器时保持帧链给调用方解链）。
+- **顺带修复**：`fixups` 按指令数预分配、假设每条指令至多一个跳转，直调（多个出口）会写越界 → 改为按需倍增。
+- **不变量 ASSERT**：`kl_jit_call_helper` 检查 `args == cf->locals + cf->nlocals`（帧精确描述其寄存器，GC 依赖）。
+- **测试**：`test_jit_direct_call.kl`（三跑：方法/void/nil 实参/尾调用被调者且 rd 在调用区/尾调用回落解释器/错误逐帧 traceback）、`test_jit_direct_call_deep.kl`（5 万层互递归 + 栈溢出）、`test_jit_direct_call_frames.kl`（大帧互递归，VM 栈先溢出）。13 个变异捕获 12 个；剩余 1 个（去掉 nil 实参守卫）为等价变异——静态类型保证实参，nil 进 JIT 代码同样正确，守卫只为与 `kl_call_code` 一致。
+- **性能**：调用密集基准 0.89s → 0.51s（解释器 1.64s）；fib/ack/tak 是 self-only，不变。
+- **遗留**：解释器无深度检查，非尾互递归约 1 万层即 C 栈溢出 segfault（JIT 下可达 10 万层并正常抛 stack overflow）——属 §108 解释器问题。
+
+## 111. JIT 代码质量（阶段 3，2026-11-15，进行中）
+
+设计见 `src/jit/DESIGN.md` §15。
+
+- **内联 `ucomisd`**：浮点比较 / 融合浮点跳转不再调 C helper（PF 处理 NaN）。
+- **去冗余 tag 写**：试做后按用户要求撤销（收益小，与「内存即真相」的简单性冲突）。
+- **写穿寄存器缓存**（已完成）：热点 VM 寄存器的 payload 副本留在 RSI/RDI/R8–R10、XMM1–7，每次写仍写穿内存（tag+payload），GC 枚举不变。数据流由多遍发射求不动点（发射器即转移函数），非感知指令前后全部作废；自尾调用函数入口预装；`rc_dst` 就地计算。`KOALA_JIT_REGCACHE=0` 关闭，`KOALA_JIT_CHECK_CACHE=1` 每次命中比对内存（不符 `ud2`）。
+  - **性能**：test_float_arith 190 → 54ms（3.5×）、test_float_logic 2.1×、loop-sum / sum / test_bitwise ~1.35×；调用密集与 `idiv` 主导的不变。
+  - **测试**：`test/test-run/test_jit_regcache.kl`（五跑：JIT / 解释 / 阈值 1 / 阈值 1+自检 / trace）；全量 lit 在自检 + 阈值 1 下通过；7 个变异全部捕获，3 个等价变异见 DESIGN §15.7。
+- **分块代码区**（已完成）：函数 16 字节对齐顺序分配进 1MB chunk（PROT_NONE 预留），写入只翻涉及的页 RW→RX，W^X 不变；不用 `mremap`（会搬走代码）。代码页数减少 1.8–4.7×，运行时间不变（噪声内）。`KOALA_JIT_STATS` 增加 `code B bytes, P pages, C chunks`，`KOALA_JIT_CODE_CHUNK=<bytes>` 供测试用。测试 `test_jit_code_arena.kl`，7 个变异全部捕获。设计见 DESIGN §16。
+- [ ] 阈值调整：没有 OSR 时阈值只能是 1（`main` 里的热循环），因此先做 OSR + 回边计数（DESIGN §17），再实测决定默认阈值。

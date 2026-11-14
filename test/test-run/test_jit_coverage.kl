@@ -1,0 +1,125 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=3 koala %s ++ --no-inline 2>&1 | filecheck %s
+// Opcodes and calls the baseline JIT lowers besides plain arithmetic: methods
+// (getter/setter), trait method calls, function values, make_intf/upcast_intf,
+// load_func, is/as, `x!` and tail calls to other functions (trampolined back to
+// the frame's entry, natively or into the interpreter when the callee is cold).
+
+trait B {
+    func b1() str
+}
+trait C {
+    func c1() int
+}
+trait A : B & C {
+    func a1() str
+}
+
+class Foo : A {
+    var n int
+    func __init__(n int) { self.n = n }
+    func get() int = self.n
+    func set(n int) { self.n = n }
+    func b1() str = "b1"
+    func c1() int = self.n * 2
+    func a1() str = "a1"
+}
+
+func to_a(f Foo) A = f
+func to_c(a A) C = a
+func call_c(c C) int = c.c1()
+
+func twice(x int) int = x * 2
+func pick() func(int) int = twice
+func call_fn(f func(int) int, x int) int = f(x) + 1
+
+func kind(x any) str {
+    if x is Foo { return "foo" }
+    return "other"
+}
+
+func as_foo(x any) int {
+    let f = x as Foo
+    if let g = f { return g.get() }
+    return -1
+}
+
+func unwrap(x int?) int = x! + 1
+
+// tail calls to other functions: local, trait method, function value, native
+func t_local(n int, acc int) int {
+    if n == 0 { return acc }
+    return t_other(n - 1, acc + 1)
+}
+func t_other(n int, acc int) int = t_local(n, acc)
+func t_trait(a A) int = a.c1()
+func t_value(f func(int) int, x int) int = f(x)
+func t_native(n int) int = pow_int64_int64(2, n)
+// a direct self call next to a tail call to another function
+func mix(n int) int {
+    if n > 0 {
+        let r = mix(n - 1)
+        return r + 1
+    }
+    return twice(n + 5)
+}
+
+// with KOALA_JIT_THRESHOLD=3 dispatch is native from its third call on, while
+// cold_b/cold_c are still cold when it tail-calls them: the frame continues in
+// the interpreter, entered from kl_call_code (dispatch(3)) or from the
+// interpreter's own tail call (outer(4))
+func cold_a(n int) int = n + 1000
+func cold_b(n int) int = n + 2000
+func cold_c(n int) int = n + 3000
+func dispatch(k int) int {
+    if k < 3 { return cold_a(k) }
+    if k == 3 { return cold_b(k) }
+    return cold_c(k)
+}
+func outer(k int) int = dispatch(k)
+
+func main() {
+    let f = Foo(5)
+    f.set(f.get() + 1)
+    print(f.get())
+    let a = to_a(f)
+    print(a.b1(), a.a1(), call_c(to_c(a)))
+    print(call_fn(pick(), 21))
+    print(kind(f), kind(1))
+    print(as_foo(f), as_foo("s"))
+    print(unwrap(41))
+    var i = 0
+    var s = 0
+    while i < 5 {
+        s = s + t_local(100000, 0) + t_trait(a) + t_value(twice, i) + t_native(i)
+        i = i + 1
+    }
+    print(s, mix(3))
+    let d0 = dispatch(0)
+    let d1 = dispatch(1)
+    let d2 = dispatch(2)
+    let d3 = dispatch(3)
+    print(d0 + d1 + d2 + d3, outer(4))
+    print(unwrap(nil))
+    print("not reached")
+}
+
+main()
+
+// CHECK: 6
+// CHECK-NEXT: b1 a1 12
+// CHECK-NEXT: 43
+// CHECK-NEXT: foo other
+// CHECK-NEXT: 6 -1
+// CHECK-NEXT: 42
+// CHECK-NEXT: 500111 13
+// CHECK-NEXT: 5006 3004
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_coverage.kl", line 48, in unwrap
+// CHECK-NEXT:     func unwrap(x int?) int = x! + 1
+// CHECK-NEXT:   File "{{.*}}test_jit_coverage.kl", line 104, in main
+// CHECK-NEXT:     print(unwrap(nil))
+// CHECK-NEXT:   File "{{.*}}test_jit_coverage.kl", line 108, in __init__
+// CHECK: Error: forced unwrap (`!`) of a nil value
+// CHECK-NOT: not reached

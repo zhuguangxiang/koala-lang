@@ -15,7 +15,7 @@ pub class ResponseHead {
     let _headers list[list[str]]
     let _body_offset int
 
-    pub func __init__(status int, reason str, headers list[list[str]], body_offset int) {
+    pub func __init__(status int, reason str, headers list[list[str]], body_offset int = 0) {
         _status = status
         _reason = reason
         _headers = headers
@@ -26,6 +26,23 @@ pub class ResponseHead {
     pub func reason() str { return _reason }
     pub func headers() list[list[str]] { return _headers }
     pub func body_offset() int { return _body_offset }
+
+    /// Set a header, replacing an existing field of the same name.
+    /// Comparison is case-insensitive, as HTTP requires.
+    pub func set_header(name str, value str) {
+        var i = 0
+        while i < _headers.len() {
+            if _eq_ignore_case(_headers[i][0], name) {
+                _headers[i][1] = value
+                return
+            }
+            i += 1
+        }
+        let pair = list[str]()
+        pair.append(name)
+        pair.append(value)
+        _headers.append(pair)
+    }
 
     /// Header lookup, case-insensitive as HTTP requires. Returns the
     /// first matching value, or nil when absent.
@@ -56,13 +73,20 @@ pub class ResponseHead {
 }
 
 /// A complete HTTP response: head plus body.
+///
+/// The body is either fixed `bytes` or a `Body` pulled chunk by chunk;
+/// `stream` builds the second kind. `to_bytes` serializes a fixed body
+/// only — a streaming response is written by the server as it is
+/// produced, and has no single byte string to return.
 pub class Response {
     let _head ResponseHead
     let _body bytes
+    let _stream Body?
 
-    pub func __init__(head ResponseHead, body bytes) {
+    pub func __init__(head ResponseHead, body bytes, source Body? = nil) {
         _head = head
         _body = body
+        _stream = source
     }
 
     pub func head() ResponseHead { return _head }
@@ -71,6 +95,99 @@ pub class Response {
     pub func body() bytes { return _body }
     pub func headers() list[list[str]] { return _head.headers() }
     pub func header(name str) str? { return _head.header(name) }
+
+    /// Set a header, replacing an existing field of the same name.
+    pub func set_header(name str, value str) { _head.set_header(name, value) }
+
+    /// Build a response with a Content-Type. The reason phrase is filled
+    /// from the status, and `to_bytes` adds the Content-Length.
+    pub static func of(status int, content_type str, body bytes) Response {
+        let headers = list[list[str]]()
+        let resp = Response(ResponseHead(status, _reason_phrase(status), headers), body)
+        if content_type.len() > 0 {
+            resp.set_header("Content-Type", content_type)
+        }
+        return resp
+    }
+
+    /// A text/plain response, UTF-8.
+    pub static func text(status int, body str) Response {
+        return Response.of(status, "text/plain; charset=utf-8", body.to_bytes())
+    }
+
+    /// A text/html response, UTF-8.
+    pub static func html(status int, body str) Response {
+        return Response.of(status, "text/html; charset=utf-8", body.to_bytes())
+    }
+
+    /// An application/json response. `body` is already-encoded JSON;
+    /// this package does not depend on a JSON encoder.
+    pub static func json(status int, body str) Response {
+        return Response.of(status, "application/json", body.to_bytes())
+    }
+
+    /// A response whose body is pulled from `source` one chunk at a
+    /// time, for a body too large to buffer or one produced over time.
+    ///
+    /// The server frames it as chunked encoding, so no Content-Length
+    /// is needed and the connection can still be reused afterwards.
+    pub static func stream(status int, content_type str, source Body) Response {
+        let headers = list[list[str]]()
+        let resp = Response(ResponseHead(status, _reason_phrase(status), headers),
+                            bytes(0), source)
+        if content_type.len() > 0 {
+            resp.set_header("Content-Type", content_type)
+        }
+        return resp
+    }
+
+    /// Whether the body is pulled from a source rather than held whole.
+    pub func is_stream() bool { return _stream != nil }
+
+    /// The body source, or nil for a fixed body.
+    pub func source() Body? { return _stream }
+
+    /// Serialize this response to the exact bytes sent over the wire.
+    ///
+    /// The output is `HTTP/1.1 status reason\r\n`, every header in
+    /// insertion order, a `Content-Length` when the caller set neither
+    /// it nor `Transfer-Encoding`, a blank line, and the body. The
+    /// length is written even for an empty body, so a keep-alive peer
+    /// can frame the response.
+    pub func to_bytes() bytes { return _to_bytes(_body) }
+
+    // The head plus `body`, which may be shorter than the real one: a
+    // HEAD response declares the full Content-Length but sends no body.
+    func _to_bytes(body bytes) bytes {
+        let buf = Buffer()
+        buf.write_str("HTTP/1.1 ")
+        buf.write_str(str(_head.status()))
+        let reason = _head.reason()
+        if reason.len() > 0 {
+            buf.write_str(" ")
+            buf.write_str(reason)
+        }
+        buf.write_str("\r\n")
+
+        let headers = _head.headers()
+        var i = 0
+        var framed = false
+        while i < headers.len() {
+            _write_field(buf, headers[i][0], headers[i][1])
+            if _eq_ignore_case(headers[i][0], "Content-Length") ||
+               _eq_ignore_case(headers[i][0], "Transfer-Encoding") {
+                framed = true
+            }
+            i += 1
+        }
+        if !framed {
+            _write_field(buf, "Content-Length", str(_body.len()))
+        }
+
+        buf.write_str("\r\n")
+        buf.write(body)
+        return buf.to_bytes()
+    }
 
     /// Parse a complete response from `data`. `data` must contain the
     /// whole body, sized by Content-Length or chunked encoding; a
@@ -139,4 +256,46 @@ func _eq_ignore_case(a str, b str) bool {
         i += 1
     }
     return true
+}
+
+// ---------------------------------------------------------------------
+// Server-side response serialization
+// ---------------------------------------------------------------------
+
+// The RFC 7231 reason phrase for a status. "" for a code not listed,
+// which the grammar allows: a reason-phrase may be empty.
+func _reason_phrase(status int) str {
+    if status == 200 { return "OK" }
+    if status == 201 { return "Created" }
+    if status == 202 { return "Accepted" }
+    if status == 204 { return "No Content" }
+    if status == 206 { return "Partial Content" }
+    if status == 301 { return "Moved Permanently" }
+    if status == 302 { return "Found" }
+    if status == 303 { return "See Other" }
+    if status == 304 { return "Not Modified" }
+    if status == 307 { return "Temporary Redirect" }
+    if status == 308 { return "Permanent Redirect" }
+    if status == 400 { return "Bad Request" }
+    if status == 401 { return "Unauthorized" }
+    if status == 403 { return "Forbidden" }
+    if status == 404 { return "Not Found" }
+    if status == 405 { return "Method Not Allowed" }
+    if status == 408 { return "Request Timeout" }
+    if status == 409 { return "Conflict" }
+    if status == 410 { return "Gone" }
+    if status == 411 { return "Length Required" }
+    if status == 413 { return "Payload Too Large" }
+    if status == 414 { return "URI Too Long" }
+    if status == 415 { return "Unsupported Media Type" }
+    if status == 417 { return "Expectation Failed" }
+    if status == 429 { return "Too Many Requests" }
+    if status == 431 { return "Request Header Fields Too Large" }
+    if status == 500 { return "Internal Server Error" }
+    if status == 501 { return "Not Implemented" }
+    if status == 502 { return "Bad Gateway" }
+    if status == 503 { return "Service Unavailable" }
+    if status == 504 { return "Gateway Timeout" }
+    if status == 505 { return "HTTP Version Not Supported" }
+    return ""
 }

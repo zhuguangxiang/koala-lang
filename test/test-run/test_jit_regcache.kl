@@ -1,0 +1,173 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 KOALA_JIT_CHECK_CACHE=1 koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT_THRESHOLD=1 KOALA_JIT_TRACE=1 koala %s ++ --no-inline 2>&1 | filecheck %s --check-prefix=JIT
+// JIT register cache (DESIGN §15): promoted VM registers keep a copy in a
+// machine register across loop back edges. Each function below breaks one
+// invalidation rule if it is wrong: a stale copy changes the printed value
+// (and KOALA_JIT_CHECK_CACHE=1 traps on it).
+
+class Box {
+    var v int
+    func __init__(_v int) { v = _v }
+}
+
+// int and float chains carried across the back edge
+func isum(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + i * 3
+        i = i + 1
+    }
+    return s
+}
+
+func fsum(n int) float64 {
+    var s = 0.0
+    var x = 1.5
+    var i = 0
+    while i < n {
+        s = s + x
+        x = x * 1.0001
+        i = i + 1
+    }
+    return s
+}
+
+// a promoted register written by a non-aware op (get_field) inside the loop
+func field_loop(b Box, n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        var x = b.v
+        s = s + x
+        b.v = b.v + 1
+        i = i + 1
+    }
+    return s
+}
+
+// x is valid in its machine register (ALU def) right before get_field
+// overwrites it in memory
+func field_over(b Box, n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        var x = i * 2
+        s = s + x
+        x = b.v
+        s = s + x
+        i = i + 1
+    }
+    return s
+}
+
+func add1(x int) int { return x + 1 }
+
+// a helper / native call inside the loop clobbers the pool registers
+func call_loop(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        s = s + add1(i)
+        i = i + 1
+    }
+    return s
+}
+
+// join: one arm redefines s through a call, the other through ALU; the meet at
+// the join must drop the copy that only one predecessor has
+func join_loop(n int) int {
+    var s = 0
+    var i = 0
+    while i < n {
+        if i % 3 == 0 {
+            s = add1(s)
+        } else {
+            s = s + 2
+        }
+        i = i + 1
+    }
+    return s
+}
+
+// register shift (helper) and division (RAX/RCX/RDX scratch) in a loop
+func shift_div(n int) int {
+    var s = 0
+    var i = 1
+    while i < n {
+        var k = i % 5
+        s = s + (i << k) / (k + 1) + i % 7
+        i = i + 1
+    }
+    return s
+}
+
+// self tail call: pc 0 is a jump target, copies are preloaded at entry
+func tail_sum(n int, acc int) int {
+    if n == 0 { return acc }
+    return tail_sum(n - 1, acc + n)
+}
+
+// float compares and fused float jumps on cached copies
+func fcount(n int) int {
+    var c = 0
+    var x = 0.0
+    var i = 0
+    while i < n {
+        if x < 50.0 { c = c + 1 }
+        x = x + 0.5
+        i = i + 1
+    }
+    return c
+}
+
+func main() {
+    var r = 0
+    var f = 0.0
+    var a = 0
+    var b = 0
+    var c = 0
+    var d = 0
+    var e = 0
+    var g = 0
+    var h = 0
+    var k = 0
+    while k < 30 {
+        r = isum(1000)
+        f = fsum(1000)
+        a = field_loop(Box(10), 100)
+        b = call_loop(100)
+        c = join_loop(100)
+        d = shift_div(200)
+        e = tail_sum(1000, 0)
+        g = fcount(300)
+        h = field_over(Box(7), 100)
+        k = k + 1
+    }
+    print(r)
+    print(f > 1500.0 && f < 1600.0)
+    print(a)
+    print(b)
+    print(c)
+    print(d)
+    print(e)
+    print(g)
+    print(h)
+}
+
+// CHECK: {{^}}1498500{{$}}
+// CHECK-NEXT: {{^}}true{{$}}
+// CHECK-NEXT: {{^}}5950{{$}}
+// CHECK-NEXT: {{^}}5050{{$}}
+// CHECK-NEXT: {{^}}166{{$}}
+// CHECK-NEXT: {{^}}34727{{$}}
+// CHECK-NEXT: {{^}}500500{{$}}
+// CHECK-NEXT: {{^}}100{{$}}
+// CHECK-NEXT: {{^}}10600{{$}}
+
+// JIT-DAG: [jit] regcache @isum:
+// JIT-DAG: [jit] regcache @fsum: {{.*}}xmm
+// JIT-DAG: [jit] regcache @tail_sum:

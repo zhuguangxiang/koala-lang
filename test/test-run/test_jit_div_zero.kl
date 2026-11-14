@@ -1,0 +1,21 @@
+// RUN: koala %s ++ --no-inline 2>&1 | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --no-inline 2>&1 | filecheck %s
+// JIT code raises on a zero divisor like the interpreter (no SIGFPE).
+
+func umod(x uint, y uint) uint {
+    return x % y
+}
+
+func main() {
+    print(umod(7, 3))
+    print(umod(7, 0))
+    print("not reached")
+}
+
+// CHECK: 1
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_jit_div_zero.kl", line 6, in umod
+// CHECK-NEXT:     return x % y
+// CHECK-NEXT:   File "{{.*}}test_jit_div_zero.kl", line 11, in main
+// CHECK: Error: division by zero
+// CHECK-NOT: not reached

@@ -423,6 +423,73 @@ void emit_sse_reg_mem(EmitBuf *b, int op, int xmm, int base, int32_t disp)
     emit_modrm_mem(b, xmm, base, disp);
 }
 
+/* ucomisd xmm, [base+disp]: 66 [REX] 0F 2E /r. */
+void emit_ucomisd_reg_mem(EmitBuf *b, int xmm, int base, int32_t disp)
+{
+    emit_u8(b, 0x66);
+    emit_rex(b, 0, xmm >> 3, 0, base >> 3);
+    emit_u8(b, 0x0F);
+    emit_u8(b, 0x2E);
+    emit_modrm_mem(b, xmm, base, disp);
+}
+
+/* addsd/subsd/mulsd/divsd dst, src (xmm, xmm): F2 [REX] 0F op /r, mod=11. */
+void emit_sse_reg_reg(EmitBuf *b, int op, int dst, int src)
+{
+    emit_u8(b, 0xF2);
+    emit_rex(b, 0, dst >> 3, 0, src >> 3);
+    emit_u8(b, 0x0F);
+    emit_u8(b, (uint8_t)op);
+    emit_modrm(b, 0x3, dst, src);
+}
+
+/* ucomisd a, c (xmm, xmm): 66 [REX] 0F 2E /r, mod=11. */
+void emit_ucomisd_reg_reg(EmitBuf *b, int a, int c)
+{
+    emit_u8(b, 0x66);
+    emit_rex(b, 0, a >> 3, 0, c >> 3);
+    emit_u8(b, 0x0F);
+    emit_u8(b, 0x2E);
+    emit_modrm(b, 0x3, a, c);
+}
+
+/* movaps dst, src (xmm, xmm): [REX] 0F 28 /r. A full-register copy, so no false
+ * dependency on dst's upper half (unlike movsd xmm, xmm). */
+void emit_movaps_reg_reg(EmitBuf *b, int dst, int src)
+{
+    emit_rex(b, 0, dst >> 3, 0, src >> 3);
+    emit_u8(b, 0x0F);
+    emit_u8(b, 0x28);
+    emit_modrm(b, 0x3, dst, src);
+}
+
+/* movq xmm, r64: 66 REX.W 0F 6E /r (reg = xmm, rm = gpr). */
+void emit_movq_xmm_gpr(EmitBuf *b, int xmm, int gpr)
+{
+    emit_u8(b, 0x66);
+    emit_rex(b, 1, xmm >> 3, 0, gpr >> 3);
+    emit_u8(b, 0x0F);
+    emit_u8(b, 0x6E);
+    emit_modrm(b, 0x3, xmm, gpr);
+}
+
+/* movq r64, xmm: 66 REX.W 0F 7E /r (reg = xmm, rm = gpr). */
+void emit_movq_gpr_xmm(EmitBuf *b, int gpr, int xmm)
+{
+    emit_u8(b, 0x66);
+    emit_rex(b, 1, xmm >> 3, 0, gpr >> 3);
+    emit_u8(b, 0x0F);
+    emit_u8(b, 0x7E);
+    emit_modrm(b, 0x3, xmm, gpr);
+}
+
+/* ud2: 0F 0B (guaranteed #UD trap). */
+void emit_ud2(EmitBuf *b)
+{
+    emit_u8(b, 0x0F);
+    emit_u8(b, 0x0B);
+}
+
 #ifdef __cplusplus
 }
 #endif

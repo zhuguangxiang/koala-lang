@@ -314,7 +314,10 @@ TValue kl_call_code(Object *code, TValue *args, int nargs)
            (_raise_exc_fmt) and kl_call_slot read ks->cf while native code runs */
         cf->back = ks->cf;
         ks->cf = cf;
-        co->jit->fn(cf->locals, &result);
+        co->jit->fn(cf->locals, &result, ks);
+        /* direct self calls in native code leave stack_top behind */
+        ks->stack_top = cf->locals + cf->nlocals;
+        if (result.tag == JIT_TAG_TAILCALL) kl_jit_tail_continue(&result);
         ks->cf = cf->back;
     } else {
         /* eval the call frame */
@@ -449,6 +452,9 @@ TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs,
 {
     KoalaState *ks = __ks();
     ASSERT(ks->stack_top == args);
+    /* the calling frame (from kl_call_code or a JIT direct call) describes its
+       registers exactly: the GC walks [cf->locals, cf->locals + nlocals) */
+    ASSERT(args == ks->cf->locals + ks->cf->nlocals);
     /* the calling JIT frame is linked by kl_call_code; record the call site
        for traceback, mirroring the interpreter's SAVE_PC */
     ks->cf->pc = pc;
@@ -465,6 +471,144 @@ TValue kl_jit_call_helper(TValue *args, TValue *out, Object *fn, int nargs,
     return ret;
 }
 
+TValue kl_jit_call_dyn(TValue *args, TValue *out, TValue *callee, int index, int nargs,
+                       uint32_t pc)
+{
+    Object *fn;
+    if (!callee) {
+        ASSERT(is_intf(args));
+        IntfTable *itab = args->itab;
+        ASSERT(index < itab->num_funcs);
+        fn = itab->methods[index];
+    } else {
+        if (!is_ref(callee) || !callee->obj || (!IS_CODE(callee->obj) && !IS_CFUNC(callee->obj))) {
+            KoalaState *ks = __ks();
+            ks->cf->pc = pc;
+            raise_exc_str("function value is not callable");
+            trace_here(ks->cf);
+            if (out) *out = error_value;
+            return error_value;
+        }
+        fn = callee->obj;
+    }
+    return kl_jit_call_helper(args, out, fn, nargs, pc);
+}
+
+TValue kl_jit_tail_call(TValue *args, TValue *out, Object *fn, TValue *callee, int index,
+                        uint64_t site)
+{
+    KoalaState *ks = __ks();
+    CallFrame *cf = ks->cf;
+    int nargs = (int)(site & 0xFF);
+    ASSERT(ks->stack_top == args);
+    cf->pc = (uint32_t)(site >> 8);
+
+    if (callee) {
+        if (!is_ref(callee) || !callee->obj || (!IS_CODE(callee->obj) && !IS_CFUNC(callee->obj))) {
+            raise_exc_str("function value is not callable");
+            goto error;
+        }
+        fn = callee->obj;
+    } else if (!fn) {
+        ASSERT(is_intf(args));
+        IntfTable *itab = args->itab;
+        ASSERT(index < itab->num_funcs);
+        fn = itab->methods[index];
+    }
+
+    if (IS_CFUNC(fn)) {
+        *out = kl_call_cfunc(fn, args, nargs);
+        if (is_error(out)) goto error;
+        return *out;
+    }
+
+    /* reuse this frame, as the interpreter's OP_TAIL_CALL does */
+    ASSERT(IS_CODE(fn));
+    CodeObject *co = (CodeObject *)fn;
+    memmove(cf->locals, args, sizeof(TValue) * nargs);
+    cf->code = co;
+    Object *owner = co->owner;
+    cf->module = IS_MODULE(owner) ? owner : ((TypeObject *)owner)->module;
+    cf->nlocals = co->cs.nlocals;
+    cf->tailcalls++;
+    ks->stack_top = cf->locals + cf->nlocals;
+    ASSERT(ks->stack_top <= ks->stack_base + ks->stack_size);
+    jit_count_call(co);
+    *out = (TValue){ .tag = JIT_TAG_TAILCALL, .ival = nargs };
+    return *out;
+
+error:
+    trace_here(cf);
+    *out = error_value;
+    return error_value;
+}
+
+/* JIT direct calls pop frames from ks->cf_cache; push a fresh one when empty.
+ * Returns ks. */
+KoalaState *kl_jit_refill_cf(KoalaState *ks)
+{
+    CallFrame *cf = mm_alloc_obj(cf);
+    cf->back = ks->cf_cache;
+    ks->cf_cache = cf;
+    return ks;
+}
+
+void kl_jit_tail_continue(TValue *out)
+{
+    KoalaState *ks = __ks();
+    CallFrame *cf = ks->cf;
+    while (out->tag == JIT_TAG_TAILCALL) {
+        /* a tail call replaced the frame's code: continue it natively when
+           possible, else in the interpreter (which links the frame itself) */
+        CodeObject *co = cf->code;
+        if (!co->jit || !jit_params_ok(cf->locals, (int)out->ival)) {
+            ks->cf = cf->back;
+            *out = _eval_frame(ks, cf);
+            ks->cf = cf;
+            return;
+        }
+        co->jit->fn(cf->locals, out, ks);
+        ks->stack_top = cf->locals + cf->nlocals;
+    }
+}
+
+void kl_jit_self_error(uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    trace_here(ks->cf);
+}
+
+void kl_jit_raise_at(int what, uint32_t pc)
+{
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    if (what == JIT_RAISE_DIV_ZERO)
+        raise_exc_str("division by zero");
+    else if (what == JIT_RAISE_NIL_UNWRAP)
+        raise_exc_str("forced unwrap (`!`) of a nil value");
+    else
+        raise_exc_str("stack overflow");
+    trace_here(ks->cf);
+}
+
+void kl_jit_make_intf(TValue *dst, TValue *src, int idx)
+{
+    TypeObject *tp = kl_typeof(src);
+    TValue v = *src;
+    v.itab = vector_get_ptr(&tp->itables, idx);
+    *dst = v;
+}
+
+TValue kl_jit_is_as(TValue *src, TypeObject *tp, int is_as)
+{
+    TypeObject *src_tp = kl_typeof(src);
+    ASSERT(src_tp && tp);
+    if (!is_as) return bool_value(src_tp == tp);
+    if (src_tp == tp) return *src;
+    return nil_value;
+}
+
 TValue kl_jit_tag_value(int tag)
 {
     ASSERT(tag >= 0 && tag < (int)(sizeof(vm_tag_mappings) / sizeof(vm_tag_mappings[0])));
@@ -479,22 +623,6 @@ int kl_jit_shift_check(TValue *count, uint32_t pc)
     ks->cf->pc = pc;
     trace_here(ks->cf);
     return 0;
-}
-
-/* Float comparison for the JIT (op: 0=EQ 1=NE 2=LT 3=LE 4=GT 5=GE). Uses the
- * exact C operators the interpreter's OP_FLOAT_* use, so NaN/unordered semantics
- * match by construction. Returns 0/1 as int64 (clean rax for the native code). */
-int64_t kl_jit_float_cmp(double a, double b, int op)
-{
-    switch (op) {
-        case 0: return a == b;
-        case 1: return a != b;
-        case 2: return a < b;
-        case 3: return a <= b;
-        case 4: return a > b;
-        case 5: return a >= b;
-        default: return 0;
-    }
 }
 
 /* Generic numeric protocol arithmetic (OP_NUM_ADD/SUB/...): dispatch through the

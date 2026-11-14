@@ -56,7 +56,7 @@ func _is_special(c int, delimiter int) bool {
     return false
 }
 
-// The str of bytes `b[start:end]`, NULs included: bytes.to_str() would stop at the first one.
+// The str of bytes `b[start:end]`, NULs included.
 func _text(b bytes, start int, end int) str {
     let buf = Buffer()
     buf.write(b[start:end])

@@ -164,13 +164,13 @@ pub class StreamResponse : Withable {
 // head is read on first access, not here; a stalled peer ends the
 // stream instead of blocking forever. Nil when the connection or the
 // write fails.
-func _send_stream(req Request, timeout_ms int) StreamResponse? {
+func _send_stream(req Request, timeout_ms int, options tls.TlsOptions?) StreamResponse? {
     let url = req.url()
     let addr = url.host() + ":" + str(url.port())
 
     var conn so.Conn?
     if url.is_tls() {
-        let opts = tls.TlsOptions().set_handshake_timeout_ms(timeout_ms)
+        let opts = options ?? tls.TlsOptions().set_handshake_timeout_ms(timeout_ms)
         conn = tls.dial(addr, opts)
     } else {
         conn = so.dial(addr, so.SocketTypeSpec.tcp())
