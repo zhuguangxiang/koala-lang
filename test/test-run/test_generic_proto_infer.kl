@@ -1,0 +1,46 @@
+// RUN: koala %s | filecheck %s
+// A type parameter that appears only inside a function-typed parameter must be
+// inferred by matching the argument's function (proto) type. This is the "map
+// problem": in map[T, U](obj Iterable[T], fn func(T) U), T comes from obj but U
+// lives only in fn's return type. Regression test for TYPE_PROTO inference in
+// infer_tp_from_call().
+
+func double(x int) int { return x * 2 }
+func to_str(x int) str { return format("{}", x) }
+
+// U occurs only in f's return type.
+func apply[T, U](x T, f func(T) U) U { return f(x) }
+
+// The motivating shape: T from Iterable, U only from fn's return type.
+func map[T, U](obj Iterable[T], fn func(T) U) list[U] {
+    let out = list[U]()
+    for x in obj { out.append(fn(x)) }
+    return out
+}
+
+// Two function parameters: U from f's return, V from g's return (chained).
+func pipe[T, U, V](x T, f func(T) U, g func(U) V) V { return g(f(x)) }
+
+func main() {
+    // inferred U = int
+    print(apply(1, double))
+    // inferred U = str (differs from T)
+    print(apply(1, to_str))
+    // explicit type arguments still work
+    print(apply[int, str](1, to_str))
+
+    // map: T = int from the list, U from fn
+    print(map([1, 2, 3], double))
+    print(map([1, 2, 3], to_str))
+
+    // chained protos: U = int, V = str
+    print(pipe(1, double, to_str))
+}
+
+// CHECK: 2
+// CHECK-NEXT: 1
+// CHECK-NEXT: 1
+// CHECK-NEXT: [2, 4, 6]
+// CHECK-NEXT: [1, 2, 3]
+// CHECK-NEXT: 2
+// CHECK-NOT: {{.}}

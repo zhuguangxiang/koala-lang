@@ -51,6 +51,9 @@ static TpInfo *get_tpinfo(HashMap *map, char *name)
     return (TpInfo *)ret;
 }
 
+static int infer_tp_from_type(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                              char *tp_owner_name, Loc loc, ParserState *ps);
+
 Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
                            ParserState *ps)
 {
@@ -124,6 +127,13 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
         if (ts->kind == TYPE_GENERIC_REF) {
             log_info("param '%s' is generic ref '%s'", arg->name, ts->signature);
             if (!infer_tp_from_generic_ref(&map, ts, exp->ts, tp_owner_name, call_exp->loc, ps))
+                goto error;
+            continue;
+        }
+
+        if (ts->kind == TYPE_PROTO) {
+            log_info("param '%s' is proto '%s'", arg->name, ts->signature);
+            if (!infer_tp_from_type(&map, ts, exp->ts, tp_owner_name, call_exp->loc, ps))
                 goto error;
             continue;
         }
@@ -374,6 +384,63 @@ Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps)
 }
 
 /*
+ * Matches a parameter type 'param_ts' against the actual argument type 'arg_ts',
+ * binding every type parameter of 'tp_owner_name' that occurs in 'param_ts'.
+ *
+ * A type parameter may live only inside a function-typed parameter, e.g. the 'U'
+ * of 'fn func(T) U' in map[T, U]. Such a parameter is a TYPE_PROTO, so its args
+ * and return type are matched structurally against the argument's proto type to
+ * infer the bindings. Generic vars, generic refs and nested protos are handled
+ * recursively; a concrete type carries nothing to infer.
+ */
+static int infer_tp_from_type(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                              char *tp_owner_name, Loc loc, ParserState *ps)
+{
+    if (!param_ts || !arg_ts) return 1;
+
+    if (param_ts->kind == TYPE_GENERIC_VAR) {
+        ASSERT(str_equal(param_ts->generic_var.owner, tp_owner_name));
+
+        TpInfo *info = get_tpinfo(map, param_ts->generic_var.name);
+        if (info) {
+            if (!type_spec_compatible(info->real, arg_ts)) {
+                kl_error(loc, "generic type '%s' is inferred as '%s', but got '%s'", info->name,
+                         info->real->signature, arg_ts->signature);
+                return 0;
+            }
+        } else {
+            add_tpinfo(map, param_ts->generic_var.name, arg_ts);
+        }
+        return 1;
+    }
+
+    if (param_ts->kind == TYPE_GENERIC_REF) {
+        return infer_tp_from_generic_ref(map, param_ts, arg_ts, tp_owner_name, loc, ps);
+    }
+
+    if (param_ts->kind == TYPE_PROTO) {
+        // a non-proto argument is a type mismatch, reported later by check_call_args()
+        if (arg_ts->kind != TYPE_PROTO) return 1;
+
+        Vector *param_args = param_ts->proto_type.args;
+        Vector *arg_args = arg_ts->proto_type.args;
+        int num_args = vector_size(param_args);
+        if (num_args != vector_size(arg_args)) return 1;
+
+        for (int i = 0; i < num_args; i++) {
+            if (!infer_tp_from_type(map, vector_get(param_args, i), vector_get(arg_args, i),
+                                    tp_owner_name, loc, ps))
+                return 0;
+        }
+        return infer_tp_from_type(map, param_ts->proto_type.ret, arg_ts->proto_type.ret,
+                                  tp_owner_name, loc, ps);
+    }
+
+    /* concrete type: compatibility is checked later by check_call_args() */
+    return 1;
+}
+
+/*
  * Binds the type parameters found in the arguments of 'param_ts' (a
  * TYPE_GENERIC_REF) to the corresponding types in 'matched_args'.
  */
@@ -391,30 +458,9 @@ static int bind_tp_from_matched_args(HashMap *map, TypeSpec *param_ts, Vector *m
     }
 
     for (int i = 0; i < num_params; i++) {
-        TypeSpec *param_arg = vector_get(param_args, i);
-        TypeSpec *matched_arg = vector_get(matched_args, i);
-        if (!param_arg || !matched_arg) continue;
-
-        if (param_arg->kind == TYPE_GENERIC_VAR) {
-            ASSERT(str_equal(param_arg->generic_var.owner, tp_owner_name));
-
-            TpInfo *info = get_tpinfo(map, param_arg->generic_var.name);
-            if (info) {
-                if (!type_spec_compatible(info->real, matched_arg)) {
-                    kl_error(loc, "generic type '%s' is inferred as '%s', but got '%s'", info->name,
-                             info->real->signature, matched_arg->signature);
-                    return 0;
-                }
-            } else {
-                add_tpinfo(map, param_arg->generic_var.name, matched_arg);
-            }
-        } else if (param_arg->kind == TYPE_GENERIC_REF) {
-            // nested generic ref, e.g. param 'Foo[Bar[T]]' matches 'Foo[Bar[int]]'
-            if (!infer_tp_from_generic_ref(map, param_arg, matched_arg, tp_owner_name, loc, ps))
-                return 0;
-        }
-        /* else: a concrete param type argument carries no type parameter,
-           its compatibility is checked later by check_call_args(). */
+        if (!infer_tp_from_type(map, vector_get(param_args, i), vector_get(matched_args, i),
+                                tp_owner_name, loc, ps))
+            return 0;
     }
 
     return 1;
