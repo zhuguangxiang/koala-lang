@@ -1,0 +1,22 @@
+/// demo/chat — a command-line chat REPL on koala/openai (DeepSeek endpoint).
+///
+/// Usage:
+///   source env.sh at the repository root, then
+///       cd demo && wombat build chat && wombat run chat
+///
+///   On a pipe it reads plain lines, so it can be scripted:
+///       printf 'hello\n/quit\n' | wombat run chat
+///
+/// Commands: /quit or /exit or Ctrl-D leaves, /reset clears the history,
+/// and a line like "@path/to/file" loads that file into the conversation
+/// so the next questions can be about its code.
+///
+/// Layout:
+///   config.kl   — model, endpoint, history file, API key, client
+///   session.kl  — Session: the conversation and turn-taking with the model
+///   repl.kl     — the input loop, commands, and terminal I/O
+
+func main() {
+    let session = Session(new_client(), MODEL)
+    run_repl(session)
+}

@@ -1,0 +1,58 @@
+/*
+ * demo/chat — the conversation.
+ */
+
+import "std/fs"
+import "koala/openai" as openai
+
+/// The system message that starts every conversation.
+const SYSTEM_PROMPT = "You are a helpful assistant. Answer concisely."
+
+/// An ordered conversation of OpenAI-format messages, starting with a
+/// system prompt. Session owns every mutation of the message list and the
+/// turn-taking with the model, so callers never touch the raw messages.
+pub class Session {
+    let client openai.Client
+    let model str
+    let messages list[dict[str, str]]
+
+    /// Start a fresh conversation against `_client` using `_model`.
+    pub func __init__(_client openai.Client, _model str) {
+        client = _client
+        model = _model
+        messages = list[dict[str, str]]()
+        reset()
+    }
+
+    /// Clear the conversation back to the single system message.
+    pub func reset() {
+        messages.clear()
+        messages.append({"role": "system", "content": SYSTEM_PROMPT})
+    }
+
+    /// Load `path` into the conversation as a user message. Return the
+    /// number of characters added, or nil when the file cannot be read.
+    /// The fence and the path line are what make the model quote locations
+    /// back well.
+    pub func load_file(path str) int? {
+        if !fs.is_file(path) { return nil }
+        let text = fs.read_str(path, MAX_CODE_BYTES)
+        let content = "File: " + path + "\n```\n" + text + "\n```\n"
+        messages.append({"role": "user", "content": content})
+        return content.len()
+    }
+
+    /// Send `text` as a user turn and return the model's response. On a
+    /// failed request the user turn is rolled back so the conversation
+    /// stays consistent for a retry; on success the reply is appended.
+    pub func ask(text str) openai.ChatCompletion {
+        messages.append({"role": "user", "content": text})
+        let resp = client.chat.completions.create(model, messages, 0.7, 1024)
+        if !resp.ok() {
+            messages.pop()
+            return resp
+        }
+        messages.append({"role": "assistant", "content": resp.choices[0].message.content})
+        return resp
+    }
+}

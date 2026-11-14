@@ -1,0 +1,6 @@
+[package]
+name = "demo/chat"
+version = "0.1.0"
+description = "Command-line chat REPL on koala/openai (DeepSeek endpoint)"
+dependencies = []
+natives = []

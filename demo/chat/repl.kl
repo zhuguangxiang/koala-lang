@@ -1,0 +1,58 @@
+/*
+ * demo/chat — the read-eval-print loop and command handling.
+ */
+
+import "std/os"
+import "koala/readline"
+
+/// True when the line holds nothing but spaces or tabs.
+func _is_blank(line str) bool {
+    for c in line {
+        if c != " " && c != "\t" { return false }
+    }
+    return true
+}
+
+/// Run the chat loop against `session` until /quit, /exit or Ctrl-D.
+/// Owns all terminal I/O: the prompt, command dispatch, and rendering of
+/// each reply. The conversation itself lives in `session`.
+func run_repl(session Session) {
+    // False on the first run, when there is no history file yet.
+    readline.read_history_file(HISTORY)
+    readline.set_history_length(200)
+
+    // The prompt in bold cyan on a terminal; plain on a pipe.
+    var prompt = "you> "
+    if os.isatty(1) { prompt = "\x01\x1b[1;36m\x02you>\x01\x1b[0m\x02 " }
+
+    print("Chat with " + MODEL + ". /quit or Ctrl-D to leave, /reset to clear the history, @FILE to load a file.")
+    while let line = readline.input(prompt) {
+        // blank lines (and the "" Ctrl-C returns) are not sent
+        if _is_blank(line) { continue }
+        if line == "/quit" || line == "/exit" { break }
+        if line == "/reset" {
+            session.reset()
+            print("(the history is cleared)")
+            continue
+        }
+        if line.starts_with("@") {
+            let path = line.substr(1, line.len())
+            if let n = session.load_file(path) {
+                print("(loaded " + path + ", " + str(n) + " chars)")
+            } else {
+                print("cannot read: " + path)
+            }
+            continue
+        }
+
+        let resp = session.ask(line)
+        if !resp.ok() {
+            print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+            continue
+        }
+        print("bot> " + resp.choices[0].message.content)
+        printf("({} tokens)\n", resp.usage.total_tokens)
+    }
+
+    readline.write_history_file(HISTORY)
+}

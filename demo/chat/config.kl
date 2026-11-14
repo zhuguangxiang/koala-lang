@@ -1,0 +1,29 @@
+/*
+ * demo/chat — connection and runtime configuration.
+ */
+
+import "std/os"
+import "koala/openai" as openai
+
+/// The model to chat with.
+const MODEL = "deepseek-chat"
+
+/// The DeepSeek endpoint (OpenAI-compatible).
+const BASE_URL = "https://api.deepseek.com"
+
+/// The readline history file, kept between runs.
+const HISTORY = ".chat_cli_history"
+
+/// The biggest file @ accepts; fs.read_str panics above the cap.
+const MAX_CODE_BYTES = 1048576
+
+/// The API key: DEEPSEEK_API_KEY when set, else the demo fallback.
+func resolve_key() str {
+    if let key = os.getenv("DEEPSEEK_API_KEY") { return key }
+    return "sk-63570c4b930d48fd84c81c54be56f192"
+}
+
+/// Build the chat client from the resolved key and endpoint.
+func new_client() openai.Client {
+    return openai.Client(resolve_key(), BASE_URL)
+}
