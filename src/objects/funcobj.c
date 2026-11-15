@@ -5,6 +5,7 @@
 
 #include "atom.h"
 #include "gc.h"
+#include "jit/jit.h"
 #include "modobj.h"
 
 #ifdef __cplusplus
@@ -45,11 +46,18 @@ static MethodDef code_methods[] = {
     { NULL },
 };
 
+static void code_free_hook(Object *obj)
+{
+    CodeObject *co = (CodeObject *)obj;
+    kl_jit_free(co->jit);
+}
+
 TypeObject code_type = {
     ._type = &type_type,
     .name = "code",
     .flags = TP_FLAGS_CLASS,
     .methdefs = code_methods,
+    ._free = code_free_hook,
 };
 
 Object *kl_new_code(char *name, Object *owner)

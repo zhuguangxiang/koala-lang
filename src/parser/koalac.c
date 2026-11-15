@@ -687,5 +687,6 @@ int main(int argc, char *argv[])
     fini_log();
     fini_atom();
     mm_free(module.pkg_path);
+    free_alloc_mem();
     return rc;
 }

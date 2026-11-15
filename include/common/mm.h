@@ -33,6 +33,9 @@ void mm_free(void *ptr);
 /* Stat usage memory */
 void mm_stat(void);
 
+/* Free all allocated memory blocks */
+void free_alloc_mem(void);
+
 /* duplicate c-string, replace of strndup. */
 static inline char *str_ndup(char *s, size_t size)
 {

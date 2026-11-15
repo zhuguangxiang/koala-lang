@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include "common.h"
+#include "list.h"
 #include "log.h"
 
 #ifdef __cplusplus
@@ -13,18 +14,27 @@ extern "C" {
 
 /* The head of user's memory(16 bytes aligned) */
 typedef struct _Block {
+    List link;
+#ifndef NDEBUG
     /* allocated size */
     uint32_t size;
     /* memory guard */
     uint32_t magic;
 #define GUARD_MAGIC 0xdeadbeaf
     uint32_t unused[2];
+#endif
 } Block;
+
+#ifndef NDEBUG
 
 /* allocated memory size, updated atomically: the runtime has several threads */
 static int64_t used_size = 0;
 
 #define USED_ADD(n) __atomic_fetch_add(&used_size, (int64_t)(n), __ATOMIC_RELAXED)
+
+#endif
+
+static List all_blocks = LIST_INIT(all_blocks);
 
 /* memory is cleared to zero. */
 void *mm_alloc(int size)
@@ -36,9 +46,14 @@ void *mm_alloc(int size)
         abort();
     }
 
+#ifndef NDEBUG
     blk->size = size;
     blk->magic = GUARD_MAGIC;
     USED_ADD(size);
+#endif
+
+    init_list(&blk->link);
+    list_push_back(&all_blocks, &blk->link);
 
     return (void *)(blk + 1);
 }
@@ -49,22 +64,35 @@ void *mm_realloc(void *ptr, int new_size)
 
     Block *blk = (Block *)ptr - 1;
 
+#ifndef NDEBUG
     if (blk->magic != GUARD_MAGIC) {
         log_fatal("memory is broken.\n");
         abort();
     }
+#endif
+
+    list_remove(&blk->link);
 
     new_size = ALIGN(new_size, 16);
+
+#ifndef NDEBUG
     int old_size = blk->size;
+#endif
+
     blk = (Block *)realloc(blk, OBJ_SIZE(blk) + new_size);
     if (!blk) {
         log_fatal("realloc failed.");
         abort();
     }
 
+#ifndef NDEBUG
     blk->size = new_size;
     blk->magic = GUARD_MAGIC;
     USED_ADD(new_size - old_size);
+#endif
+
+    init_list(&blk->link);
+    list_push_back(&all_blocks, &blk->link);
 
     return (void *)(blk + 1);
 }
@@ -79,9 +107,14 @@ void *mm_alloc_fast(int size)
         abort();
     }
 
+#ifndef NDEBUG
     blk->size = size;
     blk->magic = GUARD_MAGIC;
     USED_ADD(size);
+#endif
+
+    init_list(&blk->link);
+    list_push_back(&all_blocks, &blk->link);
 
     return (void *)(blk + 1);
 }
@@ -92,6 +125,7 @@ void mm_free(void *ptr)
 
     Block *blk = (Block *)ptr - 1;
 
+#ifndef NDEBUG
     if (blk->magic != GUARD_MAGIC) {
         log_fatal("memory is broken.\n");
         abort();
@@ -100,14 +134,32 @@ void mm_free(void *ptr)
     USED_ADD(-(int64_t)blk->size);
     /* a second free of the same pointer fails the magic check */
     blk->magic = 0;
+#endif
+
+    list_remove(&blk->link);
+
     free(blk);
 }
 
 void mm_stat(void)
 {
+#ifndef NDEBUG
     puts("------ Memory Usage ------");
     printf("%ld bytes used\n", (long)__atomic_load_n(&used_size, __ATOMIC_RELAXED));
     puts("--------------------------");
+#endif
+}
+
+void free_alloc_mem(void)
+{
+    Block *blk, *tmp;
+    list_foreach_safe(blk, tmp, link, &all_blocks) {
+        list_remove(&blk->link);
+#ifndef NDEBUG
+        USED_ADD(-(int64_t)blk->size);
+#endif
+        free(blk);
+    }
 }
 
 char *str_ntrim(char *s, int len)

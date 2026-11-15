@@ -48,7 +48,10 @@ KoalaState *kl_new_ks(void)
 {
     KoalaState *ks = mm_alloc_obj(ks);
     ks->ts = __ts;
-    ks->stack_base = aligned_alloc(16, sizeof(TValue) * MAX_STACK_SIZE);
+    void *stack = aligned_alloc(16, sizeof(TValue) * MAX_STACK_SIZE);
+    ASSERT(stack != NULL);
+    memset(stack, 0, sizeof(TValue) * MAX_STACK_SIZE);
+    ks->stack_base = stack;
     ks->stack_top = ks->stack_base;
     ks->stack_size = MAX_STACK_SIZE;
     ks->stack_limit = ks->stack_base + MAX_STACK_SIZE;
@@ -61,6 +64,14 @@ void kl_free_ks(KoalaState *ks)
     if (!ks) return;
     ASSERT(!ks->cf);
     free(ks->stack_base);
+
+    CallFrame *cf = ks->cf;
+    while (cf) {
+        CallFrame *prev = cf->back;
+        mm_free(cf);
+        cf = prev;
+    }
+
     mm_free(ks);
 }
 
@@ -129,11 +140,17 @@ void koala_finalize(void)
     /* finalize garbage collector */
     gc_fini();
 
+    kl_free_ks(__ts->current);
+    mm_free(__ts);
+
     /* finalize atom string table */
     fini_atom();
 
     /* finalize logger */
     fini_log();
+
+    /* free all allocated memory blocks */
+    free_alloc_mem();
 }
 
 #ifdef __cplusplus
