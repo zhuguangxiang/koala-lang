@@ -466,7 +466,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    init_log(LOG_INFO, NULL, 0);
+    init_log("klc-dump", LOG_INFO, NULL, 0);
     init_atom();
 
     KlcFile *klc = read_klc_file(argv[1], 0);

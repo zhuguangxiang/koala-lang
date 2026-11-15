@@ -571,6 +571,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
                 }
                 Symbol *__origin = get_symbol_by_id(base_ts->sym_id);
                 InstanceSymbol *__base_sym = find_or_add_instance(stbl, __origin, __tp_args, pm);
+                vector_destroy(__tp_args);
                 base_ts = __base_sym->instance_ts;
                 vector_push_back(inst_sym->bases, &base_ts);
                 ASSERT(base_ts->kind == TYPE_KLASS || base_ts->kind == TYPE_GENERIC_REF);
@@ -1001,6 +1002,7 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
     TypeSpec *ret_type = type_spec_specialize(origin->ret, tp_args, stbl, ps->pm);
     log_info("func instance ret type: '%s'", ret_type->signature);
 
+    /* stbl_add_func_instance consumes real_arg_types via func_type_spec_intern */
     sym = stbl_add_func_instance(stbl, origin, mangled_name, real_arg_types, ret_type);
     return sym;
 }
@@ -1041,7 +1043,7 @@ void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserSta
             _param->name = arg->name;
             _param->ts = arg_ts;
             _param->has_dfl_val = arg->has_dfl_val;
-            _param->dfl_val = arg->dfl_val;
+            _param->dfl_val = literal_for_clone(arg->dfl_val, origin->flags);
             vector_push_back(arg_infos, &_param);
         }
 
@@ -1050,7 +1052,8 @@ void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserSta
         FuncSymbol *fn_sym = (FuncSymbol *)sym;
         fn_sym->ret = ret_type;
         fn_sym->params = arg_infos;
-        fn_sym->ts = func_type_spec(arg_types, ret_type);
+        /* intern consumes arg_types; sym->ts must be pool-owned like other funcs */
+        fn_sym->ts = func_type_spec_intern(arg_types, ret_type);
     }
 }
 

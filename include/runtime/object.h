@@ -398,8 +398,8 @@ typedef struct _StringObject {
 
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
-#define STR_BUF(ob) (((StringObject *)(ob))->array)
-#define STR_LEN(ob) (((StringObject *)(ob))->size)
+#define STR_BUF(ob)    (((StringObject *)(ob))->array)
+#define STR_LEN(ob)    (((StringObject *)(ob))->size)
 #define STR_NCHARS(ob) (((StringObject *)(ob))->nchars)
 
 Object *kl_new_nstr(char *s, size_t len);

@@ -95,13 +95,34 @@ static void __free_inner_stbl(Symbol *sym)
     }
 }
 
+/* Source literals borrow their string from the AST expression; klc-loaded
+   symbols (SYM_FLAGS_EXT) own the literal, and klc strings are atoms. */
+static void __literal_free(Literal *lit, int owned)
+{
+    if (!lit) return;
+    if (owned && lit->which == LIT_BYTES) mm_free(lit->sval);
+    mm_free(lit);
+}
+
+/* A func-symbol clone (instance method / specialized) inherits the origin's
+   flags: an EXT clone owns its default literals, a source clone keeps borrowing
+   them from the parameter's VarSymbol. */
+Literal *literal_for_clone(Literal *lit, int sym_flags)
+{
+    if (!lit || !(sym_flags & SYM_FLAGS_EXT)) return lit;
+    Literal *copy = mm_alloc_obj(copy);
+    *copy = *lit;
+    if (lit->which == LIT_BYTES) copy->sval = str_ndup(lit->sval, lit->len);
+    return copy;
+}
+
 static void __symbol_free(Symbol *sym)
 {
     if (!sym) return;
     switch (sym->kind) {
         case SYM_VAR: {
             VarSymbol *var = (VarSymbol *)sym;
-            if (var->lit) mm_free(var->lit);
+            __literal_free(var->lit, sym->flags & SYM_FLAGS_EXT);
             ASSERT(!sym->stbl);
             break;
         }
@@ -113,9 +134,17 @@ static void __symbol_free(Symbol *sym)
             ArgInfo *arg;
             vector_foreach(arg, fn->params) {
                 if (!arg) continue;
+                /* source params share the literal with their VarSymbol */
+                if (sym->flags & SYM_FLAGS_EXT) __literal_free(arg->dfl_val, 1);
                 mm_free(arg);
             }
             vector_destroy(fn->params);
+
+            void *ann_param;
+            vector_foreach(ann_param, fn->ann_params) {
+                mm_free(ann_param);
+            }
+            vector_destroy(fn->ann_params);
 
             ASSERT(!sym->stbl);
             break;
@@ -133,6 +162,14 @@ static void __symbol_free(Symbol *sym)
             vector_fini(&kls->pip);
             vector_fini(&kls->lro);
             vector_fini(&kls->scm);
+
+            IntfEntry *intf;
+            vector_foreach(intf, &kls->intf_table) {
+                if (!intf) continue;
+                vector_fini(&intf->methods);
+                vector_fini(&intf->parents);
+                mm_free(intf);
+            }
             vector_fini(&kls->intf_table);
 
             ASSERT(!sym->stbl);
@@ -156,6 +193,12 @@ static void __symbol_free(Symbol *sym)
         }
         case SYM_INSTANCE_FUNC: {
             InstanceFuncSymbol *inst_fn = (InstanceFuncSymbol *)sym;
+            ArgInfo *arg;
+            vector_foreach(arg, inst_fn->real_params) {
+                if (!arg) continue;
+                /* dfl_val is borrowed from the origin function */
+                mm_free(arg);
+            }
             vector_destroy(inst_fn->real_params);
             vector_destroy(inst_fn->real_args);
             ASSERT(!sym->stbl);

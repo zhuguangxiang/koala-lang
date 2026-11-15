@@ -656,18 +656,15 @@ int main(int argc, char *argv[])
 {
     parse_command(argc, argv);
     init_atom();
-#ifdef DEBUG_TEST
-    init_log(LOG_WARN, NULL, 0);
-#else
-    init_log(LOG_TRACE, NULL, 0);
-#endif
+    /* no-op with NOLOG (debug/release); level by KOALAC_LOG_LEVEL */
+    init_log("koalac", LOG_TRACE, NULL, 0);
 
     typespec_init();
 
     ParserModule module = { 0 };
     module.path = output;
     if (cmd_opt.pkg_path[0]) {
-        module.pkg_path = cmd_opt.pkg_path;
+        module.pkg_path = str_dup(cmd_opt.pkg_path);
     }
     vector_init_ptr(&module.links);
 
@@ -676,9 +673,11 @@ int main(int argc, char *argv[])
     init_parser(&module);
     int rc = compile(&module);
     fini_parser(&module);
+    fini_const_placeholder();
 
     typespec_fini();
     fini_log();
     fini_atom();
+    mm_free(module.pkg_path);
     return rc;
 }

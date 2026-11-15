@@ -271,6 +271,8 @@ static inline void stbl_free(HashMap *stbl)
 
 void free_all_symbols(void);
 
+Literal *literal_for_clone(Literal *lit, int sym_flags);
+
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags);

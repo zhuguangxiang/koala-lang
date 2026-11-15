@@ -555,6 +555,7 @@ static void call_expr_free(Expr *exp)
         expr_free(arg);
     }
     vector_destroy(e->args);
+    vector_destroy(e->tp_args);
 
     mm_free(exp);
 }
@@ -576,6 +577,7 @@ static void index_expr_free(Expr *exp)
         expr_free(idx);
     }
     vector_destroy(e->vec);
+    vector_destroy(e->tp_args);
     mm_free(exp);
 }
 
@@ -968,9 +970,28 @@ static void var_decl_stmt_free(Stmt *stmt)
     mm_free(s);
 }
 
+/* types/params are owned by the annotation; ident/value are atoms.
+   params may have been transferred to FuncSymbol.ann_params (bench). */
+static void annotation_free(Annotation *ann)
+{
+    Vector *tp_args;
+    vector_foreach(tp_args, ann->types) {
+        vector_destroy(tp_args);
+    }
+    vector_destroy(ann->types);
+
+    AnnotParam *param;
+    vector_foreach(param, ann->params) {
+        mm_free(param);
+    }
+    vector_destroy(ann->params);
+}
+
 static void func_decl_stmt_free(Stmt *stmt)
 {
     FuncDeclStmt *s = (FuncDeclStmt *)stmt;
+
+    annotation_free(&s->flags.ann);
 
     Vector *tps = s->tps;
     TypeParamDecl *tp;
@@ -1020,6 +1041,8 @@ static void type_alias_decl_stmt_free(Stmt *stmt)
 static void klass_decl_stmt_free(Stmt *stmt)
 {
     KlassDeclStmt *s = (KlassDeclStmt *)stmt;
+
+    annotation_free(&s->flags.ann);
 
     Vector *tps = s->tps;
     TypeParamDecl *tp;

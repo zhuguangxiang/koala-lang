@@ -1765,6 +1765,7 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         // only functions with 'bench' prefix get this annotation
         fn_sym->ann = fn->flags.ann.ident;
         fn_sym->ann_params = fn->flags.ann.params;
+        fn->flags.ann.params = NULL;
     }
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;
@@ -4495,6 +4496,8 @@ ParserState *new_parser_state(ParserModule *pm, char *path)
 void free_parser_state(ParserState *ps)
 {
     mm_free(ps->filename);
+
+    stbl_free(ps->imported);
 
     vector_fini(&ps->kls_stmts);
     vector_fini(&ps->fn_stmts);

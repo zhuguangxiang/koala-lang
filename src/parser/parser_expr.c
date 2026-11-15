@@ -43,6 +43,14 @@ void init_const_placeholder(void)
     hashmap_put(&cph_map, cp);
 }
 
+static void _cph_free_(void *entry, void *data)
+{
+    UNUSED(data);
+    mm_free(entry);
+}
+
+void fini_const_placeholder(void) { hashmap_fini(&cph_map, _cph_free_, NULL); }
+
 static ConstPlaceHolder *get_const_placeholder(char *name)
 {
     ConstPlaceHolder key = { .name = name };
@@ -660,7 +668,10 @@ static void parse_tuple(ParserState *ps, Expr *exp)
             if (elem_types && !e->expected) e->expected = vector_get(elem_types, i);
             e->ctx = EXPR_CTX_LOAD;
             parser_visit_expr(ps, e);
-            if (!e->ts) return;
+            if (!e->ts) {
+                vector_destroy(tp_args);
+                return;
+            }
         }
 
         /* nil or T for an expected T?: the element takes the optional type,
@@ -692,6 +703,7 @@ static void parse_tuple(ParserState *ps, Expr *exp)
 
     Symbol *origin = stbl_get(ps->pm->builtin, "tuple");
     InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args, ps->pm);
+    vector_destroy(tp_args);
     inst_sym->arg = infer_ts; // save infered tuple type for later use
 
     exp->ts = inst_sym->instance_ts;
@@ -1121,6 +1133,17 @@ static Vector *arg_infos_from_arg_types(Vector *arg_types)
     return params;
 }
 
+/* temporary params built for a call (proto callee / inferred generic): the
+   ArgInfos borrow name/ts/dfl_val from the origin, only the wrappers are owned */
+static void free_temp_params(Vector *params)
+{
+    ArgInfo *arg;
+    vector_foreach(arg, params) {
+        mm_free(arg);
+    }
+    vector_destroy(params);
+}
+
 /*
  * Resolves an argument against its parameter and checks the type. Shared by the
  * positional and the keyword path so both report the same diagnostic.
@@ -1526,7 +1549,8 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
     return inst_ts;
 }
 
-static Vector *build_instance_params(Vector *params, InstanceSymbol *sym, ParserState *ps)
+static Vector *build_instance_params(Vector *params, InstanceSymbol *sym, int sym_flags,
+                                     ParserState *ps)
 {
     KlassSymbol *origin = (KlassSymbol *)sym->origin;
     ASSERT(origin);
@@ -1540,7 +1564,7 @@ static Vector *build_instance_params(Vector *params, InstanceSymbol *sym, Parser
         inst_arg->name = arg->name;
         inst_arg->ts = ts;
         inst_arg->has_dfl_val = arg->has_dfl_val;
-        inst_arg->dfl_val = arg->dfl_val;
+        inst_arg->dfl_val = literal_for_clone(arg->dfl_val, sym_flags);
         vector_push_back(inst_params, &inst_arg);
     }
     return inst_params;
@@ -1621,7 +1645,8 @@ static Symbol *add_instance_method(InstanceSymbol *inst_sym, FuncSymbol *origin_
         ASSERT(actual_fn_sym);
     }
 
-    Vector *inst_params = build_instance_params(actual_fn_sym->params, inst_sym, ps);
+    Vector *inst_params =
+        build_instance_params(actual_fn_sym->params, inst_sym, actual_fn_sym->flags, ps);
     TypeSpec *origin_ret_ts = actual_fn_sym->ret;
     TypeSpec *inst_ret_ts = instance_type_spec(origin_ret_ts, origin, inst_sym, ps);
 
@@ -1683,7 +1708,7 @@ inherit:
                 _real_param->name = arg->name;
                 _real_param->ts = arg->ts;
                 _real_param->has_dfl_val = arg->has_dfl_val;
-                _real_param->dfl_val = arg->dfl_val;
+                _real_param->dfl_val = literal_for_clone(arg->dfl_val, _fn_sym->flags);
                 vector_push_back(real_params, &_real_param);
             }
 
@@ -2287,7 +2312,12 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
         log_info(
             "[handle_valist_and_dfl_args] real arguments for caller after handling var-arg and "
             "kw-arg.");
-        // TODO: free old args
+        /* positional exprs and kw values were moved into real_args; only the
+           keyword wrappers are dropped here */
+        Expr *old_arg;
+        vector_foreach(old_arg, call->args) {
+            if (old_arg && old_arg->kind == EXPR_KW_KIND) mm_free(old_arg);
+        }
         vector_destroy(call->args);
         call->args = real_args;
     } else {
@@ -2298,6 +2328,9 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
         vector_destroy(real_args);
         real_args = NULL;
     }
+
+    vector_fini(&param_info.kwargs);
+    vector_fini(&arg_info.kwargs);
 
     return changed;
 }
@@ -2416,9 +2449,11 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
 
     Vector *params = NULL;
+    int params_owned = 0;
     if (!lhs_sym && lhs->ts->kind == TYPE_PROTO) {
         exp->ts = lhs->ts->proto_type.ret;
         params = arg_infos_from_arg_types(lhs->ts->proto_type.args);
+        params_owned = 1;
     } else if (!lhs_sym) {
         kl_error(lhs->loc, "expression is not callable.");
         return;
@@ -2433,6 +2468,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             // proto variable call
             exp->ts = ts->proto_type.ret;
             params = arg_infos_from_arg_types(ts->proto_type.args);
+            params_owned = 1;
         } else if (ts->kind == TYPE_KLASS) {
             Symbol *_sym = get_symbol_by_id(ts->sym_id);
             if (!_sym) {
@@ -2526,11 +2562,13 @@ static void parse_call(ParserState *ps, Expr *exp)
                 if (!tp_args) {
                     kl_error(lhs->loc, "failed to infer type parameters for class '%s'.",
                              cls_sym->name);
+                    if (params_owned) free_temp_params(params);
                     return;
                 }
 
                 if (!check_inferred_bounds(&cls_sym->tps, tp_args, lhs->loc, ps)) {
                     vector_destroy(tp_args);
+                    if (params_owned) free_temp_params(params);
                     return;
                 }
 
@@ -2607,6 +2645,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             if (!_tp_args) {
                 kl_error(lhs->loc, "failed to infer type parameters for function '%s'.",
                          fn_sym->name);
+                if (params_owned) free_temp_params(params);
                 return;
             }
 
@@ -2616,20 +2655,30 @@ static void parse_call(ParserState *ps, Expr *exp)
                 log_type_spec(_tp_arg);
             }
             params = get_func_real_params(fn_sym, _tp_args);
+            params_owned = 1;
             exp->ts = get_func_real_ret(fn_sym, _tp_args);
             vector_destroy(_tp_args);
         } else if (vector_size(&fn_sym->tps) > 0) {
             // function has type parameters, do inference from call arguments
             Vector *_tp_args = lhs->tp_args;
+            int inferred = 0;
 
             if (!_tp_args) {
                 log_info(
                     "function '%s' has type parameters, try to infer them from call arguments.",
                     fn_sym->name);
                 _tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
-                if (!_tp_args) return;
+                if (!_tp_args) {
+                    if (params_owned) free_temp_params(params);
+                    return;
+                }
+                inferred = 1;
 
-                if (!check_inferred_bounds(&fn_sym->tps, _tp_args, lhs->loc, ps)) return;
+                if (!check_inferred_bounds(&fn_sym->tps, _tp_args, lhs->loc, ps)) {
+                    vector_destroy(_tp_args);
+                    if (params_owned) free_temp_params(params);
+                    return;
+                }
             }
 
             Symbol *_fn_sym = find_or_add_func_instance(fn_sym, _tp_args, ps->pm->stbl, ps);
@@ -2647,8 +2696,9 @@ static void parse_call(ParserState *ps, Expr *exp)
                 lhs->ts = fn_inst_sym->ts;
                 // type args with type variables (a call in a generic body): kept on the call, so
                 // that a specialized clone of the body can route it with concrete type args
-                if (tps_are_generic(_tp_args)) exp->tp_args = _tp_args;
+                if (tps_are_generic(_tp_args)) exp->tp_args = type_spec_vec_copy(_tp_args);
             }
+            if (inferred) vector_destroy(_tp_args);
         } else {
             if (lhs->ts->kind == TYPE_OPTIONAL) {
                 log_info("call lhs is optional of proto.");
@@ -2674,6 +2724,7 @@ static void parse_call(ParserState *ps, Expr *exp)
         KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
         if (origin->kind == SYM_TRAIT) {
             kl_error(lhs->loc, "trait '%s' cannot be instantiated.", origin->name);
+            if (params_owned) free_temp_params(params);
             return;
         }
 
@@ -2681,6 +2732,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             if (!stbl_get(origin->stbl, "__init__")) {
                 kl_error(lhs->loc, "class '%s' is external, but has no public '__init__()'.",
                          origin->name);
+                if (params_owned) free_temp_params(params);
                 return;
             }
             inst_sym->flags |= SYM_FLAGS_EXT;
@@ -2697,6 +2749,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 kl_error(lhs->loc,
                          "tuple instance expects %d type arguments, but %d were provided.",
                          vector_size(inst_sym->tp_args), vector_size(call->args));
+                if (params_owned) free_temp_params(params);
                 return;
             }
 
@@ -2707,6 +2760,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                     kl_error(arg->loc,
                              "tuple instance argument type is not compatible with "
                              "specialized type parameter.");
+                    if (params_owned) free_temp_params(params);
                     return;
                 }
             }
@@ -2731,7 +2785,10 @@ static void parse_call(ParserState *ps, Expr *exp)
 
     check_call_args(params, call->args, ps, lhs->loc);
 
-    if (ps->errors > 0) return;
+    if (ps->errors > 0) {
+        if (params_owned) free_temp_params(params);
+        return;
+    }
 
     // handle valist & default parameters for caller
     if (handle_valist_and_dfl_args(params, call)) {
@@ -2742,9 +2799,13 @@ static void parse_call(ParserState *ps, Expr *exp)
             if (!arg) continue;
             arg->ctx = EXPR_CTX_LOAD;
             parser_visit_expr(ps, arg);
-            if (!arg->ts) return;
+            if (!arg->ts) {
+                if (params_owned) free_temp_params(params);
+                return;
+            }
         }
     }
+    if (params_owned) free_temp_params(params);
     log_info("call expression type is:");
     log_type_spec(exp->ts);
     call->done = 1;
@@ -3793,7 +3854,8 @@ static char *get_binary_op_str(BiOpKind op)
  * The result type of `-x` / `~x` on a number: the return type of its `__neg__` / `__bitnot__`
  * in `std/builtin/number.kl`, e.g. `int8.__neg__() int64`, `uint64.__neg__() uint64`.
  */
-static TypeSpec *number_unary_ret(ParserState *ps, UnaryExpr *unary, TypeSpec *ts, char *op_name, char *op_str)
+static TypeSpec *number_unary_ret(ParserState *ps, UnaryExpr *unary, TypeSpec *ts, char *op_name,
+                                  char *op_str)
 {
     Symbol *sym = get_symbol_by_id(ts->sym_id);
     FuncSymbol *fn = NULL;

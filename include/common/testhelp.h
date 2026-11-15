@@ -39,12 +39,19 @@
 #ifndef __TESTHELP_H
 #define __TESTHELP_H
 
+#include <stdio.h>  // IWYU pragma: export
+#include <stdlib.h> // IWYU pragma: export
+
 int __failed_tests = 0;
 int __test_num = 0;
+
+// clang-format off
+
 #define test_cond(descr,_c) do { \
     __test_num++; printf("%d - %s: ", __test_num, descr); \
     if(_c) printf("PASSED\n"); else {printf("FAILED\n"); __failed_tests++;} \
 } while(0);
+
 #define test_report() do { \
     printf("%d tests, %d passed, %d failed\n", __test_num, \
                     __test_num-__failed_tests, __failed_tests); \
@@ -53,5 +60,7 @@ int __test_num = 0;
         exit(1); \
     } \
 } while(0);
+
+// clang-format on
 
 #endif

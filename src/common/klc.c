@@ -235,7 +235,8 @@ static uint16_t __add_bytes(KlcFile *klc, char *s, int len, int type)
         KlcConst *item = mm_alloc_obj(item);
         item->type = KLC_CONST_BYTES;
         item->len = len;
-        item->sval = s;
+        /* callers borrow the string (AST literal / mach pool); the const owns a copy */
+        item->sval = str_ndup(s, len);
         idx = __append(klc, type, item);
     }
     return idx;
@@ -1898,6 +1899,23 @@ static void fini_consts(Vector *vec)
     KlcConst *item;
     vector_foreach(item, vec) {
         if (!item) continue;
+        switch (item->type) {
+            case KLC_CONST_BYTES:
+                mm_free(item->sval);
+                break;
+            case KLC_CONST_SHORT_TUPLE:
+            case KLC_CONST_SHORT_LIST:
+            case KLC_CONST_TUPLE:
+            case KLC_CONST_LIST:
+            case KLC_CONST_DICT:
+            case KLC_CONST_RANGE:
+            case KLC_CONST_SLICE:
+                /* elements are other consts in this pool, freed by this loop */
+                vector_destroy(item->val);
+                break;
+            default:
+                break;
+        }
         mm_free(item);
     }
 
@@ -1973,6 +1991,14 @@ static void fini_klass(KlcKlass *kls)
     vector_fini(&kls->bases);
     vector_fini(&kls->pip);
     vector_fini(&kls->lro);
+
+    KlcIntfEntry *intf;
+    vector_foreach(intf, &kls->intf_table) {
+        if (!intf) continue;
+        vector_fini(&intf->methods);
+        vector_fini(&intf->parents);
+        mm_free(intf);
+    }
     vector_fini(&kls->intf_table);
 
     KlcVar *field;
