@@ -1,0 +1,118 @@
+// RUN: koala --test %s
+
+import "std/gc"
+import "std/ut"
+
+// gc.get_count() returns (count, normal, perm).
+//
+// A tuple is two blocks in the normal generation: the object and its storage.
+// An empty tuple has no storage, and a slice with step 1 shares the storage of
+// its source tuple, so each of them is one block.
+//
+// gc.get_count() itself returns a new tuple, which is allocated after the
+// counters are read, so it shows up in the next gc.get_count().
+// Only allocation is tested here, there is no collection.
+
+func make(i int) (int, int) {
+    return (i, i + 1)
+}
+
+@test
+func test_get_count() {
+    let (c0, n0, p0) = gc.get_count()
+    let (c1, n1, p1) = gc.get_count()
+    // the tuple returned by the first get_count()
+    ut.assert_eq(c1 - c0, 2)
+    ut.assert_eq(n1 - n0, 2)
+    ut.assert_eq(p1, p0)
+}
+
+@test
+func test_get_count_placeholder() {
+    // '_' binds nothing
+    let (_, n0, _) = gc.get_count()
+    let (_, n1, _) = gc.get_count()
+    ut.assert_eq(n1 - n0, 2)
+}
+
+@test
+func test_get_count_typed() {
+    let (c0 int, n0 int, _) = gc.get_count()
+    let (c1 int, n1 int, _) = gc.get_count()
+    ut.assert_eq(c1 - c0, n1 - n0)
+}
+
+@test
+func test_get_count_var() {
+    var (c0, _, _) = gc.get_count()
+    c0 = c0 + 2
+    let (c1, _, _) = gc.get_count()
+    ut.assert_eq(c1, c0)
+}
+
+@test
+func test_tuple_alloc() {
+    let (c0, n0, p0) = gc.get_count()
+    let a = make(1)
+    let b = make(2)
+    let c = make(3)
+    let (c1, n1, p1) = gc.get_count()
+    // 3 tuples + the tuple returned by the first get_count(), 2 blocks each
+    ut.assert_eq(c1 - c0, 8)
+    ut.assert_eq(n1 - n0, 8)
+    ut.assert_eq(p1, p0)
+    ut.assert_eq(a.len() + b.len() + c.len(), 6)
+}
+
+@test
+func test_tuple_alloc_loop() {
+    let (c0, _, _) = gc.get_count()
+    var i = 0
+    var sum = 0
+    while i < 100 {
+        let t = make(i)
+        sum += t[1]
+        i += 1
+    }
+    let (c1, _, _) = gc.get_count()
+    ut.assert_eq(c1 - c0, 202)
+    ut.assert_eq(sum, 5050)
+}
+
+@test
+func test_empty_tuple() {
+    let t = make(1)
+    let (c0, _, _) = gc.get_count()
+    let e = t[2:]
+    let (c1, _, _) = gc.get_count()
+    // the empty tuple has no storage
+    ut.assert_eq(c1 - c0, 1 + 2)
+    ut.assert_eq(e.len(), 0)
+}
+
+@test
+func test_slice_shares_storage() {
+    let t = make(1)
+    let (c0, _, _) = gc.get_count()
+    let s = t[1:]
+    let (c1, _, _) = gc.get_count()
+    // the slice is an object sharing the storage of t
+    ut.assert_eq(c1 - c0, 1 + 2)
+    ut.assert_eq(s.len(), 1)
+    ut.assert_eq(s[0], 2)
+}
+
+@test
+func test_slice_step_copies() {
+    let x = make(1)
+    let y = make(3)
+    let t = (x[0], x[1], y[0], y[1])
+    let (c0, _, _) = gc.get_count()
+    let s = t[::2]
+    let (c1, _, _) = gc.get_count()
+    // a slice with step 2 copies its elements into a new storage
+    ut.assert_eq(c1 - c0, 2 + 2)
+    ut.assert_eq(s.len(), 2)
+    ut.assert_eq(s[0], 1)
+    ut.assert_eq(s[1], 3)
+}

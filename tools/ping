@@ -15,11 +15,11 @@ import "koala/icmp"
 
 func main() {
     let args = sys.args()
-    if args.len() < 1 {
+    if args.len() < 2 {
         print("usage: ping <host>")
         return
     }
-    let host = args[0]
+    let host = args[1]
 
     let rr = so.resolve(host)
     if rr.status() != so.DNS_OK || rr.addrs().len() == 0 {

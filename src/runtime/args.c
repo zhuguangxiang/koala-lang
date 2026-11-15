@@ -22,13 +22,17 @@ KoalaOptions *kl_get_cmd_opt(void) { return &kl_cmd_opt; }
 static void print_usage(const char *prog)
 {
     printf(
-        "\nUsage: %s [<options>] <package>|<file.kl>|<file.klc>\n"
+        "\nUsage: %s [<options>] <package>|<file.kl>|<file.klc>|- [args]\n"
+        "       %s [<options>] -e <code> [args]\n"
         "\n"
         "Options:\n"
+        "  -                    Read the program from stdin\n"
+        "  -e <code>            Run <code> as the program\n"
         "  -c                   Compile only (supports .kl file or directory as module)\n"
         "  -o <file>            Output .klc file\n"
         "  --ssa                Enable SSA construction stage.\n"
         "  --no-inline          Do not inline functions (inlined by default).\n"
+        "  --no-jit             Run in the interpreter only (JIT enabled by default).\n"
         "  --domtree            Build the dominator tree.\n"
         "  --unroll             Unroll small counted loops (needs --domtree).\n"
         "  --recursive-self-inline  Inline direct self-recursive calls (needs opt).\n"
@@ -53,7 +57,7 @@ static void print_usage(const char *prog)
         "  --test               Enable test mode.\n"
         "  -v, --version        Show version information\n"
         "  -h, --help           Show this help message\n",
-        prog);
+        prog, prog);
 
     printf(
         "\nEnvironment variables:\n"
@@ -99,6 +103,9 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
             case 'c':
                 opt->compile_only = 1;
                 break;
+            case 'e':
+                opt->eval_code = optarg;
+                break;
             case 'o':
                 opt->output = optarg;
                 break;
@@ -142,6 +149,9 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
             case 11:
                 opt->enable_recursive_self_inline = 1;
                 break;
+            case 12:
+                opt->disable_jit = 1;
+                break;
             default:
                 return -1;
         }
@@ -155,6 +165,8 @@ static int _parse_args(int argc, char *argv[], const char *optstring,
  * Layout:
  *
  *   koala [VM options] <script.kl> [script args] [++ VM options]
+ *   koala [VM options] - [script args] [++ VM options]        (stdin)
+ *   koala [VM options] -e <code> [script args] [++ VM options]
  *
  * - Stage 1 parses VM options that appear before the script path.
  *   The "+" prefix stops getopt_long at the first non-option, so the
@@ -203,6 +215,7 @@ int kl_parse_args(int argc, char *argv[])
         { "domtree", no_argument, 0, 9 },
         { "unroll", no_argument, 0, 10 },
         { "recursive-self-inline", no_argument, 0, 11 },
+        { "no-jit", no_argument, 0, 12 },
         { 0, 0, 0, 0 },
     };
 
@@ -213,24 +226,36 @@ int kl_parse_args(int argc, char *argv[])
      * STAGE 1: Parse VM options before the script path.
      * The "+" prefix enforces POSIX mode, stopping right at the script path.
      */
-    int res = _parse_args(argc, argv, "+co:hv", long_opts, opt);
+    int res = _parse_args(argc, argv, "+ce:o:hv", long_opts, opt);
     if (res != 0) return res;
 
-    if (optind >= argc) {
-        print_usage(argv[0]);
-        return -1;
+    /*
+     * With -e there is no script path: the code is the program and every
+     * following non-option is its argument. Otherwise the first non-option
+     * is the script path ("-" for stdin).
+     */
+    const char *prog_name;
+    int args_idx;
+    if (opt->eval_code) {
+        opt->input = NULL;
+        prog_name = "-e";
+        args_idx = optind;
+    } else {
+        if (optind >= argc) {
+            print_usage(argv[0]);
+            return -1;
+        }
+        opt->input = argv[optind];
+        prog_name = argv[optind];
+        args_idx = optind + 1;
     }
-
-    /* The first non-option is the script path. */
-    int script_idx = optind;
-    opt->input = argv[script_idx];
 
     /*
      * STAGE 2: Locate the "++" delimiter after the script path.
      * Anything before it belongs to the script.
      */
     int delimiter_idx = -1;
-    for (int i = script_idx + 1; i < argc; i++) {
+    for (int i = args_idx; i < argc; i++) {
         if (strcmp(argv[i], "++") == 0) {
             delimiter_idx = i;
             break;
@@ -243,14 +268,18 @@ int kl_parse_args(int argc, char *argv[])
      * Do this before STAGE 4, because STAGE 4 uses plain "co:hv" which
      * permutes argv in place; reading argv after STAGE 4 would see a
      * reordered array. Copying first keeps the script's argv stable.
+     *
+     * As in Python, script_argv[0] is the script path, "-" for stdin, or
+     * "-e" for -e code.
      */
     int script_end = (delimiter_idx != -1) ? delimiter_idx : argc;
-    int script_argc = script_end - script_idx;
+    int script_argc = script_end - args_idx + 1;
     char **script_argv = mm_alloc(script_argc * sizeof(char *));
     ASSERT(script_argv);
 
-    for (int i = 0; i < script_argc; i++) {
-        script_argv[i] = argv[script_idx + i];
+    script_argv[0] = (char *)prog_name;
+    for (int i = 1; i < script_argc; i++) {
+        script_argv[i] = argv[args_idx + i - 1];
     }
 
     /*
@@ -273,13 +302,7 @@ int kl_parse_args(int argc, char *argv[])
         }
     }
 
-    /*
-     * Hand the copied script args to the runtime.
-     *
-     * script_argv[0] is the script path itself; sys.args() in the
-     * runtime is expected to strip it, matching the previous behavior
-     * where opt->argv pointed directly at &argv[script_idx].
-     */
+    /* Hand the copied script args to the runtime; sys.args() returns all of them. */
     opt->argc = script_argc;
     opt->argv = script_argv;
 

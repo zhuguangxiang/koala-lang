@@ -16,7 +16,7 @@ static TValue os_args(TValue *self, TValue *args, int nargs)
     Object *list = kl_new_list();
 
     KoalaOptions *opt = kl_get_cmd_opt();
-    for (int i = 1; i < opt->argc; i++) {
+    for (int i = 0; i < opt->argc; i++) {
         TValue s = kl_val_str(opt->argv[i]);
         kl_list_append(list, s);
     }

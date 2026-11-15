@@ -188,7 +188,7 @@ print(splits[0])
 import "std/sys"
 let args = sys.args()
 print(args)
-// CHECK: []
+// CHECK: [{{.*}}test_misc_4.kl]
 
 print(sys.stdin)
 // CHECK: <std/io.BufReader object at 0x{{[0-9a-fA-F]+}}>

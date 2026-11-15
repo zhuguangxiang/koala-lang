@@ -4458,7 +4458,7 @@ static void init_parser_state(ParserState *ps, char *filename)
     INIT_BUF(ps->sbuf);
 }
 
-ParserState *new_parser_state(ParserModule *pm, char *path)
+ParserState *new_parser_state(ParserModule *pm, char *path, char *display_name)
 {
     FILE *in = fopen(path, "r");
     if (in == NULL) {
@@ -4467,7 +4467,7 @@ ParserState *new_parser_state(ParserModule *pm, char *path)
     }
 
     ParserState *ps = mm_alloc_obj(ps);
-    init_parser_state(ps, path);
+    init_parser_state(ps, display_name ? display_name : path);
     ps->pm = pm;
     vector_push_back(&pm->pss, &ps);
 

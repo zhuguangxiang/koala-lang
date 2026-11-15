@@ -260,10 +260,10 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
 
     if (IS_TUPLE(ob)) {
         TupleObject *other = (TupleObject *)ob;
-        int m = other->size;
+        int m = TUPLE_SIZE(other);
         if (m <= 0) return no_value;
         expand_capacity(list, list->end + m);
-        memcpy(list->array + list->end, other->array, sizeof(TValue) * m);
+        memcpy(list->array + list->end, TUPLE_ITEMS(other), sizeof(TValue) * m);
         list->end += m;
         return no_value;
     }
@@ -490,9 +490,9 @@ static TValue _list_set_slice(TValue *self, TValue *args, int nargs)
 
     if (IS_TUPLE(iter)) {
         TupleObject *rhs = (TupleObject *)iter;
-        int64_t m = rhs->size;
+        int64_t m = TUPLE_SIZE(rhs);
         int64_t count = MIN(m, slots);
-        TValue *src_base = rhs->array;
+        TValue *src_base = TUPLE_ITEMS(rhs);
 
         if (step == 1) {
             if (count) memmove(dst_base + start, src_base, count * sizeof(TValue));

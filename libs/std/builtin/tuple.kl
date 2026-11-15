@@ -22,8 +22,7 @@ pub class tuple[infer T] : Sequence[T] {
     pub func len() int {}
 
     /// Return true if the tuple is empty, false otherwise.
-    @native
-    pub func empty() bool {}
+    pub func empty() bool = (self.len() == 0)
 
     /// Get the element at the specified index.
     /// The element type is inferred from the usage context.
@@ -32,9 +31,10 @@ pub class tuple[infer T] : Sequence[T] {
     @native
     pub func __getitem__[infer U](index int) U {}
 
-    /// Return the sub-tuple defined by the slice.
+    /// Return a read-only view of the elements defined by the slice.
+    /// A slice with step 1 shares the elements of the tuple.
     @native
-    pub func __getslice__(s slice) tuple[T] {}
+    pub func __getslice__(s slice) Sequence[T] {}
 
     /// Return true if the tuple contains the specified value `v`.
     @native

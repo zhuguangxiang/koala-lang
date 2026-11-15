@@ -115,9 +115,11 @@ static char *make_temp_klc(void)
     return path;
 }
 
-static int compile(const char *input, const char *output, KoalaOptions *opt)
+static int compile(const char *input, const char *display_name, const char *output,
+                   KoalaOptions *opt)
 {
     char buf_2[160];
+    char buf_name[64];
     char *argv[24];
     int n = 0;
 
@@ -168,6 +170,11 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
         char pkg_arg[1024 + 16];
         snprintf(pkg_arg, sizeof(pkg_arg), "--package-name=%s", opt->pkg_name);
         argv[n++] = pkg_arg;
+    }
+
+    if (display_name) {
+        snprintf(buf_name, sizeof(buf_name), "--display-name=%s", display_name);
+        argv[n++] = buf_name;
     }
 
     argv[n++] = (char *)input;
@@ -248,6 +255,56 @@ static int file_exists(const char *path)
     return stat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
+/*
+ * Write the program given by -e <code>, or read from stdin for "-", to a
+ * temporary .kl file so it compiles like any other script. Returns the
+ * malloc'd path, or NULL on failure.
+ */
+static char *make_temp_source(const char *code)
+{
+    mkdir("/tmp/koala", 0700);
+
+    char tmpl[] = "/tmp/koala/src-XXXXXX.kl";
+    int fd = mkstemps(tmpl, 3);
+    if (fd == -1) return NULL;
+
+    FILE *out = fdopen(fd, "w");
+    if (!out) {
+        close(fd);
+        remove(tmpl);
+        return NULL;
+    }
+
+    int ok = 1;
+    if (code) {
+        ok = fputs(code, out) >= 0 && fputc('\n', out) != EOF;
+    } else {
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) {
+            if (fwrite(buf, 1, n, out) != n) {
+                ok = 0;
+                break;
+            }
+        }
+        if (ferror(stdin)) ok = 0;
+    }
+
+    if (fclose(out) != 0) ok = 0;
+    if (!ok) {
+        remove(tmpl);
+        return NULL;
+    }
+    return strdup(tmpl);
+}
+
+static void remove_temp_source(char *path)
+{
+    if (!path) return;
+    remove(path);
+    free(path);
+}
+
 int main(int argc, char *argv[])
 {
     // double t0 = now_ms();
@@ -259,6 +316,24 @@ int main(int argc, char *argv[])
     KoalaOptions *opt = kl_get_cmd_opt();
 
     const char *input = opt->input;
+
+    // -e <code> or "-" (stdin): the program has no file of its own; like
+    // Python, errors and tracebacks name it "<string>" or "<stdin>".
+    char *temp_src = NULL;
+    const char *display_name = NULL;
+    if (opt->eval_code || !strcmp(input, "-")) {
+        if (opt->compile_only) {
+            fprintf(stderr, "koala: -c cannot be used with -e or -\n");
+            return -1;
+        }
+        temp_src = make_temp_source(opt->eval_code);
+        if (!temp_src) {
+            fprintf(stderr, "koala: cannot create temp source file\n");
+            return -1;
+        }
+        input = temp_src;
+        display_name = opt->eval_code ? "<string>" : "<stdin>";
+    }
 
     // cache hit: if this is a .klc file, run it directly.
     if (match_suffix(input, ".klc")) {
@@ -277,7 +352,7 @@ int main(int argc, char *argv[])
     // if the sibling .klc already exists, run it directly.
     // No freshness check on purpose: input may be a directory, whose mtime
     // does not reflect source content changes.
-    if (!opt->compile_only) {
+    if (!opt->compile_only && !temp_src) {
         char *klc_file = normalize_input(input);
         if (klc_file) {
             if (file_exists(klc_file)) {
@@ -303,17 +378,19 @@ int main(int argc, char *argv[])
             temp = make_temp_klc();
             if (!temp) {
                 fprintf(stderr, "koala: cannot create temp file\n");
+                remove_temp_source(temp_src);
                 return -1;
             }
             out = temp;
         }
     }
 
-    if (compile(input, out, opt)) {
+    if (compile(input, display_name, out, opt)) {
         if (temp) {
             remove(temp);
             free(temp);
         }
+        remove_temp_source(temp_src);
         fprintf(stderr, "koala: compilation failed\n");
         return -1;
     }
@@ -328,6 +405,7 @@ int main(int argc, char *argv[])
         remove(temp);
         free(temp);
     }
+    remove_temp_source(temp_src);
 
     return ret;
 }

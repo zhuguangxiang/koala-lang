@@ -12,20 +12,26 @@
 extern "C" {
 #endif
 
+/*
+ * The object and its elements are separate gc blocks, so a slice shares the
+ * elements of its source tuple.
+ */
 typedef struct _TupleObject {
     OBJECT_HEAD
-    size_t size;
-    TValue array[0];
+    /* maybe shared by slices */
+    Storage storage;
+    /* elements are storage.values[start, end) */
+    size_t start;
+    size_t end;
 } TupleObject;
 
 extern TypeObject tuple_type;
 #define IS_TUPLE(ob) IS_TYPE((ob), &tuple_type)
 
-#define TUPLE_ITEMS(x) (((TupleObject *)(x))->array)
-#define TUPLE_SIZE(x)  (((TupleObject *)(x))->size)
+#define TUPLE_ITEMS(x) (((TupleObject *)(x))->storage.values + ((TupleObject *)(x))->start)
+#define TUPLE_SIZE(x)  (((TupleObject *)(x))->end - ((TupleObject *)(x))->start)
 
 Object *kl_new_tuple(TValue *items, int count);
-void kl_free_tuple(Object *obj);
 
 #ifdef __cplusplus
 }

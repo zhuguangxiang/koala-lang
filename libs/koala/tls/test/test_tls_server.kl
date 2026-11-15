@@ -34,7 +34,7 @@ let ECHO = "import \"std/sys\"\n" +
     "import \"koala/tls\"\n" +
     "func main() {\n" +
     "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
-    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0], opts)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[1], opts)\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
     "    c.set_read_timeout(5000)\n" +
     "    c.write_str(\"ping\")\n" +
@@ -49,7 +49,7 @@ let ECHO = "import \"std/sys\"\n" +
 let VERIFY = "import \"std/sys\"\n" +
     "import \"koala/tls\"\n" +
     "func main() {\n" +
-    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0])\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[1])\n" +
     "    if c == nil { print(\"REJECTED\"); return }\n" +
     "    print(\"ACCEPTED\")\n" +
     "    c.close()\n" +
@@ -59,7 +59,7 @@ let VERIFY = "import \"std/sys\"\n" +
 let SILENT = "import \"std/sys\"\n" +
     "import \"std/socket\" as so\n" +
     "func main() {\n" +
-    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[0], so.SocketTypeSpec.tcp())\n" +
+    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[1], so.SocketTypeSpec.tcp())\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
     "    c.set_read_timeout(5000)\n" +
     "    c.read(bytes(16))\n" +
@@ -71,7 +71,7 @@ let SILENT = "import \"std/sys\"\n" +
 let PLAINTEXT = "import \"std/sys\"\n" +
     "import \"std/socket\" as so\n" +
     "func main() {\n" +
-    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[0], so.SocketTypeSpec.tcp())\n" +
+    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[1], so.SocketTypeSpec.tcp())\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
     "    c.set_read_timeout(5000)\n" +
     "    c.write_str(\"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")\n" +
@@ -85,7 +85,7 @@ let LARGE = "import \"std/sys\"\n" +
     "import \"koala/tls\"\n" +
     "func main() {\n" +
     "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
-    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0], opts)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[1], opts)\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
     "    c.set_read_timeout(10000)\n" +
     "    var chunk = \"\"\n" +
@@ -106,7 +106,7 @@ let SILENT_TLS = "import \"std/sys\"\n" +
     "import \"koala/tls\"\n" +
     "func main() {\n" +
     "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
-    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[0], opts)\n" +
+    "    let c = tls.dial(\"127.0.0.1:\" + sys.args()[1], opts)\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
     "    c.set_read_timeout(5000)\n" +
     "    c.read(bytes(16))\n" +

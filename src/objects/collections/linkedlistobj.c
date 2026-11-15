@@ -484,8 +484,8 @@ static TValue _ll_extend(TValue *self, TValue *args, int nargs)
 
     if (IS_TUPLE(ob)) {
         TupleObject *other = (TupleObject *)ob;
-        for (size_t i = 0; i < other->size; ++i) {
-            ll_append(ll, other->array[i]);
+        for (size_t i = 0; i < TUPLE_SIZE(other); ++i) {
+            ll_append(ll, TUPLE_ITEMS(other)[i]);
         }
         return no_value;
     }

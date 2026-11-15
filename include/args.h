@@ -20,12 +20,14 @@ typedef struct KoalaOptions {
     int test_mode;                    // --test
     int strip_lineinfo;               // --strip-lineinfo
     int disable_inline;               // --no-inline
+    int disable_jit;                  // --no-jit
     int enable_domtree;               // --domtree
     int enable_unroll;                // --unroll
     int enable_recursive_self_inline; // --recursive-self-inline
     char *dump;                       // --dump=<list>
     const char *output;               // -o <file>
-    const char *input;                // input file
+    const char *input;                // input file, "-" for stdin
+    const char *eval_code;            // -e <code>
     char pkg_name[MAX_PATH_LEN];      // --package-name=<name>
     char argc;
     char **argv;

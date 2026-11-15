@@ -19,7 +19,7 @@ output and its errors read the same as a Python program's.
 | [`add_argument`](#cli-add_argument) | Declare a positional or an option. |
 | [`add_subparsers`](#cli-subparsers) | Declare subcommands -> `SubParsers`. |
 | [`SubParsers`](#cli-subparsers) | `add_parser(name, ...)` -> the command's `ArgumentParser`. |
-| [`parse_args`](#cli-parse_args) | Parse `sys.args()`, or a list; print and exit on `-h` or an error. |
+| [`parse_args`](#cli-parse_args) | Parse `sys.args()[1:]`, or a list; print and exit on `-h` or an error. |
 | [`try_parse_args`](#cli-parse_args) | Parse without exiting; nil instead. |
 | [`Namespace`](#cli-namespace) | The parsed values, read with `get(dest)`. |
 | `REMAINDER` | `nargs=cli.REMAINDER`: the rest of the command line, as it is. |
@@ -37,7 +37,7 @@ output and its errors read the same as a Python program's.
 | `add_argument_group`, `add_mutually_exclusive_group`, `parents=`, `fromfile_prefix_chars`, `exit_on_error=` | not provided | Not implemented yet; `try_parse_args` covers `exit_on_error=False`. |
 | `parse_known_args`, `set_defaults`, `type=` a function | not provided | No function values; the rest not implemented yet. |
 | a long usage line is wrapped | not wrapped | Not implemented yet. |
-| `prog` defaults to `sys.argv[0]` | defaults to `"prog"` | Koala's `sys.args()` holds the arguments only; pass `prog=`. |
+| `prog` defaults to `sys.argv[0]` | defaults to `"prog"` | Not implemented yet; pass `prog=`. |
 | `ArgumentParser(exit_on_error=False)` raises `ArgumentError` | `try_parse_args` returns nil; `exit_status()` / `exit_message()` | Koala has no exceptions. |
 | a bad declaration raises `ValueError` / `ArgumentError` | panics, `cli: ...` | A bad declaration is a bug in the program. |
 
@@ -60,7 +60,7 @@ output and its errors read the same as a Python program's.
 |--------|--------|-------|
 | `add_argument(...)` | `add_argument` | See below. |
 | `add_subparsers(dest, required, help, metavar) -> SubParsers` | `add_subparsers` | Once per parser. |
-| `parse_args(args = nil) -> Namespace` | `parse_args` | `args` defaults to `sys.args()`. |
+| `parse_args(args = nil) -> Namespace` | `parse_args` | `args` defaults to `sys.args()[1:]`, as in Python. |
 | `try_parse_args(args = nil) -> Namespace?` | - | `parse_args` without exiting. |
 | `exit_status() -> int`, `exit_message() -> str` | - | Why the last `try_parse_args` returned nil. |
 | `format_usage() -> str`, `format_help() -> str` | same | Ending with a newline. |

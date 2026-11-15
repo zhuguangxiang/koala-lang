@@ -117,7 +117,7 @@ pub class ArgumentParser {
         return sp
     }
 
-    /// Parse `args`, `sys.args()` by default. On `-h` / `--version` print
+    /// Parse `args`, `sys.args()[1:]` by default. On `-h` / `--version` print
     /// and exit 0; on an error print the usage and the error to stderr
     /// and exit 2.
     pub func parse_args(args list[str]? = nil) Namespace {
@@ -143,7 +143,7 @@ pub class ArgumentParser {
         _exit_status = 0
         _exit_message = ""
 
-        let argv = args ?? sys.args()
+        let argv = args ?? sys.args()[1:]
         let ns = Namespace()
         let ex = _parse(argv, ns)
         if let e = ex {

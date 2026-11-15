@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include "args.h"
 #include "emit.h"
 #include "modobj.h"
 #include "opcode_only.h"
@@ -307,7 +308,7 @@ int kl_jit_enabled(void)
     static int cached = -1;
     if (cached < 0) {
         const char *v = getenv("KOALA_JIT");
-        cached = !(v && v[0] == '0');
+        cached = !kl_get_cmd_opt()->disable_jit && !(v && v[0] == '0');
     }
     return cached;
 }

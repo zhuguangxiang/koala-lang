@@ -20,6 +20,8 @@
 
 static char output[MAX_PATH_LEN + 8];
 static char input[MAX_PATH_LEN];
+// name shown in errors and line info instead of the input path, e.g. "<stdin>"
+static char *display_name;
 
 CompileOptions cmd_opt;
 
@@ -60,6 +62,7 @@ static void usage(void)
         "                           itable    - dump interface table\n"
         "                           all       - dump all stages\n"
         "  --package-name       Specify the package name.\n"
+        "  --display-name=<name> Name of a single source file in errors and line info.\n"
         "  --strip-lineinfo     Strip line information from the output.\n"
         "  -v, --version        Print koalac version.\n"
         "  -h, --help           Print this message.\n"
@@ -188,6 +191,7 @@ static void parse_command(int argc, char *argv[])
         { "domtree", no_argument, 0, 17 },
         { "unroll", no_argument, 0, 18 },
         { "recursive-self-inline", no_argument, 0, 19 },
+        { "display-name", required_argument, 0, 20 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -290,6 +294,10 @@ static void parse_command(int argc, char *argv[])
 
             case 19:
                 cmd_opt.enable_recursive_self_inline = 1;
+                break;
+
+            case 20:
+                display_name = optarg;
                 break;
 
             case 'o': {
@@ -459,7 +467,7 @@ static void build_dir(char *path, ParserModule *pm)
     vector_foreach(filename, &filenames) {
         snprintf(fullpath, sizeof(fullpath) - 1, "%s/%s", prefix, filename);
         if (lstat(fullpath, &sb) || !S_ISREG(sb.st_mode)) continue;
-        new_parser_state(pm, fullpath);
+        new_parser_state(pm, fullpath, NULL);
     }
 
     mm_free(prefix);
@@ -509,7 +517,7 @@ static int compile(ParserModule *pm)
             }
         }
         // printf("Compiling single source file: %s -> %s\n", input, output);
-        new_parser_state(pm, input);
+        new_parser_state(pm, input, display_name);
     } else {
         // package directory
         if (check_dir(input)) return -1;

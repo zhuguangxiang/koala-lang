@@ -1,0 +1,33 @@
+// RUN: env KOALA_GC_MAX=1536K koala %s | filecheck %s
+// RUN: env KOALA_GC_DEBUG=stats,free koala %s | filecheck --check-prefix=DBG %s
+
+import "std/gc"
+
+// only tuples are allocated by gc yet; get_count() reads the counters before
+// allocating its result, so they are zero
+print(gc.get_count())
+print(gc.used())
+let stats = gc.get_stats()
+print(stats)
+// CHECK: (0, 0, 0)
+// the tuple of get_count() and the variadic tuple of print(): 160B + 128B
+// CHECK-NEXT: 288B
+// CHECK-NEXT: {collections: 0, collected: 0, collected_size: 0B}
+
+print(gc.max())
+// CHECK-NEXT: 1.5MB
+// DBG: 1GB
+
+print(gc.get_debug())
+// CHECK-NEXT: 0
+// DBG-NEXT: 3
+
+gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_FREE)
+print(gc.get_debug())
+// CHECK-NEXT: 3
+// DBG-NEXT: 3
+
+gc.set_debug(0)
+print(gc.get_debug())
+// CHECK-NEXT: 0
+// DBG-NEXT: 0

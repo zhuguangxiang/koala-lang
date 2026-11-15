@@ -26,8 +26,8 @@ from "koala/tls" import Certificate
 let CLIENT = "import \"std/sys\"\n" +
     "import \"koala/tls\"\n" +
     "func main() {\n" +
-    "    let port = sys.args()[0]\n" +
-    "    let mode = sys.args()[1]\n" +
+    "    let port = sys.args()[1]\n" +
+    "    let mode = sys.args()[2]\n" +
     "    let opts = tls.TlsOptions().set_skip_verify(true).set_handshake_timeout_ms(5000)\n" +
     "    let c = tls.dial(\"127.0.0.1:\" + port, opts)\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
@@ -65,7 +65,7 @@ let CLIENT = "import \"std/sys\"\n" +
 let BAD = "import \"std/sys\"\n" +
     "import \"std/socket\" as so\n" +
     "func main() {\n" +
-    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[0], so.SocketTypeSpec.tcp())\n" +
+    "    let c = so.dial(\"127.0.0.1:\" + sys.args()[1], so.SocketTypeSpec.tcp())\n" +
     "    if c == nil { print(\"DIAL-FAIL\"); return }\n" +
     "    c.set_read_timeout(5000)\n" +
     "    c.write_str(\"GET / HTTP/1.1\\r\\nHost: h\\r\\n\\r\\n\")\n" +
@@ -83,11 +83,11 @@ let HTTP_CLIENT = "import \"std/sys\"\n" +
     "from \"koala/http\" import Client, Url\n" +
     "from \"koala/tls\" import TlsOptions\n" +
     "func main() {\n" +
-    "    let mode = sys.args()[1]\n" +
+    "    let mode = sys.args()[2]\n" +
     "    var opts TlsOptions? = nil\n" +
     "    if mode == \"skip\" { opts = TlsOptions().set_skip_verify(true) }\n" +
-    "    if mode == \"ca\" { opts = TlsOptions().set_ca_pem(fs.read_str(sys.args()[2])) }\n" +
-    "    let url = Url.parse(\"https://127.0.0.1:\" + sys.args()[0] + \"/hello\")!\n" +
+    "    if mode == \"ca\" { opts = TlsOptions().set_ca_pem(fs.read_str(sys.args()[3])) }\n" +
+    "    let url = Url.parse(\"https://127.0.0.1:\" + sys.args()[1] + \"/hello\")!\n" +
     "    let r = Client(opts).get(url)\n" +
     "    if r == nil { print(\"NIL\"); return }\n" +
     "    print(str(r.status()) + \" \" + r.body().to_str())\n" +

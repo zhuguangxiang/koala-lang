@@ -395,8 +395,8 @@ static TValue _dq_extend(TValue *self, TValue *args, int nargs)
 
     if (IS_TUPLE(ob)) {
         TupleObject *other = (TupleObject *)ob;
-        for (size_t i = 0; i < other->size; ++i) {
-            dq_push_back(dq, other->array[i]);
+        for (size_t i = 0; i < TUPLE_SIZE(other); ++i) {
+            dq_push_back(dq, TUPLE_ITEMS(other)[i]);
         }
         return no_value;
     }

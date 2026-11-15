@@ -13,11 +13,11 @@ func main() {
 	print([1,2,3].len())
 
 	let lst = sys.args()
-	print(lst, lst[0], lst.len())
+	print(lst, lst[1], lst.len())
 }
 
 // CHECK: 2
 // CHECK: hello
 // CHECK: true
 // CHECK: 3
-// CHECK: [ex2.toml] ex2.toml 1
+// CHECK: [{{.*}}test_valist_for.kl, ex2.toml] ex2.toml 2

@@ -2,8 +2,9 @@ import "std/sys"
 
 func main() {
     let args = sys.args()
-    print("argc=" + str(args.len()))
-    for a in args {
+    print("prog=" + args[0])
+    print("argc=" + str(args.len() - 1))
+    for a in args[1:] {
         print("arg=" + a)
     }
 }

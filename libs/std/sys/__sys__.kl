@@ -26,7 +26,9 @@ pub var stderr = io.BufWriter(os.RawWriter(2))
 pub let path = ["./"]
 
 /// Get the list of command-line arguments passed to the program.
-/// Returns an empty list if no arguments are provided.
+/// As in Python's `sys.argv`, `args()[0]` is the script path ("-" when the
+/// program is read from stdin, "-e" for `koala -e <code>`), followed by the
+/// script's own arguments.
 @native
 pub func args() list[str] {}
 

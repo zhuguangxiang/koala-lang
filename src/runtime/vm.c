@@ -10,6 +10,8 @@
 #include <pthread.h>
 #include "atom.h"
 #include "excobj.h"
+#include "gc.h"
+#include "gcmodule.h"
 #include "log.h"
 #include "mm.h"
 #include "modobj.h"
@@ -97,14 +99,15 @@ void koala_initialize(void)
 {
     /* init logger */
 
-#ifdef DEBUG_TEST
-    init_log(LOG_WARN, NULL, 0);
-#else
-    init_log(LOG_TRACE, NULL, 0);
-#endif
+    /* no-op with NOLOG (debug/release); level by KOALA_LOG_LEVEL */
+    init_log("koala", LOG_TRACE, NULL, 0);
 
     /* init atom string table */
     init_atom();
+
+    /* init garbage collector */
+    gc_init();
+    gc_debug_init();
 
     /* init global module table */
     kl_init_module_stbl();
@@ -117,7 +120,17 @@ void koala_initialize(void)
     load_modules();
 }
 
-void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }
+void koala_finalize(void)
+{
+    /* finalize garbage collector */
+    gc_fini();
+
+    /* finalize atom string table */
+    fini_atom();
+
+    /* finalize logger */
+    fini_log();
+}
 
 #ifdef __cplusplus
 }

@@ -220,7 +220,8 @@ int check_int_to_enum(ParserState *ps, Loc loc, TypeSpec *dst, TypeSpec *src);
 void check_shift_count(ParserState *ps, TypeSpec *lhs_ts, Expr *count);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
 
-ParserState *new_parser_state(ParserModule *pm, char *path);
+/* display_name, if not NULL, replaces path in errors and line info. */
+ParserState *new_parser_state(ParserModule *pm, char *path, char *display_name);
 void free_parser_state(ParserState *ps);
 void kl_parse_ast_klass_meta(ParserState *ps);
 void kl_parse_ast_klass_func_meta(ParserState *ps);

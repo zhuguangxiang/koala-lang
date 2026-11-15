@@ -130,7 +130,7 @@ TValue kl_jit_print(int nargs, uint32_t pc);
 TValue kl_jit_new(TypeObject *tp);
 TValue kl_jit_build_intern(int tag, int count);
 
-/* Runtime switches (env: KOALA_JIT=0 disables, KOALA_JIT_THRESHOLD=<n>). */
+/* Runtime switches (koala --no-jit or env KOALA_JIT=0 disables, KOALA_JIT_THRESHOLD=<n>). */
 int kl_jit_enabled(void);
 uint32_t kl_jit_threshold(void);
 

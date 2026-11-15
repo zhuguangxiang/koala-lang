@@ -560,7 +560,7 @@ opcode**，仅 3 个例外：
 
 | 变量 | 作用 | 默认 |
 | --- | --- | --- |
-| `KOALA_JIT=0` | 关闭 JIT（全部走解释器） | 开启 |
+| `KOALA_JIT=0` | 关闭 JIT（全部走解释器），等同 `koala --no-jit` | 开启 |
 | `KOALA_JIT_THRESHOLD=<n>` | 热度阈值，调用 n 次后编译 | 1 |
 | `KOALA_JIT_TRACE=1` | 开启 trace（见下）：编译成功打印 IR 风格 dump，编译失败/跳过打印 bail 原因 | 关闭 |
 | `KOALA_JIT_STATS=1` | 进程退出时打印 `[jit stats] compiled N, not compiled M` 及按原因（`op NAME`、`op call flg=N` 等）排序的 bail 计数，以及 `[jit stats] code B bytes, P pages, C chunks`（§16） | 关闭 |

@@ -1,0 +1,51 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Interface to the garbage collector, similar to python's gc module.
+///
+/// The collector is always on. Debug output goes to stderr and is independent
+/// of the koala log level; it can also be enabled by the environment variable
+/// `KOALA_GC_DEBUG=stats,free`.
+
+link "koala"
+
+/// Print a summary of each collection.
+pub const DEBUG_STATS = 1
+
+/// Print each block freed by a collection.
+pub const DEBUG_FREE = 2
+
+/// Run a full collection and return the number of freed blocks.
+@native
+pub func collect() int {}
+
+/// Return `(count, normal, perm)`:
+/// - count: allocations minus deallocations since the last collection
+/// - normal: blocks in the normal generation
+/// - perm: blocks in the permanent generation, which are never freed
+@native
+pub func get_count() (int, int, int) {}
+
+/// Return the statistics accumulated over all collections:
+/// `collections`, `collected` blocks and `collected_size` in a readable unit.
+@native
+pub func get_stats() dict[str, str] {}
+
+/// Set the debug flags, a combination of the `DEBUG_*` constants; 0 disables.
+@native
+pub func set_debug(flags int) {}
+
+/// Return the debug flags.
+@native
+pub func get_debug() int {}
+
+/// Return the memory held by the collector, in a readable unit, e.g. `1.5MB`.
+@native
+pub func used() str {}
+
+/// Return the memory limit of the collector, set by `KOALA_GC_MAX`,
+/// in a readable unit, e.g. `512MB`, `1GB`, `1.5KB`.
+@native
+pub func max() str {}

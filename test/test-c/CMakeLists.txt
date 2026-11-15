@@ -46,6 +46,12 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL DebugASAN)
     set_property(GLOBAL APPEND PROPERTY KOALA_C_TEST_TARGETS test_wsdeque_tsan)
 endif()
 
+# gc.c is compiled into the test: libkoala needs symbols of the koala binary.
+add_executable(test_gc test_gc.c ${PROJECT_SOURCE_DIR}/src/runtime/gc.c)
+target_link_libraries(test_gc koala_common m)
+add_test(NAME c_gc COMMAND test_gc)
+set_property(GLOBAL APPEND PROPERTY KOALA_C_TEST_TARGETS test_gc)
+
 add_executable(test_inline_cost test_inline_cost.c)
 target_link_libraries(test_inline_cost parser)
 add_test(NAME c_inline_cost COMMAND test_inline_cost)

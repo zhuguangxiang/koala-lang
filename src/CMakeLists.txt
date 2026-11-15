@@ -66,6 +66,7 @@ set(COMMON_SOURCES
     common/log.c
     common/mm.c
     common/lldq.c
+    common/wsdeque.c
     common/vector.c
     common/ring.c
     common/hashmap.c
@@ -104,6 +105,7 @@ set(KOALA_SHARED_SOURCES
     runtime/format.c
     runtime/slice_adjust.c
     runtime/symtbl.c
+    runtime/gc.c
     runtime/native_libs.c
     runtime/args.c
     runtime/do_cast.c
@@ -112,6 +114,7 @@ set(KOALA_SHARED_SOURCES
     modules/os.c
     modules/time.c
     modules/sys.c
+    modules/gc.c
     modules/math.c
     modules/random.c
     modules/collections.c

@@ -10,13 +10,15 @@
 //   - Stage 3: copy script args (before getopt permutes argv).
 //   - Stage 4: VM options after "++"; unknown options fail.
 //
-// The test script prints one line per script argument:
+// The test script prints sys.args()[0], then one line per script argument:
+//   prog=<sys.args()[0]>
 //   argc=<n>
 //   arg=<value>   (one per arg)
 
 // Case 1: script with no arguments.
 // RUN: %koala %S/inputs/args.kl | filecheck %s --check-prefix=EMPTY
-// EMPTY: argc=0
+// EMPTY: prog={{.*}}inputs/args.kl
+// EMPTY-NEXT: argc=0
 
 // Case 2: VM option before the script path is consumed by the VM.
 // RUN: %koala --dump=code %S/inputs/args.kl | filecheck %s --check-prefix=PRE
@@ -94,3 +96,48 @@
 // EQUALS: argc=2
 // EQUALS-NEXT: arg=--foo=1
 // EQUALS-NEXT: arg=--bar
+
+// Case 16: "-" reads the program from stdin; sys.args()[0] is "-".
+// RUN: cat %S/inputs/args.kl | %koala - x y | filecheck %s --check-prefix=STDIN
+// STDIN: prog=-
+// STDIN-NEXT: argc=2
+// STDIN-NEXT: arg=x
+// STDIN-NEXT: arg=y
+
+// Case 17: "-" with VM options after "++".
+// RUN: cat %S/inputs/args.kl | %koala - x ++ --ssa | filecheck %s --check-prefix=STDINDELIM
+// STDINDELIM: prog=-
+// STDINDELIM-NEXT: argc=1
+// STDINDELIM-NEXT: arg=x
+
+// Case 18: -e runs its code; sys.args()[0] is "-e".
+// RUN: %koala -e 'import "std/sys"; print(sys.args())' a b | filecheck %s --check-prefix=EVAL
+// EVAL: [-e, a, b]
+
+// Case 19: -e code with top-level statements, args before "++" only.
+// RUN: %koala -e 'import "std/sys"; let a = sys.args(); print(a.len(), a[1])' x ++ --ssa | filecheck %s --check-prefix=EVALDELIM
+// EVALDELIM: 2 x
+
+// Case 20: -c cannot be combined with -e.
+// RUN: not %koala -c -e 'print(1)' 2>&1 | filecheck %s --check-prefix=EVALC
+// EVALC: -c cannot be used with -e or -
+
+// Case 21: errors in -e code are reported against "<string>", as in Python.
+// RUN: not %koala -e 'print(1' 2>&1 | filecheck %s --check-prefix=EVALERR
+// EVALERR: <string>:1:7:
+// EVALERR-SAME: expected an expr list or ')'.
+
+// Case 22: tracebacks of a program read from stdin name it "<stdin>".
+// RUN: printf 'let a = [1]\nprint(a[3])\n' | %koala - 2>&1 | filecheck %s --check-prefix=STDINERR
+// STDINERR: File "<stdin>", line 2
+// STDINERR: Error: list index out of range
+
+// Case 23: JIT is on by default; --no-jit, before the script or after "++",
+// runs in the interpreter only, so the JIT compiles nothing.
+// RUN: env KOALA_JIT_STATS=1 %koala -e 'func f(n int) int { return n + 1 }; print(f(1))' 2>&1 | filecheck %s --check-prefix=JITON
+// JITON: 2
+// JITON-NEXT: [jit stats] compiled
+// RUN: env KOALA_JIT_STATS=1 %koala --no-jit -e 'func f(n int) int { return n + 1 }; print(f(1))' 2>&1 | filecheck %s --check-prefix=NOJIT
+// RUN: env KOALA_JIT_STATS=1 %koala -e 'func f(n int) int { return n + 1 }; print(f(1))' ++ --no-jit 2>&1 | filecheck %s --check-prefix=NOJIT
+// NOJIT: 2
+// NOJIT-NOT: jit stats
