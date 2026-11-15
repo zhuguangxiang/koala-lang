@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include "bytesobj.h"
 #include "excobj.h"
+#include "gc.h"
 #include "listobj.h"
 #include "tupleobj.h"
 #include "vector.h"
@@ -282,12 +283,31 @@ static TValue file_sync(TValue *self, TValue *args, int nargs)
     return bool_value(r == 0);
 }
 
+static void file_mark(Object *obj)
+{
+    FileObject *fobj = (FileObject *)obj;
+    gc_mark_value(&fobj->path);
+    gc_mark_value(&fobj->mode);
+}
+
+/* close the fd if close() was never called */
+static void file_free(Object *obj)
+{
+    FileObject *fobj = (FileObject *)obj;
+    if (to_bool(&fobj->closed)) return;
+    close(to_int64(&fobj->fd));
+    fobj->closed = bool_value(1);
+    fobj->fd = int64_value(-1);
+}
+
 static TypeObject file_type = {
     ._type = &type_type,
     ._nfields = 5,
     .name = "File",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(FileObject),
+    ._mark = file_mark,
+    ._free = file_free,
     .methdefs =
         (MethodDef[]){
             { "read", file_read },
@@ -304,7 +324,7 @@ static TypeObject file_type = {
 
 static Object *kl_new_file(TValue path, TValue mode, int fd)
 {
-    FileObject *fobj = mm_alloc_obj(fobj);
+    FileObject *fobj = gc_alloc_obj(fobj);
     INIT_OBJECT_HEAD(fobj, &file_type, 5);
     fobj->path = path;
     fobj->mode = mode;

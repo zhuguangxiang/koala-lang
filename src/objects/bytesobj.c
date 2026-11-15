@@ -8,6 +8,7 @@
 #include <string.h>
 #include "buffer.h"
 #include "excobj.h"
+#include "gc.h"
 #include "hashmap.h"
 #include "listobj.h"
 #include "tupleobj.h"
@@ -63,7 +64,7 @@ static TValue _bytes_init(TValue *self, TValue *args, int nargs)
         return error_value;
     }
 
-    void *data = mm_alloc(size);
+    void *data = gc_alloc_bytes(size ? size : 1);
     bytes->data = (uint8_t *)data;
     bytes->offset = 0;
     bytes->size = size;
@@ -171,15 +172,15 @@ static TValue _bytes_copy_str(TValue *self, TValue *args, int nargs)
     StringObject *src = kl_arg_obj_as(0, str_type);
     int64_t src_start = kl_arg_int64(1);
     int64_t src_end = kl_arg_int64(2);
-    if (src_end < 0) src_end = src->size;
+    if (src_end < 0) src_end = STR_LEN(src);
     if (src_start < 0) src_start = 0;
-    if (src_end > (int64_t)src->size) src_end = (int64_t)src->size;
+    if (src_end > (int64_t)STR_LEN(src)) src_end = (int64_t)STR_LEN(src);
 
     int64_t len = src_end - src_start;
     if (len < 0) len = 0;
     if (len > bytes->size) return int64_value(-1);
 
-    memmove(bytes->data + bytes->offset, src->array + src_start, len);
+    memmove(bytes->data + bytes->offset, STR_BUF(src) + src_start, len);
     return int64_value(len);
 }
 
@@ -237,7 +238,7 @@ static TValue _bytes_view(TValue *self, TValue *args, int nargs)
     if (start > size) start = size;
     if (start > end) start = end;
 
-    BytesObject *view_bytes = mm_alloc_obj(view_bytes);
+    BytesObject *view_bytes = gc_alloc_obj(view_bytes);
     INIT_OBJECT_HEAD(view_bytes, &bytes_type, 0);
     view_bytes->offset = bytes->offset + start;
     view_bytes->size = end - start;
@@ -442,7 +443,7 @@ static TValue _bytes_getslice(TValue *self, TValue *args, int nargs)
     if (step == 1) {
         /* zero-copy view; offset composes with the parent so views of
          * views address the right range */
-        BytesObject *view = mm_alloc_obj(view);
+        BytesObject *view = gc_alloc_obj(view);
         INIT_OBJECT_HEAD(view, &bytes_type, 0);
         view->offset = bytes->offset + start;
         view->size = end - start;
@@ -1111,15 +1112,6 @@ static MethodDef bytes_methods[] = {
     { NULL, NULL },
 };
 
-/* pub class bytes : Sequence[uint8] { ... } */
-TypeObject bytes_type = {
-    ._type = &type_type,
-    .name = "bytes",
-    .flags = TP_FLAGS_CLASS,
-    .objsize = (sizeof(BytesObject)),
-    .methdefs = (bytes_methods),
-};
-
 /* `b""` is the only `bytes` of length zero, so every empty result is this one
  * object instead of a fresh allocation: a literal, a suffix, an empty join.
  * Nothing can be written through it because `bytes` is fixed-size, and being
@@ -1127,38 +1119,80 @@ TypeObject bytes_type = {
  * a zero-length `memcpy` is never handed one. */
 static uint8_t empty_bytes_data[1];
 
-static BytesObject empty_bytes = {
-    ._type = &bytes_type,
-    .offset = 0,
-    .size = 0,
-    .data = empty_bytes_data,
+/* The shared empty bytes, a perm object made when first needed. Its data is a static "" (not a
+   GC block): a perm object is never scanned, so str_mark never sees it. */
+static BytesObject *empty_bytes;
+
+static Object *get_empty_bytes(void)
+{
+    if (!empty_bytes) {
+        empty_bytes = gc_alloc_perm_obj(empty_bytes, 0);
+        INIT_OBJECT_HEAD(empty_bytes, &bytes_type, 0);
+        empty_bytes->offset = 0;
+        empty_bytes->size = 0;
+        empty_bytes->data = empty_bytes_data;
+    }
+    return (Object *)empty_bytes;
+}
+
+static void bytes_mark(Object *self)
+{
+    BytesObject *bs = (BytesObject *)self;
+    ASSERT(bs != empty_bytes);
+    ASSERT(bs->data);
+    gc_mark(bs->data);
+}
+
+/* pub class bytes : Sequence[uint8] { ... } */
+TypeObject bytes_type = {
+    ._type = &type_type,
+    .name = "bytes",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = (sizeof(BytesObject)),
+    .methdefs = (bytes_methods),
+    ._mark = bytes_mark,
 };
 
 Object *kl_new_bytes(uint32_t size)
 {
     if (size == 0) {
-        return (Object *)&empty_bytes;
+        return get_empty_bytes();
     }
 
-    BytesObject *bytes = mm_alloc_obj(bytes);
+    BytesObject *bytes = gc_alloc_obj(bytes);
     INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
     bytes->offset = 0;
     bytes->size = size;
-    bytes->data = mm_alloc(size);
+    bytes->data = gc_alloc_bytes(size);
     return (Object *)bytes;
 }
 
 Object *kl_bytes_from_data(uint8_t *data, uint32_t size)
 {
     if (size == 0) {
-        return (Object *)&empty_bytes;
+        return get_empty_bytes();
     }
 
-    BytesObject *bytes = mm_alloc_obj(bytes);
+    BytesObject *bytes = gc_alloc_obj(bytes);
     INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
     bytes->offset = 0;
     bytes->size = size;
-    bytes->data = mm_alloc(size);
+    bytes->data = gc_alloc_bytes(size);
+    memcpy(bytes->data, data, size);
+    return (Object *)bytes;
+}
+
+Object *kl_bytes_from_data_perm(uint8_t *data, uint32_t size)
+{
+    if (size == 0) {
+        return get_empty_bytes();
+    }
+
+    BytesObject *bytes = gc_alloc_perm_obj(bytes, 0);
+    INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
+    bytes->offset = 0;
+    bytes->size = size;
+    bytes->data = gc_alloc_perm_bytes(size);
     memcpy(bytes->data, data, size);
     return (Object *)bytes;
 }

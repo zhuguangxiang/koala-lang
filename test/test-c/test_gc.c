@@ -30,6 +30,9 @@ static void node_free(Object *self)
     nr_freed++;
 }
 
+/* gc_mark_value skips type objects; gc.c references type_type */
+TypeObject type_type;
+
 static TypeObject node_type = {
     .name = "Node",
     ._free = node_free,
@@ -74,7 +77,7 @@ static Node *new_node(void)
 
 static Node *new_perm_node(void)
 {
-    Node *n = gc_alloc_perm(sizeof(Node));
+    Node *n = gc_alloc_perm(sizeof(Node), 0);
     INIT_OBJECT_HEAD(n, &node_type, 0);
     return n;
 }

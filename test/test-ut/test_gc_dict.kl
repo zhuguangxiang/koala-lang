@@ -1,0 +1,106 @@
+// RUN: koala --no-jit --test %s
+
+import "std/gc"
+import "std/ut"
+
+func churn() {
+    for i in range(20000) {
+        let _x = "abc" + "def"
+    }
+}
+
+func make_dict(n int) dict[str, list[int]] {
+    let d = dict[str, list[int]]()
+    for i in range(n) {
+        d["k" + i.to_str()] = [i, i + 1]
+    }
+    return d
+}
+
+func make_set(n int) hashset[str] {
+    let s = hashset[str]()
+    for i in range(n) {
+        s.add("v" + i.to_str())
+    }
+    return s
+}
+
+@test
+func test_dict_entries_survive() {
+    let d = make_dict(100)
+    churn()
+    gc.collect()
+    ut.assert_eq(d.len(), 100)
+    ut.assert_eq(d["k0"][1], 1)
+    ut.assert_eq(d["k99"][0], 99)
+}
+
+@test
+func test_dict_iter_keeps_dict() {
+    let it = make_dict(10).iter()
+    churn()
+    gc.collect()
+    var n = 0
+    while it.has_next() {
+        let _k = it.next()
+        n += 1
+    }
+    ut.assert_eq(n, 10)
+}
+
+@test
+func test_const_dict() {
+    for i in range(3) {
+        let d = {"a": [1, 2], "b": [3]}
+        churn()
+        gc.collect()
+        ut.assert_eq(d["a"][1], 2)
+        d["c"] = [i]
+    }
+}
+
+@test
+func test_set_entries_survive() {
+    let s = make_set(100)
+    churn()
+    gc.collect()
+    ut.assert_eq(s.len(), 100)
+    ut.assert("v0" in s)
+    ut.assert("v99" in s)
+}
+
+@test
+func test_set_iter_keeps_set() {
+    let it = make_set(10).iter()
+    churn()
+    gc.collect()
+    var n = 0
+    while it.has_next() {
+        let _k = it.next()
+        n += 1
+    }
+    ut.assert_eq(n, 10)
+}
+
+@test
+func test_set_is_subset_iter() {
+    let s = make_set(5)
+    let d = dict[str, int]()
+    let l = list[str]()
+    for i in range(10) {
+        d["v" + i.to_str()] = i
+        l.append("v" + i.to_str())
+    }
+    ut.assert(s.is_subset(d.keys()))
+    ut.assert(s.is_subset(l))
+    ut.assert(!s.is_subset(l[:3]))
+}
+
+@test
+func test_dict_set_freed() {
+    for i in range(50) {
+        let _d = make_dict(20)
+        let _s = make_set(20)
+    }
+    gc.collect()
+}

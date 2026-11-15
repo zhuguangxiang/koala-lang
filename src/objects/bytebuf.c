@@ -6,6 +6,7 @@
 #include "bytebuf.h"
 #include "bytesobj.h"
 #include "excobj.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -390,25 +391,22 @@ static TValue _bytebuf_remove(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef _bytebuf_methods[] = {
-    { "__init__", _bytebuf_init },
-    { "write_byte", _bytebuf_write_byte },
-    { "write_str", _bytebuf_write_str },
-    { "write", _bytebuf_write_bytes },
-    { "__getitem__", _bytebuf_getitem },
-    { "__setitem__", _bytebuf_setitem },
-    { "__contains__", _bytebuf_contains },
-    { "index", _bytebuf_index },
-    { "count", _bytebuf_count },
-    { "insert", _bytebuf_insert },
-    { "extend", _bytebuf_extend },
-    { "pop", _bytebuf_pop },
-    { "remove", _bytebuf_remove },
-    { "len", _bytebuf_len },
-    { "to_str", _bytebuf_to_str },
-    { "to_bytes", _bytebuf_to_bytes },
-    { "clear", _bytebuf_clear },
-    { NULL },
+    { "__init__", _bytebuf_init },         { "write_byte", _bytebuf_write_byte },
+    { "write_str", _bytebuf_write_str },   { "write", _bytebuf_write_bytes },
+    { "__getitem__", _bytebuf_getitem },   { "__setitem__", _bytebuf_setitem },
+    { "__contains__", _bytebuf_contains }, { "index", _bytebuf_index },
+    { "count", _bytebuf_count },           { "insert", _bytebuf_insert },
+    { "extend", _bytebuf_extend },         { "pop", _bytebuf_pop },
+    { "remove", _bytebuf_remove },         { "len", _bytebuf_len },
+    { "to_str", _bytebuf_to_str },         { "to_bytes", _bytebuf_to_bytes },
+    { "clear", _bytebuf_clear },           { NULL },
 };
+
+static void bytebuf_free_hook(Object *obj)
+{
+    ByteBufObject *bb = (ByteBufObject *)obj;
+    FINI_BUF(bb->buf);
+}
 
 /* pub class Buffer { ... } */
 
@@ -418,22 +416,15 @@ TypeObject bytebuf_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(ByteBufObject),
     .methdefs = _bytebuf_methods,
+    ._free = bytebuf_free_hook,
 };
 
 Object *kl_new_bytebuf(size_t size)
 {
-    ByteBufObject *bb = mm_alloc_obj(bb);
+    ByteBufObject *bb = gc_alloc_obj(bb);
     INIT_OBJECT_HEAD(bb, &bytebuf_type, 0);
     buf_reserve(&bb->buf, size);
     return (Object *)bb;
-}
-
-void kl_free_bytebuf(Object *obj)
-{
-    ASSERT(OB_TYPE(obj) == &bytebuf_type);
-    ByteBufObject *bb = (ByteBufObject *)obj;
-    FINI_BUF(bb->buf);
-    mm_free(obj);
 }
 
 #ifdef __cplusplus

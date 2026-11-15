@@ -1,0 +1,117 @@
+// RUN: koala --no-jit --test %s
+
+import "std/gc"
+import "std/ut"
+import "std/collections" as co
+
+func churn() {
+    for i in range(20000) {
+        let _x = "abc" + "def"
+    }
+}
+
+func s(i int) str { return "v" + i.to_str() }
+
+@test
+func test_stack() {
+    let st = co.Stack[str]()
+    for i in range(100) {
+        st.push(s(i))
+    }
+    churn()
+    gc.collect()
+    ut.assert_eq(st.len(), 100)
+    ut.assert_eq(st.pop(), "v99")
+}
+
+@test
+func test_queue() {
+    let q = co.Queue[str]()
+    for i in range(100) {
+        q.push(s(i))
+    }
+    churn()
+    gc.collect()
+    ut.assert_eq(q.len(), 100)
+    ut.assert_eq(q.pop(), "v0")
+}
+
+func make_deque(n int) co.Deque[str] {
+    let dq = co.Deque[str]()
+    for i in range(n) {
+        dq.push_back(s(i))
+    }
+    return dq
+}
+
+@test
+func test_deque() {
+    let dq = make_deque(100)
+    churn()
+    gc.collect()
+    ut.assert_eq(dq.len(), 100)
+    ut.assert_eq(dq[0], "v0")
+    ut.assert_eq(dq[99], "v99")
+}
+
+@test
+func test_deque_iter_keeps_owner() {
+    let it = make_deque(10).iter()
+    let rit = make_deque(10).reversed()
+    churn()
+    gc.collect()
+    ut.assert_eq(it.next_strict(), "v0")
+    ut.assert_eq(rit.next_strict(), "v9")
+}
+
+func make_linkedlist(n int) co.LinkedList[str] {
+    let ll = co.LinkedList[str]()
+    for i in range(n) {
+        ll.append(s(i))
+    }
+    return ll
+}
+
+@test
+func test_linkedlist() {
+    let ll = make_linkedlist(100)
+    churn()
+    gc.collect()
+    ut.assert_eq(ll.len(), 100)
+    ut.assert_eq(ll[0], "v0")
+    ut.assert_eq(ll[99], "v99")
+}
+
+@test
+func test_linkedlist_iter_keeps_owner() {
+    let it = make_linkedlist(10).iter()
+    let rit = make_linkedlist(10).reversed()
+    churn()
+    gc.collect()
+    ut.assert_eq(it.next_strict(), "v0")
+    ut.assert_eq(rit.next_strict(), "v9")
+}
+
+@test
+func test_bitset() {
+    let a = co.BitSet(64)
+    let b = co.BitSet(64)
+    a.set(1)
+    b.set(2)
+    let c = a | b
+    churn()
+    gc.collect()
+    ut.assert(c.test(1))
+    ut.assert(c.test(2))
+    ut.assert_eq(c.count(), 2)
+}
+
+@test
+func test_collections_freed() {
+    for i in range(50) {
+        let _d = make_deque(20)
+        let _l = make_linkedlist(20)
+        let _b = co.BitSet(128) & co.BitSet(128)
+    }
+    gc.collect()
+}

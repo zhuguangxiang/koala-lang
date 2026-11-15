@@ -20,12 +20,27 @@ void gc_fini(void);
 
 /* normal object, starts with OBJECT_HEAD */
 void *gc_alloc(int size);
-/* perm object, starts with OBJECT_HEAD, never freed */
-void *gc_alloc_perm(int size);
+/* perm object, starts with OBJECT_HEAD, never freed; a root one (root != 0) is traced by its
+   type's _mark on every collection */
+void *gc_alloc_perm(int size, int root);
 /* TValue array of n elements, each value is marked */
 TValue *gc_alloc_values(int n);
 /* byte array, contains no references */
 void *gc_alloc_bytes(int size);
+/* perm byte array, never freed */
+void *gc_alloc_perm_bytes(int size);
+/* perm TValue array, never scanned or freed: its values must be perm too */
+TValue *gc_alloc_perm_values(int n);
+
+// Allocate a GC-managed object of the same size as the type pointed to by `ptr`
+#define gc_alloc_obj(ptr) gc_alloc(sizeof(*(ptr)))
+
+// Allocate a perm GC-managed object of the same size as the type pointed to by `ptr`
+#define gc_alloc_perm_obj(ptr, root) gc_alloc_perm(sizeof(*(ptr)), (root))
+
+/* free a normal block now, without any callback; the caller releases its private data and
+   makes sure nothing else refers to it */
+void gc_free(void *ptr);
 
 /* called from roots and TypeObject._mark */
 void gc_mark(void *ptr);

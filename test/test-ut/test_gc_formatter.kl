@@ -1,0 +1,29 @@
+// RUN: koala --no-jit --test %s
+
+import "std/gc"
+import "std/ut"
+
+func churn() {
+    for i in range(2000) {
+        let f = Formatter()
+        f.write_str("garbage")
+    }
+}
+
+@test
+func test_formatter_survives() {
+    let f = Formatter()
+    f.write_str("hello")
+    churn()
+    gc.collect()
+    f.write_str(" world")
+    ut.assert_eq(f.result(), "hello world")
+}
+
+@test
+func test_formatter_freed() {
+    churn()
+    gc.collect()
+    churn()
+    gc.collect()
+}

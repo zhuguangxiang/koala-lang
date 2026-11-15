@@ -1,0 +1,35 @@
+// RUN: koala --no-jit --test %s
+
+import "std/gc"
+import "std/ut"
+
+func tail_view(n int) bytes {
+    let b = "hello world".to_bytes()
+    return b[n:]
+}
+
+func churn() {
+    for i in range(20000) {
+        let _x = "abcdefghij".to_bytes()
+    }
+}
+
+@test
+func test_slice_keeps_data_alive() {
+    // the parent is unreachable once tail_view returns; the views keep its data
+    let v = tail_view(6)
+    let w = v[1:3]
+    churn()
+    gc.collect()
+    ut.assert_eq(v, b"world")
+    ut.assert_eq(w, b"or")
+}
+
+@test
+func test_view_keeps_data_alive() {
+    let b = "hello world".to_bytes()
+    let v = b.view(0, 5)
+    churn()
+    gc.collect()
+    ut.assert_eq(v, b"hello")
+}

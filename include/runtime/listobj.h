@@ -25,6 +25,7 @@ extern TypeObject list_type;
 
 Object *kl_new_list(void);
 Object *kl_list_from_array(TValue *items, int size);
+Object *kl_list_from_array_perm(TValue *items, int size);
 void kl_list_append(Object *ob, TValue item);
 void kl_list_prepend(Object *ob, TValue item);
 

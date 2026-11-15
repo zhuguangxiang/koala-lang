@@ -6,6 +6,7 @@
 #include "collections/dequeobj.h"
 #include "buffer.h"
 #include "excobj.h"
+#include "gc.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
 
@@ -635,11 +636,34 @@ static MethodDef deque_methods[] = {
 };
 
 /* pub class Deque[T] : MutableSequence[T] { ... } */
+/* elements live in a mm-allocated ring, private to the deque */
+static void deque_mark(Object *obj)
+{
+    DequeObject *dq = (DequeObject *)obj;
+    int size = ring_size(&dq->ring);
+    for (int i = 0; i < size; ++i) gc_mark_value(dq_at(dq, i));
+}
+
+static void deque_free(Object *obj)
+{
+    DequeObject *dq = (DequeObject *)obj;
+    ring_fini(&dq->ring);
+}
+
+/* the iterator reads the owner's ring, so the owner must outlive it */
+static void deque_iter_mark(Object *obj)
+{
+    DequeIterObject *iter = (DequeIterObject *)obj;
+    gc_mark(iter->owner);
+}
+
 TypeObject deque_type = {
     ._type = &type_type,
     .name = "Deque",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DequeObject),
+    ._mark = deque_mark,
+    ._free = deque_free,
     .methdefs = deque_methods,
 };
 
@@ -649,6 +673,7 @@ TypeObject deque_iter_type = {
     .name = "DequeIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DequeIterObject),
+    ._mark = deque_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", _dq_iter_init },
@@ -665,6 +690,7 @@ TypeObject deque_rev_iter_type = {
     .name = "DequeRevIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DequeIterObject),
+    ._mark = deque_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", _dq_rev_iter_init },
@@ -677,7 +703,7 @@ TypeObject deque_rev_iter_type = {
 
 Object *kl_new_deque(void)
 {
-    DequeObject *dq = mm_alloc_obj(dq);
+    DequeObject *dq = gc_alloc_obj(dq);
     INIT_OBJECT_HEAD(dq, &deque_type, 0);
     ring_init(&dq->ring, DEQUE_ELEM_SIZE);
     dq->mod_count = 0;

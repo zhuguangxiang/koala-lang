@@ -3,15 +3,14 @@
 
 import "std/gc"
 
-// only tuples are allocated by gc yet; get_count() reads the counters before
-// allocating its result, so they are zero
+// tuples and strs are allocated by gc; modules and str constants are perm, so
+// the counts vary with the loaded modules
 print(gc.get_count())
 print(gc.used())
 let stats = gc.get_stats()
 print(stats)
-// CHECK: (0, 0, 0)
-// the tuple of get_count() and the variadic tuple of print(): 160B + 128B
-// CHECK-NEXT: 288B
+// CHECK: ({{[0-9]+}}, {{[0-9]+}}, {{[0-9]+}})
+// CHECK-NEXT: {{[0-9.]+K?B}}
 // CHECK-NEXT: {collections: 0, collected: 0, collected_size: 0B}
 
 print(gc.max())

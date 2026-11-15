@@ -1,0 +1,35 @@
+// RUN: koala --no-jit %s | filecheck %s
+
+import "std/gc"
+
+// module globals are traced through the module (a perm root), so objects only
+// they refer to survive a collection: stdout's writer, a class instance, bytes
+class P {
+    var name str
+    var data bytes
+
+    func __init__(n str) {
+        name = n
+        data = (n + "!").to_bytes()
+    }
+}
+
+func mk() P {
+    let p = P("a-" + "b")
+    return p
+}
+
+let p = mk()
+let bs = "hello world".to_bytes()[6:]
+let k = b"const-bytes"
+
+print(1)
+gc.collect()
+print(2)
+// CHECK: 1
+// CHECK-NEXT: 2
+
+print(p.name, p.data)
+print(bs, k[6:])
+// CHECK-NEXT: a-b b"a-b!"
+// CHECK-NEXT: b"world" b"bytes"

@@ -1965,3 +1965,16 @@ func test_list_iterators_and_generics() {
     ut.assert_eq(items[2].value, 3)
     ut.assert_eq(items.pop().value, 3)
 }
+
+@test
+func test_negative_index() {
+    let l = list[int](1, 2, 3)
+    ut.assert_eq(l[-1], 3)
+    ut.assert_eq(l[-3], 1)
+    l[-1] = 9
+    ut.assert_eq(l[2], 9)
+
+    let v = l[1:]
+    ut.assert_eq(v[-1], 9)
+    ut.assert_eq(v[-2], 2)
+}

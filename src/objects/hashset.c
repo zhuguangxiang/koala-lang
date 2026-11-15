@@ -5,6 +5,7 @@
 
 #include "hashset.h"
 #include "excobj.h"
+#include "gc.h"
 #include "listobj.h"
 
 #ifdef __cplusplus
@@ -512,7 +513,8 @@ static TValue _hashset_is_subset(TValue *self, TValue *args, int nargs)
     }
 
     /* General path: materialize other into temp hashset. */
-    HashSetObject *temp = (HashSetObject *)kl_new_hashset();
+    HashMap temp;
+    hashmap_init(&temp, _hashset_entry_eq_);
 
     if (kl_is_seq(src_obj)) {
         TValue len_tv = kl_call_len(src);
@@ -525,11 +527,11 @@ static TValue _hashset_is_subset(TValue *self, TValue *args, int nargs)
             HashSetEntry tmp = { .key = item };
             unsigned int h = kl_call_hash(&item);
             hashmap_entry_init(&tmp, h);
-            if (!hashmap_get(&temp->map, &tmp)) {
+            if (!hashmap_get(&temp, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
                 ne->key = item;
                 hashmap_entry_init(ne, h);
-                hashmap_put(&temp->map, ne);
+                hashmap_put(&temp, ne);
             }
         }
     } else if (kl_is_iter(src_obj)) {
@@ -542,11 +544,11 @@ static TValue _hashset_is_subset(TValue *self, TValue *args, int nargs)
             HashSetEntry tmp = { .key = item };
             unsigned int h = kl_call_hash(&item);
             hashmap_entry_init(&tmp, h);
-            if (!hashmap_get(&temp->map, &tmp)) {
+            if (!hashmap_get(&temp, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
                 ne->key = item;
                 hashmap_entry_init(ne, h);
-                hashmap_put(&temp->map, ne);
+                hashmap_put(&temp, ne);
             }
         }
     } else {
@@ -562,16 +564,14 @@ static TValue _hashset_is_subset(TValue *self, TValue *args, int nargs)
             HashSetEntry *e = hashmap_iter_entry(&it);
             HashSetEntry tmp = { .key = e->key };
             hashmap_entry_init(&tmp, e->hnode.hash);
-            if (!hashmap_get(&temp->map, &tmp)) { result = 0; break; }
+            if (!hashmap_get(&temp, &tmp)) { result = 0; break; }
         }
-        hashmap_fini(&temp->map, _hashset_entry_free_, NULL);
-        mm_free(temp);
+        hashmap_fini(&temp, _hashset_entry_free_, NULL);
         return bool_value(result);
     }
 
 cleanup_err:
-    hashmap_fini(&temp->map, _hashset_entry_free_, NULL);
-    mm_free(temp);
+    hashmap_fini(&temp, _hashset_entry_free_, NULL);
     return error_value;
 }
 
@@ -747,12 +747,32 @@ static MethodDef hashset_methods[] = {
     { NULL },
 };
 
+/* entries and buckets are mm-allocated private data of the set */
+static void hashset_mark(Object *obj)
+{
+    HashSetObject *set = (HashSetObject *)obj;
+    HashMapIter it;
+    hashmap_iter_init(&set->map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        HashSetEntry *entry = hashmap_iter_entry(&it);
+        gc_mark_value(&entry->key);
+    }
+}
+
+static void hashset_free(Object *obj)
+{
+    HashSetObject *set = (HashSetObject *)obj;
+    hashmap_fini(&set->map, _hashset_entry_free_, NULL);
+}
+
 /* pub class hashset[T] : MutableSet[T] { ... } */
 TypeObject hashset_type = {
     ._type = &type_type,
     .name = "hashset",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(HashSetObject),
+    ._mark = hashset_mark,
+    ._free = hashset_free,
     .methdefs = hashset_methods,
 };
 
@@ -811,18 +831,26 @@ static MethodDef hashset_iter_methods[] = {
     { NULL },
 };
 
+/* the iterator holds raw entry pointers, so the set must outlive it */
+static void hashset_iter_mark(Object *obj)
+{
+    HashSetIterObject *iter = (HashSetIterObject *)obj;
+    gc_mark(iter->set);
+}
+
 /* class HashSetIter[T] : Iterator[T] { ... } */
 TypeObject hashset_iter_type = {
     ._type = &type_type,
     .name = "HashSetIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(HashSetIterObject),
+    ._mark = hashset_iter_mark,
     .methdefs = hashset_iter_methods,
 };
 
 Object *kl_new_hashset(void)
 {
-    HashSetObject *set = mm_alloc_obj(set);
+    HashSetObject *set = gc_alloc_obj(set);
     INIT_OBJECT_HEAD(set, &hashset_type, 0);
     hashmap_init(&set->map, _hashset_entry_eq_);
     return (Object *)set;

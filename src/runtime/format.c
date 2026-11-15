@@ -320,11 +320,18 @@ static TValue _fmt_clear(TValue *self, TValue *args, int nargs)
     return no_value;
 }
 
+static void fmt_free(Object *obj)
+{
+    Formatter *fmt = (Formatter *)obj;
+    FINI_BUF(fmt->buf);
+}
+
 TypeObject fmt_type = {
     ._type = &type_type,
     .name = "Formatter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(Formatter),
+    ._free = fmt_free,
     .methdefs =
         (MethodDef[]){
             { "write_fmt", _fmt_write_fmt },

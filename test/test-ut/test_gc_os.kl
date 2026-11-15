@@ -1,0 +1,71 @@
+// RUN: ulimit -n 256 && koala --no-jit --test %s
+
+import "std/gc"
+import "std/ut"
+import "std/os"
+import "std/fs"
+
+const PATH = "/tmp/kl_gc_os_file.txt"
+
+func churn() {
+    for i in range(20000) {
+        let _x = "abc" + "def"
+    }
+}
+
+@test
+func test_file_fields_survive() {
+    fs.write_str(PATH, "data")
+    let f = fs.open(PATH + "", "r")!
+    churn()
+    gc.collect()
+    ut.assert_eq(f.path, PATH)
+    ut.assert_eq(f.mode, "r")
+    f.close()
+}
+
+@test
+func test_unclosed_files_are_freed() {
+    fs.write_str(PATH, "data")
+    // more than the default fd limit: leaks would make open() fail
+    for i in range(5000) {
+        let f = fs.open(PATH, "r")
+        ut.assert(f != nil)
+        if i % 100 == 0 { gc.collect() }
+    }
+    gc.collect()
+}
+
+@test
+func test_unclosed_pipes_are_freed() {
+    for i in range(3000) {
+        let ends = os.pipe()
+        ut.assert(ends != nil)
+        if i % 100 == 0 { gc.collect() }
+    }
+    gc.collect()
+}
+
+@test
+func test_pipe_survives() {
+    let ends = os.pipe()!
+    churn()
+    gc.collect()
+    ends[1].write_str("hi")
+    ends[1].close()
+    let data = ends[0].read_all()
+    ends[0].close()
+    ut.assert_eq(data.len(), 2)
+}
+
+@test
+func test_process_streams_survive() {
+    let p = os.run("cat")!
+    churn()
+    gc.collect()
+    p.stdin().write_str("hello")
+    p.stdin().close()
+    let out = p.stdout().read_all()
+    ut.assert_eq(p.wait()!, 0)
+    ut.assert_eq(out.len(), 5)
+}

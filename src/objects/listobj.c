@@ -6,6 +6,7 @@
 #include "listobj.h"
 #include "buffer.h"
 #include "excobj.h"
+#include "gc.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
 
@@ -15,16 +16,32 @@ extern "C" {
 
 #define LIST_MINIMUM_CAPACITY 4
 
-static void expand_capacity(ListObject *list, size_t new_capacity)
-{
-    if (new_capacity <= list->capacity) return;
+/*
+ * Layout: the elements are array[start, end), with 0 <= start <= end <= capacity, all absolute
+ * slots of `array`. A step-1 slice is a view sharing `array` with its source, its capacity set
+ * to its own end, so growing a view always moves it to a private array instead of writing over
+ * the source's slots.
+ */
 
-    size_t capacity = list->capacity == 0 ? LIST_MINIMUM_CAPACITY : list->capacity;
-    while (capacity < new_capacity) {
+/* make room for `extra` more elements after end; a new array is compacted to start at 0. The old
+   array is left to the GC, a view may still share it. */
+static void expand_capacity(ListObject *list, size_t extra)
+{
+    if (list->end + extra <= list->capacity) return;
+
+    size_t count = list->end - list->start;
+    size_t need = count + extra;
+    size_t capacity = list->capacity > LIST_MINIMUM_CAPACITY ? list->capacity
+                                                             : LIST_MINIMUM_CAPACITY;
+    while (capacity < need) {
         capacity *= 2;
     }
 
-    list->array = mm_realloc(list->array, sizeof(TValue) * capacity);
+    TValue *array = gc_alloc_values((int)capacity);
+    if (count > 0) memcpy(array, list->array + list->start, sizeof(TValue) * count);
+    list->array = array;
+    list->start = 0;
+    list->end = count;
     list->capacity = capacity;
 }
 
@@ -32,7 +49,7 @@ void kl_list_append(Object *ob, TValue item)
 {
     ASSERT(IS_LIST(ob));
     ListObject *list = (ListObject *)ob;
-    expand_capacity(list, list->end + 1);
+    expand_capacity(list, 1);
     list->array[list->end++] = item;
 }
 
@@ -41,16 +58,10 @@ void kl_list_prepend(Object *ob, TValue item)
     ASSERT(IS_LIST(ob));
     ListObject *list = (ListObject *)ob;
 
-    // Ensure capacity for one more element
-    expand_capacity(list, list->end + 1);
-
-    // Shift elements to the right by 1
-    memmove(list->array + 1, list->array, list->end * sizeof(TValue));
-
-    // Insert new item at the front
-    list->array[0] = item;
-
-    // Increase element count
+    expand_capacity(list, 1);
+    TValue *base = list->array + list->start;
+    memmove(base + 1, base, (list->end - list->start) * sizeof(TValue));
+    base[0] = item;
     list->end++;
 }
 
@@ -141,7 +152,7 @@ static TValue _list_count(TValue *self, TValue *args, int nargs)
 static TValue _list_append(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
-    expand_capacity(list, list->end + 1);
+    expand_capacity(list, 1);
     // write_barrier(list, args[0]);
     list->array[list->end++] = args[0];
     return no_value;
@@ -252,7 +263,8 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
         ListObject *other = (ListObject *)ob;
         int m = other->end - other->start;
         if (m <= 0) return no_value;
-        expand_capacity(list, list->end + m);
+        /* `other` may be `list` itself, so read its array after growing */
+        expand_capacity(list, m);
         memcpy(list->array + list->end, other->array + other->start, sizeof(TValue) * m);
         list->end += m;
         return no_value;
@@ -262,7 +274,7 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
         TupleObject *other = (TupleObject *)ob;
         int m = TUPLE_SIZE(other);
         if (m <= 0) return no_value;
-        expand_capacity(list, list->end + m);
+        expand_capacity(list, m);
         memcpy(list->array + list->end, TUPLE_ITEMS(other), sizeof(TValue) * m);
         list->end += m;
         return no_value;
@@ -273,7 +285,7 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
         int64_t len;
         if (!kl_range_len(other, &len)) return error_value;
         if (len <= 0) return no_value;
-        expand_capacity(list, list->end + len);
+        expand_capacity(list, len);
         for (int64_t i = 0; i < len; ++i) {
             int64_t value;
             if (!kl_range_index(other, i, &value)) return error_value;
@@ -285,13 +297,13 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
     if (kl_is_seq(ob)) {
         TValue len = kl_call_len(args);
         if (is_error(&len)) return error_value;
-        size_t m = (size_t)to_int64(&len);
-        if (m <= 0) return no_value;
-        expand_capacity(list, list->end + m);
-        for (size_t i = 0; i < m; ++i) {
-            TValue idx = int64_value((int64_t)i);
+        int64_t m = to_int64(&len);
+        /* the user's __getitem__ may change the list, so grow per item */
+        for (int64_t i = 0; i < m; ++i) {
+            TValue idx = int64_value(i);
             TValue item = kl_call_get_item(args, &idx);
             if (is_error(&item)) return error_value;
+            expand_capacity(list, 1);
             list->array[list->end++] = item;
         }
         return no_value;
@@ -301,28 +313,14 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
         TValue it = kl_call_iter(args, 1);
         if (is_error(&it)) return error_value;
 
-        Vector items;
-        vector_init(&items, sizeof(TValue));
-
-        TValue item;
-        while ((item = kl_call_next(&it), ((is_error(&item) || is_nil(&item)) ? 0 : 1))) {
-            vector_push_back(&items, &item);
+        /* append each item at once: the list keeps it alive if __next__ triggers a collection */
+        while (1) {
+            TValue item = kl_call_next(&it);
+            if (is_error(&item)) return error_value;
+            if (is_nil(&item)) break;
+            expand_capacity(list, 1);
+            list->array[list->end++] = item;
         }
-
-        if (is_error(&item)) {
-            vector_fini(&items);
-            return error_value;
-        }
-
-        int size = vector_size(&items);
-        expand_capacity(list, list->end + size);
-
-        TValue *items_array = VECTOR_ITEMS(&items, TValue);
-        memcpy(list->array + list->end, items_array, sizeof(TValue) * size);
-
-        list->end += size;
-
-        vector_fini(&items);
         return no_value;
     }
 
@@ -338,12 +336,21 @@ static TValue _list_iadd(TValue *self, TValue *args, int nargs)
     return *self;
 }
 
+/* a negative index counts from the end, like pop/delete; -1 if out of range */
+static int64_t list_norm_index(ListObject *list, TValue *arg)
+{
+    int64_t n = (int64_t)(list->end - list->start);
+    int64_t index = to_int64(arg);
+    if (index < 0) index += n;
+    return (index < 0 || index >= n) ? -1 : index;
+}
+
 static TValue _list_getitem(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
-    size_t index = to_int64(args);
+    int64_t index = list_norm_index(list, args);
 
-    if (index >= list->end - list->start) {
+    if (index < 0) {
         raise_exc_str("list index out of range");
         return error_value;
     }
@@ -353,9 +360,9 @@ static TValue _list_getitem(TValue *self, TValue *args, int nargs)
 static TValue _list_setitem(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
-    size_t index = to_int64(args);
+    int64_t index = list_norm_index(list, args);
 
-    if (index >= list->end - list->start) {
+    if (index < 0) {
         raise_exc_str("list index out of range");
         return error_value;
     }
@@ -385,7 +392,7 @@ static Object *list_slice(ListObject *list, SliceObject *slice)
         sub->array = list->array;
         sub->start = list->start + (size_t)start;
         sub->end = list->start + (size_t)end;
-        sub->capacity = (size_t)(end - start);
+        sub->capacity = sub->end;
         return obj;
     }
 
@@ -400,7 +407,7 @@ static Object *list_slice(ListObject *list, SliceObject *slice)
         return kl_new_list();
     }
 
-    TValue *arr = mm_alloc(count * sizeof(TValue));
+    TValue *arr = gc_alloc_values((int)count);
     size_t j = 0;
     if (step > 0) {
         for (int64_t i = start; i < end; i += step) {
@@ -512,12 +519,14 @@ static TValue _list_set_slice(TValue *self, TValue *args, int nargs)
         int64_t m = (int64_t)to_int64(&len);
         int64_t count = MIN(m, slots);
 
+        /* the user's __getitem__ may change the list: re-read the window per item */
         int64_t i = start;
         for (int64_t j = 0; j < count; ++j, i += step) {
             TValue idx = int64_value((int64_t)j);
             TValue item = kl_call_get_item(args + 1, &idx);
             if (is_error(&item)) return error_value;
-            dst_base[i] = item;
+            if (i >= (int64_t)(list->end - list->start)) break;
+            list->array[list->start + i] = item;
         }
 
         return no_value;
@@ -527,12 +536,14 @@ static TValue _list_set_slice(TValue *self, TValue *args, int nargs)
         TValue it = kl_call_iter(args + 1, 1);
         if (is_error(&it)) return error_value;
 
+        /* the user's __next__ may change the list: re-read the window per item */
         int64_t i = start;
         for (int64_t j = 0; j < slots; ++j, i += step) {
             TValue item = kl_call_next(&it);
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
-            dst_base[i] = item;
+            if (i >= (int64_t)(list->end - list->start)) break;
+            list->array[list->start + i] = item;
         }
 
         return no_value;
@@ -557,9 +568,8 @@ static TValue _list_insert(TValue *self, TValue *args, int nargs)
         return error_value;
     }
 
-    /* Grow by absolute position (end+1): correct even for windowed views.
-     * expand_capacity may realloc, so recompute base afterwards. */
-    expand_capacity(list, list->end + 1);
+    /* expand_capacity may move the array, so compute base afterwards. */
+    expand_capacity(list, 1);
     TValue *base = list->array + list->start;
 
     /* Shift [idx, n) one slot to the right, then place the new value. */
@@ -641,7 +651,9 @@ static TValue _list_clear(TValue *self, TValue *args, int nargs)
     ListObject *list = SELF_AS(list_type);
     ASSERT(nargs == 0);
 
-    /* Logical empty; keep the backing buffer for reuse. */
+    /* Drop the array: a view still sharing it must not see later appends. */
+    list->array = NULL;
+    list->capacity = 0;
     list->end = list->start = 0;
     return no_value;
 }
@@ -823,6 +835,13 @@ static MethodDef list_methods[] = {
     { NULL },
 };
 
+/* the array is a VALUES block: the GC scans all its slots, a view's window included */
+static void _list_mark(Object *obj)
+{
+    ListObject *list = (ListObject *)obj;
+    gc_mark(list->array);
+}
+
 /* pub class list[T] : MutableSequence[T] { ... } */
 TypeObject list_type = {
     ._type = &type_type,
@@ -830,25 +849,46 @@ TypeObject list_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(ListObject),
     .methdefs = list_methods,
+    ._mark = _list_mark,
 };
 
 Object *kl_new_list(void)
 {
-    ListObject *list = mm_alloc_obj(list);
+    ListObject *list = gc_alloc_obj(list);
     INIT_OBJECT_HEAD(list, &list_type, 0);
     list->start = 0;
     list->end = 0;
+    list->capacity = 0;
+    list->array = NULL;
     return (Object *)list;
 }
 
 Object *kl_list_from_array(TValue *items, int size)
 {
-    ListObject *list = mm_alloc_obj(list);
-    INIT_OBJECT_HEAD(list, &list_type, 0);
+    ListObject *list = (ListObject *)kl_new_list();
+    if (size <= 0) return (Object *)list;
     expand_capacity(list, size);
     memcpy(list->array, items, sizeof(TValue) * size);
-    list->start = 0;
     list->end = size;
+    return (Object *)list;
+}
+
+/* a perm list for the const pool, a template only copied from, never changed; its items must
+   be perm (or values) too */
+Object *kl_list_from_array_perm(TValue *items, int size)
+{
+    ListObject *list = gc_alloc_perm_obj(list, 0);
+    INIT_OBJECT_HEAD(list, &list_type, 0);
+    list->start = 0;
+    list->end = 0;
+    list->capacity = 0;
+    list->array = NULL;
+    if (size > 0) {
+        list->array = gc_alloc_perm_values(size);
+        memcpy(list->array, items, sizeof(TValue) * size);
+        list->end = size;
+        list->capacity = size;
+    }
     return (Object *)list;
 }
 

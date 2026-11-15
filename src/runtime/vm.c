@@ -12,6 +12,7 @@
 #include "excobj.h"
 #include "gc.h"
 #include "gcmodule.h"
+#include "jit/jit.h"
 #include "log.h"
 #include "mm.h"
 #include "modobj.h"
@@ -122,6 +123,9 @@ void koala_initialize(void)
 
 void koala_finalize(void)
 {
+    /* print jit stats before gc_fini closes the std streams */
+    kl_jit_fini();
+
     /* finalize garbage collector */
     gc_fini();
 

@@ -21,6 +21,7 @@ extern TypeObject dict_type;
 #define IS_DICT(ob) IS_TYPE((ob), &dict_type)
 
 Object *kl_new_dict(void);
+Object *kl_new_perm_dict(void);
 
 /* Insert or replace a (key, value) mapping. Used by the module loader to
  * materialize constant dict literals, mirroring how lists are built. */

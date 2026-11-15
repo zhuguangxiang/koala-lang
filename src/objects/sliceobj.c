@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "gc.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -15,14 +16,8 @@ TypeObject slice_type = {
     .flags = TP_FLAGS_CLASS,
 };
 
-Object *kl_new_slice(TValue *items)
+static Object *slice_init(SliceObject *x, TValue *items)
 {
-    int64_t start = to_int64(&items[0]);
-    int64_t end = to_int64(&items[1]);
-    int64_t step = to_int64(&items[2]);
-
-    int msize = sizeof(SliceObject);
-    SliceObject *x = mm_alloc(msize);
     INIT_OBJECT_HEAD(x, &slice_type, 3);
 
     x->start = items[0];
@@ -30,6 +25,19 @@ Object *kl_new_slice(TValue *items)
     x->step = items[2];
 
     return (Object *)x;
+}
+
+Object *kl_new_slice(TValue *items)
+{
+    SliceObject *x = gc_alloc_obj(x);
+    return slice_init(x, items);
+}
+
+/* a perm slice for the const pool */
+Object *kl_new_perm_slice(TValue *items)
+{
+    SliceObject *x = gc_alloc_perm_obj(x, 0);
+    return slice_init(x, items);
 }
 
 #ifdef __cplusplus

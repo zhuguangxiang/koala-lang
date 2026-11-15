@@ -142,12 +142,14 @@ static void __load_const(Object *m, KlcConst *item)
 
         case KLC_CONST_SHORT_LIST:
         case KLC_CONST_LIST: {
+            UNREACHABLE();
             Vector *vec = item->val;
             kl_mo_add_list(m, vec);
             break;
         }
 
         case KLC_CONST_DICT: {
+            UNREACHABLE();
             Vector *vec = item->val;
             kl_mo_add_dict(m, vec);
             break;

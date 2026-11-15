@@ -51,9 +51,10 @@ static GCState gc_cur_state = GC_DONE;
 /* blocks with age below this are marked and swept */
 static uint8_t gc_age_threshold = 255;
 
-/* generation: perm blocks are never swept */
+/* generation: perm blocks are never swept; root blocks are perm blocks traced by _mark as roots */
 static List gc_normal_list = LIST_INIT(gc_normal_list);
 static List gc_perm_list = LIST_INIT(gc_perm_list);
+static List gc_root_list = LIST_INIT(gc_root_list);
 
 /* bytes held by gc blocks, headers included */
 static size_t gc_used_size;
@@ -100,8 +101,8 @@ static void *gc_alloc_block(int size, uint8_t kind, uint8_t age, List *list)
     ASSERT(gc_cur_state == GC_DONE);
     size_t total = sizeof(GCHeader) + size;
     if (gc_used_size + total > gc_max_size) {
-        panic("gc: out of memory, used %zu + %zu bytes exceeds max %zu bytes", gc_used_size,
-              total, gc_max_size);
+        panic("gc: out of memory, used %zu + %zu bytes exceeds max %zu bytes", gc_used_size, total,
+              gc_max_size);
     }
     GCHeader *hdr = calloc(1, total);
     if (!hdr) {
@@ -110,7 +111,7 @@ static void *gc_alloc_block(int size, uint8_t kind, uint8_t age, List *list)
     }
     gc_used_size += total;
     gc_count++;
-    if (list == &gc_perm_list) {
+    if (list != &gc_normal_list) {
         gc_nr_perm++;
     } else {
         gc_nr_normal++;
@@ -126,8 +127,11 @@ static void *gc_alloc_block(int size, uint8_t kind, uint8_t age, List *list)
 
 void *gc_alloc(int size) { return gc_alloc_block(size, GC_KIND_OBJECT, 0, &gc_normal_list); }
 
-/* perm blocks are never marked, scanned or freed */
-void *gc_alloc_perm(int size) { return gc_alloc_block(size, GC_KIND_OBJECT, 255, &gc_perm_list); }
+/* perm blocks are never marked, scanned or freed; a root one is traced by its _mark each collection */
+void *gc_alloc_perm(int size, int root)
+{
+    return gc_alloc_block(size, GC_KIND_OBJECT, 255, root ? &gc_root_list : &gc_perm_list);
+}
 
 TValue *gc_alloc_values(int n)
 {
@@ -136,15 +140,19 @@ TValue *gc_alloc_values(int n)
 
 void *gc_alloc_bytes(int size) { return gc_alloc_block(size, GC_KIND_BYTES, 0, &gc_normal_list); }
 
-static void gc_free_block(GCHeader *hdr)
+void *gc_alloc_perm_bytes(int size)
 {
-    log_trace("gc: free %p size %u kind %d age %d", hdr + 1, hdr->size, hdr->kind, hdr->age);
+    return gc_alloc_block(size, GC_KIND_BYTES, 255, &gc_perm_list);
+}
+
+TValue *gc_alloc_perm_values(int n)
+{
+    return gc_alloc_block(n * sizeof(TValue), GC_KIND_VALUES, 255, &gc_perm_list);
+}
+
+static void gc_release_block(GCHeader *hdr)
+{
     list_remove(&hdr->link);
-    if (hdr->kind == GC_KIND_OBJECT) {
-        Object *obj = (Object *)(hdr + 1);
-        TypeObject *tp = OB_TYPE(obj);
-        if (tp && tp->_free) tp->_free(obj);
-    }
     gc_used_size -= sizeof(GCHeader) + hdr->size;
     gc_count--;
     if (hdr->age == 255) {
@@ -153,6 +161,27 @@ static void gc_free_block(GCHeader *hdr)
         gc_nr_normal--;
     }
     free(hdr);
+}
+
+static void gc_free_block(GCHeader *hdr)
+{
+    log_trace("gc: free %p size %u kind %d age %d", hdr + 1, hdr->size, hdr->kind, hdr->age);
+    if (hdr->kind == GC_KIND_OBJECT) {
+        Object *obj = (Object *)(hdr + 1);
+        TypeObject *tp = OB_TYPE(obj);
+        if (tp && tp->_free) tp->_free(obj);
+    }
+    gc_release_block(hdr);
+}
+
+void gc_free(void *ptr)
+{
+    if (!ptr) return;
+    GCHeader *hdr = GC_HEADER(ptr);
+    ASSERT(gc_cur_state == GC_DONE);
+    ASSERT(hdr->age != 255);
+    log_trace("gc: free (manual) %p size %u kind %d", ptr, hdr->size, hdr->kind);
+    gc_release_block(hdr);
 }
 
 /*---------------------------------------------------------------------------+
@@ -182,19 +211,31 @@ void gc_mark(void *ptr)
 
 void gc_mark_value(TValue *val)
 {
+    Object *obj = NULL;
     if (is_ref(val)) {
-        gc_mark(val->obj);
+        obj = val->obj;
     } else if (is_intf(val)) {
         IntfTable *itab = (IntfTable *)val->itab;
-        if (tp_is_ref_type(itab->tp)) gc_mark(val->obj);
+        if (tp_is_ref_type(itab->tp)) obj = val->obj;
     }
+
+    /* type objects are meta info: static or perm, never collected */
+    if (!obj || OB_TYPE(obj) == &type_type) return;
+
+    gc_mark(obj);
 }
 
 static void gc_mark_roots(KoalaState *ks)
 {
+    GCHeader *hdr;
+    list_foreach(hdr, link, &gc_root_list) {
+        Object *obj = (Object *)(hdr + 1);
+        TypeObject *tp = OB_TYPE(obj);
+        if (tp->_mark) tp->_mark(obj);
+    }
+
     gc_mark(ks->builtin);
     gc_mark(ks->sys);
-    gc_mark(ks->exc);
 
     CallFrame *cf = ks->cf;
     while (cf) {
@@ -338,10 +379,20 @@ static size_t gc_parse_size(const char *s)
 
     int shift = 0;
     switch (toupper((unsigned char)*end)) {
-        case 'K': shift = 10; end++; break;
-        case 'M': shift = 20; end++; break;
-        case 'G': shift = 30; end++; break;
-        default: break;
+        case 'K':
+            shift = 10;
+            end++;
+            break;
+        case 'M':
+            shift = 20;
+            end++;
+            break;
+        case 'G':
+            shift = 30;
+            end++;
+            break;
+        default:
+            break;
     }
     if (*end || n == 0 || n > (SIZE_MAX >> shift)) panic("gc: invalid KOALA_GC_MAX '%s'", s);
     return (size_t)n << shift;
@@ -360,6 +411,7 @@ void gc_init(void)
 
     init_list(&gc_normal_list);
     init_list(&gc_perm_list);
+    init_list(&gc_root_list);
     wsdq_init(&gc_gray_dq, 1024);
     gc_switch(GC_DONE);
 }
@@ -377,6 +429,7 @@ void gc_fini(void)
     ASSERT(gc_cur_state == GC_DONE);
     gc_free_list(&gc_normal_list);
     gc_free_list(&gc_perm_list);
+    gc_free_list(&gc_root_list);
     wsdq_fini(&gc_gray_dq);
 }
 

@@ -7,6 +7,7 @@
 #include "buffer.h"
 #include "bytesobj.h"
 #include "excobj.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -321,17 +322,26 @@ static MethodDef bitset_methods[] = {
     { NULL },
 };
 
+/* the bit array holds no references, it is only private data */
+static void bitset_obj_free(Object *obj)
+{
+    BitSetObject *bs = (BitSetObject *)obj;
+    fini_bitset(&bs->bitset);
+    bs->bitset.bits = NULL;
+}
+
 TypeObject bitset_type = {
     ._type = &type_type,
     .name = "BitSet",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(BitSetObject),
+    ._free = bitset_obj_free,
     .methdefs = bitset_methods,
 };
 
 Object *kl_new_bitset(int nbits)
 {
-    BitSetObject *bs = mm_alloc_obj(bs);
+    BitSetObject *bs = gc_alloc_obj(bs);
     INIT_OBJECT_HEAD(bs, &bitset_type, 0);
     init_bitset(&bs->bitset, nbits);
     return (Object *)bs;

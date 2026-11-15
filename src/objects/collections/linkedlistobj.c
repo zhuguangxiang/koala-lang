@@ -6,6 +6,7 @@
 #include "collections/linkedlistobj.h"
 #include "buffer.h"
 #include "excobj.h"
+#include "gc.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
 
@@ -147,7 +148,7 @@ static TValue _ll_empty(TValue *self, TValue *args, int nargs)
 
 Object *kl_new_linkedlist(void)
 {
-    LinkedListObject *ll = mm_alloc_obj(ll);
+    LinkedListObject *ll = gc_alloc_obj(ll);
     INIT_OBJECT_HEAD(ll, &linkedlist_type, 0);
     init_list(&ll->head);
     ll->len = 0;
@@ -737,12 +738,45 @@ static MethodDef linkedlist_methods[] = {
     { NULL },
 };
 
+/* nodes are mm-allocated, private to the list; a zeroed list (no __init__) has no nodes */
+static void linkedlist_mark(Object *obj)
+{
+    LinkedListObject *ll = (LinkedListObject *)obj;
+    if (!ll->head.next) return;
+    for (LinkedListNode *node = ll_first(ll); node; node = ll_next(ll, node)) {
+        gc_mark_value(&node->value);
+    }
+}
+
+static void linkedlist_free(Object *obj)
+{
+    LinkedListObject *ll = (LinkedListObject *)obj;
+    if (!ll->head.next) return;
+    LinkedListNode *node = ll_first(ll);
+    while (node) {
+        LinkedListNode *next = ll_next(ll, node);
+        mm_free(node);
+        node = next;
+    }
+    init_list(&ll->head);
+    ll->len = 0;
+}
+
+/* the iterator holds a node pointer, so the owner must outlive it */
+static void linkedlist_iter_mark(Object *obj)
+{
+    LinkedListIterObject *iter = (LinkedListIterObject *)obj;
+    gc_mark(iter->owner);
+}
+
 /* pub class LinkedList[T] : MutableSequence[T] { ... } */
 TypeObject linkedlist_type = {
     ._type = &type_type,
     .name = "LinkedList",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(LinkedListObject),
+    ._mark = linkedlist_mark,
+    ._free = linkedlist_free,
     .methdefs = linkedlist_methods,
 };
 
@@ -752,6 +786,7 @@ TypeObject linkedlist_iter_type = {
     .name = "LinkedListIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(LinkedListIterObject),
+    ._mark = linkedlist_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", _ll_iter_init },
@@ -768,6 +803,7 @@ TypeObject linkedlist_rev_iter_type = {
     .name = "LinkedListRevIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(LinkedListIterObject),
+    ._mark = linkedlist_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", _ll_rev_iter_init },

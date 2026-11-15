@@ -60,7 +60,7 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 
 static Object *tuple_new_view(Storage storage, size_t start, size_t end)
 {
-    TupleObject *x = gc_alloc(sizeof(TupleObject));
+    TupleObject *x = gc_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &tuple_type, 0);
     x->storage = storage;
     x->start = start;
@@ -132,6 +132,23 @@ Object *kl_new_tuple(TValue *items, int count)
         memcpy(storage.values, items, count * sizeof(TValue));
     }
     return tuple_new_view(storage, 0, count);
+}
+
+/* a perm tuple for the const pool; its items must be perm (or values) too */
+Object *kl_new_perm_tuple(TValue *items, int count)
+{
+    TupleObject *x = gc_alloc_perm_obj(x, 0);
+    INIT_OBJECT_HEAD(x, &tuple_type, 0);
+    x->storage.values = NULL;
+    x->storage.size = 0;
+    if (count > 0) {
+        x->storage.values = gc_alloc_perm_values(count);
+        x->storage.size = count;
+        memcpy(x->storage.values, items, count * sizeof(TValue));
+    }
+    x->start = 0;
+    x->end = count;
+    return (Object *)x;
 }
 
 #ifdef __cplusplus

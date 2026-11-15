@@ -21,6 +21,7 @@
 #include "bytesobj.h"
 #include "dictobj.h"
 #include "excobj.h"
+#include "gc.h"
 #include "listobj.h"
 #include "tupleobj.h"
 
@@ -479,7 +480,7 @@ static TypeObject raw_writer_type = {
 /* Wrap a raw file descriptor, taking ownership of it */
 static Object *kl_new_raw_object(TypeObject *tp, int fd)
 {
-    RawObject *raw = mm_alloc_obj(raw);
+    RawObject *raw = gc_alloc_obj(raw);
     INIT_OBJECT_HEAD(raw, tp, 0);
     raw->fd = fd;
     raw->closed = 0;
@@ -916,6 +917,14 @@ static TValue process_kill(TValue *self, TValue *args, int nargs)
  */
 static void process_free(Object *self) { update_process_status((Process *)self); }
 
+static void process_mark(Object *self)
+{
+    Process *proc = (Process *)self;
+    if (proc->_stdin) gc_mark(proc->_stdin);
+    if (proc->_stdout) gc_mark(proc->_stdout);
+    if (proc->_stderr) gc_mark(proc->_stderr);
+}
+
 static MethodDef process_methods[] = {
     { "stdin", process_stdin },
     { "stdout", process_stdout },
@@ -935,12 +944,13 @@ static TypeObject process_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(Process),
     .methdefs = process_methods,
+    ._mark = process_mark,
     ._free = process_free,
 };
 
 static Object *kl_new_process(pid_t pid, Object *stdin_f, Object *stdout_f, Object *stderr_f)
 {
-    Process *proc = mm_alloc_obj(proc);
+    Process *proc = gc_alloc_obj(proc);
     INIT_OBJECT_HEAD(proc, &process_type, 0);
 
     proc->pid = pid;
@@ -1059,7 +1069,8 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
         TValue *item = kl_list_get(arg_list, i);
         Object *ob = to_obj(item);
         ASSERT(IS_STR(ob));
-        vector_push_back(&vec, &STR_BUF(ob));
+        char *arg = STR_BUF(ob);
+        vector_push_back(&vec, &arg);
     }
 
     char *empty = NULL;

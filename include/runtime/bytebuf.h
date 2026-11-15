@@ -21,7 +21,6 @@ typedef struct _ByteBufObject {
 extern TypeObject bytebuf_type;
 #define IS_BYTEBUF(ob) IS_TYPE((ob), &bytebuf_type)
 Object *kl_new_bytebuf(size_t size);
-void kl_free_bytebuf(Object *obj);
 
 #define BYTEBUF_BUF(bb)  (((ByteBufObject *)(bb))->buf)
 #define BYTEBUF_DATA(bb) (((ByteBufObject *)(bb))->buf.buf)

@@ -160,6 +160,34 @@ func test_slice_step() {
 }
 
 @test
+func test_slice_share() {
+    let b = "hello world".to_bytes()
+
+    // step 1 is a view: writes go through to the parent and back
+    let s = b[6:]
+    s[0] = 87 // 'W'
+    ut.assert_eq(b, b"hello World")
+    b[7] = 79 // 'O'
+    ut.assert_eq(s, b"WOrld")
+
+    // a slice of a slice composes the offsets
+    let s2 = s[1:4]
+    ut.assert_eq(s2, b"Orl")
+    s2[2] = 76 // 'L'
+    ut.assert_eq(b, b"hello WOrLd")
+    s2[0:2] = b"xy"
+    ut.assert_eq(b, b"hello WxyLd")
+    s.zero(4)
+    ut.assert_int_eq(b[10], 0)
+
+    // a stepped slice is a copy
+    let c = b[0:5:2]
+    c[0] = 72 // 'H'
+    ut.assert_eq(c, b"Hlo")
+    ut.assert_int_eq(b[0], 104)
+}
+
+@test
 func test_set_slice() {
     // b"..." literals are shared module-level constants: mutating one writes
     // into the constant pool and every identical literal in the module sees

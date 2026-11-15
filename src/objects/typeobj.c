@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "gc.h"
 #include "listobj.h"
 #include "log.h"
 #include "modobj.h"
@@ -27,7 +28,7 @@ static TypeObject *_value_typeof(int tag)
 
 Object *kl_new_global(char *name, int index, Object *m)
 {
-    GlobalObject *global = mm_alloc_obj(global);
+    GlobalObject *global = gc_alloc_perm_obj(global, 0);
     INIT_OBJECT_HEAD(global, &global_type, 0);
     global->name = name;
     global->index = index;
@@ -68,6 +69,14 @@ Object *kl_type_find(TypeObject *tp, char *name)
     return obj;
 }
 
+static void instance_mark(Object *obj)
+{
+    InstObject *inst = (InstObject *)obj;
+    for (size_t i = 0; i < inst->_nfields; i++) {
+        gc_mark_value(&inst->fields[i]);
+    }
+}
+
 void kl_init_type(TypeObject *tp)
 {
     if (!tp || tp->flags & TP_FLAGS_READY) return;
@@ -84,10 +93,12 @@ void kl_init_type(TypeObject *tp)
 
 TypeObject *kl_new_type(char *name, int flags)
 {
-    TypeObject *tp = mm_alloc_obj(tp);
+    TypeObject *tp = gc_alloc_perm_obj(tp, 0);
     INIT_OBJECT_HEAD(tp, &type_type, 0);
     tp->name = name;
     tp->flags = flags;
+    // add gc mark
+    tp->_mark = instance_mark;
     kl_init_type(tp);
     return tp;
 }
@@ -110,7 +121,7 @@ Object *kl_new_instance(struct _TypeObject *tp)
         msize = sizeof(InstObject) + sizeof(TValue) * nfields;
     }
 
-    Object *obj = mm_alloc(msize);
+    Object *obj = gc_alloc(msize);
     INIT_OBJECT_HEAD(obj, tp, nfields);
     return obj;
 }

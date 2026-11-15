@@ -129,7 +129,6 @@ typedef struct _TestCase {
 } TestCase;
 
 Object *kl_new_module(char *path);
-void kl_free_module(Object *m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);

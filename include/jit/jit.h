@@ -134,6 +134,9 @@ TValue kl_jit_build_intern(int tag, int count);
 int kl_jit_enabled(void);
 uint32_t kl_jit_threshold(void);
 
+/* Called by koala_finalize before gc_fini: prints KOALA_JIT_STATS while stderr is still open. */
+void kl_jit_fini(void);
+
 #ifdef __cplusplus
 }
 #endif

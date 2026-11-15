@@ -6,6 +6,7 @@
 #include "buffer.h"
 #include "bytesobj.h"
 #include "excobj.h"
+#include "gc.h"
 #include "listobj.h"
 #include "object.h"
 #include "tupleobj.h"
@@ -264,7 +265,7 @@ static TValue _str_to_bytes(TValue *self, TValue *args, int nargs)
 static TValue _str_empty(TValue *self, TValue *args, int nargs)
 {
     StringObject *str = SELF_AS(str_type);
-    return bool_value(str->size == 0);
+    return bool_value(STR_LEN(str) == 0);
 }
 
 #define DEFINE_STR_CMP_CODE(op) \
@@ -274,9 +275,9 @@ static TValue _str_empty(TValue *self, TValue *args, int nargs)
         Object *ob = to_obj(args); \
         ASSERT(IS_STR(ob)); \
         StringObject *o = (StringObject *)ob; \
-        int n = s->size < o->size ? s->size : o->size; \
-        int r = memcmp(s->array, o->array, n); \
-        if (r == 0) r = (s->size - o->size); \
+        int n = STR_LEN(s) < STR_LEN(o) ? STR_LEN(s) : STR_LEN(o); \
+        int r = memcmp(STR_BUF(s), STR_BUF(o), n); \
+        if (r == 0) r = (STR_LEN(s) - STR_LEN(o)); \
         bool x = r op 0; \
         return bool_value(x); \
     } while (0)
@@ -311,7 +312,7 @@ static TValue _str_ge(TValue *self, TValue *args, int nargs)
 static TValue _str_hash(TValue *self, TValue *args, int nargs)
 {
     StringObject *str = SELF_AS(str_type);
-    return int64_value(str_hash(str->array));
+    return int64_value(mem_hash(STR_BUF(str), (int)STR_LEN(str)));
 }
 
 static TValue _str_add(TValue *self, TValue *args, int nargs)
@@ -328,8 +329,8 @@ static TValue _str_add(TValue *self, TValue *args, int nargs)
     StringObject *o = (StringObject *)ob;
 
     BUF(buf);
-    buf_write_nstr(&buf, s->array, s->size);
-    buf_write_nstr(&buf, o->array, o->size);
+    buf_write_nstr(&buf, STR_BUF(s), STR_LEN(s));
+    buf_write_nstr(&buf, STR_BUF(o), STR_LEN(o));
     return kl_val_str_from_buf(buf);
 }
 
@@ -343,7 +344,7 @@ static TValue _str_mul(TValue *self, TValue *args, int nargs)
     BUF(buf);
 
     for (int i = 0; i < n; i++) {
-        buf_write_nstr(&buf, s->array, s->size);
+        buf_write_nstr(&buf, STR_BUF(s), STR_LEN(s));
     }
 
     return kl_val_str_from_buf(buf);
@@ -917,15 +918,15 @@ static bool pad_fill(TValue *args, int nargs, const char **fill, size_t *fill_le
 static Object *pad_str(StringObject *s, const char *fill, size_t fill_len, int64_t left,
                        int64_t right)
 {
-    size_t out_len = s->size + (size_t)(left + right) * fill_len;
+    size_t out_len = STR_LEN(s) + (size_t)(left + right) * fill_len;
     char *out = mm_alloc(out_len);
     size_t n = 0;
     for (int64_t i = 0; i < left; i++) {
         memcpy(out + n, fill, fill_len);
         n += fill_len;
     }
-    memcpy(out + n, s->array, s->size);
-    n += s->size;
+    memcpy(out + n, STR_BUF(s), STR_LEN(s));
+    n += STR_LEN(s);
     for (int64_t i = 0; i < right; i++) {
         memcpy(out + n, fill, fill_len);
         n += fill_len;
@@ -1285,8 +1286,8 @@ static TValue _str_getitem(TValue *self, TValue *args, int nargs)
     }
     // the character at `index`
     size_t off = str_byte_offset(s, index);
-    int width = utf8_width((unsigned char)s->array[off]);
-    return kl_val_nstr(s->array + off, (size_t)width);
+    int width = utf8_width((unsigned char)STR_BUF(s)[off]);
+    return kl_val_nstr(STR_BUF(s) + off, (size_t)width);
 }
 
 static TValue _str_getslice(TValue *self, TValue *args, int nargs)
@@ -1337,11 +1338,19 @@ static TValue _str_getslice(TValue *self, TValue *args, int nargs)
     }
 
     /* Fast path: step==1 is the most common slice operation.
-     * Return a zero-copy view directly into the source string buffer. */
+     * Return a view sharing the storage of the source string. */
     if (step == 1) {
         size_t from = str_byte_offset(sobj, start);
         size_t to = str_byte_offset(sobj, start + len);
-        return kl_val_nstr(sobj->array + from, to - from);
+        StringObject *x = gc_alloc_obj(x);
+        INIT_OBJECT_HEAD(x, &str_type, 0);
+        x->data = sobj->data;
+        x->size = sobj->size;
+        x->start = sobj->start + from;
+        x->end = sobj->start + to;
+        x->nchars = (size_t)len;
+        x->ascii = (to - from) == (size_t)len;
+        return obj_value(x);
     }
 
     /* General path: copy the characters one by one into a new buffer.
@@ -1353,8 +1362,8 @@ static TValue _str_getslice(TValue *self, TValue *args, int nargs)
     int64_t idx = start;
     for (int64_t i = 0; i < len; i++) {
         size_t off = str_byte_offset(sobj, idx);
-        int width = utf8_width((unsigned char)sobj->array[off]);
-        memcpy(buf + n, sobj->array + off, (size_t)width);
+        int width = utf8_width((unsigned char)STR_BUF(sobj)[off]);
+        memcpy(buf + n, STR_BUF(sobj) + off, (size_t)width);
         n += (size_t)width;
         idx += step;
     }
@@ -1460,6 +1469,18 @@ static MethodDef _str_methods[] = {
     { NULL },
 };
 
+static void str_mark(Object *self)
+{
+    StringObject *s = (StringObject *)self;
+    if (s->data) gc_mark(s->data);
+}
+
+static void str_free(Object *self)
+{
+    StringObject *s = (StringObject *)self;
+    if (s->offsets) mm_free(s->offsets);
+}
+
 /* pub class str : Sequence & Comparable { ... } */
 TypeObject str_type = {
     ._type = &type_type,
@@ -1467,15 +1488,24 @@ TypeObject str_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(StringObject),
     .methdefs = _str_methods,
+    ._mark = str_mark,
+    ._free = str_free,
 };
 
-static StringObject empty_str = {
-    ._type = &str_type,
-    .size = 0,
-    .nchars = 0,
-    .ascii = 1,
-    .array = "",
-};
+/* The shared empty str, a perm object made when first needed. Its data is a static "" (not a
+   GC block): a perm object is never scanned, so str_mark never sees it. */
+static StringObject *empty_str;
+
+static Object *get_empty_str(void)
+{
+    if (!empty_str) {
+        empty_str = gc_alloc_perm_obj(empty_str, 0);
+        INIT_OBJECT_HEAD(empty_str, &str_type, 0);
+        empty_str->data = "";
+        empty_str->ascii = 1;
+    }
+    return (Object *)empty_str;
+}
 
 /* The UTF-8 encoding of U+FFFD, which takes the place of an invalid byte. */
 static const char REPLACEMENT[] = "\xEF\xBF\xBD";
@@ -1555,7 +1585,7 @@ static void build_offsets(StringObject *s)
     size_t off = 0;
     for (size_t k = 0; k < entries; k++) {
         s->offsets[k] = (uint32_t)off;
-        if (k + 1 < entries) off = skip_chars(s->array, off, OFFSET_STEP);
+        if (k + 1 < entries) off = skip_chars(STR_BUF(s), off, OFFSET_STEP);
     }
 }
 
@@ -1563,26 +1593,26 @@ static void build_offsets(StringObject *s)
 static size_t str_byte_offset(StringObject *s, int64_t ci)
 {
     if (ci <= 0) return 0;
-    if ((size_t)ci >= s->nchars) return s->size;
+    if ((size_t)ci >= s->nchars) return STR_LEN(s);
     if (s->ascii) return (size_t)ci;
 
     size_t target = (size_t)ci;
     size_t off;
     if (target >= s->cached_char && target - s->cached_char < OFFSET_STEP) {
         // a little after the last lookup: a scan going forward
-        off = skip_chars(s->array, s->cached_byte, target - s->cached_char);
+        off = skip_chars(STR_BUF(s), s->cached_byte, target - s->cached_char);
     } else if (target < s->cached_char && s->cached_char - target < OFFSET_STEP) {
         // a little before it: a scan going backward, over the continuation bytes
         off = s->cached_byte;
         for (size_t i = target; i < s->cached_char; i++) {
             do {
                 off--;
-            } while (((unsigned char)s->array[off] & 0xC0) == 0x80);
+            } while (((unsigned char)STR_BUF(s)[off] & 0xC0) == 0x80);
         }
     } else {
         if (!s->offsets) build_offsets(s);
         size_t k = target / OFFSET_STEP;
-        off = skip_chars(s->array, s->offsets[k], target - k * OFFSET_STEP);
+        off = skip_chars(STR_BUF(s), s->offsets[k], target - k * OFFSET_STEP);
     }
     s->cached_char = target;
     s->cached_byte = off;
@@ -1593,7 +1623,7 @@ static size_t str_byte_offset(StringObject *s, int64_t ci)
 static int64_t str_char_index(StringObject *s, size_t offset)
 {
     if (s->ascii) return (int64_t)offset;
-    if (offset >= s->size) return (int64_t)s->nchars;
+    if (offset >= STR_LEN(s)) return (int64_t)s->nchars;
 
     size_t ci = 0;
     size_t off = 0;
@@ -1617,7 +1647,7 @@ static int64_t str_char_index(StringObject *s, size_t offset)
         off = s->offsets[lo];
     }
     while (off < offset) {
-        off += (size_t)utf8_width((unsigned char)s->array[off]);
+        off += (size_t)utf8_width((unsigned char)STR_BUF(s)[off]);
         ci++;
     }
     return (int64_t)ci;
@@ -1635,13 +1665,13 @@ int64_t kl_str_char_index(Object *s, size_t offset)
     return str_char_index((StringObject *)s, offset);
 }
 
-Object *kl_new_nstr(char *s, size_t len)
+static Object *new_nstr(char *s, size_t len, int perm)
 {
     if (len == 0) {
-        return (Object *)&empty_str;
+        return get_empty_str();
     }
 
-    StringObject *x = mm_alloc_obj(x);
+    StringObject *x = perm ? gc_alloc_perm_obj(x, 0) : gc_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &str_type, 0);
 
     int ascii;
@@ -1649,18 +1679,28 @@ Object *kl_new_nstr(char *s, size_t len)
     x->nchars = count_chars(s, len, &ascii, &valid);
     x->ascii = ascii;
 
-    if (valid) {
-        char *data = mm_alloc(len + 1);
-        memcpy(data, s, len);
-        data[len] = '\0';
-        x->array = data;
-        x->size = len;
-    } else {
-        x->array = repair_utf8(s, len, &x->size);
+    char *repaired = NULL;
+    if (!valid) {
+        repaired = repair_utf8(s, len, &len);
+        s = repaired;
     }
 
+    /* TEMP: one more byte for a '\0', until no C caller relies on it */
+    char *data = perm ? gc_alloc_perm_bytes((int)len + 1) : gc_alloc_bytes((int)len + 1);
+    memcpy(data, s, len);
+    data[len] = '\0';
+    x->data = data;
+    x->size = len;
+    x->start = 0;
+    x->end = len;
+
+    if (repaired) mm_free(repaired);
     return (Object *)x;
 }
+
+Object *kl_new_nstr(char *s, size_t len) { return new_nstr(s, len, 0); }
+
+Object *kl_new_perm_nstr(char *s, size_t len) { return new_nstr(s, len, 1); }
 
 Object *kl_new_fmt_str(char *fmt, ...)
 {
@@ -1677,16 +1717,12 @@ void kl_free_str(Object *obj)
 {
     StringObject *sobj = (StringObject *)obj;
 
-    // the shared empty string singleton is static, never free it
-    if (sobj == &empty_str) {
-        return;
-    }
+    // the shared empty str is perm, never free it
+    if (sobj == empty_str) return;
 
-    if (sobj->size > 0) {
-        mm_free(sobj->array);
-    }
     if (sobj->offsets) mm_free(sobj->offsets);
-    mm_free(sobj);
+    gc_free(sobj->data);
+    gc_free(sobj);
 }
 
 #ifdef __cplusplus

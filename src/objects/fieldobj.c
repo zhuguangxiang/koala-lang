@@ -4,6 +4,7 @@
  */
 
 #include "object.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +35,7 @@ TypeObject field_type = {
 
 Object *kl_new_field(char *name, int type, int index, Object *owner)
 {
-    FieldObject *field = mm_alloc_obj(field);
+    FieldObject *field = gc_alloc_perm_obj(field, 0);
     INIT_OBJECT_HEAD(field, &field_type, 0);
     field->name = name;
     field->owner = owner;

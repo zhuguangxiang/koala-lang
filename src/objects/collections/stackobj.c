@@ -5,6 +5,7 @@
 
 #include "collections/stackobj.h"
 #include "excobj.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -127,16 +128,24 @@ static TValue _stack_fmt(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef stack_methods[] = {
-    { "__init__", _stack_init },
-    { "len", _stack_len },
-    { "empty", _stack_empty },
-    { "push", _stack_push },
-    { "pop", _stack_pop },
-    { "peek", _stack_peek },
-    { "clear", _stack_clear },
-    { "fmt", _stack_fmt },
-    { NULL },
+    { "__init__", _stack_init }, { "len", _stack_len }, { "empty", _stack_empty },
+    { "push", _stack_push },     { "pop", _stack_pop }, { "peek", _stack_peek },
+    { "clear", _stack_clear },   { "fmt", _stack_fmt }, { NULL },
 };
+
+/* elements live in a mm-allocated vector, private to the stack */
+static void stack_mark(Object *obj)
+{
+    StackObject *stack = (StackObject *)obj;
+    int size = vector_size(&stack->vec);
+    for (int i = 0; i < size; ++i) gc_mark_value((TValue *)vector_get_ptr(&stack->vec, i));
+}
+
+static void stack_free(Object *obj)
+{
+    StackObject *stack = (StackObject *)obj;
+    vector_fini(&stack->vec);
+}
 
 /* pub class Stack[T] { ... } */
 TypeObject stack_type = {
@@ -144,12 +153,14 @@ TypeObject stack_type = {
     .name = "Stack",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(StackObject),
+    ._mark = stack_mark,
+    ._free = stack_free,
     .methdefs = stack_methods,
 };
 
 Object *kl_new_stack(void)
 {
-    StackObject *stack = mm_alloc_obj(stack);
+    StackObject *stack = gc_alloc_obj(stack);
     INIT_OBJECT_HEAD(stack, &stack_type, 0);
     vector_init(&stack->vec, STACK_ELEM_SIZE);
     return (Object *)stack;

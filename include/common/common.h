@@ -146,6 +146,12 @@ static inline double now_ns(void)
 #endif
 #endif
 
+// A none-zero-terminated string
+typedef struct nstr {
+    char *data;
+    size_t len;
+} nstr_t;
+
 #ifdef __cplusplus
 }
 #endif

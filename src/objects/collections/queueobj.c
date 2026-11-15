@@ -5,6 +5,7 @@
 
 #include "collections/queueobj.h"
 #include "excobj.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -143,18 +144,34 @@ static MethodDef queue_methods[] = {
     { "clear", _queue_clear },   { "fmt", _queue_fmt }, { NULL },
 };
 
+/* elements live in a mm-allocated ring, private to the queue */
+static void queue_mark(Object *obj)
+{
+    QueueObject *q = (QueueObject *)obj;
+    int size = _queue_size(q);
+    for (int i = 0; i < size; ++i) gc_mark_value(_queue_at(q, i));
+}
+
+static void queue_free(Object *obj)
+{
+    QueueObject *q = (QueueObject *)obj;
+    ring_fini(&q->ring);
+}
+
 /* pub class Queue[T] { ... } */
 TypeObject queue_type = {
     ._type = &type_type,
     .name = "Queue",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(QueueObject),
+    ._mark = queue_mark,
+    ._free = queue_free,
     .methdefs = queue_methods,
 };
 
 Object *kl_new_queue(void)
 {
-    QueueObject *q = mm_alloc_obj(q);
+    QueueObject *q = gc_alloc_obj(q);
     INIT_OBJECT_HEAD(q, &queue_type, 0);
     ring_init(&q->ring, QUEUE_ELEM_SIZE);
     return (Object *)q;

@@ -4,6 +4,7 @@
  */
 
 #include "atom.h"
+#include "gc.h"
 #include "modobj.h"
 
 #ifdef __cplusplus
@@ -53,7 +54,7 @@ TypeObject code_type = {
 
 Object *kl_new_code(char *name, Object *owner)
 {
-    CodeObject *code = mm_alloc_obj(code);
+    CodeObject *code = gc_alloc_perm_obj(code, 0);
     INIT_OBJECT_HEAD(code, &code_type, 0);
     code->cs.name = atom(name);
     code->owner = owner;
@@ -101,7 +102,7 @@ TypeObject cfunc_type = {
 
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)
 {
-    CFuncObject *cfunc = mm_alloc_obj(cfunc);
+    CFuncObject *cfunc = gc_alloc_perm_obj(cfunc, 0);
     INIT_OBJECT_HEAD(cfunc, &cfunc_type, 0);
     cfunc->name = atom(name);
     cfunc->func = fn;

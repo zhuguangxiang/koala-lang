@@ -5,6 +5,7 @@
 
 #include "rangeobj.h"
 #include "excobj.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -138,15 +139,13 @@ TypeObject range_type = {
     .methdefs = range_methods,
 };
 
-Object *kl_new_range(TValue *items)
+static Object *range_init(RangeObject *x, TValue *items)
 {
     int64_t step = to_int64(&items[2]);
     if (step == 0) {
         panic("range step cannot be zero");
     }
 
-    int msize = sizeof(RangeObject);
-    RangeObject *x = mm_alloc(msize);
     INIT_OBJECT_HEAD(x, &range_type, 3);
 
     x->start = items[0];
@@ -154,6 +153,19 @@ Object *kl_new_range(TValue *items)
     x->step = items[2];
 
     return (Object *)x;
+}
+
+Object *kl_new_range(TValue *items)
+{
+    RangeObject *x = gc_alloc_obj(x);
+    return range_init(x, items);
+}
+
+/* a perm range for the const pool */
+Object *kl_new_perm_range(TValue *items)
+{
+    RangeObject *x = gc_alloc_perm_obj(x, 0);
+    return range_init(x, items);
 }
 
 #ifdef __cplusplus

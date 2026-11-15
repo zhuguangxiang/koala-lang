@@ -1,0 +1,7 @@
+// RUN: koala %s 2>&1 | filecheck %s
+
+let l = list[int](1, 2, 3)
+print(l[-3])
+print(l[-4])
+// CHECK: 1
+// CHECK: list index out of range

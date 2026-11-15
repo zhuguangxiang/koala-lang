@@ -201,12 +201,16 @@ static void jit_stats_print(void)
     }
 }
 
-static void jit_stats_init(void)
+static int jit_stats_used;
+
+/* stats are printed by kl_jit_fini only if a compile or bail was counted */
+static void jit_stats_init(void) { jit_stats_used = 1; }
+
+void kl_jit_fini(void)
 {
-    static int inited = 0;
-    if (!inited) {
-        inited = 1;
-        atexit(jit_stats_print);
+    if (jit_stats_used) {
+        jit_stats_used = 0;
+        jit_stats_print();
     }
 }
 

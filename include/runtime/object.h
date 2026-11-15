@@ -386,16 +386,19 @@ Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner);
  +---------------------------------------------------------------------------*/
 
 /* A str: valid UTF-8 text, any invalid byte replaced by U+FFFD when it was made. Its length,
-   indexes and slices count characters (code points); `size` is its length in bytes, for C. */
+   indexes and slices count characters (code points). The text is the bytes [start, end) of
+   `data` (a GC bytes block of `size` bytes), which a step-1 slice shares; it is not
+   0-terminated. */
 typedef struct _StringObject {
     OBJECT_HEAD
-    /* bytes of the UTF-8 text */
+    char *data;
     size_t size;
+    size_t start;
+    size_t end;
     /* characters (code points) */
     size_t nchars;
     /* every character is ASCII: a character index is a byte offset */
     int ascii;
-    char *array;
     /* For a non-ASCII str, built when first needed: the byte offset of every 64th character, and
        the last character index looked up with its byte offset, so that a scan by index is O(1)
        per step. */
@@ -406,11 +409,13 @@ typedef struct _StringObject {
 
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
-#define STR_BUF(ob)    (((StringObject *)(ob))->array)
-#define STR_LEN(ob)    (((StringObject *)(ob))->size)
-#define STR_NCHARS(ob) (((StringObject *)(ob))->nchars)
+#define STR_BUF(ob)     (((StringObject *)(ob))->data + ((StringObject *)(ob))->start)
+#define STR_LEN(ob)     (((StringObject *)(ob))->end - ((StringObject *)(ob))->start)
+#define STR_NCHARS(ob)  (((StringObject *)(ob))->nchars)
 
 Object *kl_new_nstr(char *s, size_t len);
+/* a str of the constant pool, never freed */
+Object *kl_new_perm_nstr(char *s, size_t len);
 static inline Object *kl_new_str(char *s) { return kl_new_nstr(s, strlen(s)); }
 
 /* The byte offset of character `ci` of the str `s`, clamped to 0..nchars (nchars gives the end). */
@@ -419,6 +424,7 @@ size_t kl_str_byte_offset(Object *s, int64_t ci);
 /* The character index of byte offset `offset` of the str `s`, which starts a character. */
 int64_t kl_str_char_index(Object *s, size_t offset);
 Object *kl_new_fmt_str(char *fmt, ...);
+/* free a str nothing else refers to (not a slice, nor sliced), now */
 void kl_free_str(Object *obj);
 
 /*---------------------------------------------------------------------------+
@@ -436,6 +442,7 @@ extern TypeObject slice_type;
 #define IS_SLICE(ob) IS_TYPE((ob), &slice_type)
 
 Object *kl_new_slice(TValue *items);
+Object *kl_new_perm_slice(TValue *items);
 
 int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
 int64_t slice_count(int64_t start, int64_t end, int64_t step);

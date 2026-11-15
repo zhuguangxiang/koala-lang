@@ -32,6 +32,7 @@ extern TypeObject tuple_type;
 #define TUPLE_SIZE(x)  (((TupleObject *)(x))->end - ((TupleObject *)(x))->start)
 
 Object *kl_new_tuple(TValue *items, int count);
+Object *kl_new_perm_tuple(TValue *items, int count);
 
 #ifdef __cplusplus
 }

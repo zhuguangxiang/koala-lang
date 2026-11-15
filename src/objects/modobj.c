@@ -7,6 +7,7 @@
 #include "atom.h"
 #include "bytesobj.h"
 #include "dictobj.h"
+#include "gc.h"
 #include "klc.h"
 #include "listobj.h"
 #include "rangeobj.h"
@@ -34,11 +35,21 @@ static int register_module(Object *_m)
  |  Module type definition                                                   |
  +---------------------------------------------------------------------------*/
 
+/* a module is a perm root: trace its globals on every collection (constants are perm) */
+static void module_mark(Object *self)
+{
+    ModuleObject *m = (ModuleObject *)self;
+    for (uint32_t i = 0; m->values && i < m->num_values; i++) {
+        gc_mark_value(&m->values[i]);
+    }
+}
+
 TypeObject module_type = {
     ._type = &type_type,
     .name = "module",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(ModuleObject),
+    ._mark = module_mark,
 };
 
 int kl_mo_add_func(Object *_m, char *name, Object *obj)
@@ -150,7 +161,7 @@ int kl_mo_add_none(Object *_m)
 int kl_mo_add_str(Object *_m, char *s, int len)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    Object *sobj = kl_new_nstr(s, len);
+    Object *sobj = kl_new_perm_nstr(s, len);
     TValue val = obj_value(sobj);
     return kl_mo_add_const(_m, &val);
 }
@@ -158,7 +169,7 @@ int kl_mo_add_str(Object *_m, char *s, int len)
 int kl_mo_add_bytes(Object *_m, char *s, int len)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    Object *bobj = kl_bytes_from_data((uint8_t *)s, len);
+    Object *bobj = kl_bytes_from_data_perm((uint8_t *)s, len);
     TValue val = obj_value(bobj);
     return kl_mo_add_const(_m, &val);
 }
@@ -207,7 +218,7 @@ static Object *__new_const_tuple(Object *_m, Vector *list)
             case KLC_CONST_SHORT_UTF8:
             case KLC_CONST_ASCII:
             case KLC_CONST_UTF8: {
-                Object *sobj = kl_new_nstr(item->sval, item->len);
+                Object *sobj = kl_new_perm_nstr(item->sval, item->len);
                 TValue val = obj_value(sobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -232,7 +243,7 @@ static Object *__new_const_tuple(Object *_m, Vector *list)
                     values[i__] = int64_value(_item->ival);
                 }
 
-                Object *tobj = kl_new_range(values);
+                Object *tobj = kl_new_perm_range(values);
                 TValue val = obj_value(tobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -248,7 +259,7 @@ static Object *__new_const_tuple(Object *_m, Vector *list)
                     values[i__] = int64_value(_item->ival);
                 }
 
-                Object *tobj = kl_new_slice(values);
+                Object *tobj = kl_new_perm_slice(values);
                 TValue val = obj_value(tobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -264,7 +275,7 @@ static Object *__new_const_tuple(Object *_m, Vector *list)
             }
 
             case KLC_CONST_BYTES: {
-                Object *bs = kl_bytes_from_data((uint8_t *)item->sval, (size_t)item->len);
+                Object *bs = kl_bytes_from_data_perm((uint8_t *)item->sval, (size_t)item->len);
                 TValue val = obj_value(bs);
                 vector_push_back(&vec, &val);
                 break;
@@ -279,7 +290,7 @@ static Object *__new_const_tuple(Object *_m, Vector *list)
 
     TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
-    Object *tobj = kl_new_tuple(items, size);
+    Object *tobj = kl_new_perm_tuple(items, size);
     vector_fini(&vec);
     return tobj;
 }
@@ -307,7 +318,7 @@ int kl_mo_add_range(Object *_m, Vector *list)
     TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     ASSERT(size == 3);
-    Object *tobj = kl_new_range(items);
+    Object *tobj = kl_new_perm_range(items);
     TValue val = obj_value(tobj);
     vector_fini(&vec);
     return kl_mo_add_const(_m, &val);
@@ -329,7 +340,7 @@ int kl_mo_add_slice(Object *_m, Vector *list)
     TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     ASSERT(size == 3);
-    Object *tobj = kl_new_slice(items);
+    Object *tobj = kl_new_perm_slice(items);
     TValue val = obj_value(tobj);
     vector_fini(&vec);
     return kl_mo_add_const(_m, &val);
@@ -379,7 +390,7 @@ static Object *__new_const_list(Object *_m, Vector *list)
             case KLC_CONST_SHORT_UTF8:
             case KLC_CONST_ASCII:
             case KLC_CONST_UTF8: {
-                Object *sobj = kl_new_nstr(item->sval, item->len);
+                Object *sobj = kl_new_perm_nstr(item->sval, item->len);
                 TValue val = obj_value(sobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -404,7 +415,7 @@ static Object *__new_const_list(Object *_m, Vector *list)
                     values[i__] = int64_value(_item->ival);
                 }
 
-                Object *tobj = kl_new_range(values);
+                Object *tobj = kl_new_perm_range(values);
                 TValue val = obj_value(tobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -420,7 +431,7 @@ static Object *__new_const_list(Object *_m, Vector *list)
                     values[i__] = int64_value(_item->ival);
                 }
 
-                Object *tobj = kl_new_slice(values);
+                Object *tobj = kl_new_perm_slice(values);
                 TValue val = obj_value(tobj);
                 vector_push_back(&vec, &val);
                 break;
@@ -444,7 +455,7 @@ static Object *__new_const_list(Object *_m, Vector *list)
 
     TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
-    Object *tobj = kl_list_from_array(items, size);
+    Object *tobj = kl_list_from_array_perm(items, size);
     vector_fini(&vec);
     return tobj;
 }
@@ -478,12 +489,12 @@ static TValue __const_to_tvalue(Object *_m, KlcConst *item)
         case KLC_CONST_SHORT_UTF8:
         case KLC_CONST_ASCII:
         case KLC_CONST_UTF8: {
-            Object *sobj = kl_new_nstr(item->sval, item->len);
+            Object *sobj = kl_new_perm_nstr(item->sval, item->len);
             return obj_value(sobj);
         }
 
         case KLC_CONST_BYTES: {
-            Object *bs = kl_bytes_from_data((uint8_t *)item->sval, (size_t)item->len);
+            Object *bs = kl_bytes_from_data_perm((uint8_t *)item->sval, (size_t)item->len);
             return obj_value(bs);
         }
 
@@ -504,7 +515,7 @@ static TValue __const_to_tvalue(Object *_m, KlcConst *item)
                 values[i__] = int64_value(_item->ival);
             }
 
-            Object *robj = kl_new_range(values);
+            Object *robj = kl_new_perm_range(values);
             return obj_value(robj);
         }
 
@@ -518,7 +529,7 @@ static TValue __const_to_tvalue(Object *_m, KlcConst *item)
                 values[i__] = int64_value(_item->ival);
             }
 
-            Object *sobj = kl_new_slice(values);
+            Object *sobj = kl_new_perm_slice(values);
             return obj_value(sobj);
         }
 
@@ -544,7 +555,7 @@ static TValue __const_to_tvalue(Object *_m, KlcConst *item)
  */
 static Object *__new_const_dict(Object *_m, Vector *list)
 {
-    Object *dobj = kl_new_dict();
+    Object *dobj = kl_new_perm_dict();
 
     int count = vector_size(list);
     for (int i = 0; i + 1 < count; i += 2) {
@@ -599,7 +610,7 @@ void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n)
 
 Object *kl_new_module(char *path)
 {
-    ModuleObject *m = mm_alloc_obj(m);
+    ModuleObject *m = gc_alloc_perm_obj(m, 1);
 
     INIT_OBJECT_HEAD(m, &module_type, 0);
     vector_init(&m->const_pool, sizeof(TValue));
@@ -617,11 +628,6 @@ Object *kl_new_module(char *path)
 
     register_module((Object *)m);
     return (Object *)m;
-}
-
-void kl_free_module(Object *m)
-{
-    // TODO: implement module free logic
 }
 
 static void dump_value(TValue *val)

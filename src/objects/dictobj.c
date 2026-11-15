@@ -5,6 +5,7 @@
 
 #include "dictobj.h"
 #include "excobj.h"
+#include "gc.h"
 #include "listobj.h"
 #include "tupleobj.h"
 
@@ -429,6 +430,13 @@ typedef struct _DictIterObject {
     HashMapIter iter;
 } DictIterObject;
 
+/* the iterator holds raw entry pointers, so the dict must outlive it */
+static void dict_iter_mark(Object *obj)
+{
+    DictIterObject *iter = (DictIterObject *)obj;
+    gc_mark(iter->dict);
+}
+
 static TValue _init_dict_iter(DictIterObject *iter, TValue *args, int nargs, int reverse)
 {
     ASSERT(nargs == 2);
@@ -561,6 +569,7 @@ TypeObject dict_keys_iter_type = {
     .name = "DictKeysIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DictIterObject),
+    ._mark = dict_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", dict_iter_init },
@@ -576,6 +585,7 @@ TypeObject dict_values_iter_type = {
     .name = "DictValuesIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DictIterObject),
+    ._mark = dict_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", dict_iter_init },
@@ -591,6 +601,7 @@ TypeObject dict_view_iter_type = {
     .name = "DictViewIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DictIterObject),
+    ._mark = dict_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", dict_iter_init },
@@ -606,6 +617,7 @@ TypeObject dict_rev_iter_type = {
     .name = "DictRevIter",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DictIterObject),
+    ._mark = dict_iter_mark,
     .methdefs =
         (MethodDef[]){
             { "__init__", dict_rev_iter_init },
@@ -638,18 +650,48 @@ static MethodDef dict_methods[] = {
     { NULL },
 };
 
+/* entries and buckets are mm-allocated private data of the dict */
+static void dict_mark(Object *obj)
+{
+    DictObject *dict = (DictObject *)obj;
+    HashMapIter it;
+    hashmap_iter_init(&dict->map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        DictEntry *entry = hashmap_iter_entry(&it);
+        gc_mark_value(&entry->key);
+        gc_mark_value(&entry->value);
+    }
+}
+
+static void dict_free(Object *obj)
+{
+    DictObject *dict = (DictObject *)obj;
+    hashmap_fini(&dict->map, _dict_entry_free_, NULL);
+}
+
 /* pub class dict[K, V] : Map[K, V] { ... } */
 TypeObject dict_type = {
     ._type = &type_type,
     .name = "dict",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(DictObject),
+    ._mark = dict_mark,
+    ._free = dict_free,
     .methdefs = dict_methods,
 };
 
 Object *kl_new_dict(void)
 {
-    DictObject *dict = mm_alloc_obj(dict);
+    DictObject *dict = gc_alloc_obj(dict);
+    INIT_OBJECT_HEAD(dict, &dict_type, 0);
+    hashmap_init(&dict->map, _dict_entry_eq_);
+    return (Object *)dict;
+}
+
+/* for the const pool: keys and values must be perm too */
+Object *kl_new_perm_dict(void)
+{
+    DictObject *dict = gc_alloc_perm_obj(dict, 0);
     INIT_OBJECT_HEAD(dict, &dict_type, 0);
     hashmap_init(&dict->map, _dict_entry_eq_);
     return (Object *)dict;
