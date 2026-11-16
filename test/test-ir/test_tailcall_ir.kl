@@ -1,5 +1,5 @@
 // RUN: koalac %s --isel --tail-call --dump=lir | filecheck %s --check-prefix=TAIL
-// RUN: koalac %s --isel --tail-call --recursive-self-inline --dump=lir | filecheck %s --check-prefix=TAIL
+// RUN: koalac %s --isel --tail-call --recursive-self-inline --dump=lir | filecheck %s --check-prefix=TAIL-INLINE
 // RUN: koalac %s --isel --dump=lir | filecheck %s --check-prefix=OFF
 
 func rotate(n int, a int, b int, c int) int {
@@ -64,6 +64,40 @@ class Counter {
 // TAIL: tail_call @even, nargs=1
 // TAIL-LABEL: --- IR Dump After isel [@Counter::down] ---
 // TAIL: tail_call @Counter:down, nargs=2
+
+// With --recursive-self-inline, self tail calls are spliced: args are copied
+// into locals and the body is cloned, leaving one real tail_call at the deepest
+// level. Non-tail self calls expand through self-inline-cont blocks.
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@rotate] ---
+// TAIL-INLINE: %bb2(if-end):
+// TAIL-INLINE-NEXT: int.sub_imm
+// TAIL-INLINE-NEXT: local int64
+// TAIL-INLINE: branch
+// TAIL-INLINE: tail_call @rotate, nargs=4
+// TAIL-INLINE-NOT: tail_call @rotate
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@branches] ---
+// TAIL-INLINE-COUNT-16: tail_call @branches, nargs=1
+// TAIL-INLINE-NOT: tail_call @branches
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@non_tail] ---
+// TAIL-INLINE-NOT: tail_call @non_tail
+// TAIL-INLINE: self-inline-cont
+// TAIL-INLINE: call @non_tail, nargs=1
+// TAIL-INLINE-NEXT: {{.*}}int.add_imm
+// TAIL-INLINE-NOT: tail_call @non_tail
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@nested] ---
+// TAIL-INLINE-COUNT-255: = call @nested, nargs=1
+// TAIL-INLINE-NEXT: tail_call @nested, nargs=1
+// TAIL-INLINE-NOT: tail_call @nested
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@even] ---
+// TAIL-INLINE: tail_call @odd, nargs=1
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@odd] ---
+// TAIL-INLINE: tail_call @even, nargs=1
+// TAIL-INLINE-LABEL: --- IR Dump After isel [@Counter::down] ---
+// TAIL-INLINE: %bb2(if-end):
+// TAIL-INLINE-NEXT: int.sub_imm
+// TAIL-INLINE-NEXT: local
+// TAIL-INLINE: tail_call @Counter:down, nargs=2
+// TAIL-INLINE-NOT: tail_call @Counter:down
 
 // OFF-LABEL: --- IR Dump After isel [@rotate] ---
 // OFF-NOT: tail_call

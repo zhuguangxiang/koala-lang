@@ -57,7 +57,10 @@ Object *stbl_find_obj(HashMap *map, char *name)
     return found ? found->obj : NULL;
 }
 
+static void __stbl_entry_free__(void *ptr, void *arg) { mm_free(ptr); }
+
 void stbl_init(HashMap *map) { hashmap_init(map, __stbl_equal__); }
+void stbl_fini(HashMap *map) { hashmap_fini(map, __stbl_entry_free__, NULL); }
 
 #ifdef __cplusplus
 }

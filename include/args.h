@@ -35,6 +35,8 @@ typedef struct KoalaOptions {
 
 int kl_parse_args(int argc, char *argv[]);
 
+void kl_free_args(void);
+
 KoalaOptions *kl_get_cmd_opt(void);
 
 #ifdef __cplusplus

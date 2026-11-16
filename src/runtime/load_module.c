@@ -199,9 +199,11 @@ static void _load_native(ModuleObject *mo, char *name, char *pkg_name)
         return;
     }
 
-    NativeLib lib = { .name = name, .handle = handle };
-    stbl_init(&lib.symbols);
-    init_func(&lib);
+    NativeLib *lib = mm_alloc_obj(lib);
+    lib->name = name;
+    lib->handle = handle;
+    stbl_init(&lib->symbols);
+    init_func(lib);
     vector_push_back(&mo->libs, &lib);
 }
 

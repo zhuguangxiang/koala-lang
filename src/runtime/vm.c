@@ -65,7 +65,7 @@ void kl_free_ks(KoalaState *ks)
     ASSERT(!ks->cf);
     free(ks->stack_base);
 
-    CallFrame *cf = ks->cf;
+    CallFrame *cf = ks->cf_cache;
     while (cf) {
         CallFrame *prev = cf->back;
         mm_free(cf);
@@ -137,8 +137,14 @@ void koala_finalize(void)
     /* print jit stats before gc_fini closes the std streams */
     kl_jit_fini();
 
+    /* clean static types before gc_fini frees the dynamic ones */
+    kl_fini_static_types();
+
     /* finalize garbage collector */
     gc_fini();
+
+    /* entries only hold module pointers, safe after gc_fini */
+    kl_fini_module_stbl();
 
     kl_free_ks(__ts->current);
     mm_free(__ts);
@@ -148,9 +154,6 @@ void koala_finalize(void)
 
     /* finalize logger */
     fini_log();
-
-    /* free all allocated memory blocks */
-    free_alloc_mem();
 }
 
 #ifdef __cplusplus

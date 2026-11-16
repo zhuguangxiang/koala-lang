@@ -21,6 +21,7 @@ extern "C" {
 static HashMap _gm_stbl;
 
 void kl_init_module_stbl(void) { stbl_init(&_gm_stbl); }
+void kl_fini_module_stbl(void) { stbl_fini(&_gm_stbl); }
 
 Object *kl_find_module(char *path) { return stbl_find_obj(&_gm_stbl, path); }
 
@@ -44,12 +45,45 @@ static void module_mark(Object *self)
     }
 }
 
+static void module_free_hook(Object *ob)
+{
+    ModuleObject *mobj = (ModuleObject *)ob;
+
+    mm_free(mobj->codes);
+    mm_free(mobj->values);
+    stbl_fini(&mobj->symbols);
+
+    vector_fini(&mobj->lineinfos);
+    vector_fini(&mobj->inline_sites);
+    vector_fini(&mobj->inline_pcs);
+    vector_fini(&mobj->const_pool);
+    vector_fini(&mobj->import_table);
+    vector_fini(&mobj->funcs);
+    vector_fini(&mobj->types);
+    vector_fini(&mobj->globals);
+
+    TestCase *tc;
+    vector_foreach_ptr(tc, &mobj->tests) {
+        vector_fini(&tc->bench_times);
+        mm_free(tc->bench_config);
+    }
+    vector_fini(&mobj->tests);
+
+    NativeLib *lib;
+    vector_foreach(lib, &mobj->libs) {
+        stbl_fini(&lib->symbols);
+        mm_free(lib);
+    }
+    vector_fini(&mobj->libs);
+}
+
 TypeObject module_type = {
     ._type = &type_type,
     .name = "module",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(ModuleObject),
     ._mark = module_mark,
+    ._free = module_free_hook,
 };
 
 int kl_mo_add_func(Object *_m, char *name, Object *obj)
@@ -622,7 +656,7 @@ Object *kl_new_module(char *path)
     vector_init(&m->lineinfos, sizeof(LineInfo));
     vector_init(&m->inline_sites, sizeof(InlineSite));
     vector_init(&m->inline_pcs, sizeof(InlinePc));
-    vector_init(&m->libs, sizeof(NativeLib));
+    vector_init_ptr(&m->libs);
     stbl_init(&m->symbols);
     m->path = atom(path);
 

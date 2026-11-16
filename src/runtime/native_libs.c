@@ -29,7 +29,7 @@ static TValue _default_fmt(TValue *self, TValue *args, int nargs)
 static TValue _default_hash(TValue *self, TValue *args, int nargs)
 {
     /* The same object may be a plain value `{TAG_OBJECT, obj}` or a trait value `{itab, obj}`. */
-    unsigned int hash = mem_hash(&self->obj, sizeof(self->obj));
+    unsigned int hash = mem_hash(&self->obj, sizeof(void *));
     return int64_value(hash);
 }
 
@@ -65,7 +65,7 @@ Object *kl_get_native(Object *m, char *name)
 {
     ModuleObject *mo = (ModuleObject *)m;
     NativeLib *lib;
-    vector_foreach_ptr(lib, &mo->libs) {
+    vector_foreach(lib, &mo->libs) {
         Object *ob = stbl_find_obj(&lib->symbols, name);
         if (ob) return ob;
     }

@@ -155,6 +155,7 @@ Object *kl_mo_find(Object *_m, char *name);
 int kl_mo_is_local_func(Object *_m, Object *fn);
 
 void kl_init_module_stbl(void);
+void kl_fini_module_stbl(void);
 Object *kl_find_module(char *path);
 Object *kl_load_module(char *path);
 void kl_dump_module(Object *m);

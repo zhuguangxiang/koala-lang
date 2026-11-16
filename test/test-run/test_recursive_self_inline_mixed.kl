@@ -1,0 +1,28 @@
+// RUN: koala %s ++ --recursive-self-inline | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --recursive-self-inline | filecheck %s
+// RUN: koala %s ++ --recursive-self-inline --domtree --unroll | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s ++ --recursive-self-inline --domtree --unroll | filecheck %s
+
+// Mixed tail / non-tail self calls: the outer call is a tail call whose argument
+// is another self call. A tail call nested inside a generic (non-tail) inline copy
+// is no longer in tail position (its RET became move+jmp), so it must be inlined
+// through the generic path, not the tail-splice path.
+
+func ack(m int, n int) int {
+    if m == 0 { return n + 1 }
+    if n == 0 { return ack(m - 1, 1) }
+    return ack(m - 1, ack(m, n - 1))
+}
+
+func sum(n int, acc int) int {
+    if n == 0 { return acc }
+    return sum(n - 1, acc + n)
+}
+
+func main() {
+    print(ack(3, 7))
+    print(sum(100000, 0))
+}
+
+// CHECK: 1021
+// CHECK: 5000050000

@@ -15,7 +15,7 @@ source env.sh
 BUILD=${BUILD:-build/release}
 RUNS=${RUNS:-10}
 WARMUP=${WARMUP:-3}
-KOALA_OPTS=${KOALA_OPTS:-"--recursive-self-inline --domtree --unroll"}
+KOALA_OPTS=${KOALA_OPTS:-"--domtree --unroll --recursive-self-inline --strip-lineinfo"}
 
 # koala spawns koalac from PATH: use the koalac of the same build
 export PATH="$PWD/$BUILD/bin:$PATH"

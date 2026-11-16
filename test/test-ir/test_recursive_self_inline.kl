@@ -85,5 +85,5 @@ func mutual_b(n int) int {
 
 func too_many_calls(n int) int {
     if n <= 0 { return n }
-    return too_many_calls(n - 1) + too_many_calls(n - 2) + too_many_calls(n - 3)
+    return too_many_calls(n - 1) + too_many_calls(n - 2) + too_many_calls(n - 3) + too_many_calls(n - 4) + too_many_calls(n - 5)
 }

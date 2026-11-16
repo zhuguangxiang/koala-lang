@@ -127,7 +127,9 @@ static void *gc_alloc_block(int size, uint8_t kind, uint8_t age, List *list)
 
 void *gc_alloc(int size) { return gc_alloc_block(size, GC_KIND_OBJECT, 0, &gc_normal_list); }
 
-/* perm blocks are never marked, scanned or freed; a root one is traced by its _mark each collection */
+/*
+perm blocks are never marked, scanned or freed; a root one is traced by its _mark each collection
+ */
 void *gc_alloc_perm(int size, int root)
 {
     return gc_alloc_block(size, GC_KIND_OBJECT, 255, root ? &gc_root_list : &gc_perm_list);
@@ -212,6 +214,7 @@ void gc_mark(void *ptr)
 void gc_mark_value(TValue *val)
 {
     Object *obj = NULL;
+
     if (is_ref(val)) {
         obj = val->obj;
     } else if (is_intf(val)) {

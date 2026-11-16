@@ -77,6 +77,9 @@ static void instance_mark(Object *obj)
     }
 }
 
+/* static types only; heap types (TP_FLAGS_HEAP) are released by the gc hook */
+static Vector all_static_types;
+
 void kl_init_type(TypeObject *tp)
 {
     if (!tp || tp->flags & TP_FLAGS_READY) return;
@@ -89,6 +92,11 @@ void kl_init_type(TypeObject *tp)
     /* slots: allocate SLOT_MAX entries */
     tp->slots = mm_alloc(sizeof(Object *) * SLOT_MAX);
     ASSERT(tp->slots);
+
+    if (!(tp->flags & TP_FLAGS_HEAP)) {
+        if (!all_static_types.obj_size) vector_init_ptr(&all_static_types);
+        vector_push_back(&all_static_types, &tp);
+    }
 }
 
 TypeObject *kl_new_type(char *name, int flags)
@@ -96,7 +104,7 @@ TypeObject *kl_new_type(char *name, int flags)
     TypeObject *tp = gc_alloc_perm_obj(tp, 0);
     INIT_OBJECT_HEAD(tp, &type_type, 0);
     tp->name = name;
-    tp->flags = flags;
+    tp->flags = flags | TP_FLAGS_HEAP;
     // add gc mark
     tp->_mark = instance_mark;
     kl_init_type(tp);
@@ -270,11 +278,41 @@ static MethodDef type_methods[] = {
     { "methods", _type_methods }, { "lro", _type_lro }, { NULL },
 };
 
+/* idempotent: zeroes the owned fields so a second pass is a no-op */
+static void type_clear(TypeObject *tp)
+{
+    IntfTable *itab;
+    vector_foreach_ptr(itab, &tp->itables) {
+        mm_free(itab->methods);
+        mm_free(itab->parents);
+    }
+    vector_fini(&tp->itables);
+    vector_fini(&tp->fields);
+    vector_fini(&tp->methods);
+    stbl_fini(&tp->members);
+    memset(&tp->members, 0, sizeof(tp->members));
+    mm_free(tp->slots);
+    tp->slots = NULL;
+}
+
+static void type_free_hook(Object *ob) { type_clear((TypeObject *)ob); }
+
+/* static types are never gc-freed; clean every registered type before gc_fini */
+void kl_fini_static_types(void)
+{
+    TypeObject *tp;
+    vector_foreach(tp, &all_static_types) {
+        type_clear(tp);
+    }
+    vector_fini(&all_static_types);
+}
+
 TypeObject type_type = {
     ._type = &type_type,
     .name = "type",
     .flags = TP_FLAGS_CLASS,
     .methdefs = type_methods,
+    ._free = type_free_hook,
 };
 
 #ifdef __cplusplus

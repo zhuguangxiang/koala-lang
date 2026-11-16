@@ -238,6 +238,9 @@ typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 #define TP_FLAGS_VALUE (1 << 0)
 #define TP_FLAGS_CLASS (1 << 1)
 #define TP_FLAGS_READY (1 << 2)
+/* gc-allocated type: internals released by type_type._free; static types are cleaned by
+ * kl_fini_types */
+#define TP_FLAGS_HEAP (1 << 3)
 
 /**
  * Object memory layout:
@@ -409,9 +412,9 @@ typedef struct _StringObject {
 
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
-#define STR_BUF(ob)     (((StringObject *)(ob))->data + ((StringObject *)(ob))->start)
-#define STR_LEN(ob)     (((StringObject *)(ob))->end - ((StringObject *)(ob))->start)
-#define STR_NCHARS(ob)  (((StringObject *)(ob))->nchars)
+#define STR_BUF(ob)    (((StringObject *)(ob))->data + ((StringObject *)(ob))->start)
+#define STR_LEN(ob)    (((StringObject *)(ob))->end - ((StringObject *)(ob))->start)
+#define STR_NCHARS(ob) (((StringObject *)(ob))->nchars)
 
 Object *kl_new_nstr(char *s, size_t len);
 /* a str of the constant pool, never freed */
@@ -452,6 +455,7 @@ int64_t slice_count(int64_t start, int64_t end, int64_t step);
  +---------------------------------------------------------------------------*/
 
 void stbl_init(HashMap *map);
+void stbl_fini(HashMap *map);
 void stbl_add_obj(HashMap *map, char *name, Object *obj);
 Object *stbl_find_obj(HashMap *map, char *name);
 
@@ -481,6 +485,7 @@ extern TypeObject fmt_type;
 
 TypeObject *kl_typeof(TValue *val);
 void kl_init_type(TypeObject *tp);
+void kl_fini_static_types(void);
 TypeObject *kl_new_type(char *name, int flags);
 int kl_tp_add_field(TypeObject *tp, char *name, Object *field);
 int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth);

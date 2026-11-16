@@ -101,11 +101,18 @@ static MethodDef cfunc_methods[] = {
     { NULL },
 };
 
+static void cfunc_free_hook(Object *obj)
+{
+    CFuncObject *fo = (CFuncObject *)obj;
+    if (fo->not_impl) mm_free(fo->priv);
+}
+
 TypeObject cfunc_type = {
     ._type = &type_type,
     .name = "cfunc",
     .flags = TP_FLAGS_CLASS,
     .methdefs = cfunc_methods,
+    ._free = cfunc_free_hook,
 };
 
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)

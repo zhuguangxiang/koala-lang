@@ -405,7 +405,10 @@ int main(int argc, char *argv[])
         remove(temp);
         free(temp);
     }
+
     remove_temp_source(temp_src);
+
+    kl_free_args();
 
     return ret;
 }

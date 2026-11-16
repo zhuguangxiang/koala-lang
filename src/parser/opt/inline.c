@@ -492,6 +492,8 @@ typedef struct _SelfInlineBody {
     KlrInsn *insns[SELF_INLINE_MAX_BLOCKS][SELF_INLINE_MAX_INSNS];
     int sizes[SELF_INLINE_MAX_BLOCKS];
     KlrInsn *calls[RECURSIVE_INLINE_MAX_CALLS];
+    /* call is a self tail call (CALL + RET of its result): splice the body, keep RET */
+    int tail[RECURSIVE_INLINE_MAX_CALLS];
     int nblocks;
     int ncalls;
     int ninsns;
@@ -508,6 +510,7 @@ typedef struct _SelfInlineWork {
     KlrInsn *call;
     SelfInlineCopy copy;
     int probability;
+    int tail;
 } SelfInlineWork;
 
 static int self_inline_body(KlrFunc *fn, SelfInlineBody *body)
@@ -531,9 +534,10 @@ static int self_inline_body(KlrFunc *fn, SelfInlineBody *body)
         KlrInsn *insn;
         insn_foreach(insn, bb) {
             KlrInsn *next = insn_next(insn, bb);
-            if (tail_call_enabled() && insn_is(insn, OP_IR_CALL) && next && insn_is(next, OP_RET) &&
-                insn_oper_value(next, 0) == (KlrValue *)insn)
-                return 0;
+            int is_tail = insn_is(insn, OP_IR_CALL) && next && insn_is(next, OP_RET) &&
+                          insn_oper_value(next, 0) == (KlrValue *)insn;
+            /* self tail calls are spliced keeping RET; other tail calls would lose TCO */
+            if (tail_call_enabled() && is_tail && direct_callee(insn, fn->module) != fn) return 0;
             if (++total > SELF_INLINE_MAX_INSNS || insn_is(insn, OP_IR_PHI) ||
                 insn_is(insn, OP_UNREACHABLE) || insn_is(insn, OP_RET_VOID) ||
                 (insn_is(insn, OP_RET) && !is_movable_value(insn_oper_value(insn, 0))) ||
@@ -545,6 +549,7 @@ static int self_inline_body(KlrFunc *fn, SelfInlineBody *body)
             if (insn_is(insn, OP_RET)) ++body->nreturns;
             if (direct_callee(insn, fn->module) == fn) {
                 if (body->ncalls == RECURSIVE_INLINE_MAX_CALLS) return 0;
+                body->tail[body->ncalls] = is_tail && tail_call_enabled();
                 body->calls[body->ncalls++] = insn;
             }
         }
@@ -556,7 +561,7 @@ static int self_inline_body(KlrFunc *fn, SelfInlineBody *body)
 }
 
 static void self_inline_prepare(KlrFunc *fn, SelfInlineBody *body, KlrInsn *call,
-                                SelfInlineCopy *copy, KlrInsn **nested)
+                                SelfInlineCopy *copy, KlrInsn **nested, int tail)
 {
     HashMap map, site_map;
     hashmap_init(&map, _ptr_equal_);
@@ -576,8 +581,10 @@ static void self_inline_prepare(KlrFunc *fn, SelfInlineBody *body, KlrInsn *call
         KlrValue *local = build_local_copy(&before, arg, param->ts);
         ptr_map_put(&map, param, local);
     }
-    copy->result = klr_build_local_var(&before, call->ts, "");
-    copy->continuation = klr_add_block(call->bb, "self-inline-cont");
+    if (!tail) {
+        copy->result = klr_build_local_var(&before, call->ts, "");
+        copy->continuation = klr_add_block(call->bb, "self-inline-cont");
+    }
 
     for (int b = 0; b < body->nblocks; b++) {
         KlrBasicBlock *cloned = klr_append_block((KlrValue *)fn, body->blocks[b]->name);
@@ -613,8 +620,12 @@ static void self_inline_prepare(KlrFunc *fn, SelfInlineBody *body, KlrInsn *call
                 KlrValue *mapped = ptr_map_get(&map, val);
                 KlrBuilder builder;
                 klr_builder_end(&builder, cloned);
-                klr_build_move(&builder, copy->result, mapped ? mapped : val);
-                klr_build_jmp(&builder, copy->continuation);
+                if (tail) {
+                    klr_build_ret(&builder, mapped ? mapped : val);
+                } else {
+                    klr_build_move(&builder, copy->result, mapped ? mapped : val);
+                    klr_build_jmp(&builder, copy->continuation);
+                }
                 continue;
             }
             KlrInsn *clone = ptr_map_get(&map, insn);
@@ -637,9 +648,22 @@ static void self_inline_prepare(KlrFunc *fn, SelfInlineBody *body, KlrInsn *call
     ptr_map_fini(&site_map);
 }
 
-static void self_inline_finish(KlrInsn *call, SelfInlineCopy *copy)
+static void self_inline_finish(KlrInsn *call, SelfInlineCopy *copy, int tail)
 {
     KlrBasicBlock *bb = call->bb;
+    if (tail) {
+        /* the RET consumes the call result; erase it first, then the call */
+        klr_erase_insn(insn_next(call, bb));
+        klr_erase_insn(call);
+        KlrEdge *edge, *next_edge;
+        edge_out_foreach_safe(edge, next_edge, bb) {
+            klr_remove_edge(edge);
+        }
+        KlrBuilder builder;
+        klr_builder_end(&builder, bb);
+        klr_build_jmp(&builder, copy->entry);
+        return;
+    }
     KlrInsn *insn = insn_next(call, bb);
     while (insn) {
         KlrInsn *next = insn_next(insn, bb);
@@ -673,8 +697,9 @@ static int self_inline_func(KlrFunc *fn)
     int queued = 0, prepared = 0;
     for (int i = 0; i < body.ncalls; i++) {
         if (recursive_inline_probability_allowed(probabilities[i]))
-            work[queued++] =
-                (SelfInlineWork){ .call = body.calls[i], .probability = probabilities[i] };
+            work[queued++] = (SelfInlineWork){ .call = body.calls[i],
+                                               .probability = probabilities[i],
+                                               .tail = body.tail[i] };
     }
     RecursiveInlineCost cost;
     recursive_inline_cost_init(&cost, body.ninsns, body.nreturns, vector_size(&fn->params),
@@ -688,21 +713,28 @@ static int self_inline_func(KlrFunc *fn)
         while (prepared < level_end) {
             SelfInlineWork *item = &work[prepared++];
             KlrInsn *nested[RECURSIVE_INLINE_MAX_CALLS];
-            self_inline_prepare(fn, &body, item->call, &item->copy, nested);
+            self_inline_prepare(fn, &body, item->call, &item->copy, nested, item->tail);
             if (depth < RECURSIVE_INLINE_MAX_DEPTH) {
                 for (int i = 0; i < body.ncalls; i++) {
                     int probability =
                         recursive_inline_probability_product(item->probability, probabilities[i]);
                     if (!recursive_inline_probability_allowed(probability)) continue;
-                    ASSERT(queued < RECURSIVE_INLINE_MAX_SITES);
+                    if (queued >= RECURSIVE_INLINE_MAX_SITES) break;
+                    /* tail-ness is a property of the clone site: inside a generic
+                     * copy the enclosing RET became move+jmp, so it is no longer tail */
+                    KlrInsn *nc = nested[i];
+                    KlrInsn *nx = insn_next(nc, nc->bb);
+                    int ntail = tail_call_enabled() && nx && insn_is(nx, OP_RET) &&
+                                insn_oper_value(nx, 0) == (KlrValue *)nc;
                     work[queued++] =
-                        (SelfInlineWork){ .call = nested[i], .probability = probability };
+                        (SelfInlineWork){ .call = nc, .probability = probability, .tail = ntail };
                 }
             }
         }
         level_end = queued;
     }
-    for (int i = 0; i < prepared; i++) self_inline_finish(work[i].call, &work[i].copy);
+    for (int i = 0; i < prepared; i++)
+        self_inline_finish(work[i].call, &work[i].copy, work[i].tail);
     if (!prepared) return 0;
     klr_func_free_domtree(fn);
     if (dump_recursive_inline_ir_enabled()) {

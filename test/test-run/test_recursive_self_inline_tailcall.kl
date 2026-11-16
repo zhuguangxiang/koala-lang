@@ -2,6 +2,7 @@
 // RUN: env KOALA_JIT=0 koala %s ++ --recursive-self-inline | filecheck %s
 // RUN: koalac %s --opt --tail-call --cgen --recursive-self-inline --dump=code | filecheck %s --check-prefix=CODE
 // RUN: koalac %s --opt --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s --check-prefix=INLINE
+// RUN: koalac %s --opt --tail-call --cgen --recursive-self-inline --dump=recursive-self-inline-ir | filecheck %s --check-prefix=TAIL
 
 func sum(n int, acc int) int {
     if n == 0 { return acc }
@@ -17,3 +18,12 @@ func main() {
 // CODE: tail_call flg=0, #2
 // INLINE-LABEL: func @sum(
 // INLINE: self-inline-cont
+// With --tail-call the body is spliced at the tail call: copies keep plain RET
+// (no continuation block) and the innermost call stays in tail position.
+// TAIL-LABEL: func @sum(
+// TAIL: ret %acc int64
+// TAIL: entry):
+// TAIL: ret
+// TAIL: call @sum,
+// TAIL-NEXT: ret
+// TAIL-NOT: self-inline-cont
