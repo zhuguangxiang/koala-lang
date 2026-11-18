@@ -124,6 +124,9 @@ void koala_initialize(void)
     /* init global module table */
     kl_init_module_stbl();
 
+    /* init global mock registry (consulted only in test mode) */
+    kl_init_mock_stbl();
+
     /* initialize main thread as koala thread */
     ThreadState *ts = mm_alloc_obj(ts);
     ts->current = kl_new_ks();
@@ -145,6 +148,9 @@ void koala_finalize(void)
 
     /* entries only hold module pointers, safe after gc_fini */
     kl_fini_module_stbl();
+
+    /* finalize global mock registry */
+    kl_fini_mock_stbl();
 
     kl_free_ks(__ts->current);
     mm_free(__ts);

@@ -1,0 +1,13 @@
+import "std/os"
+
+pub class Calc {
+    pub func __init__() {}
+
+    pub func compute(x int) int { return x * 2 }
+}
+
+// A library call to std/os: a test module's @mock never rebinds this one
+// (test-run/test_mock_indirect.kl).
+pub func env_or(key str, dfl str) str {
+    return os.getenv(key) ?? dfl
+}

@@ -5,7 +5,6 @@
 
 #include "wsdeque.h"
 #include "common.h"
-#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,7 +17,12 @@ extern "C" {
 
 static WSArray *ws_array_new(int64_t size)
 {
-    WSArray *a = mm_alloc(sizeof(WSArray) + size * sizeof(a->buf[0]));
+    size_t bytes = sizeof(WSArray) + (size_t)size * sizeof(_Atomic(void *));
+    WSArray *a = calloc(1, bytes);
+    if (!a) {
+        fprintf(stderr, "wsdeque: calloc %zu bytes failed\n", bytes);
+        abort();
+    }
     a->size = size;
     return a;
 }
@@ -45,11 +49,11 @@ void wsdq_init(WSDeque *dq, int64_t size)
 
 void wsdq_fini(WSDeque *dq)
 {
-    mm_free(atomic_load_explicit(&dq->array, WS_RELAXED));
+    free(atomic_load_explicit(&dq->array, WS_RELAXED));
     WSArray *a = dq->retired;
     while (a) {
         WSArray *nxt = a->next;
-        mm_free(a);
+        free(a);
         a = nxt;
     }
     dq->retired = NULL;
@@ -95,8 +99,7 @@ void *wsdq_pop(WSDeque *dq)
     void *item = ws_get(a, b);
     if (t == b) {
         /* last item, race against thieves */
-        if (!atomic_compare_exchange_strong_explicit(&dq->top, &t, t + 1,
-                                                     WS_SEQ_CST, WS_RELAXED)) {
+        if (!atomic_compare_exchange_strong_explicit(&dq->top, &t, t + 1, WS_SEQ_CST, WS_RELAXED)) {
             item = NULL;
         }
         atomic_store_explicit(&dq->bottom, b + 1, WS_RELAXED);
@@ -114,8 +117,7 @@ WSStatus wsdq_steal(WSDeque *dq, void **item)
 
     WSArray *a = atomic_load_explicit(&dq->array, WS_ACQUIRE);
     void *x = ws_get(a, t);
-    if (!atomic_compare_exchange_strong_explicit(&dq->top, &t, t + 1,
-                                                 WS_SEQ_CST, WS_RELAXED)) {
+    if (!atomic_compare_exchange_strong_explicit(&dq->top, &t, t + 1, WS_SEQ_CST, WS_RELAXED)) {
         return WS_ABORT;
     }
     *item = x;

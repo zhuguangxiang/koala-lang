@@ -1,0 +1,21 @@
+// RUN: koala --test %s | filecheck %s
+// With `from ... import`, the package itself has no name in this file, so the
+// target names it by its full path.
+
+import "std/ut"
+from "std/os" import getenv
+
+@mock("std/os.getenv")
+func getenv_stub(key str) str? {
+    if key == "MOCK_KEY" {
+        return "mocked"
+    }
+    return nil
+}
+
+@test
+func test_from_import_is_mocked() {
+    ut.assert_eq(getenv("MOCK_KEY") ?? "none", "mocked")
+}
+
+// CHECK: 1 passed, 0 failed

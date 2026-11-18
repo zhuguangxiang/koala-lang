@@ -1,0 +1,19 @@
+// RUN: koala --test %s | filecheck %s
+// A cross-module concrete method call is rebound to the @mock stub in test mode.
+// The real Svc.base(3) returns 4; the stub returns 42.
+
+import "std/ut"
+import "test_pkg/pkg_mock_chain"
+
+@mock("pkg_mock_chain.Svc.base")
+func base_stub(s pkg_mock_chain.Svc, x int) int {
+    return 42
+}
+
+@test
+func test_method_is_mocked() {
+    let s = pkg_mock_chain.Svc()
+    ut.assert_eq(s.base(3), 42)
+}
+
+// CHECK: 1 passed, 0 failed

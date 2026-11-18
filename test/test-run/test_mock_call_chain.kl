@@ -1,0 +1,51 @@
+// RUN: koala --test %s | filecheck %s
+// @mock redirects the whole call chain inside the imported package, not just the
+// test module's direct imports: free->free, method->method, free->method, and
+// trait (itable) dispatch all reach the stub. Real callees return x + 1 (= 2);
+// every stub returns 100.
+
+import "std/ut"
+import "test_pkg/pkg_mock_chain"
+
+@mock("pkg_mock_chain.helper")
+func helper_stub(x int) int { return 100 }
+
+@mock("pkg_mock_chain.Svc.base")
+func base_stub(s pkg_mock_chain.Svc, x int) int { return 100 }
+
+@test
+func test_func_internal_chain() {
+    // entry -> helper (stub), both inside the package
+    ut.assert_eq(pkg_mock_chain.entry(1), 100)
+}
+
+@test
+func test_method_internal_chain() {
+    let s = pkg_mock_chain.Svc()
+    // top -> base (stub)
+    ut.assert_eq(s.top(1), 100)
+}
+
+@test
+func test_free_to_method() {
+    let s = pkg_mock_chain.Svc()
+    ut.assert_eq(pkg_mock_chain.free_uses_method(s, 1), 100)
+}
+
+@test
+func test_direct_method_import() {
+    let s = pkg_mock_chain.Svc()
+    ut.assert_eq(s.base(1), 100)
+}
+
+@test
+func test_trait_dispatch() {
+    let s = pkg_mock_chain.Svc()
+    let r pkg_mock_chain.Runner = s
+    // itable -> run -> base (stub)
+    ut.assert_eq(r.run(1), 100)
+    ut.assert_eq(pkg_mock_chain.use_runner(s, 1), 100)
+}
+
+// CHECK: 5 passed, 0 failed
+// CHECK: All tests passed.

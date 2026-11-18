@@ -1,0 +1,26 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "std/os"
+
+@mock("os.getenv")
+func getenv_stub(key str) str? {
+    if key == "MOCK_KEY" { return "mocked" }
+    return nil
+}
+
+@test
+func test_mock_intercepts_own_import() {
+    let v = os.getenv("MOCK_KEY")
+    if v != nil {
+        ut.assert_eq(v, "mocked")
+    } else {
+        ut.assert(false, "stub should return non-nil")
+    }
+}
+
+@test
+func test_mock_returns_nil_for_other_key() {
+    let v = os.getenv("OTHER")
+    ut.assert(v == nil)
+}

@@ -25,6 +25,22 @@ void kl_fini_module_stbl(void) { stbl_fini(&_gm_stbl); }
 
 Object *kl_find_module(char *path) { return stbl_find_obj(&_gm_stbl, path); }
 
+/* global mock registry: "pkg::name" (function) or "pkg::Class::method" (method)
+ * -> stub object. Populated at load time, consulted only in test mode. */
+static HashMap _mock_stbl;
+
+void kl_init_mock_stbl(void) { stbl_init(&_mock_stbl); }
+void kl_fini_mock_stbl(void) { stbl_fini(&_mock_stbl); }
+
+void kl_mock_register(char *key, Object *stub)
+{
+    // first registration wins; stbl uses put_absent which asserts on duplicates
+    if (stbl_find_obj(&_mock_stbl, key)) return;
+    stbl_add_obj(&_mock_stbl, key, stub);
+}
+
+Object *kl_mock_lookup(char *key) { return stbl_find_obj(&_mock_stbl, key); }
+
 static int register_module(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;

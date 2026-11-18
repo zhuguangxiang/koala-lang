@@ -1,0 +1,61 @@
+// RUN: koala %s ++ --dump=no-opt-ir,inline-ir | filecheck %s
+// @noline keeps a small function/method as a real call after the inline pass,
+// while ordinary small functions and methods are still inlined by default.
+
+@noline
+func kept(x int) int { return x + 1 }
+
+func dropped(x int) int { return x + 1 }
+
+func call_kept(x int) int { return kept(x) }
+func call_dropped(x int) int { return dropped(x) }
+
+class Box {
+    var v int
+    func __init__(v int) { self.v = v }
+    @noline
+    func kept_m() int { return self.v }
+    func dropped_m() int { return self.v }
+}
+
+func use_box() int {
+    var b = Box(7)
+    return b.kept_m() + b.dropped_m()
+}
+
+print(call_kept(1))
+print(call_dropped(1))
+print(use_box())
+
+// CHECK: --- IR Dump After inline ---
+// CHECK: func @call_kept(%x int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @kept, %x int64
+// CHECK-NEXT: ret %0 int64
+// CHECK-NEXT: }
+
+// CHECK: func @call_dropped(%x int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = add %x int64, 1 int64
+// CHECK-NEXT: ret %0 int64
+// CHECK-NEXT: }
+
+// CHECK: func @use_box() int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @test_noline.Box
+// CHECK-NEXT: set_field %0 test_noline.Box, v(index=0), 7 int64
+// CHECK-NEXT: %b = local test_noline.Box
+// CHECK-NEXT: move %b test_noline.Box, %0 test_noline.Box
+// CHECK-NEXT: %2 = call @Box:kept_m, %b test_noline.Box
+// CHECK-NEXT: %3 = get_field %b test_noline.Box, v(index=0)
+// CHECK-NEXT: %4 = add %2 int64, %3 int64
+// CHECK-NEXT: ret %4 int64
+// CHECK-NEXT: }
+
+// CHECK: func @Box:fmt(%self test_noline.Box, %f std/builtin.Formatter) <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: unreachable
+// CHECK-NEXT: }
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: 14

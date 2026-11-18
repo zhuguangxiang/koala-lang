@@ -1,0 +1,21 @@
+// RUN: koala --test %s | filecheck %s
+// `import ... as` renames the package in this file. The stub must still be bound:
+// koalac records the target by the package's full path ("std/os::getenv").
+
+import "std/ut"
+import "std/os" as sysos
+
+@mock("sysos.getenv")
+func getenv_stub(key str) str? {
+    if key == "MOCK_KEY" {
+        return "mocked"
+    }
+    return nil
+}
+
+@test
+func test_alias_import_is_mocked() {
+    ut.assert_eq(sysos.getenv("MOCK_KEY") ?? "none", "mocked")
+}
+
+// CHECK: 1 passed, 0 failed

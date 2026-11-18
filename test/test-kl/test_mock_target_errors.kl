@@ -1,0 +1,23 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A @mock target must be something a stub can replace: not a trait method (calls
+// through a trait use the interface table, never an import entry) and not generic
+// code.
+
+import "test_pkg/pkg_intf"
+import "test_pkg/pkg_generic_method"
+
+@mock("pkg_intf.Named.name")
+func trait_stub(n pkg_intf.Named) str { return "" }
+// CHECK: 'Named' is a trait; trait methods are called through the interface table and cannot be mocked
+
+@mock("pkg_generic_method.ident")
+func generic_func_stub(x int) int { return x }
+// CHECK: 'ident' is generic; generic code cannot be mocked
+
+@mock("pkg_generic_method.Cell.pair")
+func generic_class_stub(x int) int { return x }
+// CHECK: class 'Cell' is generic; generic code cannot be mocked
+
+@mock("pkg_generic_method.Box.pass")
+func generic_method_stub(b pkg_generic_method.Box, x int) int { return x }
+// CHECK: 'pass' is generic; generic code cannot be mocked

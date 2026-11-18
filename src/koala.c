@@ -305,16 +305,8 @@ static void remove_temp_source(char *path)
     free(path);
 }
 
-int main(int argc, char *argv[])
+static int koala_main(KoalaOptions *opt)
 {
-    // double t0 = now_ms();
-
-    setup_default_koala_path();
-
-    if (kl_parse_args(argc, argv)) return -1;
-
-    KoalaOptions *opt = kl_get_cmd_opt();
-
     const char *input = opt->input;
 
     // -e <code> or "-" (stdin): the program has no file of its own; like
@@ -341,9 +333,6 @@ int main(int argc, char *argv[])
             fprintf(stderr, "koala: -c cannot be used with .klc\n");
             return -1;
         }
-
-        // double t1 = now_ms();
-        // fprintf(stderr, "[args] %.3f ms\n", t1 - t0);
 
         return run_klc(input);
     }
@@ -408,7 +397,20 @@ int main(int argc, char *argv[])
 
     remove_temp_source(temp_src);
 
+    return ret;
+}
+
+int main(int argc, char *argv[])
+{
+    setup_default_koala_path();
+
+    int rc = -1;
+
+    if (kl_parse_args(argc, argv) == 0) {
+        rc = koala_main(kl_get_cmd_opt());
+    }
+
     kl_free_args();
 
-    return ret;
+    return rc;
 }

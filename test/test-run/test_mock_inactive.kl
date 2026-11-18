@@ -1,0 +1,15 @@
+// RUN: env -u MOCK_KEY koala %s | filecheck %s
+// Without --test a @mock stub is never bound: the real os.getenv runs.
+
+import "std/os"
+
+@mock("os.getenv")
+func getenv_stub(key str) str? {
+    return "mocked"
+}
+
+func main() {
+    print(os.getenv("MOCK_KEY") ?? "real")
+}
+
+// CHECK: real

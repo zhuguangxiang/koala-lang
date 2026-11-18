@@ -231,6 +231,7 @@ void kl_parse_ast(ParserState *ps);
 Vector *infer_func_tp(FuncSymbol *fn, Vector *args, TypeSpec *recv_ts, ParserState *ps);
 Expr *call_arg_for_param(Vector *call_args, int index, const char *name);
 FuncSymbol *get_current_function(ParserState *ps);
+void check_mock_reference(ParserState *ps, FuncSymbol *callee, Loc loc);
 
 void init_parser(ParserModule *module);
 void fini_parser(ParserModule *module);

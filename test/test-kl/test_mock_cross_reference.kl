@@ -1,0 +1,16 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A stub must not reference any mocked target, not only its own: stubs must be self-contained.
+
+import "std/os"
+import "test_pkg/mock_calc_dep"
+
+@mock("os.getenv")
+func getenv_stub(key str) str? {
+    return nil
+}
+
+@mock("mock_calc_dep.env_or")
+func env_or_stub(key str, dfl str) str {
+    return os.getenv(key) ?? dfl
+}
+// CHECK: @mock stub 'env_or_stub' cannot reference mocked target 'std/os::getenv' (mocked by stub 'getenv_stub')

@@ -1,0 +1,13 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Two stubs for the same target are an error, even when they name the package
+// differently: "os" and "std/os" are the same package.
+
+import "std/os"
+
+@mock("os.getenv")
+func stub_a(key str) str? { return nil }
+
+@mock("std/os.getenv")
+func stub_b(key str) str? { return nil }
+
+// CHECK: @mock stub '{{stub_[ab]}}' has the same target as '{{stub_[ab]}}'

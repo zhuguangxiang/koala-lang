@@ -1490,6 +1490,20 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         return;
     }
 
+    if (str_equal(ann->ident, "noline")) {
+        if (!vector_empty(ann->types)) {
+            kl_error(ann->id_loc, "func '%s' with 'noline' annotation cannot have any type.",
+                     fn->id.name);
+        }
+
+        if (ann->value) {
+            kl_error(ann->id_loc, "func '%s' with 'noline' annotation cannot have any parameter.",
+                     fn->id.name);
+        }
+
+        return;
+    }
+
     if (str_equal(ann->ident, "specialized")) {
         if (vector_empty(fn->tps)) {
             kl_error(ann->id_loc,
@@ -1661,6 +1675,35 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         return;
     }
 
+    if (str_equal(ann->ident, "mock")) {
+        if (!vector_empty(fn->tps)) {
+            kl_error(fn->id.loc,
+                     "func '%s' is a generic function. The 'mock' annotation only be used for "
+                     "non-generic function.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(ann->types)) {
+            kl_error(ann->id_loc, "func '%s' with 'mock' annotation cannot have any type.",
+                     fn->id.name);
+        }
+
+        if (!ann->value) {
+            kl_error(ann->id_loc,
+                     "func '%s' with 'mock' annotation needs a target string, e.g. "
+                     "@mock(\"os.getenv\").",
+                     fn->id.name);
+        }
+
+        if (vector_empty(fn->body)) {
+            kl_error(ann->id_loc,
+                     "func '%s' with 'mock' annotation needs a body as the stub implementation.",
+                     fn->id.name);
+        }
+
+        return;
+    }
+
     kl_error(ann->id_loc, "unknown annotation '%s'", ann->ident);
 }
 
@@ -1766,6 +1809,12 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         fn_sym->ann = fn->flags.ann.ident;
         fn_sym->ann_params = fn->flags.ann.params;
         fn->flags.ann.params = NULL;
+    }
+
+    if (match_prefix(fn->flags.ann.ident, "mock")) {
+        // stub function that replaces the target func/method at link time in test mode
+        fn_sym->ann = fn->flags.ann.ident;
+        fn_sym->ann_val = fn->flags.ann.value ? fn->flags.ann.value : "";
     }
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;
@@ -4175,6 +4224,317 @@ static Literal *param_default_value(ParserState *ps, ParamDecl *param, TypeSpec 
     return copy;
 }
 
+// Resolve the package part of a @mock target. Accepts the name the package is imported
+// under in this file ("os", or the alias of `import "std/os" as x`) or its full path
+// ("std/os"), which also covers `from "std/os" import getenv`.
+static PkgSymbol *resolve_mock_package(ParserState *ps, char *name)
+{
+    Symbol *imp = stbl_get(ps->imported, name);
+    if (imp && imp->kind == SYM_IMPORTED) {
+        Symbol *origin = ((ImportedSymbol *)imp)->origin;
+        if (origin && origin->kind == SYM_PACKAGE) return (PkgSymbol *)origin;
+    }
+
+    Symbol *pkg = stbl_get(ps->pm->imported, name);
+    if (pkg && pkg->kind == SYM_PACKAGE) return (PkgSymbol *)pkg;
+
+    return NULL;
+}
+
+// The @mock target stored in the klc, in the dot form the runtime parses:
+// "<pkg path>.<func>" or "<pkg path>.<Class>.<method>". The package's full path is used
+// whatever name it is imported under here, so the runtime rebuilds the same registry key
+// ("<pkg path>::<func>") from the module's own import entry.
+static char *mock_key(char *path, char *first, char *second)
+{
+    size_t len = strlen(path) + 1 + strlen(first) + (second ? 1 + strlen(second) : 0);
+    char *key = mm_alloc(len + 1);
+    if (second) {
+        snprintf(key, len + 1, "%s.%s.%s", path, first, second);
+    } else {
+        snprintf(key, len + 1, "%s.%s", path, first);
+    }
+    return key;
+}
+
+// Canonicalize a dot-form mock target to the "::" registry key form, used to compare
+// against a callee's package path and for diagnostics. Mirrors the runtime's '.' -> "::"
+// conversion so the compile-time checks reason about the same key the runtime builds.
+static char *mock_target_key(const char *target)
+{
+    size_t n = strlen(target);
+    size_t dots = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (target[i] == '.') dots++;
+    }
+    char *key = mm_alloc(n + dots + 1);
+    size_t j = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (target[i] == '.') {
+            key[j++] = ':';
+            key[j++] = ':';
+        } else {
+            key[j++] = target[i];
+        }
+    }
+    key[j] = '\0';
+    return key;
+}
+
+// Report a second stub for the same target in this package. Whichever stub is checked
+// second finds the first one's key, so the order the stubs are checked in does not matter.
+// Only stubs that passed every check carry the key in ann_val, so an invalid stub does
+// not claim the target.
+static int check_mock_duplicate(ParserState *ps, FuncSymbol *stub, char *key, char *target,
+                                Loc loc)
+{
+    HashMapIter it;
+    hashmap_iter_init(ps->pm->stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = hashmap_iter_entry(&it);
+        if (sym == (Symbol *)stub || sym->kind != SYM_FUNC) continue;
+        FuncSymbol *other = (FuncSymbol *)sym;
+        if (!other->ann || !str_equal(other->ann, "mock") || !other->ann_val) continue;
+        if (str_equal(other->ann_val, key)) {
+            kl_error(loc,
+                     "@mock stub '%s' has the same target as '%s' ('%s'); only one stub per "
+                     "target is allowed",
+                     stub->name, other->name, target);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Resolve a @mock target ("pkg.func" or "pkg.Class.method") to the imported target
+// function and verify the stub's parameters and return type match it. For a method
+// target the stub declares the receiver explicitly as its first parameter, while the
+// target method's params exclude the implicit self.
+//
+// On success the stub's target is rewritten to the package's full path in the dot form
+// the runtime reads ("std/os.getenv"), which is what goes into the klc, so the runtime
+// matches the package by its full path whatever name it is imported under here.
+static void check_mock_signature(ParserState *ps, FuncSymbol *stub, FuncDeclStmt *fn)
+{
+    char *target = stub->ann_val;
+    Loc loc = fn->id.loc;
+
+    if (!target || !*target) {
+        kl_error(loc, "@mock stub '%s' has no target", stub->name);
+        return;
+    }
+
+    // split the target on '.' into up to 3 segments
+    char *buf = str_dup(target);
+    char *segs[3] = { NULL, NULL, NULL };
+    int nseg = 0;
+    char *p = buf;
+    while (p && nseg < 3) {
+        char *dot = strchr(p, '.');
+        if (dot) *dot = '\0';
+        segs[nseg++] = p;
+        p = dot ? dot + 1 : NULL;
+    }
+    if (nseg < 2 || p) {
+        kl_error(loc, "@mock target '%s' must be 'pkg.func' or 'pkg.Class.method'", target);
+        mm_free(buf);
+        return;
+    }
+
+    PkgSymbol *pkg = resolve_mock_package(ps, segs[0]);
+    if (!pkg) {
+        kl_error(loc, "@mock target '%s': package '%s' is not imported", target, segs[0]);
+        mm_free(buf);
+        return;
+    }
+
+    FuncSymbol *tgt = NULL;
+    KlassSymbol *recv_kls = NULL;
+    if (nseg == 2) {
+        Symbol *s = stbl_get(pkg->stbl, segs[1]);
+        if (!s || s->kind != SYM_FUNC) {
+            kl_error(loc, "@mock target '%s': function '%s' not found in package '%s'", target,
+                     segs[1], segs[0]);
+            mm_free(buf);
+            return;
+        }
+        tgt = (FuncSymbol *)s;
+    } else {
+        Symbol *ks = stbl_get(pkg->stbl, segs[1]);
+        if (ks && ks->kind == SYM_TRAIT) {
+            // calls through a trait value dispatch via the interface table, never through
+            // an import entry, so a stub could never take effect
+            kl_error(loc,
+                     "@mock target '%s': '%s' is a trait; trait methods are called through the "
+                     "interface table and cannot be mocked",
+                     target, segs[1]);
+            mm_free(buf);
+            return;
+        }
+        if (!ks || ks->kind != SYM_CLASS) {
+            kl_error(loc, "@mock target '%s': class '%s' not found in package '%s'", target,
+                     segs[1], segs[0]);
+            mm_free(buf);
+            return;
+        }
+        recv_kls = (KlassSymbol *)ks;
+        if (vector_size(&recv_kls->tps) > 0) {
+            kl_error(loc, "@mock target '%s': class '%s' is generic; generic code cannot be mocked",
+                     target, segs[1]);
+            mm_free(buf);
+            return;
+        }
+        Symbol *s = stbl_get(recv_kls->stbl, segs[2]);
+        if (!s || s->kind != SYM_FUNC) {
+            kl_error(loc, "@mock target '%s': method '%s' not found in class '%s'", target,
+                     segs[2], segs[1]);
+            mm_free(buf);
+            return;
+        }
+        tgt = (FuncSymbol *)s;
+    }
+
+    if (vector_size(&tgt->tps) > 0) {
+        kl_error(loc, "@mock target '%s': '%s' is generic; generic code cannot be mocked", target,
+                 nseg == 2 ? segs[1] : segs[2]);
+        mm_free(buf);
+        return;
+    }
+
+    // canonical target: the package's full path, whatever it is imported as here.
+    // The stub claims the target (ann_val rewritten to the key) only after every check
+    // passes, so an invalid stub does not mask the signature errors of later stubs.
+    char *key = nseg == 2 ? mock_key(pkg->path, segs[1], NULL)
+                          : mock_key(pkg->path, segs[1], segs[2]);
+    mm_free(buf);
+
+    if (!type_spec_equal_exact(stub->ret, tgt->ret)) {
+        kl_error(loc, "@mock stub '%s' return type does not match target '%s'", stub->name,
+                 target);
+        mm_free(key);
+        return;
+    }
+
+    int stub_n = vector_size(stub->params);
+    int tgt_n = vector_size(tgt->params);
+    int offset = recv_kls ? 1 : 0;
+
+    if (recv_kls) {
+        if (stub_n < 1) {
+            kl_error(loc,
+                     "@mock stub '%s' for method '%s' must declare the receiver as its first "
+                     "parameter",
+                     stub->name, target);
+            mm_free(key);
+            return;
+        }
+        ArgInfo *recv = vector_get(stub->params, 0);
+        if (!type_spec_equal_exact(recv->ts, recv_kls->instance_ts)) {
+            kl_error(loc, "@mock stub '%s' receiver type does not match class '%s'", stub->name,
+                     recv_kls->name);
+            mm_free(key);
+            return;
+        }
+    }
+
+    if (stub_n - offset != tgt_n) {
+        kl_error(loc, "@mock stub '%s' has %d parameter(s) but target '%s' expects %d", stub->name,
+                 stub_n - offset, target, tgt_n);
+        mm_free(key);
+        return;
+    }
+
+    for (int i = 0; i < tgt_n; i++) {
+        ArgInfo *sa = vector_get(stub->params, i + offset);
+        ArgInfo *ta = vector_get(tgt->params, i);
+        if (!type_spec_equal_exact(sa->ts, ta->ts)) {
+            kl_error(loc,
+                     "@mock stub '%s' parameter '%s' type does not match target '%s' parameter "
+                     "'%s'",
+                     stub->name, sa->name, target, ta->name);
+            mm_free(key);
+            return;
+        }
+    }
+
+    // every check passed: the stub claims the target; a second valid stub for the same
+    // target is rejected here
+    if (check_mock_duplicate(ps, stub, key, target, loc)) {
+        mm_free(key);
+        return;
+    }
+    stub->ann_val = key;
+}
+
+/* In test mode every import of a mocked target in this module binds to its stub, so a
+ * stub that references any mocked function -- its own target or another stub's -- may
+ * recurse, directly or through a cycle of stubs. Stubs must be self-contained fakes.
+ * Called from parse_ident and parse_dot: id and dot are the only ways a function symbol
+ * enters an expression, so this covers calls, value loads and any other use. */
+void check_mock_reference(ParserState *ps, FuncSymbol *callee, Loc loc)
+{
+    FuncSymbol *cur = get_current_function(ps);
+    if (!cur || !cur->ann || !str_equal(cur->ann, "mock") || !cur->ann_val) return;
+    // ann_val is canonicalized to the package full path (dot form) only after
+    // check_mock_signature passes; compare in the "::" registry key form the runtime
+    // builds from it. A target without a '.' is not a resolved mock target.
+    if (!strchr(cur->ann_val, '.')) return;
+    char *cur_key = mock_target_key(cur->ann_val);
+
+    if (callee->origin) callee = (FuncSymbol *)callee->origin; // instance method
+    // a mock target is always an imported symbol; local funcs can never be one
+    if (!(callee->flags & SYM_FLAGS_EXT) || !callee->path) {
+        mm_free(cur_key);
+        return;
+    }
+
+    // funcs and methods carry their package's full path; a method's parent is its class
+    Symbol *parent = (Symbol *)callee->parent;
+    char *kls = (parent && parent->kind == SYM_CLASS) ? parent->name : NULL;
+
+    size_t len = strlen(callee->path) + 2 + strlen(callee->name) + (kls ? 2 + strlen(kls) : 0);
+    char *key = mm_alloc(len + 1);
+    if (kls) {
+        snprintf(key, len + 1, "%s::%s::%s", callee->path, kls, callee->name);
+    } else {
+        snprintf(key, len + 1, "%s::%s", callee->path, callee->name);
+    }
+
+    if (str_equal(key, cur_key)) {
+        kl_error(loc,
+                 "@mock stub '%s' cannot call or reference its own target '%s'; "
+                 "the stub must fully replace the target",
+                 cur->name, cur_key);
+        mm_free(key);
+        mm_free(cur_key);
+        return;
+    }
+
+    // another stub's target: the reference would bind to that stub, coupling them and
+    // possibly forming a recursion cycle. Only valid stubs carry a canonical target.
+    HashMapIter it;
+    hashmap_iter_init(ps->pm->stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = hashmap_iter_entry(&it);
+        if (sym == (Symbol *)cur || sym->kind != SYM_FUNC) continue;
+        FuncSymbol *other = (FuncSymbol *)sym;
+        if (!other->ann || !str_equal(other->ann, "mock") || !other->ann_val) continue;
+        if (!strchr(other->ann_val, '.')) continue;
+        char *other_key = mock_target_key(other->ann_val);
+        if (str_equal(other_key, key)) {
+            kl_error(loc,
+                     "@mock stub '%s' cannot reference mocked target '%s' (mocked by stub "
+                     "'%s'); stubs must be self-contained",
+                     cur->name, key, other->name);
+            mm_free(other_key);
+            break;
+        }
+        mm_free(other_key);
+    }
+    mm_free(key);
+    mm_free(cur_key);
+}
+
 static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
 {
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
@@ -4280,6 +4640,8 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
     exit_scope(ps);
 
     sym->status = SYM_RESOLVED;
+
+    if (sym->ann && str_equal(sym->ann, "mock")) check_mock_signature(ps, sym, fn);
 
     if (!has_specialized_meta((Stmt *)fn)) return;
 

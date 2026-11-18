@@ -95,7 +95,7 @@ typedef struct _LineInfo {
 typedef struct _InlineSite {
     char *funcname;  // name of the inlined function
     char *filename;  // location of the call, NULL if no lineinfo
-    uint32_t lineno;
+    uint32_t lineno; // line number of the call
     uint32_t parent; // site of the call itself, 0 if the call is in the real function
 } InlineSite;
 
@@ -159,6 +159,13 @@ void kl_fini_module_stbl(void);
 Object *kl_find_module(char *path);
 Object *kl_load_module(char *path);
 void kl_dump_module(Object *m);
+
+/* global mock registry ("pkg::name" or "pkg::Class::method" -> stub object),
+ * populated at load time and consulted only in test mode */
+void kl_init_mock_stbl(void);
+void kl_fini_mock_stbl(void);
+void kl_mock_register(char *key, Object *stub);
+Object *kl_mock_lookup(char *key);
 
 #ifdef __cplusplus
 }

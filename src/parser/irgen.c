@@ -522,7 +522,8 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
             if (exp->ctx == EXPR_CTX_LOAD && (sym->flags & SYM_FLAGS_CONST) &&
                 var_sym->scope != VAR_SCOPE_FIELD) {
                 // a const is read as its literal; its module global is never loaded
-                KlrValue *val = klr_is_const(sym->ir_val) ? sym->ir_val : _add_literal(ps, var_sym->lit);
+                KlrValue *val =
+                    klr_is_const(sym->ir_val) ? sym->ir_val : _add_literal(ps, var_sym->lit);
                 exp->ir_val = copy_if_bytes(&bldr, val);
             } else if (exp->ctx == EXPR_CTX_LOAD || exp->ctx == EXPR_CTX_LOAD_STORE) {
                 if (var_sym->scope == VAR_SCOPE_GLOBAL) {
@@ -2924,6 +2925,12 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
 
     KlrBasicBlock *last = scope->bb;
     Annotation *ann = &fn->flags.ann;
+
+    if (ann->ident && str_equal(ann->ident, "noline")) {
+        // keep the call real so a runtime @mock stub can replace it
+        ((KlrFunc *)sym->ir_val)->no_inline = 1;
+    }
+
     if (ann && ann->ident &&
         (!strcmp(ann->ident, "intrinsic") ||
          (!strcmp(ann->ident, "native") && vector_empty(fn->body)))) {

@@ -4,7 +4,10 @@
  */
 
 #include <dlfcn.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
+#include "args.h"
 #include "atom.h"
 #include "buffer.h"
 #include "klc.h"
@@ -29,6 +32,58 @@ static TValue *get_global_var(Object *m, char *name)
     ASSERT(index >= 0 && index < mo->num_values);
     TValue *val = mo->values + index;
     return val;
+}
+
+// Parse a @mock target string and register the stub into the global mock registry.
+// Target forms: "<pkg>.<func>" (e.g. "os.getenv" or "std/os.getenv") or
+// "<pkg>.<Class>.<method>" (e.g. "calc.Calc.compute"). The registry key turns each
+// '.' separator into "::", so the lookup side can rebuild it from the import entry.
+static void _register_mock_target(char *target, Object *stub)
+{
+    if (!strchr(target, '.')) {
+        log_warn("invalid @mock target '%s', expected 'pkg.func' or 'pkg.Class.method'", target);
+        return;
+    }
+
+    char key[512];
+    size_t k = 0;
+    for (char *p = target; *p && k + 2 < sizeof(key); p++) {
+        if (*p == '.') {
+            key[k++] = ':';
+            key[k++] = ':';
+        } else {
+            key[k++] = *p;
+        }
+    }
+    key[k] = '\0';
+
+    kl_mock_register(key, stub);
+    log_info("registered mock: %s -> stub '%s'", target, ((CodeObject *)stub)->cs.name);
+}
+
+// Look up a mock stub for a symbol defined in the module being loaded. Patching
+// the definition side (local slots, module symbol table, type method table) is
+// the single source of truth: same-module calls read the local slots, and
+// cross-module imports resolve through kl_mo_find / kl_type_find, which read the
+// very tables patched here. Tries the full package path first, then the short
+// name (last '/' segment).
+static Object *_lookup_local_mock(char *pkg, char *kls, char *name)
+{
+    char key[512];
+    if (kls)
+        snprintf(key, sizeof(key), "%s::%s::%s", pkg, kls, name);
+    else
+        snprintf(key, sizeof(key), "%s::%s", pkg, name);
+    Object *stub = kl_mock_lookup(key);
+    if (stub) return stub;
+
+    char *slash = strrchr(pkg, '/');
+    if (!slash) return NULL;
+    if (kls)
+        snprintf(key, sizeof(key), "%s::%s::%s", slash + 1, kls, name);
+    else
+        snprintf(key, sizeof(key), "%s::%s", slash + 1, name);
+    return kl_mock_lookup(key);
 }
 
 static void resolve_import(Object *_m)
@@ -236,6 +291,7 @@ static Object *_load_module(char *path)
     if (!klc) return NULL;
 
     char *pkg_name = klc->pkg_path;
+    int test_mode = kl_get_cmd_opt()->test_mode;
     Object *m = kl_new_module(pkg_name);
     ModuleObject *mo = (ModuleObject *)m;
 
@@ -283,6 +339,19 @@ static Object *_load_module(char *path)
     vector_foreach(item, code_objs) {
         if (!item) continue;
         kc = klc_get_rt_const(klc, item->name_index);
+
+        // @mock: redirect same-module free-function calls to the stub by occupying
+        // its local slot. The stub keeps its own module as owner so its bytecode
+        // links against the correct codes/consts. Methods are handled in the class
+        // loop below, where the owning class name is known.
+        if (test_mode && !(item->flags & KLC_FLAGS_METH)) {
+            Object *stub = _lookup_local_mock(pkg_name, NULL, kc->sval);
+            if (stub) {
+                kl_mo_add_func(m, kc->sval, stub);
+                continue;
+            }
+        }
+
         Object *_co;
         if (item->flags & KLC_FLAGS_NATIVE) {
             _co = kl_get_native(m, kc->sval);
@@ -365,17 +434,34 @@ static Object *_load_module(char *path)
         vector_foreach(meth, &cls->methods) {
             if (!meth) continue;
             kc = klc_get_const(klc, meth->name_index);
-            Object *_co = vector_get(&mo->funcs, meth->code_index);
-            ASSERT(_co);
-            if (IS_CODE(_co)) {
-                CodeObject *co = (CodeObject *)_co;
-                co->owner = (Object *)tp;
-                ASSERT(co->flags & CODE_FLAG_METH);
+
+            // @mock: redirect this method to the stub. Overwrite the local slot so
+            // same-module concrete calls (OP_CALL flg=0) and the interface table
+            // (built from mo->funcs below) pick up the stub, and install it into the
+            // type's method table for cross-module / name-based lookup. The stub keeps
+            // its own module as owner, so we must not repoint owner to this type nor
+            // require CODE_FLAG_METH (the stub is a free function with the receiver as
+            // its first parameter, matching the method calling convention).
+            Object *stub = NULL;
+            if (test_mode) stub = _lookup_local_mock(pkg_name, kls_kc->sval, kc->sval);
+
+            Object *_co;
+            if (stub) {
+                vector_set(&mo->funcs, meth->code_index, &stub);
+                _co = stub;
             } else {
-                ASSERT(IS_CFUNC(_co));
-                CFuncObject *cfn = (CFuncObject *)_co;
-                cfn->owner = (Object *)tp;
-                if (meth->flags & KLC_FLAGS_STATIC) cfn->is_static = 1;
+                _co = vector_get(&mo->funcs, meth->code_index);
+                ASSERT(_co);
+                if (IS_CODE(_co)) {
+                    CodeObject *co = (CodeObject *)_co;
+                    co->owner = (Object *)tp;
+                    ASSERT(co->flags & CODE_FLAG_METH);
+                } else {
+                    ASSERT(IS_CFUNC(_co));
+                    CFuncObject *cfn = (CFuncObject *)_co;
+                    cfn->owner = (Object *)tp;
+                    if (meth->flags & KLC_FLAGS_STATIC) cfn->is_static = 1;
+                }
             }
             kl_tp_add_method(tp, kc->sval, meth->slot_id, _co);
         }
@@ -452,6 +538,19 @@ static Object *_load_module(char *path)
             KlcAnnot *ann = vector_get(&fn_item->anns, 1);
             if (!ann) continue;
             char *_name = klc_get_str(klc, ann->name_index);
+
+            if (str_equal(_name, "mock")) {
+                // Register the stub into the global mock registry. Like test/skip/bench,
+                // collection is unconditional; the stub is only *activated* in test mode
+                // when a module under test is loaded (definition-side substitution). This
+                // must run before this module's resolve_import cascades into loading those
+                // modules, so their local slots / symbol / method tables get the stub.
+                char *target = klc_get_str(klc, ann->value_index);
+                Object *stub = vector_get(&mo->funcs, fn_item->code_index);
+                if (target && stub && IS_CODE(stub)) _register_mock_target(target, stub);
+                continue;
+            }
+
             if (!str_equal(_name, "test") && !str_equal(_name, "should_panic") &&
                 !str_equal(_name, "skip") && !str_equal(_name, "bench"))
                 continue;

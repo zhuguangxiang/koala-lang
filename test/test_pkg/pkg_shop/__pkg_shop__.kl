@@ -1,0 +1,29 @@
+// A small shop/pricing package used by the @mock tests. It deliberately contains
+// internal call chains so a mock placed on a leaf callee must propagate along the
+// whole chain, not just the importer's direct call:
+//   checkout -> add_fee            (free function -> free function)
+//   Cart.total -> Cart.subtotal    (method -> method)
+//   Cart.price -> Cart.subtotal    (trait dispatch -> method)
+//   cart_subtotal -> Cart.subtotal (free function -> method)
+// The package is built with default inlining. The two mock-target leaves carry
+// @noline so they stay real, mockable calls instead of being inlined into their
+// callers; everything else is optimized normally.
+
+@noline
+pub func add_fee(x int) int { return x + 1 }
+pub func checkout(x int) int { return add_fee(x) }
+
+pub trait Pricer {
+    func price(x int) int
+}
+
+pub class Cart : Pricer {
+    pub func __init__() {}
+    @noline
+    pub func subtotal(x int) int { return x + 1 }
+    pub func total(x int) int { return self.subtotal(x) }
+    pub func price(x int) int { return self.subtotal(x) }
+}
+
+pub func cart_subtotal(c Cart, x int) int { return c.subtotal(x) }
+pub func quote(p Pricer, x int) int { return p.price(x) }

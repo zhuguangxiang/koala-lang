@@ -117,7 +117,7 @@ static int check_lambda_capture(ParserState *ps, Ident *id, Symbol *sym)
     return 0;
 }
 
-static void parse_ident(ParserState *ps, Expr *exp)
+static void parse_ident_inner(ParserState *ps, Expr *exp)
 {
     IdentExpr *id_exp = (IdentExpr *)exp;
     Ident *id = &id_exp->id;
@@ -206,6 +206,18 @@ static void parse_ident(ParserState *ps, Expr *exp)
     exp->sym = sym;
     log_info("ident resolved: %s", sym->name);
     log_type_spec(sym->ts);
+}
+
+static void parse_ident(ParserState *ps, Expr *exp)
+{
+    parse_ident_inner(ps, exp);
+
+    // @mock: inside a stub, no reference to any mocked function is allowed (it would
+    // bind to a stub and may recurse). id and dot are the only ways a function symbol
+    // enters an expression, so checking here covers calls, value loads and any other use.
+    if (exp->sym && exp->sym->kind == SYM_FUNC) {
+        check_mock_reference(ps, (FuncSymbol *)exp->sym, exp->loc);
+    }
 }
 
 static void parse_under(ParserState *ps, Expr *exp)
@@ -2857,7 +2869,7 @@ static void parse_enum_member(ParserState *ps, DotExpr *dot, EnumSymbol *enum_sy
     kl_error(dot->id.loc, "enum '%s' has no member '%s'", enum_sym->name, dot->id.name);
 }
 
-static void parse_dot(ParserState *ps, Expr *exp)
+static void parse_dot_inner(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
     int opt_or_bang = dot->opt_or_bang;
@@ -3123,6 +3135,18 @@ static void parse_dot(ParserState *ps, Expr *exp)
 
     kl_error(ident->loc, "'%s' is not found in %s '%s'", ident->name, prefix,
              type_spec_friendly_name(lhs_ts_sym->name));
+}
+
+static void parse_dot(ParserState *ps, Expr *exp)
+{
+    parse_dot_inner(ps, exp);
+
+    // @mock: inside a stub, no reference to any mocked function is allowed (it would
+    // bind to a stub and may recurse). id and dot are the only ways a function symbol
+    // enters an expression, so checking here covers calls, value loads and any other use.
+    if (exp->sym && exp->sym->kind == SYM_FUNC) {
+        check_mock_reference(ps, (FuncSymbol *)exp->sym, exp->loc);
+    }
 }
 
 static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)

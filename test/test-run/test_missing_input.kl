@@ -1,0 +1,5 @@
+// RUN: ! koala %t.dir/no_such_file.kl 2>&1 | filecheck %s
+// A missing input file is an error; the early exit cleans up like any other path.
+
+// CHECK: no_such_file.kl' does not exist
+// CHECK: compilation failed
