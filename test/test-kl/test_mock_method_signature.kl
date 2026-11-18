@@ -2,20 +2,20 @@
 // A @mock method stub declares the receiver as its first parameter; the remaining
 // parameters and the return type must match the target method.
 
-import "test_pkg/pkg_mock_chain"
+import "test_pkg/pkg_mock"
 
-@mock("pkg_mock_chain.Svc.base")
+@mock("pkg_mock.Svc.base")
 func bad_recv(x int, y int) int { return 1 }
 // CHECK: receiver type does not match class 'Svc'
 
-@mock("pkg_mock_chain.Svc.base")
-func bad_arg(s pkg_mock_chain.Svc, x str) int { return 1 }
-// CHECK: parameter 'x' type does not match target 'pkg_mock_chain.Svc.base'
+@mock("pkg_mock.Svc.base")
+func bad_arg(s pkg_mock.Svc, x str) int { return 1 }
+// CHECK: parameter 'x' type does not match target 'pkg_mock.Svc.base'
 
-@mock("pkg_mock_chain.Svc.base")
-func bad_ret(s pkg_mock_chain.Svc, x int) str { return "1" }
-// CHECK: return type does not match target 'pkg_mock_chain.Svc.base'
+@mock("pkg_mock.Svc.base")
+func bad_ret(s pkg_mock.Svc, x int) str { return "1" }
+// CHECK: return type does not match target 'pkg_mock.Svc.base'
 
-@mock("pkg_mock_chain.Svc.base")
-func bad_count(s pkg_mock_chain.Svc, x int, y int) int { return 1 }
-// CHECK: has 2 parameter(s) but target 'pkg_mock_chain.Svc.base' expects 1
+@mock("pkg_mock.Svc.base")
+func bad_count(s pkg_mock.Svc, x int, y int) int { return 1 }
+// CHECK: has 2 parameter(s) but target 'pkg_mock.Svc.base' expects 1

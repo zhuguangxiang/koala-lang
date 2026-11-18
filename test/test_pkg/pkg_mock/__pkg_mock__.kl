@@ -1,0 +1,42 @@
+// Mock test dependency package. It combines a small calc/env helper set with
+// internal call chains so a mock placed on a leaf callee must propagate along the
+// whole chain, not just the importer's direct call:
+//   entry -> helper              (free function -> free function)
+//   Svc.top -> Svc.base          (method -> method)
+//   Svc.run -> Svc.base          (trait dispatch -> method)
+//   free_uses_method -> Svc.base (free function -> method)
+// The package is built with default inlining. The two mock-target leaves (helper,
+// Svc.base) carry @noline so they stay real, mockable calls instead of being inlined
+// into their callers; everything else is optimized normally.
+
+import "std/os"
+
+pub class Calc {
+    pub func __init__() {}
+
+    pub func compute(x int) int { return x * 2 }
+}
+
+// A library function that calls std/os; used by the compile-time mock reference checks.
+pub func env_or(key str, dfl str) str {
+    return os.getenv(key) ?? dfl
+}
+
+@noline
+pub func helper(x int) int { return x + 1 }
+pub func entry(x int) int { return helper(x) }
+
+pub trait Runner {
+    func run(x int) int
+}
+
+pub class Svc : Runner {
+    pub func __init__() {}
+    @noline
+    pub func base(x int) int { return x + 1 }
+    pub func top(x int) int { return self.base(x) }
+    pub func run(x int) int { return self.base(x) }
+}
+
+pub func free_uses_method(s Svc, x int) int { return s.base(x) }
+pub func use_runner(r Runner, x int) int { return r.run(x) }

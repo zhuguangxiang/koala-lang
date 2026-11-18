@@ -1,0 +1,75 @@
+// RUN: koala --test %s | filecheck %s
+// Runtime @mock capability. A stub must replace the target everywhere it is
+// dispatched, not only at the test module's own import site:
+//   - a directly imported function (os.getenv)        -> "local" mock
+//   - free->free chain inside an external package     -> entry/helper
+//   - method->method chain                            -> Svc.top/base
+//   - free function -> method                         -> free_uses_method
+//   - a directly imported method                      -> Svc.base
+//   - trait (itable) dispatch -> method               -> Runner.run/use_runner
+// The real callees return x + 1; every int stub returns 100. The pkg_mock leaves
+// carry @noline so the internal chains stay real, mockable calls.
+
+import "std/ut"
+import "std/os"
+import "test_pkg/pkg_mock"
+
+@mock("os.getenv")
+func getenv_stub(key str) str? {
+    if key == "MOCK_KEY" { return "mocked" }
+    return nil
+}
+
+@mock("pkg_mock.helper")
+func helper_stub(x int) int { return 100 }
+
+@mock("pkg_mock.Svc.base")
+func base_stub(s pkg_mock.Svc, x int) int { return 100 }
+
+@test
+func test_mock_local_import() {
+    let v = os.getenv("MOCK_KEY")
+    if v != nil {
+        ut.assert_eq(v, "mocked")
+    } else {
+        ut.assert(false, "stub should return non-nil")
+    }
+    ut.assert(os.getenv("OTHER") == nil)
+}
+
+@test
+func test_mock_free_func_chain() {
+    // entry -> helper (stub), both inside pkg_mock
+    ut.assert_eq(pkg_mock.entry(1), 100)
+}
+
+@test
+func test_mock_method_chain() {
+    let s = pkg_mock.Svc()
+    // top -> base (stub)
+    ut.assert_eq(s.top(1), 100)
+}
+
+@test
+func test_mock_free_to_method() {
+    let s = pkg_mock.Svc()
+    ut.assert_eq(pkg_mock.free_uses_method(s, 1), 100)
+}
+
+@test
+func test_mock_method_import() {
+    let s = pkg_mock.Svc()
+    ut.assert_eq(s.base(1), 100)
+}
+
+@test
+func test_mock_interface_dispatch() {
+    let s = pkg_mock.Svc()
+    let r pkg_mock.Runner = s
+    // itable -> run -> base (stub)
+    ut.assert_eq(r.run(1), 100)
+    ut.assert_eq(pkg_mock.use_runner(s, 1), 100)
+}
+
+// CHECK: 6 passed, 0 failed
+// CHECK: All tests passed.

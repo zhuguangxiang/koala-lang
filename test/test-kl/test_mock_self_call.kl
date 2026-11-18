@@ -2,7 +2,7 @@
 // A stub must not reference its own target (call or value load): it would recurse.
 
 import "std/os"
-import "test_pkg/mock_calc_dep"
+import "test_pkg/pkg_mock"
 
 @mock("os.getenv")
 func getenv_stub(key str) str? {
@@ -10,15 +10,15 @@ func getenv_stub(key str) str? {
 }
 // CHECK: @mock stub 'getenv_stub' cannot call or reference its own target 'std/os::getenv'
 
-@mock("mock_calc_dep.Calc.compute")
-func compute_stub(c mock_calc_dep.Calc, x int) int {
+@mock("pkg_mock.Calc.compute")
+func compute_stub(c pkg_mock.Calc, x int) int {
     return c.compute(x)
 }
-// CHECK: @mock stub 'compute_stub' cannot call or reference its own target 'test_pkg/mock_calc_dep::Calc::compute'
+// CHECK: @mock stub 'compute_stub' cannot call or reference its own target 'test_pkg/pkg_mock::Calc::compute'
 
-@mock("mock_calc_dep.env_or")
+@mock("pkg_mock.env_or")
 func env_or_stub(key str, dfl str) str {
-    let f = mock_calc_dep.env_or
+    let f = pkg_mock.env_or
     return f(key, dfl)
 }
-// CHECK: @mock stub 'env_or_stub' cannot call or reference its own target 'test_pkg/mock_calc_dep::env_or'
+// CHECK: @mock stub 'env_or_stub' cannot call or reference its own target 'test_pkg/pkg_mock::env_or'

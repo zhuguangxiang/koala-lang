@@ -4341,6 +4341,14 @@ static void check_mock_signature(ParserState *ps, FuncSymbol *stub, FuncDeclStmt
         return;
     }
 
+    // The language core packages cannot be mocked: intrinsics (len/hash/str) are lowered to
+    // special ops, and core types' operator methods / VM natives are not replaceable call sites.
+    if (str_equal(segs[0], "std/builtin") || str_equal(segs[0], "std/prelude")) {
+        kl_error(loc, "@mock target '%s': builtin functions cannot be mocked", target);
+        mm_free(buf);
+        return;
+    }
+
     PkgSymbol *pkg = resolve_mock_package(ps, segs[0]);
     if (!pkg) {
         kl_error(loc, "@mock target '%s': package '%s' is not imported", target, segs[0]);

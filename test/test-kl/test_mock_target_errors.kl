@@ -1,7 +1,7 @@
 // RUN: ! koalac %s 2>&1 | filecheck %s
 // A @mock target must be something a stub can replace: not a trait method (calls
-// through a trait use the interface table, never an import entry) and not generic
-// code.
+// through a trait use the interface table, never an import entry), not generic
+// code, and not the language core (std/builtin / std/prelude).
 
 import "test_pkg/pkg_intf"
 import "test_pkg/pkg_generic_method"
@@ -21,3 +21,11 @@ func generic_class_stub(x int) int { return x }
 @mock("pkg_generic_method.Box.pass")
 func generic_method_stub(b pkg_generic_method.Box, x int) int { return x }
 // CHECK: 'pass' is generic; generic code cannot be mocked
+
+@mock("std/builtin.len")
+func builtin_len_stub(obj int) int { return 0 }
+// CHECK: @mock target 'std/builtin.len': builtin functions cannot be mocked
+
+@mock("std/prelude.print")
+func prelude_print_stub(obj int) int { return 0 }
+// CHECK: @mock target 'std/prelude.print': builtin functions cannot be mocked

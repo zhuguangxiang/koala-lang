@@ -2,14 +2,14 @@
 // A stub must not reference any mocked target, not only its own: stubs must be self-contained.
 
 import "std/os"
-import "test_pkg/mock_calc_dep"
+import "test_pkg/pkg_mock"
 
 @mock("os.getenv")
 func getenv_stub(key str) str? {
     return nil
 }
 
-@mock("mock_calc_dep.env_or")
+@mock("pkg_mock.env_or")
 func env_or_stub(key str, dfl str) str {
     return os.getenv(key) ?? dfl
 }
