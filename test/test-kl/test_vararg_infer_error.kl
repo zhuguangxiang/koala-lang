@@ -1,0 +1,16 @@
+// RUN: not koalac %s 2>&1 | filecheck %s
+//
+// A variadic parameter (`args ...any`) contributes no single type to generic
+// inference. infer_tp_from_args used to NYI()-abort on TYPE_VA_LIST
+// (parser_generic.c); a type parameter that cannot be inferred must be
+// reported cleanly, never abort.
+
+func spawn_like[T](fn any, args ...any) T {
+    panic("unused")
+}
+
+func main() {
+    spawn_like(1, 2, 3)
+    // CHECK: cannot infer type parameter 'T' for class 'spawn_like'
+    // CHECK-NOT: Not Yet Implemented
+}

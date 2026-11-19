@@ -1,0 +1,24 @@
+// Idle-coroutine memory/count stress: spawn N detached tasks, all parked on
+// one channel recv, then exit (they are abandoned). Peak RSS is the metric.
+// Run: /usr/bin/time -v koala bench/co_idle.kl   (scale N via sed)
+// KOALA_CO_STATS=1 reports spawned / peak live / switches.
+
+import "std/task"
+import "std/time"
+
+const N = 100000
+
+func idle(ch task.Channel[int]) {
+    let v = ch.recv()
+    print("unexpected", v)
+}
+
+func main() {
+    let ch = task.Channel[int]()
+    for i in range(0, N) {
+        task.spawn[any](idle, ch)
+    }
+    print("spawned", N)
+    time.sleep(time.Duration(200_000_000))
+    print("parked", N)
+}

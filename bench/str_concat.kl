@@ -1,0 +1,14 @@
+// String allocation profile: immutable concat in a loop (O(N^2) copy).
+// N=20000 keeps total allocated bytes (~200 MB) under the default 1 GB GC
+// max so it completes without collection (M1 has no allocation-triggered GC).
+// At N=50000 (~1.25 GB churn) Koala panics on GC max unless KOALA_GC_MAX is
+// raised, while Go's concurrent GC reclaims automatically — see report §12.
+// Go analogue: bench/go/str_concat.go
+
+func main() {
+    var s = ""
+    for i in range(0, 20000) {
+        s = s + "x"
+    }
+    print(s.len())
+}

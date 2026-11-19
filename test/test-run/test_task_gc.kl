@@ -1,0 +1,28 @@
+// RUN: koala %s | filecheck %s
+// GC roots across coroutines: a parked task holds a list only in its own VM
+// stack; gc.collect() in main must keep it alive.
+
+import "std/gc"
+import "std/task"
+
+func worker(ch task.Channel[int]) {
+    let keep = [10, 20, 30]
+    let sig = ch.recv()
+    print("sum", keep[0] + keep[1] + keep[2] + sig!)
+}
+
+func main() {
+    let ch = task.Channel[int]()
+    let t = task.spawn[any](worker, ch)
+    task.yield_now()
+    for i in range(0, 2000) {
+        let tmp = [i, i + 1]
+    }
+    let freed = gc.collect()
+    print("collected", freed > 0)
+    ch.send(1)
+    t.join()
+}
+
+// CHECK: collected true
+// CHECK-NEXT: sum 61

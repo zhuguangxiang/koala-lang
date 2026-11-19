@@ -1,0 +1,18 @@
+// RUN: koala %s | filecheck %s
+// join re-raises the child's error in the joining coroutine.
+
+import "std/task"
+
+func bad() int {
+    panic("boom")
+    return 0
+}
+
+func main() {
+    let t = task.spawn[int](bad)
+    let r = t.join()
+    print("unreachable")
+}
+
+// CHECK: Error: task failed: boom
+// CHECK-NOT: unreachable

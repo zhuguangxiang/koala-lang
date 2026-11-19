@@ -1,0 +1,38 @@
+// RUN: koala %s | filecheck %s
+// `(any as int)!` casts a dynamic value to int and unwraps the optional, so
+// the result compares with int. Works on any-typed locals, any-typed call
+// results and generic call results. The unwrapped int also feeds a bounded
+// generic (ut.assert_eq[T : Equatable]).
+//
+// Regression: casting to an optional and passing it to a bounded generic
+// WITHOUT `!` used to assert in check_generic_bound (a symbol-less type);
+// it must report a clean error instead, never abort.
+
+import "std/ut"
+
+func make() any { return 42 }
+
+func id[T](x T) T { return x }
+
+func main() {
+    let a any = 42
+    let x = (a as int)!
+    print(x == 42)
+    print(x + 1)
+
+    let y = (make() as int)!
+    print(y == 42)
+
+    let z = (id[any](7) as int)!
+    print(z == 7)
+
+    ut.assert_eq((make() as int)!, 42)
+    ut.assert_eq((id[any](9) as int)!, 9)
+    print("ok")
+}
+
+// CHECK: true
+// CHECK-NEXT: 43
+// CHECK-NEXT: true
+// CHECK-NEXT: true
+// CHECK-NEXT: ok

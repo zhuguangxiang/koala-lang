@@ -1,0 +1,34 @@
+// RUN: koala %s | filecheck %s
+// 1000 tasks fan into one buffered channel; nested groups wait for the
+// producers before closing, the consumer drains until closed.
+
+import "std/task"
+
+func worker(ch task.Channel[int], id int) {
+    ch.send(id)
+}
+
+func consumer(ch task.Channel[int]) {
+    var sum = 0
+    for v in ch {
+        sum += v
+    }
+    print("sum", sum)
+}
+
+func main() {
+    let ch = task.Channel[int](64)
+    with outer = task.group() {
+        outer.spawn[any](consumer, ch)
+        with inner = task.group() {
+            for i in range(0, 1000) {
+                inner.spawn[any](worker, ch, i)
+            }
+        }
+        ch.close()
+    }
+    print("end")
+}
+
+// CHECK: sum 499500
+// CHECK-NEXT: end

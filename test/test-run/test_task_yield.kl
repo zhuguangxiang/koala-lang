@@ -1,0 +1,27 @@
+// RUN: koala %s | filecheck %s
+// yield_now round-robin: spawn does not switch, yield appends to the run queue tail.
+
+import "std/task"
+
+func worker(id int, n int) {
+    for i in range(0, n) {
+        print(id, i)
+        task.yield_now()
+    }
+}
+
+func main() {
+    let a = task.spawn[any](worker, 1, 3)
+    let b = task.spawn[any](worker, 2, 3)
+    a.join()
+    b.join()
+    print("end")
+}
+
+// CHECK: 1 0
+// CHECK-NEXT: 2 0
+// CHECK-NEXT: 1 1
+// CHECK-NEXT: 2 1
+// CHECK-NEXT: 1 2
+// CHECK-NEXT: 2 2
+// CHECK-NEXT: end

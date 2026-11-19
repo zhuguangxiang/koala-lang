@@ -1,0 +1,15 @@
+// RUN: koala %s | filecheck %s
+// Explicit `any` type argument: mangle_func_name's type_spec_str_func_name
+// must handle TYPE_ANY instead of aborting ("Why goes here?").
+
+func id[T](x T) T { return x }
+
+func main() {
+    let v = id[any](42)
+    print(v)
+    let s = id[any]("hi")
+    print(s)
+}
+
+// CHECK: 42
+// CHECK-NEXT: hi

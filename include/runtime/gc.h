@@ -46,8 +46,8 @@ void gc_free(void *ptr);
 void gc_mark(void *ptr);
 void gc_mark_value(TValue *val);
 
-/* full collection, returns the number of freed blocks */
-size_t gc_collect(KoalaState *ks);
+/* full collection, roots come from every coroutine of the current scheduler */
+size_t gc_collect(void);
 
 /* allocations minus deallocations since the last collection, as python */
 int64_t gc_get_count(void);

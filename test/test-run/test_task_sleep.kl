@@ -1,0 +1,29 @@
+// RUN: koala %s | filecheck %s
+// Cooperative sleep: the main coroutine sleeps too, tasks wake in deadline
+// order while others run.
+
+import "std/task"
+import "std/time"
+
+func nap(id int, ms int) {
+    time.sleep(time.Duration(ms * 1_000_000))
+    print(id)
+}
+
+func main() {
+    time.sleep(time.Duration(5_000_000))
+    print("main")
+    let a = task.spawn[any](nap, 1, 30)
+    let b = task.spawn[any](nap, 2, 10)
+    let c = task.spawn[any](nap, 3, 20)
+    a.join()
+    b.join()
+    c.join()
+    print("end")
+}
+
+// CHECK: main
+// CHECK-NEXT: 2
+// CHECK-NEXT: 3
+// CHECK-NEXT: 1
+// CHECK-NEXT: end

@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+// Rendezvous channel (cap 0): send hands the value straight to the receiver.
+
+import "std/task"
+
+func sender(ch task.Channel[str]) {
+    ch.send("a")
+    print("sent a")
+    ch.send("b")
+    print("sent b")
+}
+
+func main() {
+    let ch = task.Channel[str]()
+    let t = task.spawn[any](sender, ch)
+    print(ch.recv())
+    print(ch.recv())
+    t.join()
+}
+
+// CHECK: sent a
+// CHECK-NEXT: a
+// CHECK-NEXT: b
+// CHECK-NEXT: sent b

@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+// task.timeout: the deadline cancels the children and __exit__ raises
+// Timeout instead of waiting forever.
+
+import "std/task"
+import "std/time"
+
+func slow() {
+    time.sleep(time.Duration(10_000_000_000))
+    print("slow done")
+}
+
+func main() {
+    with g = task.timeout(time.Duration(20_000_000)) {
+        g.spawn[any](slow)
+        print("body")
+    }
+    print("unreachable")
+}
+
+// CHECK: body
+// CHECK: Error: Timeout
+// CHECK-NOT: slow done
+// CHECK-NOT: unreachable

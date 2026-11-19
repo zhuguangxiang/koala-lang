@@ -1,0 +1,27 @@
+// Coroutine switch microbenchmark: two coroutines ping-pong via yield_now.
+// Run: KOALA_CO_STATS=1 koala bench/co_switch.kl
+// ns/switch = elapsed_ns / total_switches (switches from KOALA_CO_STATS).
+
+import "std/task"
+import "std/time"
+
+const N = 2_000_000
+
+func partner() {
+    for i in range(0, N) {
+        task.yield_now()
+    }
+}
+
+func main() {
+    let t = task.spawn[any](partner)
+    let start = time.monotonic()
+    for i in range(0, N) {
+        task.yield_now()
+    }
+    let elapsed = time.monotonic().diff(start).to_ns()
+    t.join()
+    print("iters", N)
+    print("elapsed_ns", elapsed)
+    print("ns_per_iter", elapsed / N)
+}

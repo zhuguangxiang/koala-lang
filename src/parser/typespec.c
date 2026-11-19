@@ -1855,7 +1855,8 @@ static void type_spec_str_func_name(TypeSpec *ts, Buffer *buf)
 
     switch (kind) {
         case TYPE_OPTIONAL:
-        case TYPE_ENUM: {
+        case TYPE_ENUM:
+        case TYPE_ANY: {
             type_spec_to_str(ts, buf);
             break;
         }

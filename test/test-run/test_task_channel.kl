@@ -1,0 +1,27 @@
+// RUN: koala %s | filecheck %s
+// Buffered channel: producer parks when full, consumer drains with for-in,
+// close ends the iteration.
+
+import "std/task"
+
+func producer(ch task.Channel[int], n int) {
+    for i in range(0, n) {
+        ch.send(i)
+    }
+    ch.close()
+}
+
+func main() {
+    let ch = task.Channel[int](2)
+    let t = task.spawn[any](producer, ch, 5)
+    var sum = 0
+    for v in ch {
+        sum += v
+    }
+    print("sum", sum)
+    t.join()
+    print("end")
+}
+
+// CHECK: sum 10
+// CHECK-NEXT: end

@@ -59,6 +59,10 @@ static inline int kl_check_shift_count(TValue *count)
 char *kl_exc_get_msg(Object *exc);
 void kl_free_exc(Object *exc);
 
+/* Exception objects are mm-allocated, not GC blocks: the GC must not mark
+ * them directly. This marks the GC references they hold (the failed code). */
+void kl_exc_mark(Object *exc);
+
 void trace_here(CallFrame *cf);
 
 #ifdef __cplusplus

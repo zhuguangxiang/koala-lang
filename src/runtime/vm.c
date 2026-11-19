@@ -16,6 +16,7 @@
 #include "log.h"
 #include "mm.h"
 #include "modobj.h"
+#include "kosched.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,6 +57,8 @@ KoalaState *kl_new_ks(void)
     ks->stack_size = MAX_STACK_SIZE;
     ks->stack_limit = ks->stack_base + MAX_STACK_SIZE;
     ks->c_stack_limit = c_stack_limit();
+    init_list(&ks->sched_link);
+    init_list(&ks->all_link);
     return ks;
 }
 
@@ -72,6 +75,54 @@ void kl_free_ks(KoalaState *ks)
         cf = prev;
     }
 
+    mm_free(ks);
+}
+
+KoalaState *kl_new_co_ks(Region *r)
+{
+    KoalaState *ks = mm_alloc_obj(ks);
+    ks->ts = __ts;
+    ks->sched = __ts->sched;
+    ks->region = r;
+    /* VM stack grows up from mid to hi; fresh pages are zero = nil */
+    ks->stack_base = (TValue *)r->mid;
+    ks->stack_top = ks->stack_base;
+    ks->stack_limit = (TValue *)r->hi;
+    ks->stack_size = (int)(r->vm_size / sizeof(TValue));
+    /* C stack grows down from mid; keep a margin free for C helpers */
+    size_t margin = kl_co_c_margin();
+    ks->c_stack_limit = r->lo + r->guard + margin;
+    /* modules are shared with the main ks */
+    KoalaState *main = __ts->sched->main;
+    ks->builtin = main->builtin;
+    ks->sys = main->sys;
+    ks->state = KS_RUNNABLE;
+    init_list(&ks->sched_link);
+    init_list(&ks->all_link);
+    return ks;
+}
+
+void kl_abandon_ks(KoalaState *ks)
+{
+    if (!ks) return;
+    ASSERT(ks->region);
+
+    /* active frames of a parked coroutine are not in the cache */
+    CallFrame *cf = ks->cf;
+    while (cf) {
+        CallFrame *back = cf->back;
+        mm_free(cf);
+        cf = back;
+    }
+    cf = ks->cf_cache;
+    while (cf) {
+        CallFrame *back = cf->back;
+        mm_free(cf);
+        cf = back;
+    }
+
+    if (ks->co_args) mm_free(ks->co_args);
+    kl_region_recycle(ks->region);
     mm_free(ks);
 }
 
@@ -132,6 +183,9 @@ void koala_initialize(void)
     ts->current = kl_new_ks();
     __ts = ts;
 
+    /* the N:1 scheduler; the main ks is the root coroutine */
+    ts->sched = kl_sched_new(ts->current);
+
     load_modules();
 }
 
@@ -143,6 +197,10 @@ void koala_finalize(void)
     /* clean static types before gc_fini frees the dynamic ones */
     kl_fini_static_types();
 
+    /* abandon parked coroutines and report unjoined task errors; the
+     * scheduler stays valid until after gc_fini (TaskObject._free uses it) */
+    kl_sched_abandon(__ts->sched);
+
     /* finalize garbage collector */
     gc_fini();
 
@@ -153,6 +211,7 @@ void koala_finalize(void)
     kl_fini_mock_stbl();
 
     kl_free_ks(__ts->current);
+    kl_sched_destroy(__ts->sched);
     mm_free(__ts);
 
     /* finalize atom string table */

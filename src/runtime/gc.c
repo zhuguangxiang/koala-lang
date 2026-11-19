@@ -4,8 +4,11 @@
  */
 
 #include "gc.h"
+#include "excobj.h"
 #include "list.h"
 #include "log.h"
+#include "kosched.h"
+#include "shadowstack.h"
 #include "wsdeque.h"
 
 #ifdef __cplusplus
@@ -228,18 +231,21 @@ void gc_mark_value(TValue *val)
     gc_mark(obj);
 }
 
-static void gc_mark_roots(KoalaState *ks)
+/* native temporary roots of one ks (shadowstack.h) */
+static void gc_mark_shadow(ShadowStack *ss)
 {
-    GCHeader *hdr;
-    list_foreach(hdr, link, &gc_root_list) {
-        Object *obj = (Object *)(hdr + 1);
-        TypeObject *tp = OB_TYPE(obj);
-        if (tp->_mark) tp->_mark(obj);
+    for (; ss; ss = ss->back) {
+        for (uint32_t i = 0; i < ss->count; i++) {
+            Object *obj = *(Object **)ss->slots[i];
+            if (obj) gc_mark(obj);
+        }
     }
+}
 
-    gc_mark(ks->builtin);
-    gc_mark(ks->sys);
-
+/* Roots of one coroutine. A parked ks has a valid stack_top: switches happen
+ * only inside native calls, which are safepoints (plan §8.1, §8.2). */
+static void gc_mark_ks(KoalaState *ks)
+{
     CallFrame *cf = ks->cf;
     while (cf) {
         gc_mark(cf->code);
@@ -252,6 +258,40 @@ static void gc_mark_roots(KoalaState *ks)
     for (TValue *v = ks->stack_base; v < end; v++) {
         gc_mark_value(v);
     }
+
+    /* owning task keeps a running detached task alive */
+    gc_mark(ks->task);
+    /* entry function and args until the coroutine finishes */
+    gc_mark(ks->co_fn);
+    for (int i = 0; i < ks->co_nargs; i++) gc_mark_value(&ks->co_args[i]);
+    /* Exception is mm-allocated: mark the references it holds, not itself */
+    kl_exc_mark(ks->exc);
+    /* a result handed to a parked coroutine lives only in its WaitRecord */
+    if (ks->wait) gc_mark_value(&ks->wait->value);
+    gc_mark_shadow(ks->shadow);
+}
+
+static void gc_mark_roots(void)
+{
+    GCHeader *hdr;
+    list_foreach(hdr, link, &gc_root_list) {
+        Object *obj = (Object *)(hdr + 1);
+        TypeObject *tp = OB_TYPE(obj);
+        if (tp->_mark) tp->_mark(obj);
+    }
+
+    Scheduler *s = __ts->sched;
+    gc_mark(s->main->builtin);
+    gc_mark(s->main->sys);
+
+    /* every live coroutine's VM stack; dead ks waiting for region recycling
+     * are off this list, so their stale stacks are never scanned */
+    KoalaState *ks;
+    list_foreach(ks, all_link, &s->all) gc_mark_ks(ks);
+
+    /* deadline timers may hold the only reference to an object, e.g. a
+     * Group with a timeout whose parent dropped it */
+    for (int i = 0; i < s->ntimers; i++) gc_mark(s->timers[i]->root);
 
     log_debug("gc: mark roots, %ld gray", (long)wsdq_size(&gc_gray_dq));
 }
@@ -322,7 +362,7 @@ static double gc_now_ms(void)
     return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6;
 }
 
-size_t gc_collect(KoalaState *ks)
+size_t gc_collect(void)
 {
     ASSERT(gc_cur_state == GC_DONE);
     memset(&gc_stats.last, 0, sizeof(gc_stats.last));
@@ -332,7 +372,7 @@ size_t gc_collect(KoalaState *ks)
     while (gc_cur_state != GC_DONE) {
         switch (gc_cur_state) {
             case GC_MARK_ROOTS:
-                gc_mark_roots(ks);
+                gc_mark_roots();
                 gc_switch(GC_MARK);
                 break;
             case GC_MARK:

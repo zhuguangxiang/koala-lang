@@ -1,0 +1,27 @@
+// RUN: koala %s | filecheck %s
+// Group error propagation: a failing child cancels its siblings and the
+// first error is re-raised in the parent at __exit__.
+
+import "std/task"
+import "std/time"
+
+func ok_child() {
+    print("ok ran")
+}
+
+func bad_child() {
+    time.sleep(time.Duration(5_000_000))
+    panic("boom")
+}
+
+func main() {
+    with g = task.group() {
+        g.spawn[any](bad_child)
+        g.spawn[any](ok_child)
+    }
+    print("unreachable")
+}
+
+// CHECK: ok ran
+// CHECK: Error: group task failed: boom
+// CHECK-NOT: unreachable

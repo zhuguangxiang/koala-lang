@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include "gc.h"
+#include "kosched.h"
 #include "testhelp.h"
 
 /* Node: an object with two references, freed nodes are counted */
@@ -62,10 +63,33 @@ static KoalaState ks = {
 
 static void clear_roots(void) { memset(stack, 0, sizeof(stack)); }
 
+/* gc.c reads roots from every ks in __ts->sched: give it a minimal scheduler
+ * holding the static test ks. Exception marking is stubbed out. */
+__thread ThreadState *__ts;
+static ThreadState test_ts;
+static Scheduler test_sched;
+
+void kl_exc_mark(Object *exc) { (void)exc; }
+
+__attribute__((constructor)) static void setup_roots(void)
+{
+    init_list(&test_sched.runq);
+    init_list(&test_sched.all);
+    init_list(&test_sched.dead);
+    init_list(&test_sched.tasks);
+    init_list(&ks.all_link);
+    init_list(&ks.sched_link);
+    list_push_back(&test_sched.all, &ks.all_link);
+    test_sched.main = &ks;
+    test_ts.current = &ks;
+    test_ts.sched = &test_sched;
+    __ts = &test_ts;
+}
+
 static void collect(void)
 {
     nr_freed = 0;
-    gc_collect(&ks);
+    gc_collect();
 }
 
 static Node *new_node(void)
@@ -188,7 +212,7 @@ static void test_age(void)
     Node *a = new_node();
     stack[0] = obj_value(a);
     /* age saturates below the threshold, the block stays collectable */
-    for (int i = 0; i < 300; i++) gc_collect(&ks);
+    for (int i = 0; i < 300; i++) gc_collect();
 
     clear_roots();
     collect();
@@ -218,14 +242,14 @@ static void test_hooks(void)
     gc_set_hooks(&hooks);
     new_node();
     new_node();
-    size_t freed = gc_collect(&ks);
+    size_t freed = gc_collect();
     test_cond("hooks: on_free for each freed block", nr_hook_free == 2);
     test_cond("hooks: on_collect once with last stats", nr_hook_collect == 1 && hook_last_freed == 2);
     test_cond("hooks: collect returns freed blocks", freed == 2);
 
     gc_set_hooks(NULL);
     new_node();
-    gc_collect(&ks);
+    gc_collect();
     test_cond("hooks: removed hooks are not called", nr_hook_free == 2 && nr_hook_collect == 1);
 }
 

@@ -1,0 +1,36 @@
+// RUN: koala %s | filecheck %s
+// Cancellation: a parked task wakes with Cancelled and ends CANCELLED
+// (join returns nil, no error report); a task cancelled before it started
+// never runs.
+
+import "std/task"
+
+func receiver(ch task.Channel[int]) {
+    let v = ch.recv()
+    print("got", v)
+}
+
+func never() {
+    print("never ran")
+}
+
+func main() {
+    let ch = task.Channel[int]()
+    let t = task.spawn[any](receiver, ch)
+    task.yield_now()
+    t.cancel()
+    let r any? = t.join()
+    print("parked cancelled", r == nil, t.done())
+
+    let p = task.spawn[any](never)
+    p.cancel()
+    let q any? = p.join()
+    print("pending cancelled", q == nil, p.done())
+}
+
+// CHECK: parked cancelled true true
+// CHECK-NEXT: pending cancelled true true
+// CHECK-NOT: got
+// CHECK-NOT: never ran
+// CHECK-NOT: Error
+

@@ -1,0 +1,4 @@
+
+pub func hello() int { return 100 }
+
+pub func foo() int { return hello() }

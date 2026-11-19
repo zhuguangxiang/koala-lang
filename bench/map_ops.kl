@@ -1,0 +1,14 @@
+// Hash-map profile: insert N entries then lookup-sum.
+// Go analogue: bench/go/map_ops.go
+
+func main() {
+    let d = dict[int, int]()
+    for i in range(0, 1000000) {
+        d[i] = i
+    }
+    var sum = 0
+    for i in range(0, 1000000) {
+        sum += d[i]
+    }
+    print(sum)
+}

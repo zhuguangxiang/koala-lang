@@ -1,0 +1,23 @@
+// GC-object allocation profile: retain N heap objects in a list, sum a field.
+// Go analogue: bench/go/alloc_obj.go
+
+class Point {
+    let x int
+    let y int
+    pub func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+}
+
+func main() {
+    let l = list[Point]()
+    for i in range(0, 1000000) {
+        l.append(Point(i, i + 1))
+    }
+    var sum = 0
+    for i in range(0, l.len()) {
+        sum += l[i].x
+    }
+    print(sum)
+}

@@ -1,0 +1,143 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Cooperative concurrency: tasks, channels and structured groups.
+///
+/// One thread runs every task (N:1). A task runs until it parks inside a
+/// native call (`join`, `sleep`, channel ops, `__exit__`); spawning never
+/// switches, so ordering is deterministic. No new syntax: everything here
+/// is library API. Functions that can suspend carry the `@parks` doc tag.
+
+link "koala"
+
+import "std/time"
+
+/// A running or finished coroutine started by `spawn` or `Group.spawn`.
+/// `T` is the result type of the spawned function; `join` returns it directly.
+pub class Task[T] {
+
+    /// Wait until the task finishes and return its result. Re-raises the
+    /// child's error in the caller. @parks
+    @native
+    pub func join() T {}
+
+    /// Request cancellation. A parked task wakes with a `Cancelled` error;
+    /// a task that has not started never runs. Edge-triggered: later parks
+    /// work normally.
+    @native
+    pub func cancel() {}
+
+    /// True once the task is done, failed or cancelled.
+    @native
+    pub func done() bool {}
+}
+
+/// A FIFO channel between tasks. `cap > 0` buffers up to `cap` values;
+/// `cap == 0` is a rendezvous: `send` hands the value to a waiting receiver.
+pub class Channel[T] : Iterable[T] {
+
+    /// Create a channel with buffer capacity `cap` (0 for rendezvous).
+    @native
+    pub func __init__(cap int = 0) {}
+
+    /// Send `v`. Parks while the buffer is full; error if closed. @parks
+    @native
+    pub func send(v T) {}
+
+    /// Receive the next value. Parks while empty; `nil` once closed and
+    /// drained. @parks
+    @native
+    pub func recv() T? {}
+
+    /// Send without parking; false when full or closed.
+    @native
+    pub func try_send(v T) bool {}
+
+    /// Receive without parking; `nil` when empty or closed and drained.
+    @native
+    pub func try_recv() T? {}
+
+    /// Close the channel: receivers wake with `nil`, senders with an error.
+    @native
+    pub func close() {}
+
+    /// Iterate with `for v in ch` until the channel is closed and drained.
+    /// Only `step = 1` is supported.
+    pub func iter(step = 1) Iterator[T] = ChannelIter[T](self, step)
+}
+
+/// The iterator of a channel: `next` receives, `nil` ends the iteration.
+class ChannelIter[T] : Iterator[T] {
+
+    /// Wrap `src`; `step` must be 1.
+    @native
+    func __init__(src Channel[T], step int) {}
+
+    /// True when a value is available; parks until one arrives or the
+    /// channel closes. @parks
+    @native
+    func has_next() bool {}
+
+    /// Receive the next value. Panic when closed and drained. @parks
+    @native
+    func next_strict() T {}
+
+    /// Receive the next value, or `nil` when closed and drained. @parks
+    @native
+    func next() T? {}
+}
+
+/// A structured-concurrency scope: `with task.group() as g { g.spawn(...) }`.
+/// Leaving the block waits for every child. If a child fails, the siblings
+/// are cancelled and the first error is re-raised in the parent.
+pub class Group : Withable {
+
+    /// Spawn a child into this group. `T` is the child's result type;
+    /// pass it explicitly, e.g. `g.spawn[int](worker, 41)`.
+    @native
+    pub func spawn[T](fn any, args ...any) Task[T] {}
+
+    /// Enter the scope.
+    @native
+    pub func __enter__() {}
+
+    /// Wait for all children; propagate the first child error. @parks
+    @native
+    pub func __exit__() {}
+}
+
+/// Start `fn(args...)` as a new task. Returns immediately without switching;
+/// the caller keeps running until it parks. `T` is the result type of `fn`;
+/// pass it explicitly, e.g. `task.spawn[int](worker, 41)`. Use `any` for
+/// functions without a result.
+@native
+pub func spawn[T](fn any, args ...any) Task[T] {}
+
+/// Give up the CPU so other runnable tasks can run; this task stays runnable.
+@native
+pub func yield_now() {}
+
+/// The current task, or `nil` in the main coroutine.
+@native
+pub func current() Task[any]? {}
+
+/// Park the current task for the duration `d`; other tasks run meanwhile.
+/// @parks
+pub func sleep(d time.Duration) {
+    time.sleep(d)
+}
+
+/// Create an empty group for `with task.group() as g { ... }`.
+@native
+pub func group() Group {}
+
+@native
+func sys_group_timeout(ns int) Group {}
+
+/// A group that cancels its children at the deadline; `__exit__` then
+/// raises `Timeout` instead of waiting forever.
+pub func timeout(d time.Duration) Group {
+    return sys_group_timeout(d.to_ns())
+}

@@ -139,9 +139,12 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
         }
 
         if (ts->kind == TYPE_VA_LIST) {
-            // var-arg must be last one parameter.
-            log_info("param '%s' is var-arg", arg->name);
-            NYI();
+            /* A variadic parameter (`args ...any`) contributes no single type
+             * to inference; skip it like the no-type lambda case above. A type
+             * parameter appearing only here is reported as uninferred below,
+             * never aborted. */
+            log_info("param '%s' is var-arg, skip it for inference.", arg->name);
+            continue;
         }
     }
 

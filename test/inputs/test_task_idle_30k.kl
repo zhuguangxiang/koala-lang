@@ -1,0 +1,34 @@
+// Heavy manual test (not in lit): 30000 tasks parked on channel recv.
+// Run: /usr/bin/time -v koala test/inputs/test_task_idle_30k.kl
+// With the guard page on, each region costs 2 VMAs; 30k stays under the
+// default vm.max_map_count (65530). Physical memory should be far below
+// the 60 GB of reserved address space (lazy commitment + region pool).
+
+import "std/task"
+import "std/time"
+
+func idle(ch task.Channel[int]) {
+    let v = ch.recv()
+    print("unexpected", v)
+}
+
+func main() {
+    let ch = task.Channel[int]()
+    let tasks = list[task.Task[any]]()
+    for i in range(0, 30000) {
+        tasks.append(task.spawn[any](idle, ch))
+    }
+    print("spawned 30000")
+    // let every task run and park; RSS is stable here
+    time.sleep(time.Duration(100_000_000))
+    for t in tasks {
+        t.cancel()
+    }
+    // the cancelled tasks unwind while main sleeps
+    time.sleep(time.Duration(500_000_000))
+    var ndone = 0
+    for t in tasks {
+        if t.done() { ndone += 1 }
+    }
+    print("done", ndone)
+}

@@ -1,0 +1,25 @@
+// RUN: koala %s | filecheck %s
+// Group: __exit__ waits for every child; children finish in deadline order.
+
+import "std/task"
+import "std/time"
+
+func child(id int, ms int) int {
+    time.sleep(time.Duration(ms * 1_000_000))
+    print("child", id)
+    return id
+}
+
+func main() {
+    with g = task.group() {
+        g.spawn[int](child, 1, 10)
+        g.spawn[int](child, 2, 5)
+        print("body")
+    }
+    print("after")
+}
+
+// CHECK: body
+// CHECK-NEXT: child 2
+// CHECK-NEXT: child 1
+// CHECK-NEXT: after

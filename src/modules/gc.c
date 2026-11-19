@@ -117,7 +117,7 @@ pub func collect() int
 static TValue gcmod_collect(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 0);
-    return int64_value(gc_collect(__ks()));
+    return int64_value(gc_collect());
 }
 
 /*

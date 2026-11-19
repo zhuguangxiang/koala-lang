@@ -1855,9 +1855,14 @@ static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp, Vector *tp_arg
 
         /* Case 1: arg is a concrete type → existing logic */
         if (ts->kind != TYPE_GENERIC_VAR) {
+            /* Types without a class symbol (optional `T?`, tuples, `any`,
+             * builtin values, ...) cannot implement a trait bound. Guard the
+             * lookup instead of asserting; numeric builtins may still satisfy
+             * a numeric base bound below. */
             Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
-            ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
-            compatible = type_spec_compatible(_bound, ts);
+            if (ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE) {
+                compatible = type_spec_compatible(_bound, ts);
+            }
             if (!compatible) compatible = number_base_satisfies_bound(_bound, ts, ps);
         } else {
             /*

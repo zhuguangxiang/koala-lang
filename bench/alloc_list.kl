@@ -1,0 +1,14 @@
+// Allocation profile: grow a list by append (dynamic realloc), then index-sum.
+// Go analogue: bench/go/alloc_list.go
+
+func main() {
+    let l = list[int]()
+    for i in range(0, 2000000) {
+        l.append(i)
+    }
+    var sum = 0
+    for i in range(0, l.len()) {
+        sum += l[i]
+    }
+    print(sum)
+}

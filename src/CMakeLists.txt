@@ -106,6 +106,9 @@ set(KOALA_SHARED_SOURCES
     runtime/slice_adjust.c
     runtime/symtbl.c
     runtime/gc.c
+    runtime/fiber.c
+    runtime/fiber_x86_64.S
+    runtime/sched.c
     runtime/native_libs.c
     runtime/args.c
     runtime/do_cast.c
@@ -118,11 +121,15 @@ set(KOALA_SHARED_SOURCES
     modules/math.c
     modules/random.c
     modules/collections.c
+    modules/task.c
     objects/collections/bitsetobj.c
     objects/collections/stackobj.c
     objects/collections/queueobj.c
     objects/collections/linkedlistobj.c
     objects/collections/dequeobj.c
+    objects/taskobj.c
+    objects/chanobj.c
+    objects/groupobj.c
     modules/socket.c
     )
 

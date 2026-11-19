@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+// Basic spawn/join: spawn does not switch; the child runs when main parks.
+
+import "std/task"
+
+func worker(n int) int {
+    print("worker", n)
+    return n * 2
+}
+
+func main() {
+    print("before")
+    let t = task.spawn[int](worker, 21)
+    print("spawned")
+    let r = t.join()
+    print("joined", r)
+    print("done", t.done())
+}
+
+// CHECK: before
+// CHECK-NEXT: spawned
+// CHECK-NEXT: worker 21
+// CHECK-NEXT: joined 42
+// CHECK-NEXT: done true

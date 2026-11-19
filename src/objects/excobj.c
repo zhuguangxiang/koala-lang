@@ -4,6 +4,7 @@
  */
 
 #include "modobj.h"
+#include "gc.h"
 #include "vm.h"
 
 #ifdef __cplusplus
@@ -66,6 +67,13 @@ void kl_free_exc(Object *ob)
     vector_fini(&exc->tracebacks);
     free(exc->msg);
     mm_free(exc);
+}
+
+void kl_exc_mark(Object *ob)
+{
+    if (!ob) return;
+    Exception *exc = (Exception *)ob;
+    gc_mark(exc->co);
 }
 
 void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)

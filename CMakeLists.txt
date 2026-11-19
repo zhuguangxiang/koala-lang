@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.22)
 
-project(koala-lang LANGUAGES C)
+project(koala-lang LANGUAGES C ASM)
 
 # verion
 set(KOALA_VERSION_MAJOR 0)

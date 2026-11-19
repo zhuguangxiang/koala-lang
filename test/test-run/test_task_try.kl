@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+// Non-blocking channel ops: try_send / try_recv never park.
+
+import "std/task"
+
+func main() {
+    let ch = task.Channel[int](1)
+    print(ch.try_send(1))
+    print(ch.try_send(2))
+    print(ch.try_recv())
+    print(ch.try_recv())
+    ch.close()
+    print(ch.try_send(3))
+    print(ch.try_recv())
+    print(ch.recv())
+}
+
+// CHECK: true
+// CHECK-NEXT: false
+// CHECK-NEXT: 1
+// CHECK-NEXT: nil
+// CHECK-NEXT: false
+// CHECK-NEXT: nil
+// CHECK-NEXT: nil

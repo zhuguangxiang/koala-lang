@@ -5,7 +5,9 @@
 
 #include <stdint.h>
 #include <time.h>
+#include "excobj.h"
 #include "object.h"
+#include "kosched.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +40,9 @@ static TValue sys_clock_monotonic_nanos(TValue *self, TValue *args, int nargs)
 }
 
 // func sys_sleep_nanos(ns int) {}
+// Cooperative: parks the current coroutine on a scheduler timer, so other
+// coroutines run meanwhile. With no other coroutine it behaves like a
+// blocking sleep. @parks
 static TValue sys_sleep_nanos(TValue *self, TValue *args, int nargs)
 {
     (void)self;
@@ -48,13 +53,16 @@ static TValue sys_sleep_nanos(TValue *self, TValue *args, int nargs)
         return no_value;
     }
 
-    struct timespec req;
-    req.tv_sec = ns / 1000000000LL;
-    req.tv_nsec = ns % 1000000000LL;
-
-    // 简单版：不处理被信号中断的剩余时间
-    nanosleep(&req, NULL);
-
+    WaitRecord w;
+    kl_wait_init(&w, WAIT_TIMER);
+    w.timer.deadline = kl_now_ns() + ns;
+    kl_timer_add(&w.timer);
+    int r = kl_park(&w);
+    if (r == KL_PARK_CANCELLED) {
+        raise_exc_str("Cancelled");
+        return error_value;
+    }
+    /* KL_PARK_TIMEOUT is the normal wake-up of a sleep */
     return no_value;
 }
 

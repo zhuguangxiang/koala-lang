@@ -1,0 +1,30 @@
+// RUN: not koalac %s 2>&1 | filecheck %s
+//
+// Types without a class symbol — optional `T?`, `any`, a runtime `as` cast
+// result — cannot satisfy a trait bound. check_generic_bound used to ASSERT
+// on the missing symbol (parser_expr.c); it must report a clean "does not
+// satisfy constraint" error and keep going, never abort.
+
+func eq[T: Equatable](a T, b T) {}
+
+func from_any() any { return 42 }
+
+func main() {
+    // CHECK-NOT: Assertion
+    // CHECK-NOT: Why goes here
+
+    let x int? = 42
+    eq(x, 42)
+    // CHECK: type argument 'int64?' does not satisfy constraint on type parameter 'T'
+
+    let a any = 42
+    eq(a, 42)
+    // CHECK: type argument 'any' does not satisfy constraint on type parameter 'T'
+
+    // a runtime `as` cast yields an optional; without `!` it is symbol-less too
+    eq(from_any() as int, 42)
+    // CHECK: type argument 'int64?' does not satisfy constraint on type parameter 'T'
+
+    // CHECK-NOT: Assertion
+    // CHECK-NOT: Why goes here
+}

@@ -52,6 +52,14 @@ target_link_libraries(test_gc koala_common m)
 add_test(NAME c_gc COMMAND test_gc)
 set_property(GLOBAL APPEND PROPERTY KOALA_C_TEST_TARGETS test_gc)
 
+# fiber primitives: fiber.c is compiled into the test with its asm switch.
+add_executable(test_fiber test_fiber.c
+    ${PROJECT_SOURCE_DIR}/src/runtime/fiber.c
+    ${PROJECT_SOURCE_DIR}/src/runtime/fiber_x86_64.S)
+target_link_libraries(test_fiber koala_common m)
+add_test(NAME c_fiber COMMAND test_fiber)
+set_property(GLOBAL APPEND PROPERTY KOALA_C_TEST_TARGETS test_fiber)
+
 add_executable(test_inline_cost test_inline_cost.c)
 target_link_libraries(test_inline_cost parser)
 add_test(NAME c_inline_cost COMMAND test_inline_cost)
