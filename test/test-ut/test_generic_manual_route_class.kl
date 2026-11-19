@@ -1,0 +1,128 @@
+// RUN: koala --test %s
+//
+// Manual (by-name) routing of a generic CLASS instantiation. A hand-written
+// non-generic class named <Class>_<typearg>, declared in the generic's own
+// package, claims the instantiation: Box[int] -> Box_int64. No std class is
+// involved. An instantiation with no such class stays erased.
+//
+// The concrete class deliberately behaves differently (get() adds 1000), so a
+// passing test proves the concrete body really ran -- not merely that the
+// static type was renamed.
+
+import "std/ut"
+import "test_pkg/pkg_class_route"
+
+class Box[T] {
+    var v T
+    pub func __init__(value T) { self.v = value }
+    pub func get() T { return self.v }
+    pub func tag() int { return 0 }
+}
+
+// Claims Box[int].
+class Box_int64 {
+    var v int
+    pub func __init__(value int) { self.v = value }
+    pub func get() int { return self.v + 1000 }
+    pub func tag() int { return 1 }
+}
+
+// Claims Box[int?]: an optional type argument mangles with an _opt suffix.
+class Box_int64_opt {
+    var v int?
+    pub func __init__(value int?) { self.v = value }
+    pub func get() int? { return self.v }
+    pub func tag() int { return 777 }
+}
+
+// Two type parameters: one mangled segment per argument, in order.
+class Pair[A, B] {
+    var a A
+    var b B
+    pub func __init__(x A, y B) { self.a = x; self.b = y }
+    pub func tag() int { return 0 }
+}
+
+// Claims Pair[int, str].
+class Pair_int64_str {
+    var a int
+    var b str
+    pub func __init__(x int, y str) { self.a = x; self.b = y }
+    pub func tag() int { return self.a + 5000 }
+}
+
+// Declared by the IMPORTER, so it must NOT claim pkg_class_route.Slot[str]:
+// only the generic's own package may route an instantiation.
+class Slot_str {
+    var v str
+    pub func __init__(value str) { self.v = value }
+    pub func get() str { return "local" }
+}
+
+// The routed instantiation runs the concrete class body.
+@test
+func test_routed_body_runs() {
+    let b = Box[int](7)
+    ut.assert_eq(b.get(), 1007)
+}
+
+// The routed type is the concrete class itself, not a separate instance type.
+@test
+func test_routed_identity() {
+    ut.assert_true(typeof(Box[int](7)) == typeof(Box_int64(7)))
+}
+
+// No Box_str exists, so Box[str] stays erased and uses the generic body.
+@test
+func test_erased_fallback() {
+    let s = Box[str]("x")
+    ut.assert_eq(s.get(), "x")
+    ut.assert_false(typeof(s) == typeof(Box_int64(0)))
+}
+
+// Two type arguments mangle in order: Pair[int, str] -> Pair_int64_str.
+@test
+func test_multi_type_args() {
+    let p = Pair[int, str](3, "x")
+    ut.assert_eq(p.tag(), 5003)
+    ut.assert_true(typeof(p) == typeof(Pair_int64_str(3, "x")))
+}
+
+// Argument order matters: no Pair_str_int64 exists, so this stays erased.
+@test
+func test_multi_type_args_order() {
+    let p = Pair[str, int]("x", 3)
+    ut.assert_eq(p.tag(), 0)
+}
+
+// An optional type argument mangles with an _opt suffix: Box[int?] -> Box_int64_opt.
+@test
+func test_optional_type_arg() {
+    let o = Box[int?](9)
+    ut.assert_eq(o.tag(), 777)
+    ut.assert_true(typeof(o) == typeof(Box_int64_opt(9)))
+}
+
+// A generic class from another package routes to the concrete class declared
+// alongside it: pkg_class_route.Slot[int] -> pkg_class_route.Slot_int64.
+@test
+func test_cross_package_routed() {
+    let s = pkg_class_route.Slot[int](5)
+    ut.assert_eq(s.get(), 2005)
+    ut.assert_true(typeof(s) == typeof(pkg_class_route.Slot_int64(5)))
+}
+
+// The owning package has no Slot_str, so Slot[str] stays erased there.
+@test
+func test_cross_package_erased() {
+    let s = pkg_class_route.Slot[str]("x")
+    ut.assert_eq(s.get(), "x")
+}
+
+// The importer's own Slot_str must not claim another package's instantiation.
+@test
+func test_importer_does_not_route() {
+    let s = pkg_class_route.Slot[str]("x")
+    ut.assert_eq(s.get(), "x")
+    ut.assert_false(typeof(s) == typeof(Slot_str("x")))
+}

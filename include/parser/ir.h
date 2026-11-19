@@ -958,6 +958,9 @@ KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode o
 /* IR: load_func %var, @function */
 KlrInsn *klr_build_load_func(KlrBuilder *bldr, KlrValue *var, KlrValue *func);
 
+/* IR: load_type %var, @klass — load a type object as a first-class value */
+KlrInsn *klr_build_load_type(KlrBuilder *bldr, KlrValue *var, KlrValue *klass);
+
 /* add a return instruction at the end of a basic block if it doesn't have one
  */
 void klr_add_last_return(KlrBasicBlock *bb);

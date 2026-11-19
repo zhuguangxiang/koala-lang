@@ -695,20 +695,25 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
         Symbol *origin = inst_sym->origin;
         ASSERT(origin && origin->kind == SYM_CLASS);
         if (!origin->ir_val) {
-            // TODO: why is null?
-            ASSERT(str_equal(origin->name, "tuple") || str_equal(origin->name, "list"));
+            /*
+             * The origin klass has no IR container in this module yet: it is
+             * either external (loaded from a .klc) or a generic shell that is
+             * only ever used through its instances. Create the container here
+             * exactly as the SYM_CLASS branch above does, so every origin --
+             * including a concrete class a generic instantiation was routed to
+             * -- gets a real klass instead of a NULL IR value.
+             */
+            KlassSymbol *origin_kls = (KlassSymbol *)origin;
+            if (origin->flags & SYM_FLAGS_EXT) {
+                Symbol *parent = origin->parent;
+                ASSERT(parent && parent->kind == SYM_PACKAGE);
+                origin->ir_val =
+                    klr_add_ext_klass(MOD, parent->name, origin_kls->instance_ts, origin->name);
+            } else {
+                origin->ir_val = klr_add_klass(MOD, origin_kls->instance_ts, origin->name);
+            }
         }
-        // ASSERT(origin->ir_val);
-        // TODO:
-        // if (!origin->ir_val) {
-        //     // external origin class, create its ext klass container
-        //     ASSERT(origin->flags & SYM_FLAGS_EXT);
-        //     Symbol *parent = origin->parent;
-        //     ASSERT(parent && parent->kind == SYM_PACKAGE);
-        //     KlassSymbol *origin_kls = (KlassSymbol *)origin;
-        //     origin->ir_val =
-        //         klr_add_ext_klass(MOD, parent->name, origin_kls->instance_ts, origin->name);
-        // }
+        ASSERT(origin->ir_val);
         exp->ir_val = origin->ir_val;
     }
     sym->ir_val = exp->ir_val;
@@ -2233,10 +2238,6 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
-        if (e->ir_val->kind == KLR_VALUE_KLASS || e->ir_val->kind == KLR_VALUE_EXT_KLASS) {
-            kl_error(e->loc, "class objects cannot be used as values yet");
-            return;
-        }
         items[i__] = e->ir_val;
         // a const tuple holds only immutable items
         if (!is_immutable_const(e->ir_val)) konst = 0;
@@ -2792,6 +2793,7 @@ static void build_return(ParserState *ps, KlrValue *exp_val)
         KlrValue *cast = exp_val;
         ret_ir_val = cast;
         if (cast->kind != KLR_VALUE_FUNC && cast->kind != KLR_VALUE_EXT_FUNC &&
+            cast->kind != KLR_VALUE_KLASS && cast->kind != KLR_VALUE_EXT_KLASS &&
             cast->ts != ret_ts && !type_is_any_or_opt_any(ret_ts) &&
             !(type_is_proto(cast->ts) && type_is_proto(ret_ts) &&
               type_spec_equal_exact(cast->ts, ret_ts))) {

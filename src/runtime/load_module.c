@@ -420,6 +420,9 @@ static Object *_load_module(char *path)
             tp = kl_new_type(kls_kc->sval, TP_FLAGS_CLASS);
         }
 
+        // tps slot 0 is an empty placeholder; real type parameters follow it
+        if (vector_size(&cls->tps) > 1) tp->flags |= TP_FLAGS_GENERIC;
+
         // ASSERT(tp->flags & TP_FLAGS_CLASS);
 
         KlcVar *var;
@@ -455,6 +458,8 @@ static Object *_load_module(char *path)
                 if (IS_CODE(_co)) {
                     CodeObject *co = (CodeObject *)_co;
                     co->owner = (Object *)tp;
+                    // args slot 0 is an empty placeholder; declared params follow it
+                    co->cs.nargs = vector_size(&meth->args) - 1;
                     ASSERT(co->flags & CODE_FLAG_METH);
                 } else {
                     ASSERT(IS_CFUNC(_co));

@@ -19,6 +19,8 @@ typedef struct _CodeSpec {
     int num_insns;
     /* max call arguments */
     int max_call_args;
+    /* number of declared parameters, excluding a method's implicit self */
+    int nargs;
     /* name */
     char *name;
     /* file name */

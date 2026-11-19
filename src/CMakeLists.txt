@@ -142,7 +142,9 @@ set(KOALA_SOURCES
     )
 add_executable(koala_out ${KOALA_SOURCES})
 
-# target_link_options(koala_out PRIVATE -rdynamic)
+# Export the executable's symbols so dlopen'd native packages can call back
+# into the runtime (e.g. kl_call_code to run a component's __init__).
+target_link_options(koala_out PRIVATE -rdynamic)
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES
     OUTPUT_NAME koala)

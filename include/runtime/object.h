@@ -241,6 +241,9 @@ typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 /* gc-allocated type: internals released by type_type._free; static types are cleaned by
  * kl_fini_types */
 #define TP_FLAGS_HEAP (1 << 3)
+/* class declared with type parameters (a generic class); its open template and
+ * every monomorphized instance share this one TypeObject */
+#define TP_FLAGS_GENERIC (1 << 4)
 
 /**
  * Object memory layout:

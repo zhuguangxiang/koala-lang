@@ -212,7 +212,8 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
     /* a function is a value like any other: `let f = add1` moves it into a local */
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_PARAM &&
         val->kind != KLR_VALUE_INSN && val->kind != KLR_VALUE_FUNC &&
-        val->kind != KLR_VALUE_EXT_FUNC) {
+        val->kind != KLR_VALUE_EXT_FUNC && val->kind != KLR_VALUE_KLASS &&
+        val->kind != KLR_VALUE_EXT_KLASS) {
         panic("'move %%x, %%v' requires a reg value.");
     }
 
@@ -284,7 +285,8 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
 
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
         val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_EXT_GLOBAL &&
-        val->kind != KLR_VALUE_FUNC && val->kind != KLR_VALUE_EXT_FUNC) {
+        val->kind != KLR_VALUE_FUNC && val->kind != KLR_VALUE_EXT_FUNC &&
+        val->kind != KLR_VALUE_KLASS && val->kind != KLR_VALUE_EXT_KLASS) {
         panic("'set_global %%g, %%v' requires a reg value.");
     }
 
@@ -615,6 +617,24 @@ KlrInsn *klr_build_load_func(KlrBuilder *bldr, KlrValue *var, KlrValue *func)
     return insn;
 }
 
+KlrInsn *klr_build_load_type(KlrBuilder *bldr, KlrValue *var, KlrValue *klass)
+{
+    if (!klr_is_local(var) && !klr_is_param(var)) {
+        panic("'load_type' op requires a local/param var");
+    }
+
+    if (klass->kind != KLR_VALUE_KLASS && klass->kind != KLR_VALUE_EXT_KLASS) {
+        panic("'load_type' op requires a klass value");
+    }
+
+    KlrInsn *insn = new_insn(OP_LOAD_TYPE, 2, "");
+    init_oper(&insn->opers[0], insn, var, 0);
+    init_oper(&insn->opers[1], insn, klass, 0);
+    insn->ts = var->ts;
+    klr_append_insn(bldr, insn);
+    return insn;
+}
+
 KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name)
 {
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
@@ -747,7 +767,8 @@ KlrValue *klr_build_set_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
     /* a function is a value like any other: `obj.f = add1` stores it into a field */
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
         val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_FUNC &&
-        val->kind != KLR_VALUE_EXT_FUNC) {
+        val->kind != KLR_VALUE_EXT_FUNC && val->kind != KLR_VALUE_KLASS &&
+        val->kind != KLR_VALUE_EXT_KLASS) {
         panic("'set_field' op requires a reg/param value for val");
     }
 

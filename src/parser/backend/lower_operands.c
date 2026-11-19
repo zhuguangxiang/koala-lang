@@ -150,6 +150,24 @@ static void lower_load_func_opers(KlrInsn *insn)
     set_raw_func(&insn->raws[1], src);
 }
 
+static void lower_load_type_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *dst = insn_oper_value(insn, 0);
+    KlrValue *src = insn_oper_value(insn, 1);
+    ASSERT(klr_is_local(dst) || klr_is_param(dst));
+    set_raw_reg(&insn->raws[0], dst->vreg);
+
+    if (src->kind == KLR_VALUE_KLASS) {
+        KlrKlass *kls = (KlrKlass *)src;
+        set_raw_imm(&insn->raws[1], kls->index);
+    } else {
+        ASSERT(src->kind == KLR_VALUE_EXT_KLASS);
+        KlrExtKlass *kls = (KlrExtKlass *)src;
+        int index = mach_import_add_klass(m, kls->module->name, kls->name);
+        set_raw_imm(&insn->raws[1], index);
+    }
+}
+
 static void lower_move_opers(KlrInsn *insn, KlMachModule *m)
 {
     switch (insn->code) {
@@ -652,6 +670,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_NEW: {
                     lower_new_opers(insn, m);
+                    break;
+                }
+
+                case OP_LOAD_TYPE: {
+                    lower_load_type_opers(insn, m);
                     break;
                 }
 

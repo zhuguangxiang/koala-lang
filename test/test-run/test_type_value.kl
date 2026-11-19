@@ -1,0 +1,137 @@
+// RUN: koalac %s --cgen --write-klc -o %t.klc && koala %t.klc | filecheck %s
+// RUN: koalac %s --cgen --ssa --fusion --tail-call --write-klc -o %t.opt.klc && koala %t.opt.klc | filecheck %s
+
+import "test_pkg/pkg_generic_method"
+
+class Example {
+    pub func __init__() {}
+}
+
+// module-level global holding a type value
+let gtype = int
+
+// a class field annotated `type` stores and reads back a type value
+class Holder {
+    pub var t type
+    pub func __init__(v type) { self.t = v }
+}
+
+// A `type` param holds a runtime type value: its members are instance members
+// of the metatype std/builtin.type (name/to_str/lro/methods), not static methods.
+func show(v type) {
+    print(v.name(), v.to_str())
+}
+
+func pick() type { return str }
+func ident(v type) type { return v }
+
+func main() {
+    // let-bound class literal
+    let v = int
+    print(v.name(), v.to_str())
+    print(v.lro())
+
+    // builtin types through a `type` param
+    show(int)
+    show(str)
+    show(bool)
+    show(float)
+
+    // custom and external class type values
+    let e = Example
+    print(e.name())
+    print(e.lro())
+    print(e.methods())
+    let x = pkg_generic_method.Box
+    print(x.name())
+
+    // call result returning `type`, used directly and stored
+    print(pick().name())
+    let stored = pick()
+    print(stored.name())
+
+    // typeof result bound to a variable
+    let t = typeof(10)
+    print(t.name())
+
+    // copy between variables
+    let a = int
+    let b = a
+    print(b.name())
+
+    // pass a type variable as an argument, and through an identity function
+    show(v)
+    print(ident(int).name())
+
+    // mutable reassignment to a different type
+    var m = int
+    print(m.name())
+    m = str
+    print(m.name())
+
+    // tuple destructuring, flat and nested
+    let (p, q) = (int, str)
+    print(p.name(), q.name())
+    let (r, inner) = (int, (str, bool))
+    let (s, u) = inner
+    print(r.name(), s.name(), u.name())
+
+    // list iteration: the loop variable is a type value
+    let xs = [int, str, bool]
+    for item in xs { print(item.name()) }
+
+    // format/fmt on a type value
+    print(format("{}", v))
+
+    // module-level global type value
+    print(gtype.name())
+
+    // class field of type `type`: store via ctor, read back, then reassign
+    let h = Holder(str)
+    print(h.t.name())
+    h.t = bool
+    print(h.t.name())
+
+    // index result is a type value: list and tuple element member access
+    let ti = [int, str]
+    print(ti[0].name(), ti[1].name())
+    let tp = (int, bool)
+    print(tp[0].name(), tp[1].name())
+
+    // typeof() result passed directly to a `type` param, and through an identity
+    // function returning `type` (regression: metatype tag must match `type`)
+    show(typeof(10))
+    print(ident(typeof("x")).name())
+}
+
+// CHECK: int64 <class 'int64'>
+// CHECK-NEXT: [any, Printable, Hashable, Equatable, Comparable, Arithmetic, Bitwise, ToString]
+// CHECK-NEXT: int64 <class 'int64'>
+// CHECK-NEXT: str <class 'str'>
+// CHECK-NEXT: bool <class 'bool'>
+// CHECK-NEXT: float64 <class 'float64'>
+// CHECK-NEXT: test_type_value.Example
+// CHECK-NEXT: [any, Printable, Hashable, Equatable]
+// CHECK-NEXT: [__init__, __eq__, __ne__, hash, fmt]
+// CHECK-NEXT: test_pkg/pkg_generic_method.Box
+// CHECK-NEXT: str
+// CHECK-NEXT: str
+// CHECK-NEXT: int64
+// CHECK-NEXT: int64
+// CHECK-NEXT: int64 <class 'int64'>
+// CHECK-NEXT: int64
+// CHECK-NEXT: int64
+// CHECK-NEXT: str
+// CHECK-NEXT: int64 str
+// CHECK-NEXT: int64 str bool
+// CHECK-NEXT: int64
+// CHECK-NEXT: str
+// CHECK-NEXT: bool
+// CHECK-NEXT: <class 'int64'>
+// CHECK-NEXT: int64
+// CHECK-NEXT: str
+// CHECK-NEXT: bool
+// CHECK-NEXT: int64 str
+// CHECK-NEXT: int64 bool
+// CHECK-NEXT: int64 <class 'int64'>
+// CHECK-NEXT: str

@@ -1,0 +1,120 @@
+// RUN: koala --test %s
+//
+// Manual (by-name) routing of a generic call whose type argument is a class.
+// No @specialized is involved: the generic func is a shell whose body only
+// panics, and a hand-written func named <func>_<Class> takes the call, as
+// std/builtin does for abs/pow. The name is looked up in the calling module
+// first, then in the generic func's package. A type arg with no such func
+// keeps calling the erased shell.
+
+import "std/ut"
+import "test_pkg/pkg_field"
+
+class Counter {
+    var n int
+    pub func __init__() { self.n = 0 }
+    pub func bump() int { self.n = self.n + 1; return self.n }
+}
+
+class Foo {
+    var n int
+    pub func __init__(n int) { self.n = n }
+}
+
+// A zero-argument shell, the shape an IoC-style `get[T]() T` would have.
+func resolve[T]() T {
+    panic("resolve is not implemented for this type")
+}
+
+func resolve_Counter() Counter {
+    return Counter()
+}
+
+// The class comes from another package: the mangled name uses the class name
+// alone, not its package.
+func resolve_Rec() pkg_field.Rec {
+    return pkg_field.Rec()
+}
+
+// A shell whose type arg is inferred from an argument.
+func tag[T](x T) str {
+    panic("tag is not implemented for this type")
+}
+
+func tag_Counter(c Counter) str {
+    return format("counter:{}", c.n)
+}
+
+// Two type parameters: one '_' separator per type argument.
+func pair[T, U](a T, b U) str {
+    panic("pair is not implemented for these types")
+}
+
+func pair_Counter_str(c Counter, s str) str {
+    return format("{}:{}", c.n, s)
+}
+
+// Hand-written routes for abs, whose generic shell lives in std/builtin.
+func abs_Foo(a Foo) Foo {
+    return Foo(a.n + 100)
+}
+
+// Shadows std/builtin.abs_int64: the calling module is searched first.
+func abs_int64(a int) int {
+    return a + 1000
+}
+
+// An explicit class type argument on a zero-argument shell routes to the
+// hand-written func, and the result is statically typed as the class.
+@test
+func test_explicit_class_arg() {
+    let c = resolve[Counter]()
+    ut.assert_eq(c.bump(), 1)
+    ut.assert_eq(c.bump(), 2)
+}
+
+// A class defined in another package is routed by its class name.
+@test
+func test_class_from_other_pkg() {
+    let r = resolve[pkg_field.Rec]()
+    ut.assert_eq(r.a, 1)
+    ut.assert_eq(r.b, "x")
+}
+
+// The type argument may be inferred from an argument instead of written out.
+@test
+func test_inferred_class_arg() {
+    let c = Counter()
+    c.bump()
+    ut.assert_eq(tag(c), "counter:1")
+    ut.assert_eq(tag[Counter](c), "counter:1")
+}
+
+// Each type argument contributes one '_' separated name part.
+@test
+func test_multi_type_params() {
+    let c = Counter()
+    ut.assert_eq(pair(c, "x"), "0:x")
+    ut.assert_eq(pair[Counter, str](c, "y"), "0:y")
+}
+
+// A generic shell of another package (std/builtin.abs) routes to a hand-written
+// func of the calling module, with the class arg inferred or written out.
+@test
+func test_cross_pkg_shell() {
+    ut.assert_eq(abs(Foo(1)).n, 101)
+    ut.assert_eq(abs[Foo](Foo(2)).n, 102)
+}
+
+// The calling module wins over the generic func's package.
+@test
+func test_calling_module_first() {
+    ut.assert_eq(abs(-7), 993)
+}
+
+// Without a hand-written func of the routed name the call stays erased, so the
+// shell body runs (here: it panics).
+@should_panic("resolve is not implemented for this type")
+func test_erased_fallback() {
+    resolve[int]()
+}

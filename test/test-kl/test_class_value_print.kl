@@ -1,4 +1,5 @@
-// RUN: not koalac %s --cgen 2>&1 | filecheck %s
+// RUN: koalac %s --cgen --write-klc -o %t.klc && koala %t.klc | filecheck %s
+// RUN: koalac %s --cgen --ssa --fusion --tail-call --write-klc -o %t.opt.klc && koala %t.opt.klc | filecheck %s
 
 import "test_pkg/pkg_generic_method"
 
@@ -6,10 +7,27 @@ class Example {
     pub func __init__() {}
 }
 
-func local_class() { print(Example) }
-func external_class() { print(pkg_generic_method.Box) }
-func builtin_class() { print(int) }
+// A type value held in a `type` param resolves metatype instance members
+// (name/lro/...) against std/builtin.type, not static members of a class literal.
+func show(v type) {
+    print(v.name())
+    print(v.lro())
+}
 
-// CHECK: class objects cannot be used as values yet
-// CHECK: class objects cannot be used as values yet
-// CHECK: class objects cannot be used as values yet
+func main() {
+    print(Example)
+    print(pkg_generic_method.Box)
+    print(int)
+    let v = int
+    print(v.name())
+    show(int)
+    print(typeof(10).name())
+}
+
+// CHECK: <class 'test_class_value_print.Example'>
+// CHECK-NEXT: <class 'test_pkg/pkg_generic_method.Box'>
+// CHECK-NEXT: <class 'int64'>
+// CHECK-NEXT: int64
+// CHECK-NEXT: int64
+// CHECK-NEXT: [any, Printable, Hashable, Equatable, Comparable, Arithmetic, Bitwise, ToString]
+// CHECK-NEXT: int64

@@ -1,0 +1,61 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
+//
+// Regression: a generic class owned by another package, routed to the concrete
+// class declared alongside it (pkg_class_route.Slot[int] -> Slot_int64).
+//
+// The routed origin is external -- loaded from a .klc -- so it has no IR klass
+// container in the importing module. emit_ir_type used to assert that such an
+// origin could only be "tuple" or "list" and aborted; it now creates the
+// container on demand, for an external origin and for a local generic shell
+// alike.
+//
+// Both the runtime result and the emitted IR are checked. The IR must name the
+// concrete class in `new` and in every dispatched method, so merely renaming
+// the static type while the object stayed generic would not pass.
+
+import "test_pkg/pkg_class_route"
+
+// A local generic shell with no concrete target: stays erased, and exercises
+// the non-external branch of the on-demand klass creation.
+class G[T] {
+    var v T
+    func __init__(x T) { self.v = x }
+    func get() T { return self.v }
+}
+
+func main() {
+    let a = pkg_class_route.Slot[int](5)
+    print(a.get())
+
+    let b = pkg_class_route.Slot[str]("x")
+    print(b.get())
+
+    let c = G[int](9)
+    print(c.get())
+}
+
+// 2005 (not 5) proves the concrete class body ran; x and 9 prove the two
+// instantiations with no concrete target fell back to the generic body.
+// CHECK: 2005
+// CHECK-NEXT: x
+// CHECK-NEXT: 9
+// CHECK-NOT: {{.}}
+
+// IR-LABEL: func @main()
+// Routed: the concrete class is allocated, and its own ctor and method are
+// dispatched, with the owning package on every call.
+// IR: new @test_pkg/pkg_class_route.Slot_int64
+// IR: call @Slot_int64:__init__ [path = 'test_pkg/pkg_class_route']
+// IR: call @Slot_int64:get [path = 'test_pkg/pkg_class_route']
+// Erased: the owning package has no Slot_str, so the generic shell is used with
+// the bound type args, and nothing leaks in from the routed class above.
+// IR: new @test_pkg/pkg_class_route.Slot[str]
+// IR-NOT: Slot_int64
+// IR: call @Slot:__init__ [path = 'test_pkg/pkg_class_route']
+// IR: call @Slot:get [path = 'test_pkg/pkg_class_route']
+// Local generic shell, likewise erased.
+// IR: new @{{.*}}.G[int64]
+// IR: call @G:__init__
+// IR: call @G:get
+// IR: ret void

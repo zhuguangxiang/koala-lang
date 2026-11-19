@@ -288,6 +288,20 @@ static KlrValue *lower_function_value(KlrInsn *at, KlrValue *val)
     return local;
 }
 
+static int is_type_symbol(KlrValue *val)
+{
+    return val->kind == KLR_VALUE_KLASS || val->kind == KLR_VALUE_EXT_KLASS;
+}
+
+static KlrValue *lower_type_value(KlrInsn *at, KlrValue *val)
+{
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, at);
+    KlrValue *local = klr_build_local(&bldr, val->ts, "");
+    klr_build_load_type(&bldr, local, val);
+    return local;
+}
+
 static void isel_lower_num_ops(KlrInsn *insn)
 {
     KlrValue *lhs = insn_oper_value(insn, 0);
@@ -473,6 +487,18 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
         klr_build_load_func(&bldr, local, arg);
         return;
     }
+
+    // A class used as a value (e.g. ioc_get(Counter)): load its type object.
+    if (arg->kind == KLR_VALUE_KLASS || arg->kind == KLR_VALUE_EXT_KLASS) {
+        KlrBuilder bldr;
+        klr_builder_before(&bldr, insn);
+        KlrValue *local = klr_build_local_var(&bldr, arg->ts, "");
+        ((KlrInsn *)local)->fixedslot = 1;
+        ((KlrInsn *)local)->slotindex = pos;
+        klr_build_load_type(&bldr, local, arg);
+        return;
+    }
+
     // Parameters are handled separately (ABI-specific).
     if (klr_is_param(arg)) {
         KlrBuilder bldr;
@@ -795,6 +821,12 @@ static void isel_lower_ret(KlrInsn *insn)
         ret = lower_function_value(insn, ret);
         set_operand_at(insn, 0, ret);
     }
+
+    if (is_type_symbol(ret)) {
+        ret = lower_type_value(insn, ret);
+        set_operand_at(insn, 0, ret);
+    }
+
     ASSERT(klr_is_insn(ret) || klr_is_param(ret) || klr_is_const(ret));
 
     if (!klr_is_const(ret)) return;
@@ -814,6 +846,12 @@ static void isel_lower_move(KlrInsn *insn)
         insn->code = OP_LOAD_FUNC;
         return;
     }
+
+    if (is_type_symbol(src)) {
+        insn->code = OP_LOAD_TYPE;
+        return;
+    }
+
     ASSERT(klr_is_insn(src) || klr_is_param(src) || klr_is_const(src));
 
     if (!klr_is_const(src)) return;
@@ -1289,6 +1327,8 @@ static void isel_lower_set_field(KlrInsn *insn)
 
     if (is_function_symbol(val)) {
         set_operand_at(insn, 2, lower_function_value(insn, val));
+    } else if (is_type_symbol(val)) {
+        set_operand_at(insn, 2, lower_type_value(insn, val));
     } else if (klr_is_const(val)) {
         KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 2, _val);
@@ -1303,6 +1343,8 @@ static void isel_lower_global_set(KlrInsn *insn)
 
     if (is_function_symbol(val)) {
         set_operand_at(insn, 1, lower_function_value(insn, val));
+    } else if (is_type_symbol(val)) {
+        set_operand_at(insn, 1, lower_type_value(insn, val));
     } else if (klr_is_const(val)) {
         KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 1, _val);

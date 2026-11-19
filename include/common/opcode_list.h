@@ -2668,6 +2668,21 @@ X(OP_FMT, FORMAT_RxRx, "fmt")
  */
 X(OP_LOAD_FUNC, FORMAT_RIdx2, "load_func")
 
+/**
+ * OP_LOAD_TYPE — load a type object as a value
+ *
+ * FORMAT_RIdx2:
+ *     | op:8 | dst:8 | type_index:16 |
+ *
+ * Loads the type metadata object itself (not an instance) into R[dst], so a
+ * class can be passed as a first-class type value, e.g. to the IoC container.
+ * type_index uses the same type table as OP_NEW. Appended last so existing
+ * bytecode opcode numbers stay stable.
+ *
+ *     R[dst] = type_object(type_index).
+ */
+X(OP_LOAD_TYPE, FORMAT_RIdx2, "load_type")
+
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |
  +---------------------------------------------------------------*/

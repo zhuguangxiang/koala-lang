@@ -656,6 +656,17 @@ TARGET(OP_NEW) {
     DISPATCH();
 }
 
+TARGET(OP_LOAD_TYPE) {
+    rd = I_VAL(inst, 16, 8);
+    idx = I_VAL(inst, 0, 16);
+
+    CHECK_REG_ID(rd);
+    CHECK_TYPE_INDEX(idx);
+
+    regs[rd] = obj_value((Object *)TYPE(idx));
+    DISPATCH();
+}
+
 TARGET(OP_BUILD_INTERN) {
     rd = I_VAL(inst, 16, 8);
     int tag = I_VAL(inst, 8, 8);

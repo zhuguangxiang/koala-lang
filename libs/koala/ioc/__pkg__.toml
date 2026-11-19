@@ -1,0 +1,14 @@
+[package]
+name = "koala/ioc"
+version = "0.1.0"
+description = "Minimal IoC container: register components, resolve singletons"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_ioc"
+sources = ["native/ioc.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

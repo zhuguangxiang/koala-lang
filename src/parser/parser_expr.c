@@ -2913,35 +2913,41 @@ static void parse_dot_inner(ParserState *ps, Expr *exp)
     }
 
     if (lhs->ts->kind == TYPE_TYPE) {
-        // static method?
-        if (opt_or_bang != DOT_NORMAL) {
-            kl_error(lhs->loc, "static method can't use `!.` or `?.`");
-            return;
-        }
-
         Symbol *lhs_sym = lhs->sym;
-        if (lhs_sym->kind != SYM_CLASS) {
-            kl_error(lhs->loc, "symbol '%s' is not a class", lhs_sym->name);
+
+        // A class literal (`int`, `Example`, `pkg.Box`) refers to the class
+        // itself, so `.member` is a static method of that class. An index result
+        // (`xs[0]`) is a type value even though it folds to a class symbol, so it
+        // is excluded here and resolved as a metatype instance below.
+        if (lhs_sym && lhs_sym->kind == SYM_CLASS && lhs->kind != EXPR_INDEX_KIND) {
+            if (opt_or_bang != DOT_NORMAL) {
+                kl_error(lhs->loc, "static method can't use `!.` or `?.`");
+                return;
+            }
+
+            KlassSymbol *kls_sym = (KlassSymbol *)lhs_sym;
+            Ident *ident = &dot->id;
+            Symbol *st_sym = stbl_get(kls_sym->stbl, ident->name);
+            if (!st_sym) {
+                kl_error(ident->loc, "static method '%s' not found", ident->name);
+                return;
+            }
+
+            if (!(st_sym->flags & SYM_FLAGS_STATIC)) {
+                kl_error(ident->loc, "'%s' is not a static method.", ident->name);
+                return;
+            }
+
+            exp->ts = st_sym->ts;
+            exp->sym = st_sym;
+            log_info("found static method '%s' in class '%s'", st_sym->name, kls_sym->name);
             return;
         }
 
-        KlassSymbol *kls_sym = (KlassSymbol *)lhs_sym;
-        Ident *ident = &dot->id;
-        Symbol *st_sym = stbl_get(kls_sym->stbl, ident->name);
-        if (!st_sym) {
-            kl_error(ident->loc, "static method '%s' not found", ident->name);
-            return;
-        }
-
-        if (!(st_sym->flags & SYM_FLAGS_STATIC)) {
-            kl_error(ident->loc, "'%s' is not a static method.", ident->name);
-            return;
-        }
-
-        exp->ts = st_sym->ts;
-        exp->sym = st_sym;
-        log_info("found static method '%s' in class '%s'", st_sym->name, kls_sym->name);
-        return;
+        // Otherwise lhs is a type value held in a variable/param (`v type`,
+        // `let v = int`), a call result, or an index result (`xs[0]`): an instance
+        // of the metatype `std/builtin.type`. Its members (name/lro/methods/...)
+        // are instance members, resolved below via lhs->ts->sym_id pointing there.
     }
 
     if (type_is_optional(lhs->ts)) {

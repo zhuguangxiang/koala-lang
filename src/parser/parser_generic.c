@@ -501,6 +501,21 @@ int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts
     return bind_tp_from_matched_args(map, param_ts, matched_args, tp_owner_name, loc, ps);
 }
 
+/*
+ * The symbol table that owns `origin`, so a manually written concrete class is
+ * looked up in the same package as the generic whose instantiation it claims.
+ * Resolved by ownership rather than by package name, and never triggers an
+ * import (which would recurse while the package itself is being compiled).
+ */
+static HashMap *origin_package_stbl(Symbol *origin, ParserModule *pm)
+{
+    Symbol *pkg_sym = stbl_get(pm->imported, origin->path);
+    if (pkg_sym) return pkg_sym->stbl;
+    if (stbl_get(pm->stbl, origin->name) == origin) return pm->stbl;
+    if (stbl_get(pm->builtin, origin->name) == origin) return pm->builtin;
+    return NULL;
+}
+
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args,
                                      ParserModule *pm)
 {
@@ -534,6 +549,28 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
     }
 
     InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+
+    /*
+     * Manual routing: a concrete class named by the identifier-safe mangling of
+     * this instantiation, declared in the origin's own package, claims it
+     * (e.g. list[int] -> list_int64). Redirecting the origin -- not just the
+     * type -- makes every downstream consumer (__init__ lookup, member access,
+     * bases, runtime allocation) resolve against that class through the normal
+     * paths, with no per-type special cases. An instantiation that is still
+     * open mangles to NULL and stays erased.
+     */
+    char *route_name = mangle_class_name(origin->name, tp_args);
+    if (route_name) {
+        HashMap *route_stbl = origin_package_stbl(origin, pm);
+        Symbol *routed = route_stbl ? stbl_get(route_stbl, route_name) : NULL;
+        if (routed && routed->kind == SYM_CLASS && !(routed->flags & SYM_FLAGS_GENERIC)) {
+            origin = routed;
+            inst_sym->origin = routed;
+            inst_sym->instance_ts = ((KlassSymbol *)routed)->instance_ts;
+            log_info("routed generic instance '%s' to class '%s'", mangled_name, route_name);
+        }
+    }
+
     KlassSymbol *kls_sym = (KlassSymbol *)origin;
 
     // set instance bases

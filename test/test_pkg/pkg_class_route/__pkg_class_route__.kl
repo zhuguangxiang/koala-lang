@@ -1,0 +1,33 @@
+// Generic classes and their hand-written concrete routing targets, used by
+// test-ut/test_generic_manual_route_class.kl to exercise by-name class routing
+// across a package boundary.
+//
+// A concrete class claims an instantiation only when it sits in the GENERIC's
+// own package: Slot[int] resolves to Slot_int64 here, and an importer cannot
+// claim it by declaring its own Slot_int64. Each concrete body behaves
+// differently from the generic one so a test proves the concrete code ran.
+
+pub class Slot[T] {
+    pub var v T
+
+    pub func __init__(value T) {
+        v = value
+    }
+
+    pub func get() T {
+        return v
+    }
+}
+
+// Claims Slot[int].
+pub class Slot_int64 {
+    pub var v int
+
+    pub func __init__(value int) {
+        v = value
+    }
+
+    pub func get() int {
+        return v + 2000
+    }
+}

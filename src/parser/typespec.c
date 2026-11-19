@@ -1096,6 +1096,10 @@ static TypeSpec *__to_mangled_type(char *s, int len, Vector *args)
     if (args) {
         return mangled_type_spec(path, type, args);
     } else {
+        /* the metatype shares its signature with the `type` keyword: decode as TYPE_TYPE */
+        if (path && !strcmp(path, "std/builtin") && !strcmp(type, "type")) {
+            return type_type_spec();
+        }
         return klass_type_spec(path, type);
     }
 }
@@ -1929,6 +1933,156 @@ char *mangle_func_name(char *base_name, Vector *tp_args)
             buf_write_char(&buf, '_');
             type_spec_str_func_name(ts, &buf);
         }
+    }
+
+    char *mangled_name = atom_str(BUF_STR(buf));
+    FINI_BUF(buf);
+    return mangled_name;
+}
+
+/*
+ * Identifier-safe type-argument mangling for manual class-instantiation
+ * routing. Unlike mangle_type_name(), which builds the internal descriptor
+ * key (e.g. "list<j>"), this produces a name a user can actually declare as a
+ * concrete class:
+ *
+ *   list[int]          -> list_int64
+ *   dict[str, int]     -> dict_str_int64
+ *   list[list[int]]    -> list_list_int64
+ *   Box[int?]          -> Box_int64_opt
+ *   tuple[int, str]    -> tuple_int64_str
+ *
+ * Returns 0 when the type has no identifier-safe spelling (an open type
+ * variable, an unresolved or absent type), so the caller leaves the
+ * instantiation erased instead of routing it.
+ */
+static int type_spec_str_class_name(TypeSpec *ts, Buffer *buf);
+
+/* Write '_' + arg for every type argument, failing on the first non-mangleable one. */
+static int class_name_args(Vector *args, Buffer *buf)
+{
+    TypeSpec *arg;
+    vector_foreach(arg, args) {
+        if (!arg) continue;
+        buf_write_char(buf, '_');
+        if (!type_spec_str_class_name(arg, buf)) return 0;
+    }
+    return 1;
+}
+
+static int type_spec_str_class_name(TypeSpec *ts, Buffer *buf)
+{
+    if (!ts) return 0;
+
+    switch (ts->kind) {
+        case TYPE_INT: {
+            char *s;
+            if (ts->int_flt_info.width == 1) {
+                s = ts->int_flt_info.sign ? "int8" : "uint8";
+            } else if (ts->int_flt_info.width == 2) {
+                s = ts->int_flt_info.sign ? "int16" : "uint16";
+            } else if (ts->int_flt_info.width == 4) {
+                s = ts->int_flt_info.sign ? "int32" : "uint32";
+            } else {
+                s = ts->int_flt_info.sign ? "int64" : "uint64";
+            }
+            buf_write_str(buf, s);
+            return 1;
+        }
+        case TYPE_FLOAT: {
+            char *s;
+            if (ts->int_flt_info.width == 2) {
+                s = "float16";
+            } else if (ts->int_flt_info.width == 4) {
+                s = "float32";
+            } else {
+                s = "float64";
+            }
+            buf_write_str(buf, s);
+            return 1;
+        }
+        case TYPE_BFLOAT16: {
+            buf_write_str(buf, "bfloat16");
+            return 1;
+        }
+        case TYPE_BOOL: {
+            buf_write_str(buf, "bool");
+            return 1;
+        }
+        case TYPE_STR: {
+            buf_write_str(buf, "str");
+            return 1;
+        }
+        case TYPE_ANY: {
+            buf_write_str(buf, "any");
+            return 1;
+        }
+        case TYPE_TYPE: {
+            buf_write_str(buf, "type");
+            return 1;
+        }
+        case TYPE_ENUM: {
+            buf_write_str(buf, ts->enum_type.name);
+            return 1;
+        }
+        case TYPE_KLASS: {
+            /* A closed instantiation folds to a klass type whose symbol is an
+               instance (e.g. tuple[int, str], list[int]); mangle it through its
+               origin and bindings so nested arguments stay visible. */
+            Symbol *sym = ts->sym_id >= 0 ? get_symbol_by_id(ts->sym_id) : NULL;
+            if (sym && sym->kind == SYM_INSTANCE) {
+                InstanceSymbol *inst = (InstanceSymbol *)sym;
+                buf_write_str(buf, inst->origin->name);
+                return class_name_args(inst->tp_args, buf);
+            }
+            buf_write_str(buf, ts->klass_type.name);
+            return 1;
+        }
+        case TYPE_GENERIC_REF: {
+            buf_write_str(buf, ts->generic_ref.name);
+            return class_name_args(ts->generic_ref.args, buf);
+        }
+        case TYPE_MANGLED: {
+            buf_write_str(buf, ts->mangled.name);
+            return class_name_args(ts->mangled.args, buf);
+        }
+        case TYPE_OPTIONAL: {
+            if (!type_spec_str_class_name(ts->opt.src, buf)) return 0;
+            buf_write_str(buf, "_opt");
+            return 1;
+        }
+        case TYPE_VA_LIST: {
+            buf_write_str(buf, "valist_");
+            return type_spec_str_class_name(ts->va_list.src, buf);
+        }
+        case TYPE_UNION: {
+            buf_write_str(buf, "union");
+            return class_name_args(ts->union_type.args, buf);
+        }
+        case TYPE_PROTO: {
+            buf_write_str(buf, "func");
+            if (!class_name_args(ts->proto_type.args, buf)) return 0;
+            buf_write_char(buf, '_');
+            return type_spec_str_class_name(ts->proto_type.ret, buf);
+        }
+        default: {
+            /* TYPE_GENERIC_VAR (still open), TYPE_UNRESOLVED, TYPE_NO_TYPE,
+               TYPE_PACKAGE: no identifier-safe spelling, do not route. */
+            return 0;
+        }
+    }
+}
+
+char *mangle_class_name(char *base_name, Vector *tp_args)
+{
+    if (vector_size(tp_args) == 0) return NULL;
+
+    BUF(buf);
+    buf_write_str(&buf, base_name);
+
+    if (!class_name_args(tp_args, &buf)) {
+        FINI_BUF(buf);
+        return NULL;
     }
 
     char *mangled_name = atom_str(BUF_STR(buf));
