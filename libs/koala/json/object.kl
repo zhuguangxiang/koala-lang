@@ -4,81 +4,131 @@
  */
 
 /// A JSON object value: an ordered mapping from string keys to values.
-pub class Object : Value {
+///
+/// It implements `MutableMap[str, Value]`, so it supports dict-style
+/// access: `obj["key"]`, `obj.get("key")` (nil when absent),
+/// `obj.get_or("key", default)`, `keys()`, `values()`, `items()` and
+/// `for (k, v) in obj`.
+pub class Object : Value & MutableMap[str, Value] {
     /// The key-value mappings, in insertion order.
     pub let data = dict[str, Value]()
 
     pub func __init__() {}
 
+    /// Return an iterator over the (key, value) pairs in insertion order.
+    pub func iter(step = 1) Iterator[(str, Value)] = data.iter(step)
+
+    /// Return the number of mappings.
+    pub func len() int = data.len()
+
+    /// Return true if the object contains a mapping for `_key`.
+    pub func __contains__(_key str) bool = _key in data
+
+    /// Return the value mapped to `_key`. Panic if `_key` is not present.
+    pub func __getitem__(_key str) Value = data[_key]
+
     /// Associate `_value` with `_key`, replacing an existing mapping.
+    pub func __setitem__(_key str, _value Value) {
+        data[_key] = _value
+    }
+
+    /// Associate `_value` with `_key` (alias of `__setitem__`).
     pub func add(_key str, _value Value) {
         data[_key] = _value
     }
 
-    /// Return the value mapped to `_key`. Panic if `_key` is not present.
-    pub func get(_key str) Value {
-        return data[_key]
+    /// Return an iterable over the keys in insertion order.
+    pub func keys() Iterable[str] = data.keys()
+
+    /// Return an iterable over the values in insertion order.
+    pub func values() Iterable[Value] = data.values()
+
+    /// Return an iterable over the (key, value) pairs in insertion order.
+    pub func items() Iterable[(str, Value)] = data.items()
+
+    /// Return the value for `_key` if present, else `nil`.
+    pub func get(_key str) Value? = data.get(_key)
+
+    /// Return the value for `_key` if present, else `_default`.
+    pub func get_or(_key str, _default Value) Value = data.get_or(_key, _default)
+
+    /// Remove all mappings, leaving the object empty.
+    pub func clear() {
+        data.clear()
     }
+
+    /// Remove the mapping for `_key` and return its value.
+    /// Panic if `_key` is not present.
+    pub func remove(_key str) Value = data.remove(_key)
+
+    /// Remove the mapping for `_key` and return its value, or `_default`
+    /// if `_key` is not present.
+    pub func remove_or(_key str, _default Value) Value = data.remove_or(_key, _default)
 
     /// Return the string value mapped to `_key`.
     ///
     /// Panic if `_key` is not present or if the value is not a String.
     pub func get_str(_key str) str {
-        return (get(_key) as String)!.value
+        let v = data[_key]
+        if v is String {
+            return v.value
+        }
+        panic("json.Object.get_str: key '" + _key + "' is " + value_type_name(v) + ", expected String")
     }
 
     /// Return the integer value mapped to `_key`.
     ///
     /// Panic if `_key` is not present or if the value is not an Integer.
     pub func get_int(_key str) int {
-        return (get(_key) as Integer)!.value
+        let v = data[_key]
+        if v is Integer {
+            return v.value
+        }
+        panic("json.Object.get_int: key '" + _key + "' is " + value_type_name(v) + ", expected Integer")
     }
 
     /// Return the float value mapped to `_key`.
     ///
     /// Panic if `_key` is not present or if the value is not a Float.
     pub func get_float(_key str) float {
-        return (get(_key) as Float)!.value
+        let v = data[_key]
+        if v is Float {
+            return v.value
+        }
+        panic("json.Object.get_float: key '" + _key + "' is " + value_type_name(v) + ", expected Float")
     }
 
     /// Return the boolean value mapped to `_key`.
     ///
     /// Panic if `_key` is not present or if the value is not a Boolean.
     pub func get_bool(_key str) bool {
-        return (get(_key) as Boolean)!.value
+        let v = data[_key]
+        if v is Boolean {
+            return v.value
+        }
+        panic("json.Object.get_bool: key '" + _key + "' is " + value_type_name(v) + ", expected Boolean")
     }
 
     /// Return the object value mapped to `_key`.
     ///
     /// Panic if `_key` is not present or if the value is not an Object.
     pub func get_object(_key str) Object {
-        return (get(_key) as Object)!
+        let v = data[_key]
+        if v is Object {
+            return v
+        }
+        panic("json.Object.get_object: key '" + _key + "' is " + value_type_name(v) + ", expected Object")
     }
 
     /// Return the array value mapped to `_key`.
     ///
     /// Panic if `_key` is not present or if the value is not an Array.
     pub func get_array(_key str) Array {
-        return (get(_key) as Array)!
-    }
-
-    /// Return true if the object contains a mapping for `_key`.
-    pub func __contains__(_key str) bool {
-        return _key in data
-    }
-
-    /// Return the number of mappings.
-    pub func len() int {
-        return data.len()
-    }
-
-    /// Return the keys in insertion order.
-    pub func keys() list[str] {
-        let out = list[str]()
-        for k in data.keys() {
-            out.append(k)
+        let v = data[_key]
+        if v is Array {
+            return v
         }
-        return out
+        panic("json.Object.get_array: key '" + _key + "' is " + value_type_name(v) + ", expected Array")
     }
 
     /// Format the mappings for display.

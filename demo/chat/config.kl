@@ -83,7 +83,7 @@ func _int(obj Object, key str) int {
 /// integers (1) so either spelling works.
 func _float(obj Object, key str) float {
     if key in obj {
-        let v = obj.get(key)
+        let v = obj.get(key)!
         if v is Float { return v.value }
         if v is Integer { return float(v.value) }
         panic("config field '" + key + "' must be a number")

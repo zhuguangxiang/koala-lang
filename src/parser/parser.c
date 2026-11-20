@@ -912,6 +912,27 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
 static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls);
 
+/* Parse a klass/trait's metadata in its *owner* file, under a fresh top-level
+ * scope backed by the module symbol table. The owner's current scope stack is
+ * detached so the referrer's locals/imports cannot leak in, which also guards
+ * against A->B->A scope recursion. Only metadata is resolved here; bodies stay
+ * for kl_parse_ast. */
+static void parse_klass_meta_in_file(ParserState *ps, KlassDeclStmt *kls)
+{
+    ParserScope *saved_scope = ps->scope;
+    int saved_depth = ps->depth;
+    ps->scope = NULL;
+    ps->depth = 0;
+
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+    parse_klass_meta(ps, kls);
+    exit_scope(ps);
+
+    ps->scope = saved_scope;
+    ps->depth = saved_depth;
+}
+
 static void check_union_subtypes(Vector *vec, Vector *locations, ParserState *ps)
 {
     // all subtypes in the union should be final class, primitive types or instance class
@@ -1086,7 +1107,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                     ParserState *_ps = sym->ps;
                     if (ps != _ps) {
                         log_info("resolve symbol '%s' in '%s'", kls_sym->name, _ps->filename);
-                        parse_klass_meta(_ps, sym->arg);
+                        parse_klass_meta_in_file(_ps, (KlassDeclStmt *)sym->arg);
                     } else {
                         log_info("currently resolving symbol '%s' in '%s'", kls_sym->name,
                                  ps->filename);

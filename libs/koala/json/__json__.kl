@@ -42,6 +42,54 @@ pub func parse_str(s str) Value {
     return parser.parse()
 }
 
+/// Parse the JSON text `s` and return its root as an [`Object`](#object).
+///
+/// Errors
+///
+/// Panic if `s` is not valid JSON, or if its root is not an object.
+pub func parse_object(s str) Object {
+    let v = parse_str(s)
+    if v is Object {
+        return v
+    }
+    panic("json.parse_object: root is " + value_type_name(v) + ", expected Object")
+}
+
+/// Parse the JSON text `s` and return its root as an [`Array`](#array).
+///
+/// Errors
+///
+/// Panic if `s` is not valid JSON, or if its root is not an array.
+pub func parse_array(s str) Array {
+    let v = parse_str(s)
+    if v is Array {
+        return v
+    }
+    panic("json.parse_array: root is " + value_type_name(v) + ", expected Array")
+}
+
+/// Parse the JSON text `s` and return its root as an [`Object`](#object).
+///
+/// Python-style name for [`parse_object`](#parse_object): a JSON object
+/// maps to a Python `dict`. The result is a concrete `Object`, so no
+/// `as` cast or `!` unwrap is needed before indexing it.
+///
+/// Errors
+///
+/// Panic if `s` is not valid JSON, or if its root is not an object.
+pub func parse_dict(s str) Object = parse_object(s)
+
+/// Parse the JSON text `s` and return its root as an [`Array`](#array).
+///
+/// Python-style name for [`parse_array`](#parse_array): a JSON array
+/// maps to a Python `list`. The result is a concrete `Array`, so no
+/// `as` cast or `!` unwrap is needed before indexing it.
+///
+/// Errors
+///
+/// Panic if `s` is not valid JSON, or if its root is not an array.
+pub func parse_list(s str) Array = parse_array(s)
+
 /// Serialize `v` to JSON text.
 ///
 /// The output is compact by default. A positive `indent` produces a
@@ -64,6 +112,78 @@ pub func dump(v Value, indent = 0) str {
     return buf.to_str()
 }
 
+/// Parse the JSON text `s` and return its root value (alias of
+/// [`parse_str`](#parse_str), named after Python's `json.loads`).
+pub func loads(s str) Value = parse_str(s)
+
+/// Parse the JSON file at `path` and return its root value (alias of
+/// [`parse_file`](#parse_file), named after Python's `json.load`).
+pub func load(path str) Value = parse_file(path)
+
+/// Parse the JSON file at `path` and return its root as an
+/// [`Object`](#object).
+///
+/// Like [`load`](#load), but narrows the root to a concrete `Object`, so
+/// no `as` cast or `!` unwrap is needed before indexing it.
+///
+/// Errors
+///
+/// Panic if the file cannot be opened, if its content is not valid JSON,
+/// or if its root is not an object.
+pub func load_dict(path str) Object {
+    let v = parse_file(path)
+    if v is Object {
+        return v
+    }
+    panic("json.load_dict: root is " + value_type_name(v) + ", expected Object")
+}
+
+/// Parse the JSON file at `path` and return its root as an
+/// [`Array`](#array).
+///
+/// Like [`load`](#load), but narrows the root to a concrete `Array`, so
+/// no `as` cast or `!` unwrap is needed before indexing it.
+///
+/// Errors
+///
+/// Panic if the file cannot be opened, if its content is not valid JSON,
+/// or if its root is not an array.
+pub func load_list(path str) Array {
+    let v = parse_file(path)
+    if v is Array {
+        return v
+    }
+    panic("json.load_list: root is " + value_type_name(v) + ", expected Array")
+}
+
+/// Serialize `v` to JSON text (alias of [`dump`](#dump), named after
+/// Python's `json.dumps`).
+pub func dumps(v Value, indent = 0) str = dump(v, indent)
+
+/// Serialize `v` to JSON text and write it to the file at `path`,
+/// like Python's `json.dump(v, fp)`.
+///
+/// Panic if the file cannot be opened for writing.
+pub func dump_file(v Value, path str, indent = 0) {
+    let f = open(path, "w")!
+    f.write_str(dump(v, indent))
+    f.close()
+}
+
+/// Return the concrete type name of `v`, for use in type-error messages.
+func value_type_name(v Value) str {
+    switch v {
+        case is Object: return "Object"
+        case is Array: return "Array"
+        case is String: return "String"
+        case is Integer: return "Integer"
+        case is Float: return "Float"
+        case is Boolean: return "Boolean"
+        case is Null: return "Null"
+        case _: return "Value"
+    }
+}
+
 /// Write the value `v` to `buf`.
 func write_value(buf Buffer, v Value, indent int, level int) {
     if v is Object {
@@ -77,15 +197,14 @@ func write_value(buf Buffer, v Value, indent int, level int) {
 
 /// Write the object `obj` to `buf`.
 func write_object(buf Buffer, obj Object, indent int, level int) {
-    let keys = obj.keys()
-    if keys.len() == 0 {
+    if obj.len() == 0 {
         buf.write_str("{}")
         return
     }
 
     buf.write_str("{")
     var first = true
-    for k in keys {
+    for k in obj.keys() {
         if !first {
             buf.write_str(",")
         }
@@ -93,7 +212,7 @@ func write_object(buf Buffer, obj Object, indent int, level int) {
         write_break(buf, indent, level + 1)
         buf.write_str(quote(k))
         buf.write_str(": ")
-        write_value(buf, obj.get(k), indent, level + 1)
+        write_value(buf, obj[k], indent, level + 1)
     }
     write_break(buf, indent, level)
     buf.write_str("}")

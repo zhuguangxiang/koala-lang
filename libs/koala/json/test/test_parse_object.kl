@@ -9,38 +9,33 @@ import "std/ut"
 
 @test
 func test_parse_empty_object() {
-    let v = json.parse_str("{}")
-    let obj = (v as json.Object)!
+    let obj = json.parse_object("{}")
     ut.assert_eq(obj.len(), 0)
-    ut.assert_eq(obj.keys().len(), 0)
+    var n = 0
+    for k in obj.keys() { n += 1 }
+    ut.assert_eq(n, 0)
 }
 
 @test
 func test_parse_flat_object() {
-    let v = json.parse_str("{\"name\":\"koala\",\"port\":8080}")
-    let obj = (v as json.Object)!
+    let obj = json.parse_object("{\"name\":\"koala\",\"port\":8080}")
     ut.assert_eq(obj.len(), 2)
-
-    let name = (obj.get("name") as json.String)!
-    let port = (obj.get("port") as json.Integer)!
-    ut.assert_eq(name.value, "koala")
-    ut.assert_eq(port.value, 8080)
+    ut.assert_eq(obj.get_str("name"), "koala")
+    ut.assert_eq(obj.get_int("port"), 8080)
 }
 
 @test
 func test_parse_object_contains_key() {
-    let v = json.parse_str("{\"a\":1}")
-    let obj = (v as json.Object)!
+    let obj = json.parse_object("{\"a\":1}")
     ut.assert_true("a" in obj)
     ut.assert_false("b" in obj)
 }
 
 @test
 func test_parse_object_keeps_key_order() {
-    let v = json.parse_str("{\"b\":1,\"a\":2,\"c\":3}")
-    let obj = (v as json.Object)!
-
-    let keys = obj.keys()
+    let obj = json.parse_object("{\"b\":1,\"a\":2,\"c\":3}")
+    let keys = list[str]()
+    for k in obj.keys() { keys.append(k) }
     ut.assert_eq(keys.len(), 3)
     ut.assert_eq(keys[0], "b")
     ut.assert_eq(keys[1], "a")
@@ -49,52 +44,81 @@ func test_parse_object_keeps_key_order() {
 
 @test
 func test_parse_nested_object() {
-    let v = json.parse_str("{\"server\":{\"host\":\"localhost\",\"port\":8080}}")
-    let obj = (v as json.Object)!
-
-    let server = (obj.get("server") as json.Object)!
-    let host = (server.get("host") as json.String)!
-    let port = (server.get("port") as json.Integer)!
-    ut.assert_eq(host.value, "localhost")
-    ut.assert_eq(port.value, 8080)
+    let obj = json.parse_object("{\"server\":{\"host\":\"localhost\",\"port\":8080}}")
+    let server = obj.get_object("server")
+    ut.assert_eq(server.get_str("host"), "localhost")
+    ut.assert_eq(server.get_int("port"), 8080)
 }
 
 @test
 func test_parse_object_with_mixed_values() {
-    let v = json.parse_str("{\"s\":\"x\",\"i\":1,\"f\":1.5,\"b\":true,\"n\":null}")
-    let obj = (v as json.Object)!
-
-    let s = (obj.get("s") as json.String)!
-    let i = (obj.get("i") as json.Integer)!
-    let f = (obj.get("f") as json.Float)!
-    let b = (obj.get("b") as json.Boolean)!
-    ut.assert_eq(s.value, "x")
-    ut.assert_eq(i.value, 1)
-    ut.assert_float_close(f.value, 1.5)
-    ut.assert_true(b.value)
-    ut.assert_true(obj.get("n") is json.Null)
+    let obj = json.parse_object("{\"s\":\"x\",\"i\":1,\"f\":1.5,\"b\":true,\"n\":null}")
+    ut.assert_eq(obj.get_str("s"), "x")
+    ut.assert_eq(obj.get_int("i"), 1)
+    ut.assert_float_close(obj.get_float("f"), 1.5)
+    ut.assert_true(obj.get_bool("b"))
+    ut.assert_true(obj["n"] is json.Null)
 }
 
 @test
 func test_parse_object_duplicate_key_keeps_last() {
-    let v = json.parse_str("{\"a\":1,\"a\":2}")
-    let obj = (v as json.Object)!
+    let obj = json.parse_object("{\"a\":1,\"a\":2}")
     ut.assert_eq(obj.len(), 1)
-
-    let a = (obj.get("a") as json.Integer)!
-    ut.assert_eq(a.value, 2)
+    ut.assert_eq(obj.get_int("a"), 2)
 }
 
 @test
 func test_parse_object_ignores_whitespace() {
-    let v = json.parse_str("{\n  \"a\" : 1 ,\n  \"b\" : 2\n}")
-    let obj = (v as json.Object)!
+    let obj = json.parse_object("{\n  \"a\" : 1 ,\n  \"b\" : 2\n}")
     ut.assert_eq(obj.len(), 2)
+    ut.assert_eq(obj.get_int("a"), 1)
+    ut.assert_eq(obj.get_int("b"), 2)
+}
 
-    let a = (obj.get("a") as json.Integer)!
-    let b = (obj.get("b") as json.Integer)!
-    ut.assert_eq(a.value, 1)
-    ut.assert_eq(b.value, 2)
+// ---------------------------------------------------------------------------
+// dict-style access: indexing, optional get, get_or, iteration
+// ---------------------------------------------------------------------------
+
+@test
+func test_object_index_get() {
+    let obj = json.parse_object("{\"a\":1}")
+    ut.assert_true(obj["a"] is json.Integer)
+    let v = obj["a"]
+    if v is json.Integer { ut.assert_eq(v.value, 1) }
+}
+
+@test
+func test_object_get_optional() {
+    let obj = json.parse_object("{\"a\":1}")
+    ut.assert_true(obj.get("a") != nil)
+    ut.assert_true(obj.get("missing") == nil)
+}
+
+@test
+func test_object_get_or_default() {
+    let obj = json.parse_object("{\"a\":1}")
+    let d = json.Integer(99)
+    let got = obj.get_or("missing", d)
+    ut.assert_true(got is json.Integer)
+    if got is json.Integer { ut.assert_eq(got.value, 99) }
+}
+
+@test
+func test_object_iterate_values() {
+    let obj = json.parse_object("{\"a\":1,\"b\":2}")
+    var sum = 0
+    for v in obj.values() {
+        if v is json.Integer { sum += v.value }
+    }
+    ut.assert_eq(sum, 3)
+}
+
+@test
+func test_object_iterate_items() {
+    let obj = json.parse_object("{\"a\":1,\"b\":2}")
+    var keys = ""
+    for (k, v) in obj.items() { keys += k }
+    ut.assert_eq(keys, "ab")
 }
 
 // ---------------------------------------------------------------------------
@@ -104,14 +128,11 @@ func test_parse_object_ignores_whitespace() {
 @test
 func test_build_object() {
     let obj = json.Object()
-    obj.add("name", json.String("koala"))
-    obj.add("port", json.Integer(8080))
-
+    obj["name"] = json.String("koala")
+    obj["port"] = json.Integer(8080)
     ut.assert_eq(obj.len(), 2)
     ut.assert_true("name" in obj)
-
-    let name = (obj.get("name") as json.String)!
-    ut.assert_eq(name.value, "koala")
+    ut.assert_eq(obj.get_str("name"), "koala")
 }
 
 @test
@@ -119,10 +140,8 @@ func test_build_object_replaces_value() {
     let obj = json.Object()
     obj.add("a", json.Integer(1))
     obj.add("a", json.Integer(2))
-
     ut.assert_eq(obj.len(), 1)
-    let a = (obj.get("a") as json.Integer)!
-    ut.assert_eq(a.value, 2)
+    ut.assert_eq(obj.get_int("a"), 2)
 }
 
 // ---------------------------------------------------------------------------
@@ -148,3 +167,20 @@ func test_parse_object_requires_comma_panics() {
 func test_parse_unterminated_object_panics() {
     let v = json.parse_str("{\"a\":1")
 }
+
+// ---------------------------------------------------------------------------
+// parse_dict: Python-style name, concrete Object, no as/! needed
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_dict_direct_index() {
+    let obj = json.parse_dict("{\"port\":8080}")
+    obj["port"] = json.Integer(9090)
+    ut.assert_eq(obj.get_int("port"), 9090)
+}
+
+@should_panic("json.parse_object: root is Array, expected Object")
+func test_parse_dict_wrong_root_panics() {
+    let obj = json.parse_dict("[1,2]")
+}
+

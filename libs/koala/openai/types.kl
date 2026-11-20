@@ -137,9 +137,7 @@ func _error_completion(status int, msg str) ChatCompletion {
 
 func _get_str(obj Object, k str) str {
     if !(k in obj) { return "" }
-    let v = obj.get(k)
-    let null_check = v as Null
-    if null_check != nil { return "" }
+    if obj[k] is Null { return "" }
     return obj.get_str(k)
 }
 

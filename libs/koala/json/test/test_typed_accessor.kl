@@ -79,31 +79,31 @@ func test_object_get_int_missing_key() {
     obj.get_int("missing")
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Object.get_str: key 'port' is Integer, expected String")
 func test_object_get_str_type_mismatch() {
     let obj = (json.parse_str("{\"port\":8080}") as json.Object)!
     obj.get_str("port")  // port is Integer, not String
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Object.get_int: key 'name' is String, expected Integer")
 func test_object_get_int_type_mismatch() {
     let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
     obj.get_int("name")  // name is String, not Integer
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Object.get_bool: key 'port' is Integer, expected Boolean")
 func test_object_get_bool_type_mismatch() {
     let obj = (json.parse_str("{\"port\":8080}") as json.Object)!
     obj.get_bool("port")  // port is Integer, not Boolean
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Object.get_object: key 'name' is String, expected Object")
 func test_object_get_object_type_mismatch() {
     let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
     obj.get_object("name")  // name is String, not Object
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Object.get_array: key 'name' is String, expected Array")
 func test_object_get_array_type_mismatch() {
     let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
     obj.get_array("name")  // name is String, not Array
@@ -190,31 +190,31 @@ func test_array_get_int_out_of_range() {
     arr.get_int(10)
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Array.get_str: index 0 is Integer, expected String")
 func test_array_get_str_type_mismatch() {
     let arr = (json.parse_str("[8080]") as json.Array)!
     arr.get_str(0)  // element is Integer, not String
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Array.get_int: index 0 is String, expected Integer")
 func test_array_get_int_type_mismatch() {
     let arr = (json.parse_str("[\"koala\"]") as json.Array)!
     arr.get_int(0)  // element is String, not Integer
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Array.get_bool: index 0 is Integer, expected Boolean")
 func test_array_get_bool_type_mismatch() {
     let arr = (json.parse_str("[8080]") as json.Array)!
     arr.get_bool(0)  // element is Integer, not Boolean
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Array.get_object: index 0 is String, expected Object")
 func test_array_get_object_type_mismatch() {
     let arr = (json.parse_str("[\"koala\"]") as json.Array)!
     arr.get_object(0)  // element is String, not Object
 }
 
-@should_panic("forced unwrap (`!`) of a nil value")
+@should_panic("json.Array.get_array: index 0 is String, expected Array")
 func test_array_get_array_type_mismatch() {
     let arr = (json.parse_str("[\"koala\"]") as json.Array)!
     arr.get_array(0)  // element is String, not Array
