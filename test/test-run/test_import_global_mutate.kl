@@ -1,0 +1,17 @@
+// RUN: koala %s | filecheck %s
+// An imported `pub var` is written through set_global, both for a plain store and
+// for an in-place assignment, like a global of the current module.
+
+from "test_pkg/pkg_global" import counter, read_counter
+
+func main() {
+    counter += 1
+    print(counter)
+    print(read_counter())
+    counter = 5
+    print(counter)
+}
+
+// CHECK: 11
+// CHECK-NEXT: 11
+// CHECK-NEXT: 5

@@ -1,0 +1,9 @@
+// A package exposing a package-level global of each kind, for
+// test-run/test_import_global_*.kl.
+
+pub const KONST = 30
+pub let IMMUT = 20
+pub var counter = 10
+
+pub func read_immutable() int = IMMUT
+pub func read_counter() int = counter

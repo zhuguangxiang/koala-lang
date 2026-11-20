@@ -91,10 +91,10 @@ extern "C" {
 #define FFS(x) ({ int v = __builtin_ffs(x); ASSERT(v >= 0); v; })
 
 #define panic(fmt, ...) do { \
-    if (isatty(fileno(stdout))) { \
-        printf("\x1b[31mpanic:\x1b[0m " fmt "\n", ##__VA_ARGS__); \
+    if (isatty(fileno(stderr))) { \
+        fprintf(stderr, "\x1b[31mpanic:\x1b[0m " fmt "\n", ##__VA_ARGS__); \
     } else { \
-        printf("panic: " fmt "\n", ##__VA_ARGS__); \
+        fprintf(stderr, "panic: " fmt "\n", ##__VA_ARGS__); \
     } \
     abort(); \
 } while (0)

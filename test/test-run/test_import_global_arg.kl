@@ -1,0 +1,13 @@
+// RUN: koala %s | filecheck %s
+// An imported `pub let` / `pub var` used directly as a call argument is loaded
+// with get_global, like a global of the current module.
+
+from "test_pkg/pkg_global" import IMMUT, counter
+
+func main() {
+    print(IMMUT)
+    print(counter)
+}
+
+// CHECK: 20
+// CHECK-NEXT: 10

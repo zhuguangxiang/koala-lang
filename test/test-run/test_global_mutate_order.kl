@@ -1,0 +1,16 @@
+// RUN: koala %s | filecheck %s
+// A global of the current module keeps its value across an in-place assignment
+// followed by a plain store: const propagation must not forward the later store
+// into the earlier read. The imported counterpart is test_import_global_mutate.kl.
+
+var counter = 10
+
+func main() {
+    counter += 1
+    print(counter)
+    counter = 5
+    print(counter)
+}
+
+// CHECK: 11
+// CHECK-NEXT: 5

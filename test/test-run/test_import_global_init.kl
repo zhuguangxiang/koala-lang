@@ -1,0 +1,13 @@
+// RUN: koala %s | filecheck %s
+// An imported `pub let` / `pub var` read into a local is loaded with get_global
+// before the move, like a global of the current module.
+
+from "test_pkg/pkg_global" import IMMUT, counter
+
+func main() {
+    let a = IMMUT
+    let b = counter
+    print(a, b)
+}
+
+// CHECK: 20 10

@@ -700,6 +700,10 @@ static void load_globals(LoadContext *ctx)
         Symbol *sym = stbl_add_var(ctx->stbl, k->sval, ts, flags);
         sym->parent = ctx->pkg_sym;
         sym->path = ctx->path;
+        // a package-level variable is a global: reading it goes through get_global,
+        // like a global of the current module, instead of leaking the ext global
+        // itself as a value into a move/binary/call argument.
+        ((VarSymbol *)sym)->scope = VAR_SCOPE_GLOBAL;
         sym->status = SYM_RESOLVED;
         add_var_fixup_entry(sym, ts, ctx);
     }

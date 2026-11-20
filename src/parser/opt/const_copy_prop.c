@@ -1079,7 +1079,12 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
     OpCode op = insn->code;
     switch (op) {
         case OP_GLOBAL_SET: {
-            KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
+            KlrValue *gvar = insn_oper_value(insn, 0);
+            ASSERT(gvar && (gvar->kind == KLR_VALUE_GLOBAL || gvar->kind == KLR_VALUE_EXT_GLOBAL));
+            // an ext global is a KlrExtGlobal, which has no mutable/kval fields,
+            // and its value lives in another module, unknown here
+            if (gvar->kind != KLR_VALUE_GLOBAL) break;
+            KlrGlobal *global = (KlrGlobal *)gvar;
             KlrValue *val = insn_oper_value(insn, 1);
             if (!global->mutable && klr_is_const(val) && type_allowed_to_prop(val->ts)) {
                 log_info("record const value for global variable:");
@@ -1090,7 +1095,10 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
         }
 
         case OP_GLOBAL_GET: {
-            KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
+            KlrValue *gvar = insn_oper_value(insn, 0);
+            ASSERT(gvar && (gvar->kind == KLR_VALUE_GLOBAL || gvar->kind == KLR_VALUE_EXT_GLOBAL));
+            if (gvar->kind != KLR_VALUE_GLOBAL) break;
+            KlrGlobal *global = (KlrGlobal *)gvar;
             KlrConst *val = global->kval;
             // var a = 100
             // let b = a
@@ -1367,9 +1375,9 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     log_insn(insn);
                 }
             } else if ((insn->error == 0) && (klr_is_func(src) || klr_is_extfunc(src)) &&
-                       type_spec_equal_exact(klr_is_func(src) ? ((KlrFunc *)src)->proto
-                                                              : ((KlrExtFunc *)src)->proto,
-                                             insn->ts)) {
+                       type_spec_equal_exact(
+                           klr_is_func(src) ? ((KlrFunc *)src)->proto : ((KlrExtFunc *)src)->proto,
+                           insn->ts)) {
                 // 'f!' with 'f' propagated to a function, which is never nil
                 log_info("fold unwrapping cast of function:");
                 log_insn(insn);

@@ -1,0 +1,15 @@
+// RUN: koala %s | filecheck %s
+// An imported `pub const` is read as its literal, and an imported function reads
+// its own package globals through get_global inside its own module.
+
+from "test_pkg/pkg_global" import KONST, read_immutable, read_counter
+
+func main() {
+    print(KONST)
+    print(read_immutable())
+    print(read_counter())
+}
+
+// CHECK: 30
+// CHECK-NEXT: 20
+// CHECK-NEXT: 10
