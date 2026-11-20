@@ -1,0 +1,112 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// switch diagnostics: duplicate case values, wildcard ('case _') placement, value/subject
+// type mismatches, non-exhaustive enum/bool subjects, optional subjects, break/continue
+// outside a loop, 'is' targets that are not a class type, and unsupported generic type-variable
+// subjects. Each function isolates one rule; the CHECK lines follow source order.
+// '{{.*}}' skips the ANSI color codes between 'error:' and the message text.
+
+func dup(x int) int {
+    switch x {
+        case 1: return 10
+        case 1: return 20
+        // CHECK: duplicate case value '1'.
+        case _: return 0
+    }
+}
+
+func dup_multi(x int) int {
+    switch x {
+        case 1: return 10
+        case 1, 2: return 20
+        // CHECK: duplicate case value '1'.
+        case _: return 0
+    }
+}
+
+func wild_not_last(x int) int {
+    switch x {
+        case _: return 0
+        // CHECK: 'case _' must be the last clause.
+        case 1: return 10
+        // CHECK: case after 'case _' is unreachable.
+    }
+}
+
+func wild_mixed(x int) int {
+    switch x {
+        case 1, _: return 10
+        // CHECK: 'case _' must be the only pattern of its clause.
+    }
+}
+
+func type_mismatch(x int) int {
+    switch x {
+        case "a": return 1
+        // CHECK: Incompatible type: expected 'int64', but got 'str'.
+        case _: return 0
+    }
+}
+
+enum E { A, B, C }
+func enum_not_exhaustive(x E) int {
+    switch x {
+        // CHECK: switch on enum is not exhaustive, add 'case _'.
+        case E.A: return 1
+        case E.B: return 2
+    }
+}
+
+func enum_bad_value(x E) int {
+    switch x {
+        case 9: return 1
+        // CHECK: 9 is not a valid value of enum 'E'
+        case _: return 0
+    }
+}
+
+func bool_not_exhaustive(x bool) int {
+    switch x {
+        // CHECK: switch on bool is not exhaustive, add 'case _'.
+        case true: return 1
+    }
+}
+
+func break_no_loop(x int) int {
+    switch x {
+        case 1: break
+        // CHECK: break statement must be inside a loop.
+        case _: return 0
+    }
+}
+
+func continue_no_loop(x int) int {
+    switch x {
+        case 1: continue
+        // CHECK: continue statement must be inside a loop.
+        case _: return 0
+    }
+}
+
+func opt_subject(x int?) {
+    switch x {
+        // CHECK: switch subject cannot be optional type '{{.*}}'.
+        case _: print(0)
+    }
+}
+
+trait TAnimal { func sound() str }
+func is_trait_target(x any) int {
+    switch x {
+        case is TAnimal: return 1
+        // CHECK: target type of 'is' operator must be a class type.
+        case _: return 0
+    }
+}
+
+func generic_var_subject[T](x T) int {
+    switch x {
+        // CHECK: switch subject type '{{.*}}' is not supported.
+        case _: return 0
+    }
+}

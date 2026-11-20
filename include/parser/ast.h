@@ -441,11 +441,11 @@ typedef enum _StmtKind {
     STMT_EXPR_KIND,
     /* statements */
     STMT_BLOCK_KIND,
-    /* if, while, for, match */
+    /* if, while, for, switch */
     STMT_IF_KIND,
     STMT_WHILE_KIND,
     STMT_FOR_KIND,
-    STMT_MATCH_KIND,
+    STMT_SWITCH_KIND,
     /* if-let */
     STMT_IF_LET_KIND,
     STMT_WHILE_LET_KIND,
@@ -716,6 +716,59 @@ typedef struct _ForStmt {
 } ForStmt;
 
 Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block);
+
+/*
+ * switch subject { case pat, ...: body ... }
+ * A clause matches when any of its patterns matches (no fallthrough). 'case _' is the
+ * default: it must be the last clause and the only pattern of its clause.
+ */
+typedef enum _CasePatternKind {
+    CASE_PAT_VALUE, /* case expr: subject == expr */
+    CASE_PAT_IN,    /* case in expr: subject in expr */
+    CASE_PAT_IS,    /* case is T: subject is T */
+    CASE_PAT_WILD,  /* case _ */
+} CasePatternKind;
+
+typedef struct _CasePattern {
+    CasePatternKind kind;
+    Loc loc;
+    /* VALUE: the compared expression; IN: the container; IS/WILD: NULL */
+    Expr *exp;
+    /* IS: the raw type from the grammar, consumed by the semantic pass */
+    TypeSpec *type;
+    /* IS: resolved by the semantic pass */
+    TypeSpec *target_ts;
+    Symbol *target_sym;
+    IsAsResult result;
+    /* VALUE: set by the semantic pass when the label is a compile-time integer constant
+     * (int/bool literal, enum member, or const variable). Used by the binary-search dispatch. */
+    int has_const;
+    int64_t const_val;
+} CasePattern;
+
+typedef struct _CaseClause {
+    Loc loc;
+    Vector *patterns; /* CasePattern* */
+    Vector *block;    /* Stmt* */
+    /* set by the semantic pass */
+    int is_default;
+    int is_terminal;
+} CaseClause;
+
+typedef struct _SwitchStmt {
+    STMT_HEAD
+    Expr *exp;        /* the subject, evaluated once */
+    Vector *clauses;  /* CaseClause* */
+    /* set by the semantic pass */
+    int is_exhaustive;
+    int is_terminal;
+} SwitchStmt;
+
+Stmt *stmt_from_switch(Expr *exp, Vector *clauses);
+CaseClause *case_clause_new(Vector *patterns, Vector *block, Loc loc);
+void case_clause_free(CaseClause *clause);
+CasePattern *case_pattern_new(CasePatternKind kind, Expr *exp, TypeSpec *type, Loc loc);
+void case_pattern_free(CasePattern *pat);
 
 typedef struct _KlassStmt {
     STMT_HEAD

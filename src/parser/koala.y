@@ -29,7 +29,7 @@ static int need_clear(int token)
 {
     int tokens[] = {
         ';', IMPORT, LET, VAR, FUNC,
-        IF, WHILE, FOR, MATCH, CLASS,
+        IF, WHILE, FOR, SWITCH, CLASS,
         TRAIT, RETURN
     };
 
@@ -66,6 +66,34 @@ static void free_stmt_list(Vector *vec)
         if (item) stmt_free(item);
     }
     vector_destroy(vec);
+}
+
+// case_clause_list: CaseClause * items
+static void free_case_clause_list(Vector *vec)
+{
+    CaseClause *item;
+    vector_foreach(item, vec) {
+        case_clause_free(item);
+    }
+    vector_destroy(vec);
+}
+
+// case_pattern_list: CasePattern * items
+static void free_case_pattern_list(Vector *vec)
+{
+    CasePattern *item;
+    vector_foreach(item, vec) {
+        case_pattern_free(item);
+    }
+    vector_destroy(vec);
+}
+
+// a single-statement case body becomes a one-element block
+static Vector *case_body_single(Stmt *s)
+{
+    Vector *vec = vector_create_ptr();
+    if (s) vector_push_back(vec, &s);
+    return vec;
 }
 
 // klass_list: TypeSpec * items
@@ -210,6 +238,8 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
     IdentType kls_name;
     AnnotParam *annot_param;
     EnumMember *enum_member;
+    CaseClause *case_clause;
+    CasePattern *case_pattern;
 }
 
 %token FROM
@@ -228,7 +258,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %token LOOP
 %token FOR
 %token WITH
-%token MATCH
+%token SWITCH
 %token CASE
 %token BREAK
 %token CONTINUE
@@ -319,6 +349,12 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<stmt> while_stmt
 %type<stmt> for_stmt
 %type<stmt> with_stmt
+%type<stmt> switch_stmt
+%type<vec> case_clause_list
+%type<vec> case_body
+%type<vec> case_pattern_list
+%type<case_clause> case_clause
+%type<case_pattern> case_pattern
 %type<stmt> local
 %type<stmt> func_decl
 %type<stmt> field_decl
@@ -454,7 +490,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
     const_expr_list expr_list index_expr_list call_arg_list call_kw_arg_list map_list
 %destructor { free_stmt_list($$); }
     top_stmts block local_list let_else_stmt class_members_or_empty field_list method_list
-    trait_members_or_empty trait_method_list
+    trait_members_or_empty trait_method_list case_body
 %destructor { free_optional_type_list($$); }
     optional_type_list base_type_list atom_primitive_type_list klass_list extends
 %destructor { free_tp_list($$); } type_param_list const_tp_list tp_decl_list
@@ -469,6 +505,10 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
     }
     vector_destroy($$);
 } enum_member_list
+%destructor { free_case_clause_list($$); } case_clause_list
+%destructor { free_case_pattern_list($$); } case_pattern_list
+%destructor { case_clause_free($$); } <case_clause>
+%destructor { case_pattern_free($$); } <case_pattern>
 
 %locations
 %parse-param {ParserState *ps}
@@ -755,9 +795,9 @@ top_stmt
     {
         $$ = $1;
     }
-    | match_stmt
+    | switch_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     ;
 
@@ -2798,9 +2838,9 @@ local
     {
         $$ = $1;
     }
-    | match_stmt
+    | switch_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | semi
     {
@@ -3147,44 +3187,113 @@ id_list
     }
     ;
 
-match_stmt
-    : MATCH expr '{' case_list '}'
+switch_stmt
+    : SWITCH expr '{' case_clause_list '}'
+    {
+        $$ = stmt_from_switch($2, $4);
+        stmt_set_loc($$, lloc(@1, @5));
+    }
+    | SWITCH expr '{' '}'
     {
         expr_free($2);
+        kl_error(loc(@3), "switch must have at least one 'case'.");
+        yyerrok;
+        $$ = NULL;
+    }
+    /* a bad body skips to the closing brace, the subject is freed */
+    | SWITCH expr error '}'
+    {
+        expr_free($2);
+        kl_error(loc(@3), "expected 'case' in switch body.");
+        yyerrok;
+        $$ = NULL;
     }
     ;
 
-case_list
-    : case_stmt
-    | case_list case_stmt
+case_clause_list
+    : case_clause
+    {
+        $$ = vector_create_ptr();
+        if ($1) vector_push_back($$, &$1);
+    }
+    | case_clause_list case_clause
+    {
+        $$ = $1;
+        if ($2) vector_push_back($$, &$2);
+    }
     ;
 
-case_stmt
-    : CASE case_pattern_list ':' case_block case_tail
+case_clause
+    : CASE case_pattern_list ':' case_body case_tail
+    {
+        $$ = case_clause_new($2, $4, lloc(@1, @4));
+    }
+    | CASE error ':' case_body case_tail
+    {
+        free_stmt_list($4);
+        kl_error(loc(@2), "invalid case pattern.");
+        yyerrok;
+        $$ = NULL;
+    }
     ;
 
 case_pattern_list
     : case_pattern
+    {
+        $$ = vector_create_ptr();
+        if ($1) vector_push_back($$, &$1);
+    }
     | case_pattern_list ',' case_pattern
+    {
+        $$ = $1;
+        if ($3) vector_push_back($$, &$3);
+    }
     ;
 
 case_pattern
     : expr
+    {
+        /* '_' arrives as an EXPR_UNDER_KIND expression */
+        if ($1 && $1->kind == EXPR_UNDER_KIND) {
+            $$ = case_pattern_new(CASE_PAT_WILD, NULL, NULL, $1->loc);
+            expr_free($1);
+        } else {
+            $$ = case_pattern_new(CASE_PAT_VALUE, $1, NULL, $1 ? $1->loc : loc(@1));
+        }
+    }
     | IN expr
     {
-        expr_free($2);
+        $$ = case_pattern_new(CASE_PAT_IN, $2, NULL, lloc(@1, @2));
     }
     | IS type
     {
-        type_spec_free($2);
+        $$ = case_pattern_new(CASE_PAT_IS, NULL, $2, lloc(@1, @2));
     }
     ;
 
-case_block
+case_body
     : block
+    {
+        $$ = $1;
+    }
     | expr
+    {
+        Stmt *s = stmt_from_expr($1);
+        stmt_set_loc(s, $1->loc);
+        $$ = case_body_single(s);
+    }
     | assignment
+    {
+        $$ = case_body_single($1);
+    }
     | return_stmt
+    {
+        $$ = case_body_single($1);
+    }
+    | jump_stmt
+    {
+        $$ = case_body_single($1);
+    }
     ;
 
 case_tail

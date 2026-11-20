@@ -270,7 +270,7 @@ ELSE_NEXT   {ELSE_SKIP}*"else"[^A-Za-z0-9_]
 "loop"      { YY_RETURN(LOOP);      }
 "for"       { YY_RETURN(FOR);       }
 "with"      { YY_RETURN(WITH);      }
-"switch"    { YY_RETURN(MATCH);     }
+"switch"    { YY_RETURN(SWITCH);    }
 "case"      { YY_RETURN(CASE);      }
 "break"     { YY_RETURN(BREAK);     }
 "continue"  { YY_RETURN(CONTINUE);  }

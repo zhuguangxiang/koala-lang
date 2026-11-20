@@ -1,0 +1,47 @@
+// RUN: koala %s | filecheck %s
+
+// switch inside generic functions: the dispatch (integer binary tree for >=4 constant keys,
+// compare chain otherwise) is monomorphized per concrete type argument. A bare type-variable
+// subject ('switch x' where x: T) is not supported, so the subject here is a concrete int while
+// the generic parameter T is used through its trait bound. gcode/gtag are cloned for Num and Txt.
+
+trait Show { func show() str }
+class Num : Show {
+    var n int
+    func __init__(n int) { self.n = n }
+    func show() str = "num"
+}
+class Txt : Show {
+    var s str
+    func __init__(s str) { self.s = s }
+    func show() str = "txt"
+}
+
+// >=4 constant keys -> binary tree, cloned for each T
+func gcode[T : Show](x T, k int) int {
+    switch k {
+        case 1: return 10
+        case 2: return 20
+        case 3: return 30
+        case 4: return 40
+        case _: return 0
+    }
+}
+
+// few keys -> compare chain, cloned for each T; also calls the trait method
+func gtag[T : Show](x T, k int) str {
+    switch k {
+        case 1: return "one:" + x.show()
+        case 2: return "two:" + x.show()
+        case _: return "other:" + x.show()
+    }
+}
+
+func main() {
+    print(gcode(Num(1), 1), gcode(Num(2), 3), gcode(Num(3), 9))
+    // CHECK: 10 30 0
+    print(gcode(Txt("a"), 2), gcode(Txt("b"), 4), gcode(Txt("c"), 5))
+    // CHECK-NEXT: 20 40 0
+    print(gtag(Num(1), 1), gtag(Txt("a"), 2), gtag(Num(3), 9))
+    // CHECK-NEXT: one:num two:txt other:num
+}

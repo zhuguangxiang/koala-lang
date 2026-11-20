@@ -1,0 +1,60 @@
+// RUN: koala %s | filecheck %s
+
+// switch on an 'any' subject: 'is T' runtime type tests with auto-narrowing (int / str / bool /
+// float / uint / user class), a multi-pattern 'is' clause, and a default. 'is' patterns are not
+// eligible for the integer binary dispatch, so these stay on the compare chain.
+
+class Dog {
+    func speak() str = "woof"
+}
+
+func narrow_int(x any) int {
+    switch x {
+        case is int: return x + 100
+        case _: return -1
+    }
+}
+
+func narrow_str(x any) str {
+    switch x {
+        case is str: return x + "!"
+        case _: return "?"
+    }
+}
+
+func kind(x any) int {
+    switch x {
+        case is bool: return 1
+        case is float: return 2
+        case is uint: return 3
+        case is Dog: return 4
+        case _: return 0
+    }
+}
+
+func multi(x any) int {
+    switch x {
+        case is int, is str: return 1
+        case _: return 0
+    }
+}
+
+func dog_sound(x any) str {
+    switch x {
+        case is Dog: return x.speak()
+        case _: return "none"
+    }
+}
+
+func main() {
+    print(narrow_int(5), narrow_int("s"))
+    // CHECK: 105 -1
+    print(narrow_str("hi"), narrow_str(7))
+    // CHECK-NEXT: hi! ?
+    print(kind(true), kind(1.5), kind(uint(7)), kind(Dog()), kind("s"))
+    // CHECK-NEXT: 1 2 3 4 0
+    print(multi(5), multi("s"), multi(1.5))
+    // CHECK-NEXT: 1 1 0
+    print(dog_sound(Dog()), dog_sound(1))
+    // CHECK-NEXT: woof none
+}

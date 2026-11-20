@@ -278,7 +278,7 @@ static const char *scopes[] = {
 static const char *blocks[] = {
     "UNK",          "BLOCK",       "IF-BLOCK",        "ELSE-BLOCK",
     "IF-LET-BLOCK", "WHILE-BLOCK", "WHILE-LET-BLOCK", "FOR-BLOCK",
-    "MATCH-BLOCK",  "MATCH-CASE",  "WITH-BLOCK",      "MATCH-CLAUSE",
+    "SWITCH-BLOCK", "CASE-BLOCK",  "WITH-BLOCK",
 };
 #endif
 
@@ -2737,6 +2737,349 @@ static void parse_while_let(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 }
 
+/* A compile-time constant seen in a case pattern, used for duplicate detection and
+ * enum/bool exhaustiveness. */
+typedef struct {
+    int64_t val;
+    Loc loc;
+} SwitchConst;
+
+/* Extract a compile-time integer value from a resolved case pattern expression: int/bool
+ * literals, enum members, int/bool consts and negated int literals/consts. Returns 1 and
+ * sets *out on success. */
+static int switch_pattern_const(Expr *e, int64_t *out)
+{
+    if (!e) return 0;
+
+    if (e->kind == EXPR_UNARY_KIND) {
+        UnaryExpr *u = (UnaryExpr *)e;
+        if (u->op != UNARY_NEG) return 0;
+        int64_t v;
+        if (!switch_pattern_const(u->exp, &v)) return 0;
+        *out = -v;
+        return 1;
+    }
+
+    if (e->kind == EXPR_LITERAL_KIND) {
+        LitExpr *lit = (LitExpr *)e;
+        if (lit->which == LIT_EXPR_INT) {
+            *out = (int64_t)lit->ival;
+            return 1;
+        }
+        if (lit->which == LIT_EXPR_BOOL) {
+            *out = lit->bval;
+            return 1;
+        }
+        return 0;
+    }
+
+    if (e->kind == EXPR_DOT_KIND && e->sym && e->sym->kind == SYM_ENUM) {
+        DotExpr *dot = (DotExpr *)e;
+        EnumMemberSym *item;
+        vector_foreach_ptr(item, &((EnumSymbol *)e->sym)->members) {
+            if (str_equal(item->name, dot->id.name)) {
+                *out = item->val;
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    if (e->kind == EXPR_ID_KIND && e->sym && e->sym->kind == SYM_VAR &&
+        (e->sym->flags & SYM_FLAGS_CONST)) {
+        Literal *lit = ((VarSymbol *)e->sym)->lit;
+        if (!lit) return 0;
+        if (lit->which == LIT_INT) {
+            *out = (int64_t)lit->ival;
+            return 1;
+        }
+        if (lit->which == LIT_BOOL) {
+            *out = lit->bval;
+            return 1;
+        }
+        return 0;
+    }
+
+    return 0;
+}
+
+/* Does the subject type support '==' (an __eq__ method)? Mirrors parse_binary's lookup. */
+static int switch_subject_has_eq(ParserState *ps, TypeSpec *ts)
+{
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) return 0;
+    Symbol *fn = NULL;
+    if (sym->kind == SYM_INSTANCE) {
+        fn = get_instance_method((InstanceSymbol *)sym, "__eq__", ps);
+    } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        fn = stbl_get(sym->stbl, "__eq__");
+    }
+    return fn && fn->kind == SYM_FUNC;
+}
+
+/* Type-check a `case expr` value pattern against the subject type. The pattern has been
+ * visited with the subject type as its expected type (so int literals narrow to the subject
+ * width and enum literals validate against the member values). Returns 1 on success. */
+static int switch_check_value(ParserState *ps, TypeSpec *st, Expr *pe)
+{
+    TypeSpec *pt = pe->ts;
+    Loc loc = pe->loc;
+
+    if (type_is_enum(st)) {
+        if (pt == st) return 1;
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+
+    if (type_is_bool(st)) {
+        if (type_is_bool(pt)) return 1;
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+
+    if (type_is_int(st)) {
+        if (type_is_int(pt)) return 1;
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+
+    if (type_is_uint(st)) {
+        if (type_is_uint(pt)) return 1;
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+
+    if (type_is_float(st)) {
+        if (type_is_float(pt)) return 1;
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+
+    if (type_is_str(st)) {
+        if (type_is_str(pt)) return 1;
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+
+    /* class / trait / any / union / generic_ref: a value pattern needs '==' */
+    if (!switch_subject_has_eq(ps, st)) {
+        kl_error(loc, "switch subject type '%s' does not support '==', use 'case is T'.",
+                 st->signature);
+        return 0;
+    }
+    if (!type_spec_compatible(st, pt)) {
+        kl_error_incompatible_type(loc, st, pt);
+        return 0;
+    }
+    return 1;
+}
+
+/*
+ * switch subject { case ...: ... }
+ * The subject is evaluated once. Each clause matches when any of its patterns matches; there
+ * is no fallthrough. 'case _' is the default and must be the last clause, alone. break/continue
+ * target the enclosing loop (find_loop_scope skips switch/case scopes). enum and bool subjects
+ * are checked for exhaustiveness; a switch is terminal only when it is exhaustive and every
+ * clause body is terminal.
+ */
+static void parse_switch(ParserState *ps, Stmt *stmt)
+{
+    SwitchStmt *s = (SwitchStmt *)stmt;
+    Expr *subject = s->exp;
+
+    subject->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, subject);
+    if (!subject->ts) return;
+    TypeSpec *st = subject->ts;
+
+    int n = vector_size(s->clauses);
+    if (n == 0) {
+        kl_error(stmt->loc, "switch must have at least one 'case'.");
+        return;
+    }
+
+    if (type_is_optional(st)) {
+        kl_error(subject->loc, "switch subject cannot be optional type '%s'.", st->signature);
+        return;
+    }
+
+    int supported = type_is_int(st) || type_is_uint(st) || type_is_enum(st) || type_is_bool(st) ||
+                    type_is_str(st) || type_is_float(st) ||
+                    type_is_klass(st) || type_is_any(st) || type_is_union(st) ||
+                    type_is_generic_ref(st);
+    if (!supported) {
+        kl_error(subject->loc, "switch subject type '%s' is not supported.", st->signature);
+        return;
+    }
+
+    enter_scope(ps, SCOPE_BLOCK, SWITCH_BLOCK, "switch-block");
+
+    Vector consts;
+    vector_init(&consts, sizeof(SwitchConst));
+    int has_default = 0;
+    int all_terminal = 1;
+
+    for (int i = 0; i < n; i++) {
+        CaseClause *clause = vector_get(s->clauses, i);
+        if (!clause) continue;
+        int np = vector_size(clause->patterns);
+
+        /* wildcard ('case _') rules: alone, last, unique */
+        int wild_count = 0;
+        for (int j = 0; j < np; j++) {
+            CasePattern *pat = vector_get(clause->patterns, j);
+            if (pat && pat->kind == CASE_PAT_WILD) wild_count++;
+        }
+        if (wild_count > 0) {
+            if (np != 1) {
+                kl_error(clause->loc, "'case _' must be the only pattern of its clause.");
+            }
+            if (has_default) {
+                kl_error(clause->loc, "duplicate 'case _'.");
+            }
+            if (i != n - 1) {
+                kl_error(clause->loc, "'case _' must be the last clause.");
+            }
+            clause->is_default = 1;
+            has_default = 1;
+        } else if (has_default) {
+            kl_error(clause->loc, "case after 'case _' is unreachable.");
+        }
+
+        ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, CASE_BLOCK, "case-block");
+
+        for (int j = 0; j < np; j++) {
+            CasePattern *pat = vector_get(clause->patterns, j);
+            if (!pat || pat->kind == CASE_PAT_WILD) continue;
+
+            if (pat->kind == CASE_PAT_IS) {
+                if (parser_resolve_is_pattern(ps, subject, pat)) {
+                    /* narrow a plain subject variable to T inside this case */
+                    if (pat->result == RUNTIME_CHECK && subject->kind == EXPR_ID_KIND &&
+                        subject->sym && subject->sym->kind == SYM_VAR) {
+                        stbl_add_narrow_var(sc->stbl, subject->sym, pat->target_ts);
+                    }
+                }
+                continue;
+            }
+
+            if (pat->kind == CASE_PAT_IN) {
+                parser_check_contains_pattern(ps, subject, pat->exp, pat->loc);
+                continue;
+            }
+
+            /* CASE_PAT_VALUE */
+            Expr *pe = pat->exp;
+            if (!pe) continue;
+            pe->ctx = EXPR_CTX_LOAD;
+            pe->expected = st;
+            parser_visit_expr(ps, pe);
+            if (!pe->ts) continue;
+            if (!switch_check_value(ps, st, pe)) continue;
+
+            int64_t cv;
+            if (switch_pattern_const(pe, &cv)) {
+                pat->has_const = 1;
+                pat->const_val = cv;
+                int dup = 0;
+                SwitchConst *c;
+                vector_foreach_ptr(c, &consts) {
+                    if (c->val == cv) {
+                        dup = 1;
+                        kl_error(pe->loc, "duplicate case value '%lld'.", (long long)cv);
+                        break;
+                    }
+                }
+                if (!dup) {
+                    SwitchConst nc = {cv, pe->loc};
+                    vector_push_back(&consts, &nc);
+                }
+            }
+        }
+
+        int body_terminal = 0;
+        parse_block(ps, clause->block, &body_terminal);
+        clause->is_terminal = body_terminal;
+        if (!body_terminal) all_terminal = 0;
+        ASSERT(vector_empty(&ps->shadows));
+        exit_scope(ps);
+    }
+
+    exit_scope(ps);
+
+    /* exhaustiveness: a default covers everything; enum needs every member, bool both values */
+    int exhaustive = has_default;
+    if (!exhaustive && type_is_enum(st)) {
+        EnumSymbol *es = (EnumSymbol *)get_symbol_by_id(st->sym_id);
+        exhaustive = 1;
+        EnumMemberSym *m;
+        vector_foreach_ptr(m, &es->members) {
+            int found = 0;
+            SwitchConst *c;
+            vector_foreach_ptr(c, &consts) {
+                if (c->val == m->val) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                exhaustive = 0;
+                break;
+            }
+        }
+    } else if (!exhaustive && type_is_bool(st)) {
+        int has0 = 0, has1 = 0;
+        SwitchConst *c;
+        vector_foreach_ptr(c, &consts) {
+            if (c->val == 0) has0 = 1;
+            if (c->val == 1) has1 = 1;
+        }
+        exhaustive = has0 && has1;
+    } else if (!exhaustive && type_is_union(st)) {
+        /* a union is exhaustive when every member is covered by an 'is T' pattern */
+        Vector covered;
+        vector_init_ptr(&covered);
+        for (int i = 0; i < n; i++) {
+            CaseClause *cl = vector_get(s->clauses, i);
+            if (!cl) continue;
+            CasePattern *p;
+            vector_foreach(p, cl->patterns) {
+                if (p && p->kind == CASE_PAT_IS && p->target_ts) {
+                    vector_push_back(&covered, &p->target_ts);
+                }
+            }
+        }
+        exhaustive = 1;
+        TypeSpec *member;
+        vector_foreach(member, st->union_type.args) {
+            if (!member) continue;
+            int found = 0;
+            TypeSpec *t;
+            vector_foreach(t, &covered) {
+                if (t == member || type_spec_compatible(member, t)) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (!found) {
+                exhaustive = 0;
+                break;
+            }
+        }
+        vector_fini(&covered);
+    }
+
+    s->is_exhaustive = exhaustive;
+    s->is_terminal = exhaustive && all_terminal;
+
+    if (!exhaustive && (type_is_enum(st) || type_is_bool(st))) {
+        kl_error(stmt->loc, "switch on %s is not exhaustive, add 'case _'.",
+                 type_is_enum(st) ? "enum" : "bool");
+    }
+
+    vector_fini(&consts);
+}
+
 // The type conforms to std/builtin's Withable: the trait itself, or a class / trait having it
 // in its linear order. A user trait of the same name is not the builtin one.
 static int conforms_withable(ParserState *ps, TypeSpec *ts)
@@ -4085,6 +4428,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_IF_KIND]        = parse_if,
         [STMT_WHILE_KIND]     = parse_while,
         [STMT_FOR_KIND]       = parse_for,
+        [STMT_SWITCH_KIND]    = parse_switch,
         [STMT_IF_LET_KIND]    = parse_if_let,
         [STMT_WHILE_LET_KIND] = parse_while_let,
         [STMT_WITH_KIND]      = parse_with,

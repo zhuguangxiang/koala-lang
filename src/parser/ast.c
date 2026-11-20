@@ -858,6 +858,60 @@ Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block)
     return (Stmt *)s;
 }
 
+CasePattern *case_pattern_new(CasePatternKind kind, Expr *exp, TypeSpec *type, Loc loc)
+{
+    CasePattern *pat = mm_alloc_obj(pat);
+    pat->kind = kind;
+    pat->loc = loc;
+    pat->exp = exp;
+    pat->type = type;
+    return pat;
+}
+
+void case_pattern_free(CasePattern *pat)
+{
+    if (!pat) return;
+    expr_free(pat->exp);
+    /* 'type' is the raw grammar type, consumed (freed) by the semantic pass;
+       'target_ts' is interned and owned by the type system */
+    type_spec_free(pat->type);
+    mm_free(pat);
+}
+
+CaseClause *case_clause_new(Vector *patterns, Vector *block, Loc loc)
+{
+    CaseClause *clause = mm_alloc_obj(clause);
+    clause->loc = loc;
+    clause->patterns = patterns;
+    clause->block = block;
+    return clause;
+}
+
+void case_clause_free(CaseClause *clause)
+{
+    if (!clause) return;
+    CasePattern *pat;
+    vector_foreach(pat, clause->patterns) {
+        case_pattern_free(pat);
+    }
+    vector_destroy(clause->patterns);
+    Stmt *st;
+    vector_foreach(st, clause->block) {
+        stmt_free(st);
+    }
+    vector_destroy(clause->block);
+    mm_free(clause);
+}
+
+Stmt *stmt_from_switch(Expr *exp, Vector *clauses)
+{
+    SwitchStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_SWITCH_KIND;
+    s->exp = exp;
+    s->clauses = clauses;
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_tuple_decl(Vector *ids, int which, Expr *exp)
 {
     TupleDeclStmt *s = mm_alloc_obj(s);
@@ -1217,6 +1271,18 @@ static void while_let_stmt_free(Stmt *stmt)
     mm_free(s);
 }
 
+static void switch_stmt_free(Stmt *stmt)
+{
+    SwitchStmt *s = (SwitchStmt *)stmt;
+    expr_free(s->exp);
+    CaseClause *clause;
+    vector_foreach(clause, s->clauses) {
+        case_clause_free(clause);
+    }
+    vector_destroy(s->clauses);
+    mm_free(s);
+}
+
 void stmt_free(Stmt *stmt)
 {
     if (!stmt) return;
@@ -1239,6 +1305,7 @@ void stmt_free(Stmt *stmt)
         [STMT_IF_KIND] = if_stmt_free,
         [STMT_FOR_KIND] = for_stmt_free,
         [STMT_WHILE_KIND] = while_stmt_free,
+        [STMT_SWITCH_KIND] = switch_stmt_free,
         [STMT_IF_LET_KIND] = if_let_stmt_free,
         [STMT_WHILE_LET_KIND] = while_let_stmt_free,
         [STMT_WITH_KIND] = with_stmt_free,

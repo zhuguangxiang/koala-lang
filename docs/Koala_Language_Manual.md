@@ -849,6 +849,64 @@ accumulator type is inferred from `init` and may differ from the element type.
 since function types are invariant in their return type; `take_while` differs from
 `filter` in that it stops permanently at the first element failing the predicate.
 
+### The switch Statement
+
+`switch` matches a subject against a list of `case` clauses. The subject is evaluated once;
+the first clause with a matching pattern runs, and there is no fallthrough:
+
+```kl
+func classify(x int) int {
+    switch x {
+        case 1: return 10
+        case 2, 3: return 20      // any of several patterns, comma-separated
+        case -1: return 30
+        case _: return -1         // default
+    }
+}
+```
+
+A pattern is one of:
+
+- a value: a literal or a `const`, compared with `==` (`case 1`, `case "a"`, `case TEN`).
+- `is T`: matches when the subject is a `T`. A variable subject is narrowed to `T` inside
+  the case, so its members can be used directly:
+
+  ```kl
+  func area(sh Sq | Ci) int {
+      switch sh {
+          case is Sq: return sh.area()   // sh is Sq here
+          case is Ci: return sh.area()
+      }
+  }
+  ```
+- `in container`: matches when the container's `__contains__` accepts the subject
+  (`case in [1, 2, 3]`).
+- `_`: the default, matching anything. It must be the last clause and the only pattern of
+  its clause.
+
+The subject may be an integer, `bool`, `str`, a float, an `enum`, a class / trait, `any`, a
+union, or a generic reference. An **optional** subject (`T?`) is not allowed; unwrap it first
+with `if let` or `let-else`.
+
+`enum`, `bool` and union subjects must be exhaustive — every member / value covered — or
+have a `case _`:
+
+```kl
+func name(c Color) str {
+    switch c {
+        case Color.RED: return "red"
+        case Color.GREEN: return "green"
+        case Color.BLUE: return "blue"   // exhaustive: no default needed
+    }
+}
+```
+
+- `break` and `continue` inside a case target the enclosing loop, not the switch.
+- A switch that is exhaustive and whose every case terminates (returns, breaks, ...) is
+  itself terminal, so it can end a function that returns a value.
+- Duplicate case values, a `case _` that is not last or not alone, and a case after `_` are
+  errors.
+
 ### The `with` Statement
 
 `with` runs a block between a resource's `__enter__()` and `__exit__()`. The resource type conforms

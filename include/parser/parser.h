@@ -244,6 +244,10 @@ ParserScope *find_loop_scope(ParserState *ps);
 void unwrap_for_if(ParserState *ps, Expr *exp, Vector *shadows);
 void inherit_if_shadows(ParserState *ps, Vector *shadows);
 
+/* switch case-pattern resolution, reusing the 'is' / 'in' operator checks */
+int parser_resolve_is_pattern(ParserState *ps, Expr *subject, CasePattern *pat);
+int parser_check_contains_pattern(ParserState *ps, Expr *elem, Expr *container, Loc loc);
+
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);

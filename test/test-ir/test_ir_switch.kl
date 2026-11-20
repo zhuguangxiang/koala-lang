@@ -1,0 +1,24 @@
+// RUN: koalac %s --isel --fusion --dump=lir | filecheck %s
+
+// Phase 2a: an integer switch with >= 4 constant labels is dispatched with a balanced
+// binary-search tree, so the lowered IR navigates with less-than compares (jmp_int_lt_imm)
+// and verifies equality at the leaves (jmp_int_eq_imm). A linear compare chain would only
+// ever emit equality compares.
+
+func dense(x int) int {
+    switch x {
+        case 0: return 100
+        case 1: return 101
+        case 2: return 102
+        case 3: return 103
+        case 4: return 104
+        case 5: return 105
+        case 6: return 106
+        case 7: return 107
+        case _: return -1
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@dense] ---
+// CHECK: jmp_int_lt_imm
+// CHECK: jmp_int_eq_imm

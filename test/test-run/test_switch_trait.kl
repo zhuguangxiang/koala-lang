@@ -1,0 +1,44 @@
+// RUN: koala %s | filecheck %s
+
+// switch with user-defined traits and classes. A trait SUBJECT is matched by 'is ConcreteClass'
+// (trait -> class is a runtime check) and narrowed to the class inside the case. An 'any' subject
+// holding a trait-implementing class is matched the same way. Note: 'is Trait' is NOT a valid
+// pattern target (the 'is' target must be a class type), so trait matching goes through the
+// concrete implementing classes. These stay on the compare chain.
+
+trait Animal {
+    func sound() str
+}
+class Cat : Animal {
+    func sound() str = "meow"
+    func purr() str = "purr"
+}
+class Cow : Animal {
+    func sound() str = "moo"
+}
+class Rock {
+    func sound() str = "..."
+}
+
+func describe(a Animal) str {
+    switch a {
+        case is Cat: return a.purr()
+        case is Cow: return a.sound()
+        case _: return "unknown"
+    }
+}
+
+func from_any(x any) str {
+    switch x {
+        case is Cat: return x.purr()
+        case is Cow: return x.sound()
+        case _: return "other"
+    }
+}
+
+func main() {
+    print(describe(Cat()), describe(Cow()))
+    // CHECK: purr moo
+    print(from_any(Cat()), from_any(Cow()), from_any(Rock()))
+    // CHECK-NEXT: purr moo other
+}

@@ -5,6 +5,8 @@ out/
 .next/
 .nuxt/
 target/
+tools/
+misc/
 
 # --- 2. 依赖包目录（体积巨大，AI 没必要看本地源码） ---
 node_modules/

@@ -1,0 +1,75 @@
+// RUN: koala %s | filecheck %s
+
+// Phase 2a: integer/enum constant switches lower to a balanced binary-search dispatch.
+// These exercise dense, sparse, multi-pattern, negative, unsigned and enum keys, with and
+// without a default, and check every branch (including misses) returns the right value.
+
+func dense(x int) int {
+    switch x {
+        case 0: return 100
+        case 1: return 101
+        case 2: return 102
+        case 3: return 103
+        case 4: return 104
+        case 5: return 105
+        case 6: return 106
+        case 7: return 107
+        case _: return -1
+    }
+}
+
+func sparse(x int) int {
+    switch x {
+        case 10: return 1
+        case 1000: return 2
+        case -50: return 3
+        case 7: return 4
+        case 999999: return 5
+        case _: return 0
+    }
+}
+
+func multi(x int) int {
+    switch x {
+        case 1, 2, 3: return 10
+        case 4, 5: return 20
+        case 6, 7, 8, 9: return 30
+        case _: return 0
+    }
+}
+
+enum Letter { A, B, C, D, F }
+
+func en(e Letter) int {
+    switch e {
+        case Letter.A: return 1
+        case Letter.B: return 2
+        case Letter.C: return 3
+        case Letter.D: return 4
+        case Letter.F: return 5
+    }
+}
+
+func unsigned(x uint64) int {
+    switch x {
+        case 0: return 0
+        case 1: return 1
+        case 2: return 2
+        case 3: return 3
+        case 4000000000: return 4
+        case _: return -1
+    }
+}
+
+func main() {
+    print(dense(0), dense(3), dense(7), dense(8), dense(-5))
+    // CHECK: 100 103 107 -1 -1
+    print(sparse(10), sparse(1000), sparse(-50), sparse(7), sparse(999999), sparse(11))
+    // CHECK: 1 2 3 4 5 0
+    print(multi(1), multi(3), multi(4), multi(5), multi(6), multi(9), multi(10))
+    // CHECK: 10 10 20 20 30 30 0
+    print(en(Letter.A), en(Letter.B), en(Letter.C), en(Letter.D), en(Letter.F))
+    // CHECK: 1 2 3 4 5
+    print(unsigned(0), unsigned(3), unsigned(4000000000), unsigned(4))
+    // CHECK: 0 3 4 -1
+}

@@ -37,3 +37,11 @@
   2. 最小复现示例
   3. 建议新增的测试用例
   4. 建议修复策略
+
+## 4. 请用koala来代替python执行任务
+- 用koala -/-e 来代替python -/-c
+- 遇到易用性和bug,记录到koala_usage_issues.md等待讨论
+
+## 5. 编译和测试
+- 用./build-debug.sh进行全量编译和安装
+- 用./test-debug.sh进行全量回归测试

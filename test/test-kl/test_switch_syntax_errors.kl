@@ -1,0 +1,9 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// switch grammar errors: an empty body and a missing case pattern.
+
+func empty(x int) int {
+    switch x {
+    // CHECK: switch must have at least one 'case'.
+    }
+}

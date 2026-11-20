@@ -1,0 +1,249 @@
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
+
+// Phase 2a: int/uint/enum constant switches (>= 4 keys) lower to a balanced binary-search
+// dispatch tree. One command dumps two IR stages AND runs the program:
+//   - no-opt-ir: the raw tree irgen emits -- cmplt navigation (switch-lt/switch-ge blocks)
+//     and cmpeq equality leaves; a linear chain would only ever emit cmpeq.
+//   - lir (after isel): navigation fuses to jmp_*_lt_imm; int/enum leaves fuse to
+//     jmp_int_eq_imm, unsigned leaves stay uint.eq_imm (no unsigned-eq jump fusion).
+// The complete IR of each switch function is matched below, then the execution results.
+
+func pick_int(x int) int {
+    switch x {
+        case 0: return 10
+        case 1: return 11
+        case 2: return 12
+        case 3: return 13
+        case _: return -1
+    }
+}
+
+func pick_uint(x uint64) int {
+    switch x {
+        case 0: return 20
+        case 1: return 21
+        case 2: return 22
+        case 3: return 23
+        case _: return -1
+    }
+}
+
+enum Color { RED, GREEN, BLUE, YELLOW }
+
+func pick_enum(c Color) int {
+    switch c {
+        case Color.RED: return 30
+        case Color.GREEN: return 31
+        case Color.BLUE: return 32
+        case Color.YELLOW: return 33
+    }
+}
+
+func main() {
+    print(pick_int(0), pick_int(1), pick_int(2), pick_int(3), pick_int(4), pick_int(-1))
+    print(pick_uint(0), pick_uint(1), pick_uint(2), pick_uint(3), pick_uint(4))
+    print(pick_enum(Color.RED), pick_enum(Color.GREEN), pick_enum(Color.BLUE), pick_enum(Color.YELLOW))
+}
+
+// ===== no-opt stage: the raw binary-search tree irgen emits (cmplt navigate, cmpeq leaf) =====
+// CHECK-LABEL: func @pick_int(%x int64) int64 {
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NEXT: %0 = cmplt %x int64, 2 int64
+// CHECK-NEXT: branch %0 bool, label %bb7, label %bb8
+// CHECK-LABEL: %bb1(switch-case): ;; preds = %bb9
+// CHECK-NEXT: ret 10 int64
+// CHECK-LABEL: %bb2(switch-case): ;; preds = %bb10
+// CHECK-NEXT: ret 11 int64
+// CHECK-LABEL: %bb3(switch-case): ;; preds = %bb11
+// CHECK-NEXT: ret 12 int64
+// CHECK-LABEL: %bb4(switch-case): ;; preds = %bb12
+// CHECK-NEXT: ret 13 int64
+// CHECK-LABEL: %bb5(switch-case): ;; preds = %bb9, %bb10, %bb11, %bb12
+// CHECK-NEXT: ret -1 int64
+// CHECK-LABEL: %bb6(switch-end): ;; No preds!
+// CHECK-NEXT: ret void
+// CHECK-LABEL: %bb7(switch-lt): ;; preds = %bb0
+// CHECK-NEXT: %1 = cmplt %x int64, 1 int64
+// CHECK-NEXT: branch %1 bool, label %bb9, label %bb10
+// CHECK-LABEL: %bb8(switch-ge): ;; preds = %bb0
+// CHECK-NEXT: %2 = cmplt %x int64, 3 int64
+// CHECK-NEXT: branch %2 bool, label %bb11, label %bb12
+// CHECK-LABEL: %bb9(switch-lt): ;; preds = %bb7
+// CHECK-NEXT: %3 = cmpeq %x int64, 0 int64
+// CHECK-NEXT: branch %3 bool, label %bb1, label %bb5
+// CHECK-LABEL: %bb10(switch-ge): ;; preds = %bb7
+// CHECK-NEXT: %4 = cmpeq %x int64, 1 int64
+// CHECK-NEXT: branch %4 bool, label %bb2, label %bb5
+// CHECK-LABEL: %bb11(switch-lt): ;; preds = %bb8
+// CHECK-NEXT: %5 = cmpeq %x int64, 2 int64
+// CHECK-NEXT: branch %5 bool, label %bb3, label %bb5
+// CHECK-LABEL: %bb12(switch-ge): ;; preds = %bb8
+// CHECK-NEXT: %6 = cmpeq %x int64, 3 int64
+// CHECK-NEXT: branch %6 bool, label %bb4, label %bb5
+// CHECK: }
+
+// CHECK-LABEL: func @pick_uint(%x uint64) int64 {
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NEXT: %0 = cmplt %x uint64, 2 uint64
+// CHECK-NEXT: branch %0 bool, label %bb7, label %bb8
+// CHECK-LABEL: %bb1(switch-case): ;; preds = %bb9
+// CHECK-NEXT: ret 20 int64
+// CHECK-LABEL: %bb2(switch-case): ;; preds = %bb10
+// CHECK-NEXT: ret 21 int64
+// CHECK-LABEL: %bb3(switch-case): ;; preds = %bb11
+// CHECK-NEXT: ret 22 int64
+// CHECK-LABEL: %bb4(switch-case): ;; preds = %bb12
+// CHECK-NEXT: ret 23 int64
+// CHECK-LABEL: %bb5(switch-case): ;; preds = %bb9, %bb10, %bb11, %bb12
+// CHECK-NEXT: ret -1 int64
+// CHECK-LABEL: %bb6(switch-end): ;; No preds!
+// CHECK-NEXT: ret void
+// CHECK-LABEL: %bb7(switch-lt): ;; preds = %bb0
+// CHECK-NEXT: %1 = cmplt %x uint64, 1 uint64
+// CHECK-NEXT: branch %1 bool, label %bb9, label %bb10
+// CHECK-LABEL: %bb8(switch-ge): ;; preds = %bb0
+// CHECK-NEXT: %2 = cmplt %x uint64, 3 uint64
+// CHECK-NEXT: branch %2 bool, label %bb11, label %bb12
+// CHECK-LABEL: %bb9(switch-lt): ;; preds = %bb7
+// CHECK-NEXT: %3 = cmpeq %x uint64, 0 uint64
+// CHECK-NEXT: branch %3 bool, label %bb1, label %bb5
+// CHECK-LABEL: %bb10(switch-ge): ;; preds = %bb7
+// CHECK-NEXT: %4 = cmpeq %x uint64, 1 uint64
+// CHECK-NEXT: branch %4 bool, label %bb2, label %bb5
+// CHECK-LABEL: %bb11(switch-lt): ;; preds = %bb8
+// CHECK-NEXT: %5 = cmpeq %x uint64, 2 uint64
+// CHECK-NEXT: branch %5 bool, label %bb3, label %bb5
+// CHECK-LABEL: %bb12(switch-ge): ;; preds = %bb8
+// CHECK-NEXT: %6 = cmpeq %x uint64, 3 uint64
+// CHECK-NEXT: branch %6 bool, label %bb4, label %bb5
+// CHECK: }
+
+// CHECK-LABEL: func @pick_enum(%c int64) int64 {
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NEXT: %0 = cmplt %c int64, 2 int64
+// CHECK-NEXT: branch %0 bool, label %bb7, label %bb8
+// CHECK-LABEL: %bb1(switch-case): ;; preds = %bb9
+// CHECK-NEXT: ret 30 int64
+// CHECK-LABEL: %bb2(switch-case): ;; preds = %bb10
+// CHECK-NEXT: ret 31 int64
+// CHECK-LABEL: %bb3(switch-case): ;; preds = %bb11
+// CHECK-NEXT: ret 32 int64
+// CHECK-LABEL: %bb4(switch-case): ;; preds = %bb12
+// CHECK-NEXT: ret 33 int64
+// CHECK-LABEL: %bb5(switch-end): ;; No preds!
+// CHECK-NEXT: ret void
+// CHECK-LABEL: %bb6(switch-unreachable): ;; preds = %bb9, %bb10, %bb11, %bb12
+// CHECK-NEXT: unreachable
+// CHECK-LABEL: %bb7(switch-lt): ;; preds = %bb0
+// CHECK-NEXT: %1 = cmplt %c int64, 1 int64
+// CHECK-NEXT: branch %1 bool, label %bb9, label %bb10
+// CHECK-LABEL: %bb8(switch-ge): ;; preds = %bb0
+// CHECK-NEXT: %2 = cmplt %c int64, 3 int64
+// CHECK-NEXT: branch %2 bool, label %bb11, label %bb12
+// CHECK-LABEL: %bb9(switch-lt): ;; preds = %bb7
+// CHECK-NEXT: %3 = cmpeq %c int64, 0 int64
+// CHECK-NEXT: branch %3 bool, label %bb1, label %bb6
+// CHECK-LABEL: %bb10(switch-ge): ;; preds = %bb7
+// CHECK-NEXT: %4 = cmpeq %c int64, 1 int64
+// CHECK-NEXT: branch %4 bool, label %bb2, label %bb6
+// CHECK-LABEL: %bb11(switch-lt): ;; preds = %bb8
+// CHECK-NEXT: %5 = cmpeq %c int64, 2 int64
+// CHECK-NEXT: branch %5 bool, label %bb3, label %bb6
+// CHECK-LABEL: %bb12(switch-ge): ;; preds = %bb8
+// CHECK-NEXT: %6 = cmpeq %c int64, 3 int64
+// CHECK-NEXT: branch %6 bool, label %bb4, label %bb6
+// CHECK: }
+
+// ===== lir stage (after isel): navigation fuses to jmp_*_lt_imm; int/enum leaves to jmp_int_eq_imm =====
+// CHECK-LABEL: --- IR Dump After isel [@pick_int] ---
+// CHECK-NEXT: func @pick_int(%x int64) int64 {
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NEXT: jmp_int_lt_imm %x int64, 2 int64, label %bb6, label %bb7
+// CHECK-LABEL: %bb1(switch-case): ;; preds = %bb8
+// CHECK-NEXT: ret_int_imm 10 int64
+// CHECK-LABEL: %bb2(switch-case): ;; preds = %bb9
+// CHECK-NEXT: ret_int_imm 11 int64
+// CHECK-LABEL: %bb3(switch-case): ;; preds = %bb10
+// CHECK-NEXT: ret_int_imm 12 int64
+// CHECK-LABEL: %bb4(switch-case): ;; preds = %bb11
+// CHECK-NEXT: ret_int_imm 13 int64
+// CHECK-LABEL: %bb5(switch-case): ;; preds = %bb8, %bb9, %bb10, %bb11
+// CHECK-NEXT: ret_int_imm -1 int64
+// CHECK-LABEL: %bb6(switch-lt): ;; preds = %bb0
+// CHECK-NEXT: jmp_int_lt_imm %x int64, 1 int64, label %bb8, label %bb9
+// CHECK-LABEL: %bb7(switch-ge): ;; preds = %bb0
+// CHECK-NEXT: jmp_int_lt_imm %x int64, 3 int64, label %bb10, label %bb11
+// CHECK-LABEL: %bb8(switch-lt): ;; preds = %bb6
+// CHECK-NEXT: jmp_int_eq_imm %x int64, 0 int64, label %bb1, label %bb5
+// CHECK-LABEL: %bb9(switch-ge): ;; preds = %bb6
+// CHECK-NEXT: jmp_int_eq_imm %x int64, 1 int64, label %bb2, label %bb5
+// CHECK-LABEL: %bb10(switch-lt): ;; preds = %bb7
+// CHECK-NEXT: jmp_int_eq_imm %x int64, 2 int64, label %bb3, label %bb5
+// CHECK-LABEL: %bb11(switch-ge): ;; preds = %bb7
+// CHECK-NEXT: jmp_int_eq_imm %x int64, 3 int64, label %bb4, label %bb5
+// CHECK: }
+
+// CHECK-LABEL: --- IR Dump After isel [@pick_uint] ---
+// CHECK-NEXT: func @pick_uint(%x uint64) int64 {
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NEXT: jmp_uint_lt_imm %x uint64, 2 uint64, label %bb6, label %bb7
+// CHECK-LABEL: %bb1(switch-case): ;; preds = %bb8
+// CHECK-NEXT: ret_int_imm 20 int64
+// CHECK-LABEL: %bb2(switch-case): ;; preds = %bb9
+// CHECK-NEXT: ret_int_imm 21 int64
+// CHECK-LABEL: %bb3(switch-case): ;; preds = %bb10
+// CHECK-NEXT: ret_int_imm 22 int64
+// CHECK-LABEL: %bb4(switch-case): ;; preds = %bb11
+// CHECK-NEXT: ret_int_imm 23 int64
+// CHECK-LABEL: %bb5(switch-case): ;; preds = %bb8, %bb9, %bb10, %bb11
+// CHECK-NEXT: ret_int_imm -1 int64
+// CHECK-LABEL: %bb6(switch-lt): ;; preds = %bb0
+// CHECK-NEXT: jmp_uint_lt_imm %x uint64, 1 uint64, label %bb8, label %bb9
+// CHECK-LABEL: %bb7(switch-ge): ;; preds = %bb0
+// CHECK-NEXT: jmp_uint_lt_imm %x uint64, 3 uint64, label %bb10, label %bb11
+// CHECK-LABEL: %bb8(switch-lt): ;; preds = %bb6
+// CHECK-NEXT: %3 = uint.eq_imm %x uint64, 0 uint64
+// CHECK-NEXT: branch %3 bool, label %bb1, label %bb5
+// CHECK-LABEL: %bb9(switch-ge): ;; preds = %bb6
+// CHECK-NEXT: %4 = uint.eq_imm %x uint64, 1 uint64
+// CHECK-NEXT: branch %4 bool, label %bb2, label %bb5
+// CHECK-LABEL: %bb10(switch-lt): ;; preds = %bb7
+// CHECK-NEXT: %5 = uint.eq_imm %x uint64, 2 uint64
+// CHECK-NEXT: branch %5 bool, label %bb3, label %bb5
+// CHECK-LABEL: %bb11(switch-ge): ;; preds = %bb7
+// CHECK-NEXT: %6 = uint.eq_imm %x uint64, 3 uint64
+// CHECK-NEXT: branch %6 bool, label %bb4, label %bb5
+// CHECK: }
+
+// CHECK-LABEL: --- IR Dump After isel [@pick_enum] ---
+// CHECK-NEXT: func @pick_enum(%c int64) int64 {
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NEXT: jmp_int_lt_imm %c int64, 2 int64, label %bb6, label %bb7
+// CHECK-LABEL: %bb1(switch-case): ;; preds = %bb8
+// CHECK-NEXT: ret_int_imm 30 int64
+// CHECK-LABEL: %bb2(switch-case): ;; preds = %bb9
+// CHECK-NEXT: ret_int_imm 31 int64
+// CHECK-LABEL: %bb3(switch-case): ;; preds = %bb10
+// CHECK-NEXT: ret_int_imm 32 int64
+// CHECK-LABEL: %bb4(switch-case): ;; preds = %bb11
+// CHECK-NEXT: ret_int_imm 33 int64
+// CHECK-LABEL: %bb5(switch-unreachable): ;; preds = %bb8, %bb9, %bb10, %bb11
+// CHECK-NEXT: unreachable
+// CHECK-LABEL: %bb6(switch-lt): ;; preds = %bb0
+// CHECK-NEXT: jmp_int_lt_imm %c int64, 1 int64, label %bb8, label %bb9
+// CHECK-LABEL: %bb7(switch-ge): ;; preds = %bb0
+// CHECK-NEXT: jmp_int_lt_imm %c int64, 3 int64, label %bb10, label %bb11
+// CHECK-LABEL: %bb8(switch-lt): ;; preds = %bb6
+// CHECK-NEXT: jmp_int_eq_imm %c int64, 0 int64, label %bb1, label %bb5
+// CHECK-LABEL: %bb9(switch-ge): ;; preds = %bb6
+// CHECK-NEXT: jmp_int_eq_imm %c int64, 1 int64, label %bb2, label %bb5
+// CHECK-LABEL: %bb10(switch-lt): ;; preds = %bb7
+// CHECK-NEXT: jmp_int_eq_imm %c int64, 2 int64, label %bb3, label %bb5
+// CHECK-LABEL: %bb11(switch-ge): ;; preds = %bb7
+// CHECK-NEXT: jmp_int_eq_imm %c int64, 3 int64, label %bb4, label %bb5
+// CHECK: }
+
+// ===== execution results (every branch, hits and misses) =====
+// CHECK: 10 11 12 13 -1 -1
+// CHECK-NEXT: 20 21 22 23 -1
+// CHECK-NEXT: 30 31 32 33

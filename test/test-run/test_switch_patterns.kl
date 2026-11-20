@@ -1,0 +1,67 @@
+// RUN: koala %s | filecheck %s
+
+// switch patterns: 'is T' with auto-narrowing on a union subject (exhaustive, no default),
+// 'in container', break/continue targeting the enclosing loop, and a nested switch.
+
+class Sq {
+    var s int
+    func __init__(s int) { self.s = s }
+    func area() int { return self.s * self.s }
+}
+class Ci {
+    var r int
+    func __init__(r int) { self.r = r }
+    func area() int { return 3 * self.r * self.r }
+}
+
+func shape_area(sh Sq | Ci) int {
+    switch sh {
+        case is Sq: return sh.area()
+        case is Ci: return sh.area()
+    }
+}
+
+func in_tag(x int) int {
+    switch x {
+        case in [1, 2, 3]: return 100
+        case in [10, 20]: return 200
+        case _: return 0
+    }
+}
+
+func loop_sum() int {
+    var sum = 0
+    var i = 0
+    while i < 5 {
+        i = i + 1
+        switch i {
+            case 2: continue
+            case 4: break
+            case _: sum = sum + i
+        }
+    }
+    return sum
+}
+
+func nested(x int, y int) int {
+    switch x {
+        case 1: {
+            switch y {
+                case 1: return 11
+                case _: return 10
+            }
+        }
+        case _: return 0
+    }
+}
+
+func main() {
+    print(shape_area(Sq(3)), shape_area(Ci(2)))
+    // CHECK: 9 12
+    print(in_tag(2), in_tag(20), in_tag(7))
+    // CHECK: 100 200 0
+    print(loop_sum())
+    // CHECK: 4
+    print(nested(1, 1), nested(1, 9), nested(9, 1))
+    // CHECK: 11 10 0
+}

@@ -4674,6 +4674,95 @@ static void parse_in(ParserState *ps, Expr *exp)
     log_info("'in' operator resolved.");
 }
 
+/*
+ * Resolve a `case is T` pattern against an already-resolved subject, reusing the 'is'
+ * operator checks. Takes ownership of pat->type (the raw grammar type): resolve_type
+ * consumes it on success, and it is freed here on failure. On success pat->target_ts /
+ * target_sym / result are filled. Returns 1 on success.
+ */
+int parser_resolve_is_pattern(ParserState *ps, Expr *subject, CasePattern *pat)
+{
+    Loc loc = pat->loc;
+    TypeSpec *src_ts = subject->ts;
+
+    if (!check_is_src_type(src_ts)) {
+        kl_error(loc, "src of 'is' operator is not a valid type.");
+        return 0;
+    }
+
+    TypeSpec *raw = pat->type;
+    TypeSpec *target_ts = resolve_type(ps, raw);
+    /* ownership transferred: resolve_type freed 'raw' iff it returned non-NULL */
+    pat->type = NULL;
+    if (!target_ts) {
+        type_spec_free(raw);
+        kl_error(loc, "type is not found.");
+        return 0;
+    }
+
+    if (!validate_cast_target(ps, loc, "is", target_ts)) return 0;
+    if (!validate_union_target(ps, loc, src_ts, target_ts)) return 0;
+
+    IsAsResult result = resolve_cast_check(subject, src_ts, target_ts, ps);
+    warn_static_cast(ps, loc, "is", result, src_ts, target_ts);
+
+    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
+    if (!target_sym) {
+        kl_error(loc, "type is not found.");
+        return 0;
+    }
+
+    pat->target_ts = target_ts;
+    pat->target_sym = target_sym;
+    pat->result = result;
+    return 1;
+}
+
+/*
+ * Resolve a `case in container` pattern: the container must support '__contains__'
+ * accepting the subject's type. 'elem' (the subject) is already resolved. The container
+ * is visited here. Returns 1 on success.
+ */
+int parser_check_contains_pattern(ParserState *ps, Expr *elem, Expr *container, Loc loc)
+{
+    container->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, container);
+    if (!container->ts) return 0;
+
+    Symbol *container_ts_sym = get_symbol_by_id(container->ts->sym_id);
+    if (!container_ts_sym) {
+        kl_error(loc, "type is not found.");
+        return 0;
+    }
+
+    Symbol *fn = NULL;
+    if (container_ts_sym->kind == SYM_INSTANCE) {
+        fn = get_instance_method((InstanceSymbol *)container_ts_sym, "__contains__", ps);
+    } else if (container_ts_sym->kind == SYM_CLASS || container_ts_sym->kind == SYM_TRAIT) {
+        fn = stbl_get(container_ts_sym->stbl, "__contains__");
+    }
+
+    if (!fn) {
+        kl_error(loc, "type '%s' does not support '__contains__' method.", container_ts_sym->name);
+        return 0;
+    }
+    if (fn->kind != SYM_FUNC) {
+        kl_error(loc, "'__contains__' is not a function.");
+        return 0;
+    }
+
+    int errs = ps->errors;
+    Vector *params = ((FuncSymbol *)fn)->params;
+    Vector _args;
+    vector_init_ptr(&_args);
+    vector_push_back(&_args, &elem);
+    check_call_args(params, &_args, ps, loc);
+    vector_fini(&_args);
+    if (ps->errors > errs) return 0;
+
+    return 1;
+}
+
 static void parse_const_placeholder(ParserState *ps, Expr *exp)
 {
     ConstPlaceholderExpr *cp = (ConstPlaceholderExpr *)exp;

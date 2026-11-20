@@ -3221,6 +3221,368 @@ static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = while_end;
 }
 
+/* Ensure the IR container of an `is T` target class exists (local or external), mirroring
+ * emit_ir_type. An instance target uses its origin class. */
+static KlrValue *switch_target_klass_ir(ParserState *ps, Symbol *sym)
+{
+    if (sym->kind == SYM_INSTANCE) sym = ((InstanceSymbol *)sym)->origin;
+    if (!sym->ir_val) {
+        KlassSymbol *kls = (KlassSymbol *)sym;
+        if (sym->flags & SYM_FLAGS_EXT) {
+            Symbol *parent = sym->parent;
+            sym->ir_val = klr_add_ext_klass(MOD, parent->name, kls->instance_ts, sym->name);
+        } else {
+            sym->ir_val = klr_add_klass(MOD, kls->instance_ts, sym->name);
+        }
+    }
+    return sym->ir_val;
+}
+
+/* `subject <op> pattern` for a value case. Like emit_ir_binary, integer/float operands of
+ * different widths are widened to a common type before the compare; an enum subject compares
+ * against its int64 member value directly (the enum is gone in the IR). */
+static KlrValue *switch_cmp(KlrBuilder *bldr, KlrValue *subj, KlrValue *patval, OpCode op)
+{
+    TypeSpec *a = subj->ts;
+    TypeSpec *b = patval->ts;
+    KlrValue *lv = subj;
+    KlrValue *rv = patval;
+
+    if (a != b && !type_is_enum(a)) {
+        TypeSpec *common = NULL;
+        if (type_is_int(a) && type_is_int(b)) {
+            common = int64_type_spec();
+        } else if (type_is_uint(a) && type_is_uint(b)) {
+            common = uint64_type_spec();
+        } else if (type_is_float(a) && type_is_float(b)) {
+            common = float64_type_spec();
+        }
+        if (common) {
+            if (lv->ts != common) lv = klr_build_cast(bldr, lv, common, "");
+            if (rv->ts != common) rv = klr_build_cast(bldr, rv, common, "");
+        }
+    }
+
+    return klr_build_cmp(bldr, lv, rv, op, "");
+}
+
+static KlrValue *build_switch_eq(KlrBuilder *bldr, KlrValue *subj, KlrValue *patval)
+{
+    return switch_cmp(bldr, subj, patval, OP_BINARY_EQ);
+}
+
+/* Build the bool test of one case pattern against the already-evaluated subject value. The
+ * pattern's own expression (container / compared value) is emitted into the current block. */
+static KlrValue *build_switch_pattern_test(ParserState *ps, KlrValue *subj, CasePattern *pat)
+{
+    if (pat->kind == CASE_PAT_IS) {
+        if (pat->result == ALWAYS_TRUE) return klr_const_bool(1, MOD);
+        if (pat->result == ALWAYS_FALSE) return klr_const_bool(0, MOD);
+
+        KlrValue *kls = switch_target_klass_ir(ps, pat->target_sym);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        KlrValue *v = klr_build_is(&bldr, subj, kls, pat->target_ts, "");
+
+        Symbol *tsym = pat->target_sym;
+        if (tsym->kind == SYM_INSTANCE) tsym = ((InstanceSymbol *)tsym)->origin;
+        KlrInsn *insn = (KlrInsn *)v;
+        insn->target_path = atom(tsym->path);
+        insn->target_name = atom(tsym->name);
+        return v;
+    }
+
+    if (pat->kind == CASE_PAT_IN) {
+        Expr *container = pat->exp;
+        container->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, container);
+        if (!container->ir_val) return NULL;
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        return klr_build_contains(&bldr, container->ir_val, subj, "");
+    }
+
+    /* CASE_PAT_VALUE */
+    Expr *pe = pat->exp;
+    pe->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, pe);
+    if (!pe->ir_val) return NULL;
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    return build_switch_eq(&bldr, subj, pe->ir_val);
+}
+
+/* Where a clause's tests go when none matches: the next clause's test block, the default
+ * clause's body, or the switch end. */
+static KlrBasicBlock *switch_fallthrough(SwitchStmt *s, int i, int n, KlrBasicBlock **body_bb,
+                                         KlrBasicBlock **test_bb, KlrBasicBlock *end_bb)
+{
+    if (i + 1 < n) {
+        CaseClause *nc = vector_get(s->clauses, i + 1);
+        if (nc && nc->is_default) return body_bb[i + 1];
+        return test_bb[i + 1];
+    }
+    return end_bb;
+}
+
+/* Phase 2a: switches whose subject is an integer or enum and whose case labels are all
+ * compile-time constants are dispatched with a balanced binary-search tree instead of a
+ * linear compare chain (O(log n) vs O(n)). Other subjects/patterns keep the chain below. */
+#define SWITCH_BINARY_MIN_KEYS 4
+
+typedef struct _SwitchBinKey {
+    int64_t key;       /* sort key: the constant case value */
+    KlrValue *operand; /* the typed pattern value compared against the subject */
+    int clause;        /* index of the clause whose body a match enters */
+} SwitchBinKey;
+
+static int switch_bin_key_cmp(const void *pa, const void *pb)
+{
+    const SwitchBinKey *a = pa;
+    const SwitchBinKey *b = pb;
+    return (a->key > b->key) - (a->key < b->key);
+}
+
+/* Emit a lower-bound binary-search tree over sorted keys[lo..hi] into block 'bb'. Each
+ * internal node navigates with one 'subject < keys[mid]' compare; a leaf verifies equality.
+ * A match enters the clause body; no match falls through to 'fall_bb' (the default body, or
+ * the switch end / unreachable block). Worst case ceil(log2(m))+1 compares. */
+static void switch_build_bst(ParserState *ps, KlrValue *subj, KlrBasicBlock *bb,
+                             SwitchBinKey *keys, int lo, int hi, KlrBasicBlock **body_bb,
+                             KlrBasicBlock *fall_bb)
+{
+    KlrValue *fn = CURRENT_FUNC;
+    KlrBuilder b;
+    klr_builder_end(&b, bb);
+
+    if (lo > hi) {
+        klr_build_jmp(&b, fall_bb);
+        return;
+    }
+    if (lo == hi) {
+        KlrValue *eq = switch_cmp(&b, subj, keys[lo].operand, OP_BINARY_EQ);
+        klr_build_jmp_cond(&b, eq, body_bb[keys[lo].clause], fall_bb);
+        return;
+    }
+
+    /* upper mid so the '>= keys[mid]' right half stays balanced */
+    int mid = (lo + hi + 1) / 2;
+    KlrValue *lt = switch_cmp(&b, subj, keys[mid].operand, OP_BINARY_LT);
+    KlrBasicBlock *left = klr_append_block(fn, "switch-lt");
+    KlrBasicBlock *right = klr_append_block(fn, "switch-ge");
+    klr_build_jmp_cond(&b, lt, left, right);
+    switch_build_bst(ps, subj, left, keys, lo, mid - 1, body_bb, fall_bb);
+    switch_build_bst(ps, subj, right, keys, mid, hi, body_bb, fall_bb);
+}
+
+/* Try to emit a binary-search dispatch. Returns 1 when eligible and built; 0 leaves the IR
+ * untouched so the caller falls back to the linear compare chain. Eligible: subject is
+ * int/uint/enum, every non-default clause has only constant value patterns, and there are at
+ * least SWITCH_BINARY_MIN_KEYS keys (below that the chain is as cheap). 'fall_bb' is where a
+ * non-matching subject goes: the default clause body, or the switch end / unreachable block. */
+static int switch_emit_binary(ParserState *ps, SwitchStmt *s, KlrValue *subj,
+                              KlrBasicBlock *entry, KlrBasicBlock **body_bb,
+                              KlrBasicBlock *fall_bb, int n)
+{
+    TypeSpec *st = subj->ts;
+    if (!(type_is_int(st) || type_is_uint(st) || type_is_enum(st))) return 0;
+
+    /* eligibility + key count (no IR emitted, so a fallback stays clean) */
+    int m = 0;
+    for (int i = 0; i < n; i++) {
+        CaseClause *clause = vector_get(s->clauses, i);
+        if (!clause || clause->is_default) continue;
+        int np = vector_size(clause->patterns);
+        for (int j = 0; j < np; j++) {
+            CasePattern *pat = vector_get(clause->patterns, j);
+            if (!pat || pat->kind != CASE_PAT_VALUE || !pat->has_const) return 0;
+            m++;
+        }
+    }
+    if (m < SWITCH_BINARY_MIN_KEYS) return 0;
+
+    /* Widen the subject once to the common compare type. An enum stays native: its member
+     * values are int64 and the backend compares them with the generic numeric ops. */
+    TypeSpec *widen = NULL;
+    if (type_is_int(st)) widen = int64_type_spec();
+    else if (type_is_uint(st)) widen = uint64_type_spec();
+    KlrValue *subj_n = subj;
+    if (widen && subj->ts != widen) {
+        KlrBuilder b;
+        klr_builder_end(&b, entry);
+        subj_n = klr_build_cast(&b, subj, widen, "");
+    }
+
+    /* gather the typed key operands (constant labels emit into the entry block) */
+    SwitchBinKey *keys = mm_alloc_fast(m * sizeof(*keys));
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+        CaseClause *clause = vector_get(s->clauses, i);
+        if (!clause || clause->is_default) continue;
+        int np = vector_size(clause->patterns);
+        for (int j = 0; j < np; j++) {
+            CasePattern *pat = vector_get(clause->patterns, j);
+            Expr *pe = pat->exp;
+            pe->ctx = EXPR_CTX_LOAD;
+            ps->scope->bb = entry;
+            emit_ir_visit_expr(ps, pe);
+            KlrValue *operand = pe->ir_val;
+            ASSERT(operand);
+            if (widen && operand->ts != widen) {
+                KlrBuilder b;
+                klr_builder_end(&b, entry);
+                operand = klr_build_cast(&b, operand, widen, "");
+            }
+            keys[k].key = pat->const_val;
+            keys[k].operand = operand;
+            keys[k].clause = i;
+            k++;
+        }
+    }
+    ps->scope->bb = entry;
+
+    qsort(keys, m, sizeof(*keys), switch_bin_key_cmp);
+    switch_build_bst(ps, subj_n, entry, keys, 0, m - 1, body_bb, fall_bb);
+    mm_free(keys);
+    return 1;
+}
+
+/* The linear compare-chain fallback: one test block per clause, multi-pattern clauses chain
+ * their tests, and a non-matching subject falls through to the next clause / default / end. */
+static void switch_emit_chain(ParserState *ps, SwitchStmt *s, KlrValue *subj,
+                              KlrBasicBlock *entry, KlrBasicBlock **body_bb,
+                              KlrBasicBlock *nomatch_bb, int n)
+{
+    KlrValue *fn = CURRENT_FUNC;
+    KlrBasicBlock **test_bb = mm_alloc_fast(n * sizeof(*test_bb));
+    for (int i = 0; i < n; i++) {
+        CaseClause *clause = vector_get(s->clauses, i);
+        test_bb[i] = NULL;
+        if (clause && !clause->is_default) {
+            test_bb[i] = (i == 0) ? entry : klr_append_block(fn, "switch-test");
+        }
+    }
+
+    /* a leading default (the only clause) is entered directly */
+    CaseClause *c0 = vector_get(s->clauses, 0);
+    if (c0 && c0->is_default) {
+        KlrBuilder b;
+        klr_builder_end(&b, entry);
+        klr_build_jmp(&b, body_bb[0]);
+    }
+
+    /* the test chain */
+    for (int i = 0; i < n; i++) {
+        CaseClause *clause = vector_get(s->clauses, i);
+        if (!clause || clause->is_default) continue;
+
+        KlrBasicBlock *cur = test_bb[i];
+        int np = vector_size(clause->patterns);
+        for (int j = 0; j < np; j++) {
+            CasePattern *pat = vector_get(clause->patterns, j);
+            if (!pat) continue;
+
+            ps->scope->bb = cur;
+            KlrValue *test = build_switch_pattern_test(ps, subj, pat);
+            /* emitting the pattern expression may have moved the current block */
+            cur = ps->scope->bb;
+            if (!test) continue;
+
+            KlrBuilder b;
+            klr_builder_end(&b, cur);
+            if (j == np - 1) {
+                KlrBasicBlock *next = switch_fallthrough(s, i, n, body_bb, test_bb, nomatch_bb);
+                klr_build_jmp_cond(&b, test, body_bb[i], next);
+            } else {
+                KlrBasicBlock *cont = klr_append_block(fn, "switch-test");
+                klr_build_jmp_cond(&b, test, body_bb[i], cont);
+                cur = cont;
+            }
+        }
+
+        /* a clause whose patterns all failed to emit still needs an exit edge */
+        if (!block_has_terminator(cur)) {
+            KlrBuilder b;
+            klr_builder_end(&b, cur);
+            klr_build_jmp(&b, switch_fallthrough(s, i, n, body_bb, test_bb, nomatch_bb));
+        }
+    }
+    mm_free(test_bb);
+}
+
+/*
+ * Lower a switch to a binary-search tree (integer/enum constant labels, see above) or, for
+ * everything else, a chain of conditional branches:
+ *
+ *   entry:  <subject>; test clause 0 ...
+ *   test_i: jmp_if <match>, body_i, test_{i+1}   (a multi-pattern clause chains its tests)
+ *   body_i: <case body>; jmp end                 (unless it already terminates)
+ *   end:
+ *
+ * The subject is evaluated once in the entry block and reused by every test. 'case _' has no
+ * test: the previous clause falls through to its body.
+ */
+static void emit_ir_switch(ParserState *ps, Stmt *stmt)
+{
+    SwitchStmt *s = (SwitchStmt *)stmt;
+    Expr *subject = s->exp;
+
+    subject->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, subject);
+    if (!subject->ir_val) return;
+    KlrValue *subj = subject->ir_val;
+
+    KlrValue *fn = CURRENT_FUNC;
+    int n = vector_size(s->clauses);
+    if (n == 0) return;
+
+    KlrBasicBlock *entry = ps->scope->bb;
+    KlrBasicBlock **body_bb = mm_alloc_fast(n * sizeof(*body_bb));
+    for (int i = 0; i < n; i++) {
+        body_bb[i] = klr_append_block(fn, "switch-case");
+    }
+    KlrBasicBlock *end_bb = klr_append_block(fn, "switch-end");
+
+    /* When the switch is exhaustive but has no default, the "no match" path is impossible:
+     * end it in 'unreachable' so the join block stays unreachable when every body returns
+     * (otherwise the IR would report a missing return). */
+    CaseClause *last_clause = vector_get(s->clauses, n - 1);
+    int has_default = last_clause && last_clause->is_default;
+    KlrBasicBlock *nomatch_bb = end_bb;
+    if (s->is_exhaustive && !has_default) {
+        nomatch_bb = klr_append_block(fn, "switch-unreachable");
+        KlrBuilder b;
+        klr_builder_end(&b, nomatch_bb);
+        klr_build_unreachable(&b);
+    }
+
+    /* Integer/enum constant switches dispatch via a binary-search tree; a non-matching subject
+     * goes to the default body when present, else the end / unreachable block. Everything else
+     * falls back to the linear compare chain. */
+    KlrBasicBlock *fall_bb = has_default ? body_bb[n - 1] : nomatch_bb;
+    if (!switch_emit_binary(ps, s, subj, entry, body_bb, fall_bb, n)) {
+        switch_emit_chain(ps, s, subj, entry, body_bb, nomatch_bb, n);
+    }
+
+    /* the clause bodies */
+    for (int i = 0; i < n; i++) {
+        CaseClause *clause = vector_get(s->clauses, i);
+        if (!clause) continue;
+        ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, CASE_BLOCK, "case-block");
+        sc->bb = body_bb[i];
+        emit_ir_visit_block(ps, clause->block);
+        if (!block_has_terminator(sc->bb)) {
+            KlrBuilder b;
+            klr_builder_end(&b, sc->bb);
+            klr_build_jmp(&b, end_bb);
+        }
+        exit_scope(ps);
+    }
+
+    ps->scope->bb = end_bb;
+    mm_free(body_bb);
+}
+
 struct RangeInfo {
     KlrValue *start;
     KlrValue *end;
@@ -4356,6 +4718,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_IF_KIND]        = emit_ir_if_stmt,
         [STMT_WHILE_KIND]     = emit_ir_while_stmt,
         [STMT_FOR_KIND]       = emit_ir_for_stmt,
+        [STMT_SWITCH_KIND]    = emit_ir_switch,
         [STMT_IF_LET_KIND]    = emit_ir_if_let_stmt,
         [STMT_WHILE_LET_KIND] = emit_ir_while_let_stmt,
         [STMT_WITH_KIND]      = emit_ir_with_stmt,
