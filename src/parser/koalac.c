@@ -542,6 +542,12 @@ static int compile(ParserModule *pm)
     ParserState *ps;
     vector_foreach(ps, &pm->pss) {
         if (!ps) continue;
+        kl_parse_ast_enum_name(ps);
+        errors += ps->errors;
+    }
+
+    vector_foreach(ps, &pm->pss) {
+        if (!ps) continue;
         kl_parse_ast_klass_meta(ps);
         errors += ps->errors;
     }

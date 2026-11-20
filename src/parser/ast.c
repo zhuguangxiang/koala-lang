@@ -964,12 +964,108 @@ EnumMember *enum_member_new(Ident id, int has_value, int64_t value, Loc value_lo
     return m;
 }
 
+/*
+ * The pub name() function desugared from an enum, built at AST construction time:
+ *   pub func Color$name(v int64) str {
+ *       switch v {
+ *           case 0: return "RED"
+ *           case 5: return "GREEN"
+ *           case _: panic("unreachable: invalid enum value")
+ *       }
+ *   }
+ * It is recorded on the enum stmt and registered as an ordinary top-level function
+ * before semantic analysis, so the switch lowering and the pub klc export need no
+ * special code. An int literal converts to an enum only when it is a declared member
+ * value, so the panic case is a fuse that never fires. Values auto-increment exactly
+ * like the semantic pass computes them; validation stays in the semantic pass.
+ */
+static Stmt *enum_name_func(EnumDeclStmt *e)
+{
+    Loc loc = e->id.loc;
+
+    char name[512];
+    snprintf(name, sizeof(name), "%s$name", e->id.name);
+    IDENT(fn_id, atom(name), loc);
+
+    IDENT(v_id, atom("v"), loc);
+    ParamDecl *param = param_new(loc, v_id, int64_type_spec(), NULL);
+    Vector *params = vector_create_ptr();
+    vector_push_back(params, &param);
+
+    Vector *clauses = vector_create_ptr();
+    int64_t next = 0;
+    EnumMember *m;
+    vector_foreach(m, e->members) {
+        int64_t val = m->has_value ? m->value : next;
+        next = (val == INT64_MAX) ? 0 : val + 1;
+
+        char text[32];
+        snprintf(text, sizeof(text), "%lld", (long long)val);
+        Expr *lit = expr_from_lit_int(atom(text), 1, 0, (__int128)val);
+        expr_set_loc(lit, m->value_loc);
+        CasePattern *pat = case_pattern_new(CASE_PAT_VALUE, lit, NULL, m->value_loc);
+        Vector *pats = vector_create_ptr();
+        vector_push_back(pats, &pat);
+
+        Buffer strbuf = { 0, (int)strlen(m->id.name), m->id.name };
+        Expr *str = expr_from_lit_str(&strbuf);
+        expr_set_loc(str, m->id.loc);
+        Stmt *ret = stmt_from_return(str);
+        stmt_set_loc(ret, m->id.loc);
+        Vector *body = vector_create_ptr();
+        vector_push_back(body, &ret);
+
+        CaseClause *clause = case_clause_new(pats, body, m->id.loc);
+        vector_push_back(clauses, &clause);
+    }
+
+    IDENT(panic_id, atom("panic"), loc);
+    Expr *callee = expr_from_ident(&panic_id);
+    expr_set_loc(callee, loc);
+    char *msg = "unreachable: invalid enum value";
+    Buffer msgbuf = { 0, (int)strlen(msg), msg };
+    Expr *arg = expr_from_lit_str(&msgbuf);
+    expr_set_loc(arg, loc);
+    Vector *args = vector_create_ptr();
+    vector_push_back(args, &arg);
+    Expr *panic_call = expr_from_call(callee, args);
+    expr_set_loc(panic_call, loc);
+    Stmt *panic_stmt = stmt_from_expr(panic_call);
+    stmt_set_loc(panic_stmt, loc);
+    Vector *panic_body = vector_create_ptr();
+    vector_push_back(panic_body, &panic_stmt);
+    CasePattern *wild = case_pattern_new(CASE_PAT_WILD, NULL, NULL, loc);
+    Vector *wild_pats = vector_create_ptr();
+    vector_push_back(wild_pats, &wild);
+    CaseClause *dfl = case_clause_new(wild_pats, panic_body, loc);
+    vector_push_back(clauses, &dfl);
+
+    IDENT(subject_id, atom("v"), loc);
+    Expr *subject = expr_from_ident(&subject_id);
+    expr_set_loc(subject, loc);
+    Stmt *sw = stmt_from_switch(subject, clauses);
+    stmt_set_loc(sw, loc);
+    Vector *fn_body = vector_create_ptr();
+    vector_push_back(fn_body, &sw);
+
+    Stmt *fn = stmt_from_func_decl(fn_id, params, str_type_spec(), NULL);
+    stmt_set_loc(fn, loc);
+    ((FuncDeclStmt *)fn)->body = fn_body;
+    PrefixFlags prefix;
+    memset(&prefix, 0, sizeof(prefix));
+    prefix.pub.flag = 1;
+    prefix.pub.loc = loc;
+    stmt_set_prefix(fn, prefix);
+    return fn;
+}
+
 Stmt *stmt_from_enum(Ident id, Vector *members)
 {
     EnumDeclStmt *s = mm_alloc_obj(s);
     s->kind = STMT_ENUM_KIND;
     s->id = id;
     s->members = members;
+    s->name_func = enum_name_func(s);
     return (Stmt *)s;
 }
 

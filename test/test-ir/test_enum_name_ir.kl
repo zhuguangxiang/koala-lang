@@ -1,0 +1,97 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// RUN: koalac %s --opt --dump=ir | filecheck %s --check-prefix=OPT
+// Every enum desugars at AST construction time into a pub Color$name(v int64) str
+// with a switch body: fewer than four members lower to a compare chain, four or
+// more to a binary-search tree. c.name() and E.MEMBER.name() are ordinary calls,
+// nothing is folded to a string constant.
+
+enum Color { RED, GREEN = 5, BLUE = 10 }
+enum Dir { NORTH, EAST, SOUTH, WEST }
+
+func lit() str {
+    return Color.GREEN.name()
+}
+
+func var_name(c Color) str {
+    return c.name()
+}
+
+func twice(c Color) str {
+    let a = c.name()
+    let b = c.name()
+    return a
+}
+
+func dir_name(d Dir) str {
+    return d.name()
+}
+
+func main() {
+    let c = Color.GREEN
+    print(c.name(), lit(), var_name(c), twice(c), dir_name(Dir.WEST))
+}
+
+// a member receiver is an ordinary call with the folded int64 value
+// CHECK-LABEL: func @lit() str {
+// CHECK: %0 = call @Color$name{{.*}}, 5 int64
+// CHECK: ret %0 str
+
+// a variable receiver is a plain call with the int64 value
+// CHECK-LABEL: func @var_name(%c int64) str {
+// CHECK: %0 = call @Color$name, %c int64
+// CHECK: ret %0 str
+
+// CHECK-LABEL: func @twice(%c int64) str {
+// CHECK: call @Color$name, %c int64
+// CHECK: call @Color$name, %c int64
+
+// CHECK-LABEL: func @dir_name(%d int64) str {
+// CHECK: %0 = call @Dir$name, %d int64
+// CHECK: ret %0 str
+
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK: %c = local [immutable] int64
+// CHECK: move %c int64, 5 int64
+// CHECK: call @Color$name, %c int64
+
+// three members: the switch lowers to a compare chain, each case body returns the
+// name, the default panics (every enum value is a member); the test blocks are
+// dumped after the bodies
+// CHECK-LABEL: func @Color$name(%v int64) str {
+// CHECK: %0 = cmpeq %v int64, 0 int64
+// CHECK: branch %0 bool
+// CHECK: ret 'RED' str
+// CHECK: ret 'GREEN' str
+// CHECK: ret 'BLUE' str
+// CHECK: call @panic [path = 'std/builtin'{{.*}}], 'unreachable: invalid enum value' str
+// CHECK: ret void
+// CHECK: cmpeq %v int64, 5 int64
+// CHECK: cmpeq %v int64, 10 int64
+
+// four members: the switch lowers to a binary-search tree (switch-lt/switch-ge)
+// CHECK-LABEL: func @Dir$name(%v int64) str {
+// CHECK: %0 = cmplt %v int64, 2 int64
+// CHECK: branch %0 bool
+// CHECK: ret 'NORTH' str
+// CHECK: ret 'EAST' str
+// CHECK: ret 'SOUTH' str
+// CHECK: ret 'WEST' str
+// CHECK: call @panic [path = 'std/builtin'{{.*}}], 'unreachable: invalid enum value' str
+// CHECK: cmplt %v int64, 1 int64
+// CHECK: cmplt %v int64, 3 int64
+// CHECK: cmpeq %v int64, 0 int64
+// CHECK: cmpeq %v int64, 3 int64
+
+// desugared once per enum: no second definition anywhere after this point
+// CHECK-NOT: func @Color$name
+// CHECK-NOT: func @Dir$name
+
+// after opt: const-copy-prop propagates the constant into the call argument,
+// but the call itself is kept (no call folding/inlining)
+// OPT-LABEL: func @lit() str {
+// OPT: call @Color$name{{.*}}, 5 int64
+// OPT: ret %{{[0-9]+}} str
+
+// OPT-LABEL: func @Color$name(%v int64) str {
+// OPT: cmpeq %v int64, 0 int64
+// OPT: ret 'RED' str

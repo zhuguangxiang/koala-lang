@@ -1,0 +1,77 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// enum name(): every enum desugars at AST construction time into a pub
+// Color$name(v int64) str with a switch body; c.name() and E.MEMBER.name()
+// are ordinary calls of it (no compile-time string folding).
+
+enum Color { RED, GREEN = 5, BLUE = 10 }
+enum Sign { NEG = -3, ZERO, POS }
+enum One { ONLY = 42 }
+// four members: the switch lowers to a binary-search tree
+enum Dir { NORTH, EAST, SOUTH, WEST }
+
+class Box {
+    pub let c Color
+
+    pub func __init__(_c Color) {
+        c = _c
+    }
+
+    pub func color_name() str {
+        return c.name()
+    }
+}
+
+func pick(c Color) Color {
+    return c
+}
+
+func name_of(c Color) str {
+    return c.name()
+}
+
+func main() {
+    print(Color.RED.name())
+    // CHECK: RED
+
+    let c = Color.GREEN
+    print(c.name())
+    // CHECK: GREEN
+
+    var v Color = Color.BLUE
+    print(v.name())
+    // CHECK: BLUE
+
+    // an int literal assigned to an enum var is a member value, name() follows the value
+    v = 5
+    print(v.name(), name_of(v), pick(Color.BLUE).name())
+    // CHECK: GREEN GREEN BLUE
+
+    // negative and auto-increment values
+    print(Sign.NEG.name(), Sign.ZERO.name(), Sign.POS.name())
+    // CHECK: NEG ZERO POS
+
+    print(One.ONLY.name())
+    // CHECK: ONLY
+
+    // a four-member enum dispatches through the binary-search tree
+    print(Dir.NORTH.name(), Dir.EAST.name(), Dir.SOUTH.name(), Dir.WEST.name())
+    // CHECK: NORTH EAST SOUTH WEST
+
+    // the result is a plain str: usable in containers and concatenation
+    let names = [Color.RED.name(), Color.GREEN.name()]
+    print(names[0], names[1], Color.BLUE.name() + "!")
+    // CHECK: RED GREEN BLUE!
+
+    // two enums in one scope: each gets its own hidden function
+    print(c.name(), Sign.POS.name())
+    // CHECK: GREEN POS
+
+    // receiver forms: list element, class field, and a field inside a method
+    let xs = [Color.RED, Color.BLUE]
+    print(xs[0].name(), xs[1].name())
+    // CHECK: RED BLUE
+    let b = Box(Color.GREEN)
+    print(b.c.name(), b.color_name())
+    // CHECK: GREEN GREEN
+}

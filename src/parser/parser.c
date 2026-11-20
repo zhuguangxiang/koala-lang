@@ -1086,7 +1086,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                     ParserState *_ps = sym->ps;
                     if (ps != _ps) {
                         log_info("resolve symbol '%s' in '%s'", kls_sym->name, _ps->filename);
-                        kl_parse_ast(_ps);
+                        parse_klass_meta(_ps, sym->arg);
                     } else {
                         log_info("currently resolving symbol '%s' in '%s'", kls_sym->name,
                                  ps->filename);
@@ -2904,9 +2904,8 @@ static void parse_switch(ParserState *ps, Stmt *stmt)
     }
 
     int supported = type_is_int(st) || type_is_uint(st) || type_is_enum(st) || type_is_bool(st) ||
-                    type_is_str(st) || type_is_float(st) ||
-                    type_is_klass(st) || type_is_any(st) || type_is_union(st) ||
-                    type_is_generic_ref(st);
+                    type_is_str(st) || type_is_float(st) || type_is_klass(st) || type_is_any(st) ||
+                    type_is_union(st) || type_is_generic_ref(st);
     if (!supported) {
         kl_error(subject->loc, "switch subject type '%s' is not supported.", st->signature);
         return;
@@ -2991,7 +2990,7 @@ static void parse_switch(ParserState *ps, Stmt *stmt)
                     }
                 }
                 if (!dup) {
-                    SwitchConst nc = {cv, pe->loc};
+                    SwitchConst nc = { cv, pe->loc };
                     vector_push_back(&consts, &nc);
                 }
             }
@@ -4629,8 +4628,7 @@ static char *mock_target_key(const char *target)
 // second finds the first one's key, so the order the stubs are checked in does not matter.
 // Only stubs that passed every check carry the key in ann_val, so an invalid stub does
 // not claim the target.
-static int check_mock_duplicate(ParserState *ps, FuncSymbol *stub, char *key, char *target,
-                                Loc loc)
+static int check_mock_duplicate(ParserState *ps, FuncSymbol *stub, char *key, char *target, Loc loc)
 {
     HashMapIter it;
     hashmap_iter_init(ps->pm->stbl, &it, 0, 1);
@@ -4738,8 +4736,8 @@ static void check_mock_signature(ParserState *ps, FuncSymbol *stub, FuncDeclStmt
         }
         Symbol *s = stbl_get(recv_kls->stbl, segs[2]);
         if (!s || s->kind != SYM_FUNC) {
-            kl_error(loc, "@mock target '%s': method '%s' not found in class '%s'", target,
-                     segs[2], segs[1]);
+            kl_error(loc, "@mock target '%s': method '%s' not found in class '%s'", target, segs[2],
+                     segs[1]);
             mm_free(buf);
             return;
         }
@@ -4756,13 +4754,12 @@ static void check_mock_signature(ParserState *ps, FuncSymbol *stub, FuncDeclStmt
     // canonical target: the package's full path, whatever it is imported as here.
     // The stub claims the target (ann_val rewritten to the key) only after every check
     // passes, so an invalid stub does not mask the signature errors of later stubs.
-    char *key = nseg == 2 ? mock_key(pkg->path, segs[1], NULL)
-                          : mock_key(pkg->path, segs[1], segs[2]);
+    char *key =
+        nseg == 2 ? mock_key(pkg->path, segs[1], NULL) : mock_key(pkg->path, segs[1], segs[2]);
     mm_free(buf);
 
     if (!type_spec_equal_exact(stub->ret, tgt->ret)) {
-        kl_error(loc, "@mock stub '%s' return type does not match target '%s'", stub->name,
-                 target);
+        kl_error(loc, "@mock stub '%s' return type does not match target '%s'", stub->name, target);
         mm_free(key);
         return;
     }
@@ -5056,6 +5053,34 @@ static void parse_klass_field_meta(ParserState *ps, KlassDeclStmt *kls)
         if (stmt->kind == STMT_VAR_KIND) {
             VarDeclStmt *var = (VarDeclStmt *)stmt;
             if (var->sym) parse_var_decl(ps, stmt);
+        }
+    }
+
+    exit_scope(ps);
+}
+
+/* register the pub name() function desugared from an enum (ast.c stmt_from_enum):
+   same registration as a parsed top-level function, without the top-stmt dispatch */
+static void parse_enum_name_func(ParserState *ps, Stmt *stmt)
+{
+    FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+    Symbol *sym = _add_func(ps, ps->pm->stbl, fn, 1);
+    if (!sym) return;
+    vector_push_back(&ps->fn_stmts, &stmt);
+    vector_push_back(&ps->stmts, &stmt);
+    sym->ps = ps;
+    sym->arg = fn;
+}
+
+void kl_parse_ast_enum_name(ParserState *ps)
+{
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+
+    Stmt *stmt;
+    vector_foreach(stmt, &ps->stmts) {
+        if (stmt && stmt->kind == STMT_ENUM_KIND) {
+            parse_enum_name_func(ps, ((EnumDeclStmt *)stmt)->name_func);
         }
     }
 

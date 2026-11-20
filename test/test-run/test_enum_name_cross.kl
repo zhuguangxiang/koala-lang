@@ -1,0 +1,38 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// name() on an imported enum: the desugared pub Proto$name function is exported
+// by the defining package's klc and called here as an ordinary external function,
+// through plain, alias and selective 'from' imports alike.
+// Proto.TCP/MAX sit at the int64 upper edge (9223372036854775806/9223372036854775807).
+
+import "test_pkg/enum_cross"
+import "test_pkg/enum_cross" as ec
+from "test_pkg/enum_cross" import Proto
+
+func main() {
+    print(enum_cross.Proto.ICMP.name())
+    // CHECK: ICMP
+
+    let p enum_cross.Proto = enum_cross.Proto.TCP
+    print(p.name())
+    // CHECK: TCP
+
+    print(enum_cross.echo(enum_cross.Proto.MAX).name())
+    // CHECK: MAX
+
+    var v enum_cross.Proto = enum_cross.Proto.ICMP
+    v = enum_cross.Proto.MAX
+    print(v.name())
+    // CHECK: MAX
+
+    // the exported function is found through an alias import too
+    print(ec.Proto.TCP.name())
+    // CHECK: TCP
+
+    // and through a selective 'from' import
+    print(Proto.MAX.name())
+    // CHECK: MAX
+    let q Proto = Proto.ICMP
+    print(q.name())
+    // CHECK: ICMP
+}

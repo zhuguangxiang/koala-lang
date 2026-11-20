@@ -808,6 +808,8 @@ typedef struct _EnumDeclStmt {
     Ident id;
     // Vector<EnumMember *>, in declaration order
     Vector *members;
+    // desugared pub func E$name(v int64) str, registered before semantic analysis
+    Stmt *name_func;
 } EnumDeclStmt;
 
 Stmt *stmt_from_enum(Ident id, Vector *members);

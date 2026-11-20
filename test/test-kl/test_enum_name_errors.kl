@@ -1,0 +1,34 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// name() is the only method on an enum value: 0 arguments, call-only, normal dot.
+
+enum Color { RED, GREEN = 5 }
+
+func main() {
+    let c = Color.RED
+
+    print(c.name(1))
+    // CHECK: too many arguments in function call
+
+    let f = c.name
+    // CHECK: enum method 'name' can only be called
+
+    c.name = "x"
+    // CHECK: enum method 'name' can only be called
+
+    print(Color.name())
+    // CHECK: enum 'Color' has no member 'name'
+
+    print(c.other())
+    // CHECK: enum 'Color' has no members
+
+    print(c!.name())
+    // CHECK: enum member can't use `!.` or `?.`
+
+    let o Color? = Color.RED
+    print(o!.name())
+    // CHECK: 'name' is not found in 'Color'
+
+    let i = 5
+    print(i.name())
+    // CHECK: 'name' is not found in class 'int64'
+}

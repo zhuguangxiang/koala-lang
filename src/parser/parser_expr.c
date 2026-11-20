@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "atom.h"
 #include "log.h"
 #include "parser.h"
 #include "utf8.h"
@@ -2843,6 +2844,61 @@ static void copy_tps(Vector *dst, Vector *src)
     }
 }
 
+/*
+ * `c.name()` rewrites to a call of the desugared `pub func Color$name(v int64) str`
+ * built at AST construction time (ast.c enum_name_func) and registered before the
+ * semantic passes. The function is ordinary code: exported by klc when pub, so an
+ * imported enum finds it in its package's symbol table. The '$' name cannot clash
+ * with a member: member names are upper case.
+ */
+static void parse_enum_name(ParserState *ps, DotExpr *dot, EnumSymbol *esym)
+{
+    Expr *exp = (Expr *)dot;
+    if (dot->opt_or_bang != DOT_NORMAL) {
+        kl_error(dot->id.loc, "enum member can't use `!.` or `?.`");
+        return;
+    }
+    if (exp->ctx != EXPR_CTX_CALL) {
+        kl_error(dot->id.loc, "enum method 'name' can only be called, e.g. 'c.name()'");
+        return;
+    }
+
+    char buf[512];
+    snprintf(buf, sizeof(buf), "%s$name", esym->name);
+    /* an imported enum belongs to its package (read_klc sets the parent), so the
+     * function is found there regardless of how the package was imported (alias,
+     * selective 'from' import); a local enum resolves in the current module */
+    Symbol *fn = NULL;
+    Symbol *parent = esym->parent;
+    if (parent && parent->kind == SYM_PACKAGE) {
+        fn = stbl_get(parent->stbl, atom(buf));
+    } else {
+        fn = find_ext_symbol(ps, esym->path, atom(buf));
+    }
+    if (!fn || fn->kind != SYM_FUNC) {
+        kl_error(dot->id.loc, "'name' is not found in enum '%s'", esym->name);
+        return;
+    }
+
+    /* c.name() -> Color$name(c): the receiver becomes the first argument and the
+     * callee a plain function ident, so everything downstream is ordinary call code */
+    CallExpr *call = (CallExpr *)exp->arg;
+    Expr *recv = dot->lhs;
+    if (!call->args) call->args = vector_create_ptr();
+    vector_push_front(call->args, &recv);
+
+    IDENT(id, fn->name, dot->id.loc);
+    Expr *callee = expr_from_ident(&id);
+    expr_set_loc(callee, exp->loc);
+    callee->sym = fn;
+    callee->ts = fn->ts;
+    call->lhs = callee;
+
+    /* parse_call keeps its own pointer to the dot: give it the function symbol too */
+    exp->sym = fn;
+    exp->ts = fn->ts;
+}
+
 static void parse_enum_member(ParserState *ps, DotExpr *dot, EnumSymbol *enum_sym)
 {
     Expr *exp = (Expr *)dot;
@@ -2896,11 +2952,18 @@ static void parse_dot_inner(ParserState *ps, Expr *exp)
     if (!lhs->ts) return;
 
     if (lhs->sym && lhs->sym->kind == SYM_ENUM) {
-        parse_enum_member(ps, dot, (EnumSymbol *)lhs->sym);
+        if (str_equal(dot->id.name, "name"))
+            parse_enum_name(ps, dot, (EnumSymbol *)lhs->sym);
+        else
+            parse_enum_member(ps, dot, (EnumSymbol *)lhs->sym);
         return;
     }
 
     if (type_is_enum(lhs->ts)) {
+        if (str_equal(dot->id.name, "name")) {
+            parse_enum_name(ps, dot, (EnumSymbol *)get_symbol_by_id(lhs->ts->sym_id));
+            return;
+        }
         kl_error(lhs->loc, "enum '%s' has no members.",
                  ((Symbol *)get_symbol_by_id(lhs->ts->sym_id))->name);
         return;
