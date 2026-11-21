@@ -4,6 +4,7 @@
  */
 
 import "std/ut"
+import "std/time"
 import "koala/json"
 import "koala/ui"
 
@@ -602,4 +603,449 @@ func test_slider_rebind_before_add() {
     ut.assert(s.change_handler == nil)
     s.on_change(on_sl)
     ut.assert(s.change_handler != nil)
+}
+
+// ==================== layout containers (U3) ====================
+
+@test
+func test_row_to_json() {
+    let r = ui.Row(ui.Label("a"), ui.Label("b"))
+    let o = json.parse_object(r.to_json().to_json())
+    ut.assert(o.get_str("type") == "row")
+    ut.assert(o.get_int("gap") == 10)
+    ut.assert(o.get_int("padding") == 0)
+    ut.assert(o.get_str("align") == "center")
+    let kids = o.get_array("children")
+    ut.assert(kids.len() == 2)
+    ut.assert(kids.get_object(0).get_str("type") == "label")
+    ut.assert(kids.get_object(0).get_str("text") == "a")
+    ut.assert(kids.get_object(1).get_str("text") == "b")
+}
+
+@test
+func test_column_to_json() {
+    let c = ui.Column()
+    let o = json.parse_object(c.to_json().to_json())
+    ut.assert(o.get_str("type") == "column")
+    ut.assert(o.get_str("align") == "stretch")
+    ut.assert(o.get_array("children").len() == 0)
+}
+
+@test
+func test_nested_container_to_json() {
+    let r = ui.Row(ui.Column(ui.Label("x")))
+    let o = json.parse_object(r.to_json().to_json())
+    let inner = o.get_array("children").get_object(0)
+    ut.assert(inner.get_str("type") == "column")
+    let leaf = inner.get_array("children").get_object(0)
+    ut.assert(leaf.get_str("type") == "label")
+    ut.assert(leaf.get_str("text") == "x")
+}
+
+@test
+func test_container_children_field() {
+    let r = ui.Row(ui.Label("a"), ui.Button("b"))
+    ut.assert(r.children.len() == 2)
+}
+
+@test
+func test_container_id_before_add() {
+    ut.assert(ui.Row().wid() == 0)
+    ut.assert(ui.Column().wid() == 0)
+}
+
+@test
+func test_container_layout_defaults() {
+    let r = ui.Row()
+    ut.assert(r.gap == 10)
+    ut.assert(r.padding == 0)
+    ut.assert(r.align == ui.ALIGN_CENTER)
+    let c = ui.Column()
+    ut.assert(c.align == ui.ALIGN_STRETCH)
+}
+
+@should_panic("ui: widget not added to an app")
+func test_row_set_gap_before_add() {
+    ui.Row().set_gap(20)
+}
+
+@should_panic("ui: widget not added to an app")
+func test_column_set_padding_before_add() {
+    ui.Column().set_padding(8)
+}
+
+@should_panic("ui: widget not added to an app")
+func test_row_set_align_before_add() {
+    ui.Row().set_align(ui.ALIGN_END)
+}
+
+@should_panic("ui: unknown align 'middle'")
+func test_container_set_align_unknown() {
+    ui.Column().set_align("middle")
+}
+
+@test
+func test_encode_set_gap() {
+    let cmd = ui.encode_set(2, "gap", json.Integer(20))
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("prop") == "gap")
+    ut.assert(o.get_int("value") == 20)
+}
+
+@test
+func test_encode_set_align() {
+    let cmd = ui.encode_set(2, "align", json.String("end"))
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("prop") == "align")
+    ut.assert(o.get_str("value") == "end")
+}
+
+// ==================== timers ====================
+
+// Timers are driven by pump_timers (module-level, like dispatch), so they are
+// testable headless with a synthetic instant instead of a real window. The
+// App.every factory and the cancel-removes-from-list path need a window and
+// are covered by the live probe.
+
+var tm_calls = 0
+var tm_kind = ""
+var tm_widget_nil = false
+var tm_value_nil = false
+var tm_state any? = nil
+var tm_other = 0
+var tm_target ui.Timer? = nil
+var tm_base = time.monotonic()
+var tm_list = list[ui.Timer]()
+
+func tm_record(e ui.Event) {
+    tm_calls = tm_calls + 1
+    tm_kind = e.kind
+    tm_widget_nil = (e.widget == nil)
+    tm_value_nil = (e.value == nil)
+    tm_state = e.state
+}
+
+func tm_other_fn(e ui.Event) {
+    tm_other = tm_other + 1
+}
+
+func tm_cancel_target(e ui.Event) {
+    tm_calls = tm_calls + 1
+    if let t = tm_target {
+        t.cancel()
+    }
+}
+
+func tm_add_another(e ui.Event) {
+    tm_calls = tm_calls + 1
+    tm_list.append(make_timer(tm_base, 100, tm_other_fn))
+}
+
+// A timer with a controlled deadline `base + ms` (app nil: no window needed).
+func make_timer(base time.Instant, ms int, fn func(ui.Event)) ui.Timer {
+    let t = ui.Timer(nil, time.Duration.from_millis(ms), fn)
+    t.next = base + time.Duration.from_millis(ms)
+    return t
+}
+
+func tm_reset() {
+    tm_calls = 0
+    tm_other = 0
+    tm_kind = ""
+    tm_widget_nil = false
+    tm_value_nil = false
+    tm_state = nil
+    tm_target = nil
+}
+
+@test
+func test_timer_not_due_yet() {
+    tm_reset()
+    let base = time.monotonic()
+    let timers = list[ui.Timer]()
+    timers.append(make_timer(base, 100, tm_record))
+    ui.pump_timers(timers, base + time.Duration.from_millis(99), nil, nil)
+    ut.assert(tm_calls == 0)
+}
+
+@test
+func test_timer_fires_when_due() {
+    tm_reset()
+    let base = time.monotonic()
+    let timers = list[ui.Timer]()
+    timers.append(make_timer(base, 100, tm_record))
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 1)
+    ut.assert(tm_kind == "timer")
+    ut.assert(tm_widget_nil)
+    ut.assert(tm_value_nil)
+}
+
+@test
+func test_timer_reschedules() {
+    tm_reset()
+    let base = time.monotonic()
+    let t = make_timer(base, 100, tm_record)
+    let timers = list[ui.Timer]()
+    timers.append(t)
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 1)
+    ut.assert(t.next == base + time.Duration.from_millis(200))
+    ui.pump_timers(timers, base + time.Duration.from_millis(200), nil, nil)
+    ut.assert(tm_calls == 2)
+}
+
+@test
+func test_timer_mixed_due_and_not_due() {
+    tm_reset()
+    let base = time.monotonic()
+    let timers = list[ui.Timer]()
+    timers.append(make_timer(base, 100, tm_record))
+    timers.append(make_timer(base, 500, tm_other_fn))
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 1)
+    ut.assert(tm_other == 0)
+}
+
+@test
+func test_timer_cancel_stops_firing() {
+    tm_reset()
+    let base = time.monotonic()
+    let t = make_timer(base, 100, tm_record)
+    let timers = list[ui.Timer]()
+    timers.append(t)
+    t.cancel()
+    ut.assert(t.cancelled)
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 0)
+}
+
+@test
+func test_timer_cancel_idempotent() {
+    let base = time.monotonic()
+    let t = make_timer(base, 100, tm_record)
+    t.cancel()
+    t.cancel() // must not panic
+    ut.assert(t.cancelled)
+}
+
+@test
+func test_timer_cancelled_skipped_in_list() {
+    tm_reset()
+    let base = time.monotonic()
+    let t = make_timer(base, 100, tm_record)
+    t.cancelled = true // still in the list, but flagged
+    let timers = list[ui.Timer]()
+    timers.append(t)
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 0)
+}
+
+@test
+func test_timer_cancel_during_pump() {
+    tm_reset()
+    let base = time.monotonic()
+    let t1 = make_timer(base, 100, tm_cancel_target)
+    let t2 = make_timer(base, 100, tm_other_fn)
+    tm_target = t2
+    let timers = list[ui.Timer]()
+    timers.append(t1)
+    timers.append(t2)
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 1) // t1 fired
+    ut.assert(tm_other == 0) // t2 cancelled by t1 before it fired
+    ut.assert(t2.cancelled)
+}
+
+@test
+func test_timer_add_during_pump_uses_snapshot() {
+    tm_reset()
+    let base = time.monotonic()
+    tm_base = base
+    tm_list = list[ui.Timer]()
+    tm_list.append(make_timer(base, 100, tm_add_another))
+    // t1 fires and appends a due t2; the snapshot must not fire t2 this pass.
+    ui.pump_timers(tm_list, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_calls == 1)
+    ut.assert(tm_other == 0)
+    ut.assert(tm_list.len() == 2)
+    // next pass: t1 rescheduled (not due), t2 now fires.
+    ui.pump_timers(tm_list, base + time.Duration.from_millis(100), nil, nil)
+    ut.assert(tm_other == 1)
+}
+
+@test
+func test_timer_state_passthrough() {
+    tm_reset()
+    let base = time.monotonic()
+    let timers = list[ui.Timer]()
+    timers.append(make_timer(base, 100, tm_record))
+    ui.pump_timers(timers, base + time.Duration.from_millis(100), nil, "timerstate")
+    ut.assert(tm_calls == 1)
+    var state_ok = false
+    if let v = tm_state {
+        if let s = v as str {
+            state_ok = s == "timerstate"
+        }
+    }
+    ut.assert(state_ok)
+}
+
+@test
+func test_timer_empty_list_noop() {
+    tm_reset()
+    let timers = list[ui.Timer]()
+    ui.pump_timers(timers, time.monotonic(), nil, nil)
+    ut.assert(tm_calls == 0)
+}
+
+// ==================== styles (trait + class) ====================
+
+@test
+func test_text_style_default_payload() {
+    let o = json.parse_object(ui.TextStyle().to_json().to_json())
+    ut.assert(o.get_int("font_size") == 15)
+    ut.assert(o.get_int("font_weight") == 400)
+    ut.assert(o.get_str("color") == "fg")
+    ut.assert(o.get_bool("uppercase") == false)
+    ut.assert(o.get_bool("tabular") == false)
+    ut.assert(o.get_float("letter_spacing") == 0.0)
+}
+
+@test
+func test_text_style_custom_payload() {
+    let s = ui.TextStyle(40, 600, "muted", true, true, 0.04)
+    let o = json.parse_object(s.to_json().to_json())
+    ut.assert(o.get_int("font_size") == 40)
+    ut.assert(o.get_int("font_weight") == 600)
+    ut.assert(o.get_str("color") == "muted")
+    ut.assert(o.get_bool("uppercase") == true)
+    ut.assert(o.get_bool("tabular") == true)
+    ut.assert(o.get_float("letter_spacing") == 0.04)
+}
+
+@test
+func test_box_style_default_payload() {
+    let o = json.parse_object(ui.BoxStyle().to_json().to_json())
+    ut.assert(o.get_str("background") == "card")
+    ut.assert(o.get_bool("border") == true)
+    ut.assert(o.get_int("radius") == 12)
+    ut.assert(o.get_int("padding") == 22)
+    ut.assert(o.get_bool("flex") == true)
+    ut.assert(o.get_int("min_width") == 220)
+}
+
+@test
+func test_box_style_custom_payload() {
+    let s = ui.BoxStyle("transparent", false, 8, 10, false, 100)
+    let o = json.parse_object(s.to_json().to_json())
+    ut.assert(o.get_str("background") == "transparent")
+    ut.assert(o.get_bool("border") == false)
+    ut.assert(o.get_int("radius") == 8)
+    ut.assert(o.get_int("padding") == 10)
+    ut.assert(o.get_bool("flex") == false)
+    ut.assert(o.get_int("min_width") == 100)
+}
+
+@test
+func test_button_style_default_payload() {
+    let o = json.parse_object(ui.ButtonStyle().to_json().to_json())
+    ut.assert(o.get_str("background") == "btn-bg")
+    ut.assert(o.get_str("color") == "btn-fg")
+    ut.assert(o.get_bool("border") == false)
+    ut.assert(o.get_int("radius") == 6)
+}
+
+@test
+func test_button_style_custom_payload() {
+    let s = ui.ButtonStyle("transparent", "fg", true, 8)
+    let o = json.parse_object(s.to_json().to_json())
+    ut.assert(o.get_str("background") == "transparent")
+    ut.assert(o.get_str("color") == "fg")
+    ut.assert(o.get_bool("border") == true)
+    ut.assert(o.get_int("radius") == 8)
+}
+
+@test
+func test_display_text_preset() {
+    let o = json.parse_object(ui.DisplayText().to_json().to_json())
+    ut.assert(o.get_int("font_size") == 40)
+    ut.assert(o.get_int("font_weight") == 600)
+    ut.assert(o.get_str("color") == "fg")
+    ut.assert(o.get_bool("tabular") == true)
+}
+
+@test
+func test_heading_text_preset() {
+    let o = json.parse_object(ui.HeadingText().to_json().to_json())
+    ut.assert(o.get_int("font_size") == 13)
+    ut.assert(o.get_int("font_weight") == 500)
+    ut.assert(o.get_str("color") == "muted")
+    ut.assert(o.get_bool("uppercase") == true)
+    ut.assert(o.get_float("letter_spacing") == 0.04)
+}
+
+@test
+func test_title_text_preset() {
+    let o = json.parse_object(ui.TitleText().to_json().to_json())
+    ut.assert(o.get_int("font_size") == 18)
+    ut.assert(o.get_int("font_weight") == 600)
+}
+
+@test
+func test_ghost_button_preset() {
+    let o = json.parse_object(ui.GhostButton().to_json().to_json())
+    ut.assert(o.get_str("background") == "transparent")
+    ut.assert(o.get_str("color") == "fg")
+    ut.assert(o.get_bool("border") == true)
+}
+
+@test
+func test_elevated_card_preset() {
+    let o = json.parse_object(ui.ElevatedCard().to_json().to_json())
+    ut.assert(o.get_str("background") == "card")
+    ut.assert(o.get_bool("border") == true)
+    ut.assert(o.get_int("radius") == 12)
+    ut.assert(o.get_int("padding") == 22)
+    ut.assert(o.get_bool("flex") == true)
+    ut.assert(o.get_int("min_width") == 220)
+}
+
+@test
+func test_outlined_card_preset() {
+    let o = json.parse_object(ui.OutlinedCard().to_json().to_json())
+    ut.assert(o.get_str("background") == "transparent")
+    ut.assert(o.get_bool("border") == true)
+}
+
+@test
+func test_style_trait_conformance() {
+    let s ui.Style = ui.GhostButton()
+    let o = json.parse_object(s.to_json().to_json())
+    ut.assert(o.get_str("background") == "transparent")
+}
+
+@should_panic("ui: unknown color role 'bogus'")
+func test_text_style_bad_role() {
+    ui.TextStyle(15, 400, "bogus")
+}
+
+@should_panic("ui: unknown color role 'bogus'")
+func test_box_style_bad_role() {
+    ui.BoxStyle("bogus")
+}
+
+@should_panic("ui: unknown color role 'bogus'")
+func test_button_style_bad_role() {
+    ui.ButtonStyle("btn-bg", "bogus")
+}
+
+@test
+func test_encode_set_style() {
+    let cmd = ui.encode_set(2, "style", ui.DisplayText().to_json())
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("cmd") == "set")
+    ut.assert(o.get_int("id") == 2)
+    ut.assert(o.get_str("prop") == "style")
+    ut.assert(o.get_object("value").get_int("font_size") == 40)
 }

@@ -1,0 +1,173 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+// Flex-box layout containers. Row lays children out horizontally, Column
+// vertically; both nest freely. gap/padding/align map to CSS flex
+// properties on the container element. Children are widgets like any
+// other: App.add registers the whole subtree, so nested interactive
+// widgets dispatch events normally.
+
+/// A horizontal flex container. `align` controls vertical alignment of
+/// the children (cross axis); the default is center.
+pub class Row : Widget {
+    pub var children = list[Widget]()
+    pub var gap int = 10
+    pub var padding int = 0
+    pub var align str = ALIGN_CENTER
+    pub var app App? = nil
+    pub var id int = 0
+
+    pub func __init__(children ...Widget) {
+        for c in children {
+            self.children.append(c)
+        }
+    }
+
+    pub func wid() int = id
+
+    /// Append a child. Before the container is added it joins the mount
+    /// tree; after `run` it is appended live. Panics if already added.
+    pub func add(w Widget) Widget {
+        return container_add(app, id, children, w)
+    }
+
+    /// Set the gap between children in pixels.
+    pub func set_gap(px int) {
+        gap = px
+        set_prop(app, id, "gap", json.Integer(px))
+    }
+
+    /// Set the inner padding in pixels.
+    pub func set_padding(px int) {
+        padding = px
+        set_prop(app, id, "padding", json.Integer(px))
+    }
+
+    /// Set cross-axis alignment: `ui.ALIGN_START/CENTER/END/STRETCH`.
+    /// Panics on any other value.
+    pub func set_align(name str) {
+        check_align(name)
+        align = name
+        set_prop(app, id, "align", json.String(name))
+    }
+
+    pub func to_json() json.Value {
+        return container_json("row", id, children, gap, padding, align)
+    }
+
+    pub func attach(app App, id int) {
+        self.app = app
+        self.id = id
+        attach_children(app, children)
+    }
+
+    pub func handle(e Event) {}
+}
+
+/// A vertical flex container. `align` controls horizontal alignment of
+/// the children (cross axis); the default is stretch.
+pub class Column : Widget {
+    pub var children = list[Widget]()
+    pub var gap int = 10
+    pub var padding int = 0
+    pub var align str = ALIGN_STRETCH
+    pub var app App? = nil
+    pub var id int = 0
+
+    pub func __init__(children ...Widget) {
+        for c in children {
+            self.children.append(c)
+        }
+    }
+
+    pub func wid() int = id
+
+    /// Append a child. Before the container is added it joins the mount
+    /// tree; after `run` it is appended live. Panics if already added.
+    pub func add(w Widget) Widget {
+        return container_add(app, id, children, w)
+    }
+
+    /// Set the gap between children in pixels.
+    pub func set_gap(px int) {
+        gap = px
+        set_prop(app, id, "gap", json.Integer(px))
+    }
+
+    /// Set the inner padding in pixels.
+    pub func set_padding(px int) {
+        padding = px
+        set_prop(app, id, "padding", json.Integer(px))
+    }
+
+    /// Set cross-axis alignment: `ui.ALIGN_START/CENTER/END/STRETCH`.
+    /// Panics on any other value.
+    pub func set_align(name str) {
+        check_align(name)
+        align = name
+        set_prop(app, id, "align", json.String(name))
+    }
+
+    pub func to_json() json.Value {
+        return container_json("column", id, children, gap, padding, align)
+    }
+
+    pub func attach(app App, id int) {
+        self.app = app
+        self.id = id
+        attach_children(app, children)
+    }
+
+    pub func handle(e Event) {}
+}
+
+// Validate a cross-axis alignment value shared by Row and Column.
+func check_align(name str) {
+    if name != ALIGN_START && name != ALIGN_CENTER &&
+       name != ALIGN_END && name != ALIGN_STRETCH {
+        panic("ui: unknown align '" + name + "'")
+    }
+}
+
+// Serialize a container node with its layout properties and child tree.
+func container_json(kind str, id int, children list[Widget],
+                    gap int, padding int, align str) json.Value {
+    let o = json.Object()
+    o["id"] = json.Integer(id)
+    o["type"] = json.String(kind)
+    o["gap"] = json.Integer(gap)
+    o["padding"] = json.Integer(padding)
+    o["align"] = json.String(align)
+    let arr = json.Array()
+    for c in children {
+        arr.append(c.to_json())
+    }
+    o["children"] = arr
+    return o
+}
+
+// Bind a container's children to the app, assigning each a fresh id and
+// registering it (recursively, for nested containers).
+func attach_children(app App, children list[Widget]) {
+    for c in children {
+        app.register(c)
+    }
+}
+
+// Shared `add` body: register the child with the app (if bound) and queue
+// a live append when running, then store it in the child list.
+func container_add(app App?, parent_id int, children list[Widget],
+                   w Widget) Widget {
+    if let a = app {
+        a.register(w)
+        if a.running {
+            a.queue_add(parent_id, w.to_json())
+        }
+    }
+    children.append(w)
+    return w
+}

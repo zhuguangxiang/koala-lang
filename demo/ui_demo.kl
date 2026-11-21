@@ -1,0 +1,123 @@
+/*
+ * ui_demo.kl — 用 koala/ui 创建一个原生桌面 app，零 HTML/JS/CSS。
+ *
+ * 运行（任意目录均可，需先构建 koala/ui 及其依赖 koala/webview、koala/json，
+ * 以及 koala/datetime）：
+ *
+ *     ./demo/run_ui_demo.sh
+ *
+ * 它打开一个系统 webview 原生窗口（Linux 上是 WebKitGTK），渲染一个小型
+ * 仪表盘：实时时钟、Koala 驱动的计数按钮、主题切换、全屏切换。关窗即退出。
+ *
+ * 演示的 API：
+ *   App(title, w, h)              创建窗口（内部完成 webview 创建/就绪等待）
+ *   add(w) / Row(...) / Column(...)  挂到根布局；Row 横向、Column 竖向排布
+ *   Label / Button / CheckBox     控件；setter 即入队增量命令，下一帧刷新
+ *   set_style(w, style)           贴样式——样式与控件解耦，控件本身零改动
+ *   every(ms, fn) -> Timer        周期定时器，由 Koala 泵循环驱动（时钟每秒走）
+ *   run()                         阻塞泵循环：mount/分发/刷新，直到关窗
+ *   set_theme / set_fullscreen    主题与全屏（透传 webview）
+ *
+ * 样式（koala/ui Style trait + class，仿 SwiftUI ButtonStyle/Font 模型）：
+ *   预设：TitleText / HeadingText / DisplayText / GhostButton / ElevatedCard
+ *   通用：TextStyle / BoxStyle / ButtonStyle（可自定义组合）
+ *   颜色只走调色板角色（fg/muted/card/...），自动跟随主题，用户不碰 CSS。
+ *   卡片 = Column + ElevatedCard 样式（没有专门的 Card 控件）。
+ *
+ * 事件回路：页面点击 → ui 内部 outbox → poll 取回 → 按 id 找到控件 →
+ * 调用其 handler（命名函数，类型 Handler = func(Event)）。handler 内用
+ * 模块级状态 + 模块级 widget 引用更新界面（Koala lambda 暂不能捕获局部变量）。
+ * 全程没有 native->Koala 回调，也没有模板文件/eval 字符串——都沉到 ui 包内部。
+ */
+
+import "koala/ui"
+import "koala/datetime"
+
+var count = 0
+var fullscreen = false
+
+// 模块级 widget 引用：handler 无捕获，靠这些引用更新界面。
+var clock = ui.Label("--:--:--")
+var counter = ui.Label("0")
+var fs_state = ui.Label("Windowed")
+
+func clock_text() str {
+    let dt = datetime.DateTime.now()
+    return format("{:02d}:{:02d}:{:02d}", dt.hour, dt.minute, dt.second)
+}
+
+func on_inc(e ui.Event) {
+    count = count + 1
+    counter.set_text(format("{}", count))
+}
+
+func on_theme(e ui.Event) {
+    if let a = e.app {
+        if e.value_bool() {
+            a.set_theme(ui.THEME_DARK)
+        } else {
+            a.set_theme(ui.THEME_LIGHT)
+        }
+    }
+}
+
+func on_fs(e ui.Event) {
+    fullscreen = !fullscreen
+    if let a = e.app {
+        a.set_fullscreen(fullscreen)
+    }
+    var label = "Windowed"
+    if fullscreen {
+        label = "Fullscreen"
+    }
+    fs_state.set_text(label)
+}
+
+func on_tick(e ui.Event) {
+    clock.set_text(clock_text())
+}
+
+func main() {
+    let app = ui.App("Koala Desktop App", 900, 640)
+    app.set_theme(ui.THEME_DARK)
+
+    let title = ui.Label("Koala Desktop App")
+    let h_clock = ui.Label("Live clock")
+    let h_counter = ui.Label("Counter")
+    let h_theme = ui.Label("Theme")
+    let h_window = ui.Label("Window")
+    let inc_btn = ui.Button("+1", on_inc)
+    let fs_btn = ui.Button("Fullscreen", on_fs)
+    let dark_cb = ui.CheckBox("Dark mode", true, on_theme)
+    let footer = ui.Label("Counter, theme and fullscreen are handled in Koala; the clock ticks via a Koala timer.")
+
+    // 卡片 = Column + 卡片样式；2x2 网格用两个 Row 表达。
+    let clock_card = ui.Column(h_clock, clock)
+    let counter_card = ui.Column(h_counter, counter, inc_btn)
+    let theme_card = ui.Column(h_theme, dark_cb)
+    let window_card = ui.Column(h_window, fs_state, fs_btn)
+
+    app.add(title)
+    app.add(ui.Row(clock_card, counter_card))
+    app.add(ui.Row(theme_card, window_card))
+    app.add(footer)
+
+    // 贴样式（先 add 再 set_style；控件类一行未改）。
+    app.set_style(title, ui.TitleText())
+    app.set_style(h_clock, ui.HeadingText())
+    app.set_style(h_counter, ui.HeadingText())
+    app.set_style(h_theme, ui.HeadingText())
+    app.set_style(h_window, ui.HeadingText())
+    app.set_style(clock, ui.DisplayText())
+    app.set_style(counter, ui.DisplayText())
+    app.set_style(fs_state, ui.DisplayText())
+    app.set_style(clock_card, ui.ElevatedCard())
+    app.set_style(counter_card, ui.ElevatedCard())
+    app.set_style(theme_card, ui.ElevatedCard())
+    app.set_style(window_card, ui.ElevatedCard())
+    app.set_style(fs_btn, ui.GhostButton())
+    app.set_style(footer, ui.TextStyle(12, 400, "muted"))
+
+    app.every(1000, on_tick)
+    app.run()
+}

@@ -37,10 +37,12 @@ const RUNTIME_CSS = """
 :root {
   --bg: #ffffff; --fg: #1c1e21; --accent: #2f6fed;
   --btn-bg: #2f6fed; --btn-fg: #ffffff; --border: #d0d3d9;
+  --card: #f6f7f9; --muted: #6b7280;
 }
 body.dark {
   --bg: #16181d; --fg: #e6e8ee; --accent: #6ea8fe;
   --btn-bg: #3b6fd4; --btn-fg: #ffffff; --border: #3a3f4a;
+  --card: #1f232b; --muted: #8b93a1;
 }
 * { box-sizing: border-box; }
 body {
@@ -127,6 +129,11 @@ window.__ui_ready = false;
       default:
         throw new Error("ui runtime: unknown node type " + node.type);
     }
+    if (node.type === "column" || node.type === "row") {
+      if (node.gap !== undefined) { d.style.gap = node.gap + "px"; }
+      if (node.padding !== undefined) { d.style.padding = node.padding + "px"; }
+      if (node.align !== undefined) { d.style.alignItems = node.align; }
+    }
     d.id = "w" + node.id;
     els.set(node.id, d);
     if (node.children) {
@@ -150,10 +157,28 @@ window.__ui_ready = false;
         else if (d.tagName === "INPUT") { d.value = c.value; }
         else { d.textContent = c.value; }
       }
+      else if (c.prop === "style") {
+        var s = c.value;
+        if (s.font_size !== undefined) { d.style.fontSize = s.font_size + "px"; }
+        if (s.font_weight !== undefined) { d.style.fontWeight = s.font_weight; }
+        if (s.color !== undefined) { d.style.color = "var(--" + s.color + ")"; }
+        if (s.background !== undefined) { d.style.background = (s.background === "transparent") ? "transparent" : "var(--" + s.background + ")"; }
+        if (s.border !== undefined) { d.style.border = s.border ? "1px solid var(--border)" : "none"; }
+        if (s.radius !== undefined) { d.style.borderRadius = s.radius + "px"; }
+        if (s.padding !== undefined) { d.style.padding = s.padding + "px"; }
+        if (s.flex !== undefined) { d.style.flex = s.flex ? "1" : ""; }
+        if (s.min_width !== undefined) { d.style.minWidth = s.min_width + "px"; }
+        if (s.uppercase !== undefined) { d.style.textTransform = s.uppercase ? "uppercase" : "none"; }
+        if (s.tabular !== undefined) { d.style.fontVariantNumeric = s.tabular ? "tabular-nums" : "normal"; }
+        if (s.letter_spacing !== undefined) { d.style.letterSpacing = s.letter_spacing + "em"; }
+      }
       else if (c.prop === "enabled") { d.disabled = !c.value; }
       else if (c.prop === "placeholder") { d.placeholder = c.value; }
       else if (c.prop === "checked") { d.__box.checked = !!c.value; }
       else if (c.prop === "value") { d.value = c.value; }
+      else if (c.prop === "gap") { d.style.gap = c.value + "px"; }
+      else if (c.prop === "padding") { d.style.padding = c.value + "px"; }
+      else if (c.prop === "align") { d.style.alignItems = c.value; }
     } else if (c.cmd === "add") {
       var p = els.get(c.parent);
       if (p) { p.appendChild(build(c.node)); }

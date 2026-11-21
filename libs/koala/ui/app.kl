@@ -16,6 +16,8 @@ pub class App {
     var widgets = dict[int, Widget]()
     var pending = list[json.Object]()
     var root = list[Widget]()
+    var timers = list[Timer]()
+    var styles = dict[int, json.Value]()
     var next_id int = 1
     var running bool = false
     var closed bool = false
@@ -34,19 +36,14 @@ pub class App {
         self.state = state
     }
 
-    /// Add a widget to the root layout. Assigns its id and registers its
-    /// handler. Before `run` the widget joins the initial mount tree;
-    /// after `run` it is appended live. Panics if already added.
+    /// Add a widget to the root layout. Assigns its id and registers it
+    /// (for a container, its whole subtree). Before `run` the widget joins
+    /// the initial mount tree; after `run` it is appended live. Panics if
+    /// already added.
     pub func add(w Widget) Widget {
-        if w.wid() != 0 {
-            panic("ui: widget already added")
-        }
-        let id = next_id
-        next_id = id + 1
-        w.attach(self, id)
-        widgets[id] = w
+        register(w)
         if running {
-            pending.append(encode_add(0, w.to_json()))
+            queue_add(0, w.to_json())
         } else {
             root.append(w)
         }
@@ -60,6 +57,32 @@ pub class App {
             panic("ui: unknown theme '" + name + "'")
         }
         queue_set(0, "theme", json.String(name))
+    }
+
+    /// Start a periodic timer firing `fn` every `ms` milliseconds, driven by
+    /// the pump loop (no page involvement). The handler gets a `"timer"` Event
+    /// with `widget` nil. Returns a [`Timer`](#timer) whose `cancel()` stops it.
+    pub func every(ms int, fn Handler) Timer {
+        let t = Timer(self, time.Duration.from_millis(ms), fn)
+        timers.append(t)
+        return t
+    }
+
+    /// Apply a reusable [`Style`](#style) to a widget. Styles are decoupled
+    /// from widget classes: any widget accepts any Style. The widget must
+    /// already be added (id assigned). Before `run` the style is stored and
+    /// applied at mount; after `run` it is queued immediately. Panics if the
+    /// widget is not added to an app.
+    pub func set_style(w Widget, s Style) {
+        let id = w.wid()
+        if id == 0 {
+            panic("ui: widget not added to an app")
+        }
+        let payload = s.to_json()
+        styles[id] = payload
+        if running {
+            queue_set(id, "style", payload)
+        }
     }
 
     /// Enter the pump loop; blocks until the window is closed or `close()`
@@ -87,6 +110,7 @@ pub class App {
         for line in raw.split("\n") {
             dispatch(widgets, self, state, line)
         }
+        pump_timers(timers, time.monotonic(), self, state)
         flush()
         time.sleep(time.Duration(10000000)) // 10ms, avoid busy-spinning
         return true
@@ -109,9 +133,51 @@ pub class App {
         return win.eval_sync(js)
     }
 
+    /// Set the window title (pass-through to the webview window).
+    pub func set_title(title str) {
+        win.set_title(title)
+    }
+
+    /// Set the window size in pixels (pass-through to the webview window).
+    pub func set_size(width int, height int) {
+        win.set_size(width, height)
+    }
+
+    /// Enter or leave fullscreen (pass-through to the webview window).
+    /// Panics if the window is closed.
+    pub func set_fullscreen(on bool) {
+        win.set_fullscreen(on)
+    }
+
+    /// The current window size in pixels as `(width, height)` (pass-through
+    /// to the webview window). Panics if the window is closed.
+    pub func get_size() (int, int) {
+        return win.get_size()
+    }
+
     /// Queue an incremental property command from a widget setter.
     func queue_set(id int, prop str, value json.Value) {
         pending.append(encode_set(id, prop, value))
+    }
+
+    /// Queue a live append of `node` under `parent` (0 = root).
+    func queue_add(parent int, node json.Value) {
+        pending.append(encode_add(parent, node))
+    }
+
+    // Assign a fresh id, bind the widget to this app and register it so its
+    // events dispatch. Containers call this from `attach` for each child,
+    // which registers the whole subtree. Panics if the widget is already
+    // added to an app.
+    func register(w Widget) int {
+        if w.wid() != 0 {
+            panic("ui: widget already added")
+        }
+        let id = next_id
+        next_id = id + 1
+        w.attach(self, id)
+        widgets[id] = w
+        return id
     }
 
     // Load the embedded runtime, wait until its script is ready, then
@@ -142,6 +208,9 @@ pub class App {
         let cmd = encode_mount(root_node)
         win.eval("window.__ui_apply([" + cmd.to_json() + "])")
         running = true
+        for id in styles.keys() {
+            queue_set(id, "style", styles[id])
+        }
     }
 
     // Send all queued commands to the page in one eval.

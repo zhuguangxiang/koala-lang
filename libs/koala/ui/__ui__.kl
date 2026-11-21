@@ -41,3 +41,16 @@ pub const THEME_LIGHT = "light"
 
 /// Dark theme.
 pub const THEME_DARK = "dark"
+
+/// Cross-axis alignment for `Row`/`Column` containers (`set_align`):
+/// pack children to the start of the cross axis.
+pub const ALIGN_START = "start"
+
+/// Center children on the cross axis (the `Row` default).
+pub const ALIGN_CENTER = "center"
+
+/// Pack children to the end of the cross axis.
+pub const ALIGN_END = "end"
+
+/// Stretch children to fill the cross axis (the `Column` default).
+pub const ALIGN_STRETCH = "stretch"
