@@ -48,33 +48,33 @@ pub class StringIO : Reader & Seeker & Closable {
         bs = s.to_bytes()
     }
 
-    /// Read up to _bs.len() bytes from the current position into `_bs`.
+    /// Read up to bs.len() bytes from the current position into `bs`.
     ///
     /// Arguments
-    /// - `_bs`: The destination buffer to fill with data.
+    /// - `bs`: The destination buffer to fill with data.
     ///
     /// Returns
     /// The number of bytes actually read, or 0 if the position has
     /// reached the end of the string (EOF).
     ///
     /// Notes
-    /// - A short read (n < _bs.len()) means EOF was reached, since all
+    /// - A short read (n < bs.len()) means EOF was reached, since all
     ///   the data is already in memory.
     /// - Reading is byte-oriented: a read may end in the middle of a
     ///   multi-byte UTF-8 character.
     /// - Panic if the stream has been closed.
-    pub func read(_bs bytes) int {
+    pub func read(bs bytes) int {
         if closed {
             panic("I/O operation on closed StringIO")
         }
 
-        let avail = bs.len() - pos
+        let avail = self.bs.len() - pos
         if avail <= 0 {
             return 0
         }
 
-        let n = min(_bs.len(), avail)
-        _bs.copy(bs.view(pos, pos + n), 0, n)
+        let n = min(bs.len(), avail)
+        bs.copy(self.bs.view(pos, pos + n), 0, n)
         pos = pos + n
         return n
     }

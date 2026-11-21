@@ -27,9 +27,9 @@ pub class Parser {
     var pos = 0
     var depth = 0
 
-    /// Create a parser for the source text `_src`.
-    pub func __init__(_src str) {
-        src = _src
+    /// Create a parser for the source text `src`.
+    pub func __init__(src str) {
+        self.src = src
     }
 
     /// Parse the whole source text and return the root value.

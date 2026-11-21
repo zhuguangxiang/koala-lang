@@ -313,14 +313,14 @@ pub class StrIter : Iterator[str] {
     let length int
     var cursor int
 
-    /// Initialize a forward iterator over `s` with an optional stride `_step`.
+    /// Initialize a forward iterator over `s` with an optional stride `step`.
     ///
     /// The cursor starts at index 0 and advances by `step` on each iteration.
-    pub func __init__(s str, _step = 1) {
+    pub func __init__(s str, step = 1) {
         source = s
         length = s.len()
         cursor = 0
-        step = _step
+        self.step = step
     }
 
     /// Return true if there are remaining characters to iterate.
@@ -378,14 +378,14 @@ pub class StrRevIter : Iterator[str] {
     let length int
     var cursor int
 
-    /// Initialize a reverse iterator over `s` with an optional stride `_step`.
+    /// Initialize a reverse iterator over `s` with an optional stride `step`.
     ///
     /// The cursor starts at the last character and moves backward by `step`.
-    pub func __init__(s str, _step = 1) {
+    pub func __init__(s str, step = 1) {
         source = s
         length = s.len()
         cursor = length - 1
-        step = _step
+        self.step = step
     }
 
     /// Return true if there are remaining characters to iterate.

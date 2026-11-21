@@ -28,10 +28,10 @@ pub class TakeWhile[T] : Iterator[T] & Iterable[T] {
     let pending list[T]
     var done bool
 
-    /// Wrap `_iterable`, yielding its leading elements that satisfy `_pred`.
-    pub func __init__(_iterable Iterable[T], _pred func(T) bool) {
-        source = _iterable.iter()
-        pred = _pred
+    /// Wrap `iterable`, yielding its leading elements that satisfy `pred`.
+    pub func __init__(iterable Iterable[T], pred func(T) bool) {
+        source = iterable.iter()
+        self.pred = pred
         pending = list[T]()
         done = false
     }

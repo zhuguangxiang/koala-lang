@@ -29,9 +29,9 @@ pub class Zip[T, U] : Iterator[(T, U)] & Iterable[(T, U)] {
     let right Iterator[U]
 
     /// Wrap two iterables, pairing their elements position by position.
-    pub func __init__(_left Iterable[T], _right Iterable[U]) {
-        left = _left.iter()
-        right = _right.iter()
+    pub func __init__(left Iterable[T], right Iterable[U]) {
+        self.left = left.iter()
+        self.right = right.iter()
     }
 
     /// Return this same iterator; zip wrappers are single-pass.

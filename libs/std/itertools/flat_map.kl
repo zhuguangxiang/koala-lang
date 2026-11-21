@@ -30,10 +30,10 @@ pub class FlatMapIter[T, U] : Iterator[U] & Iterable[U] {
     let fn func(T) Iterable[U]
     var inner Iterator[U]?
 
-    /// Wrap `_iterable`, expanding each element via `_fn` and flattening.
-    pub func __init__(_iterable Iterable[T], _fn func(T) Iterable[U]) {
-        source = _iterable.iter()
-        fn = _fn
+    /// Wrap `iterable`, expanding each element via `fn` and flattening.
+    pub func __init__(iterable Iterable[T], fn func(T) Iterable[U]) {
+        source = iterable.iter()
+        self.fn = fn
         inner = nil
     }
 

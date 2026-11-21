@@ -58,19 +58,19 @@ pub class Stat {
     pub let dev int
 
     // Private: `fs.stat` builds a `Stat` natively.
-    func __init__(sz int, mt float64, mt_ns int, md int, at_ns int, ct_ns int, _uid int,
-                  _gid int, _nlink int, _ino int, _dev int) {
+    func __init__(sz int, mt float64, mt_ns int, md int, at_ns int, ct_ns int, uid int,
+                  gid int, nlink int, ino int, dev int) {
         size = sz
         mtime = mt
         mtime_ns = mt_ns
         mode = md
         atime_ns = at_ns
         ctime_ns = ct_ns
-        uid = _uid
-        gid = _gid
-        nlink = _nlink
-        ino = _ino
-        dev = _dev
+        self.uid = uid
+        self.gid = gid
+        self.nlink = nlink
+        self.ino = ino
+        self.dev = dev
     }
 
     /// Return true if this is a regular file.

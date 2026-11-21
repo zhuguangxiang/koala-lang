@@ -16,8 +16,8 @@ pub class Attr {
     /// The field value, as a string.
     pub let value str
 
-    pub func __init__(_key str, _value str) {
-        key = _key
-        value = _value
+    pub func __init__(key str, value str) {
+        self.key = key
+        self.value = value
     }
 }

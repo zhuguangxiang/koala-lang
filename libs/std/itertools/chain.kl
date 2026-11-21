@@ -29,9 +29,9 @@ pub class Chain[T] : Iterator[T] & Iterable[T] {
     let second Iterator[T]
 
     /// Wrap two iterables, yielding the first's elements then the second's.
-    pub func __init__(_a Iterable[T], _b Iterable[T]) {
-        first = _a.iter()
-        second = _b.iter()
+    pub func __init__(a Iterable[T], b Iterable[T]) {
+        first = a.iter()
+        second = b.iter()
     }
 
     /// Return this same iterator; chain wrappers are single-pass.

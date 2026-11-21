@@ -21,8 +21,8 @@ pub class Parser {
     var current = root
 
     /// Create a parser for the given source lines.
-    pub func __init__(_src list[str]) {
-        src = _src
+    pub func __init__(src list[str]) {
+        self.src = src
     }
 
     /// Parse all source lines and return the root table.

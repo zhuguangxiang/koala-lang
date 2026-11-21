@@ -8,9 +8,9 @@ pub class Boolean : Value {
     /// The boolean content.
     pub let value bool
 
-    /// Create a boolean value holding `_value`.
-    pub func __init__(_value bool) {
-        value = _value
+    /// Create a boolean value holding `value`.
+    pub func __init__(value bool) {
+        self.value = value
     }
 
     /// Write `true` or `false` to `f`.

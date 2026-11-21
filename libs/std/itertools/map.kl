@@ -29,10 +29,10 @@ pub class MapIter[T, U] : Iterator[U] & Iterable[U] {
     let source Iterator[T]
     let fn func(T) U
 
-    /// Wrap `_iterable`, applying `_fn` to each element.
-    pub func __init__(_iterable Iterable[T], _fn func(T) U) {
-        source = _iterable.iter()
-        fn = _fn
+    /// Wrap `iterable`, applying `fn` to each element.
+    pub func __init__(iterable Iterable[T], fn func(T) U) {
+        source = iterable.iter()
+        self.fn = fn
     }
 
     /// Return this same iterator; map wrappers are single-pass.

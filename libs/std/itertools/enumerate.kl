@@ -27,9 +27,9 @@ pub class Enumerate[T] : Iterator[(int, T)] & Iterable[(int, T)] {
     let source Iterator[T]
     var cursor int
 
-    /// Wrap `_iterable`, numbering its elements from `start`.
-    pub func __init__(_iterable Iterable[T], start = 0) {
-        source = _iterable.iter()
+    /// Wrap `iterable`, numbering its elements from `start`.
+    pub func __init__(iterable Iterable[T], start = 0) {
+        source = iterable.iter()
         cursor = start
     }
 

@@ -8,9 +8,9 @@ class Point {
     var x int
     var y int
 
-    func __init__(_x int, _y int) {
-        x = _x
-        y = _y
+    func __init__(x int, y int) {
+        self.x = x
+        self.y = y
     }
 
     func fmt(f Formatter) {

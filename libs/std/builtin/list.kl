@@ -149,15 +149,15 @@ pub class ListIter[T] : Iterator[T] {
     let step int
     let len int
 
-    /// Initialize a forward iterator over `_source`, advancing by `_step`
-    /// elements per step. `_step` must be positive; defaults to 1.
-    /// Panic if `_step <= 0`.
-    pub func __init__(_source list[T], _step = 1) {
-        if _step <= 0 { panic("Step must be positive") }
-        source = _source
+    /// Initialize a forward iterator over `source`, advancing by `step`
+    /// elements per step. `step` must be positive; defaults to 1.
+    /// Panic if `step <= 0`.
+    pub func __init__(source list[T], step = 1) {
+        if step <= 0 { panic("Step must be positive") }
+        self.source = source
         cursor = 0
-        step = _step
-        len = _source.len()
+        self.step = step
+        len = source.len()
     }
 
     /// Return true if another element is available (the cursor is within bounds).
@@ -200,14 +200,14 @@ pub class ListRevIter[T] : Iterator[T] {
     let step int
     let len int
 
-    /// Initialize a reverse iterator over `_source`, moving backward by
-    /// `_step` elements per step. `_step` must be positive; defaults to 1.
-    /// Panic if `_step <= 0`.
-    pub func __init__(_source list[T], _step = 1) {
-        if _step <= 0 { panic("Step must be positive") }
-        source = _source
-        step = _step
-        len = _source.len()
+    /// Initialize a reverse iterator over `source`, moving backward by
+    /// `step` elements per step. `step` must be positive; defaults to 1.
+    /// Panic if `step <= 0`.
+    pub func __init__(source list[T], step = 1) {
+        if step <= 0 { panic("Step must be positive") }
+        self.source = source
+        self.step = step
+        len = source.len()
         cursor = len - 1
     }
 

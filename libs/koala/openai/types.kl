@@ -27,15 +27,15 @@ pub class ChatCompletion {
     pub let usage Usage
     pub let error_message str
 
-    pub func __init__(_status int, _id str, _obj str, _created int, _model str, _choices list[Choice], _usage Usage, _err str) {
-        status_code = _status
-        id = _id
-        object = _obj
-        created = _created
-        model = _model
-        choices = _choices
-        usage = _usage
-        error_message = _err
+    pub func __init__(status int, id str, obj str, created int, model str, choices list[Choice], usage Usage, err str) {
+        status_code = status
+        self.id = id
+        object = obj
+        self.created = created
+        self.model = model
+        self.choices = choices
+        self.usage = usage
+        error_message = err
     }
 
     pub func ok() bool { return status_code == 200 }
@@ -51,10 +51,10 @@ pub class Choice {
     pub let message CompletionMessage
     pub let finish_reason str
 
-    pub func __init__(_index int, _message CompletionMessage, _finish_reason str) {
-        index = _index
-        message = _message
-        finish_reason = _finish_reason
+    pub func __init__(index int, message CompletionMessage, finish_reason str) {
+        self.index = index
+        self.message = message
+        self.finish_reason = finish_reason
     }
 }
 
@@ -62,9 +62,9 @@ pub class CompletionMessage {
     pub let role str
     pub let content str
 
-    pub func __init__(_role str, _content str) {
-        role = _role
-        content = _content
+    pub func __init__(role str, content str) {
+        self.role = role
+        self.content = content
     }
 }
 
@@ -73,10 +73,10 @@ pub class Usage {
     pub let completion_tokens int
     pub let total_tokens int
 
-    pub func __init__(_pt int, _ct int, _tt int) {
-        prompt_tokens = _pt
-        completion_tokens = _ct
-        total_tokens = _tt
+    pub func __init__(pt int, ct int, tt int) {
+        prompt_tokens = pt
+        completion_tokens = ct
+        total_tokens = tt
     }
 }
 

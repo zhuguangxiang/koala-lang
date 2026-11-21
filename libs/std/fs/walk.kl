@@ -11,10 +11,10 @@ class _WalkFrame {
     let files list[Path]
     var next = 0
 
-    func __init__(_dir Path, _dirs list[Path], _files list[Path]) {
-        dir = _dir
-        dirs = _dirs
-        files = _files
+    func __init__(dir Path, dirs list[Path], files list[Path]) {
+        self.dir = dir
+        self.dirs = dirs
+        self.files = files
     }
 }
 
@@ -78,8 +78,8 @@ pub class Walker : Iterator[(Path, list[Path], list[Path])] {
     var ready (Path, list[Path], list[Path])? = nil
 
     /// Create a `Walker` starting at `top`; `fs.walk` is the normal way to get one.
-    pub func __init__(top Path, _topdown = true) {
-        topdown = _topdown
+    pub func __init__(top Path, topdown = true) {
+        self.topdown = topdown
         stack = list[Path]()
         stack.append(top)
         frames = list[_WalkFrame]()

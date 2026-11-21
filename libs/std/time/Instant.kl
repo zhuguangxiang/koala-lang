@@ -13,9 +13,9 @@ pub class Instant {
 
     /// Create an instant from a raw nanosecond timestamp and clock id;
     /// prefer `time.now()` and `time.monotonic()`.
-    pub func __init__(_ns int, _clock int) {
-        epoch_ns = _ns
-        clock = _clock
+    pub func __init__(ns int, clock int) {
+        epoch_ns = ns
+        self.clock = clock
     }
 
     /// Create a realtime (`CLOCK_REALTIME`) instant from Unix nanoseconds.

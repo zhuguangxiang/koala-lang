@@ -301,11 +301,11 @@ pub class BytesIter : Iterator[uint8] {
     var cursor int
 
     /// Initialize a forward iterator over `b` with an optional stride `step`.
-    pub func __init__(b bytes, _step = 1) {
+    pub func __init__(b bytes, step = 1) {
         source = b
         length = b.len()
         cursor = 0
-        step = _step
+        self.step = step
     }
 
     /// Return true if there are remaining bytes to iterate.
@@ -350,11 +350,11 @@ pub class BytesRevIter : Iterator[uint8] {
     var cursor int
 
     /// Initialize a reverse iterator over `b` with an optional stride `step`.
-    pub func __init__(b bytes, _step = 1) {
+    pub func __init__(b bytes, step = 1) {
         source = b
         length = b.len()
         cursor = length - 1
-        step = _step
+        self.step = step
     }
 
     /// Return true if there are remaining bytes to iterate.

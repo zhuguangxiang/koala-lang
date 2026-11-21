@@ -11,9 +11,9 @@
 pub class MultiHandler : Handler {
     let handlers list[Handler]
 
-    /// Construct a MultiHandler over `_handlers`.
-    pub func __init__(_handlers list[Handler]) {
-        handlers = _handlers
+    /// Construct a MultiHandler over `handlers`.
+    pub func __init__(handlers list[Handler]) {
+        self.handlers = handlers
     }
 
     /// Write `s` to every child handler.

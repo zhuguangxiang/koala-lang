@@ -10,73 +10,73 @@ pub class Table : Value {
 
     pub func __init__() {}
 
-    /// Associate `_value` with `_key`, replacing an existing mapping.
-    pub func add(_key str, _value Value) {
-        data[_key] = _value
+    /// Associate `value` with `key`, replacing an existing mapping.
+    pub func add(key str, value Value) {
+        data[key] = value
     }
 
-    /// Return the value mapped to `_key`. Panic if `_key` is not present.
-    pub func get(_key str) Value {
-        return data[_key]
+    /// Return the value mapped to `key`. Panic if `key` is not present.
+    pub func get(key str) Value {
+        return data[key]
     }
 
-    /// Return the string value mapped to `_key`.
+    /// Return the string value mapped to `key`.
     ///
-    /// Panic if `_key` is not present or if the value is not a String.
-    pub func get_str(_key str) str {
-        return (get(_key) as String)!.value
+    /// Panic if `key` is not present or if the value is not a String.
+    pub func get_str(key str) str {
+        return (get(key) as String)!.value
     }
 
-    /// Return the integer value mapped to `_key`.
+    /// Return the integer value mapped to `key`.
     ///
-    /// Panic if `_key` is not present or if the value is not an Integer.
-    pub func get_int(_key str) int {
-        return (get(_key) as Integer)!.value
+    /// Panic if `key` is not present or if the value is not an Integer.
+    pub func get_int(key str) int {
+        return (get(key) as Integer)!.value
     }
 
-    /// Return the float value mapped to `_key`.
+    /// Return the float value mapped to `key`.
     ///
-    /// Panic if `_key` is not present or if the value is not a Float.
-    pub func get_float(_key str) float {
-        return (get(_key) as Float)!.value
+    /// Panic if `key` is not present or if the value is not a Float.
+    pub func get_float(key str) float {
+        return (get(key) as Float)!.value
     }
 
-    /// Return the boolean value mapped to `_key`.
+    /// Return the boolean value mapped to `key`.
     ///
-    /// Panic if `_key` is not present or if the value is not a Boolean.
-    pub func get_bool(_key str) bool {
-        return (get(_key) as Boolean)!.value
+    /// Panic if `key` is not present or if the value is not a Boolean.
+    pub func get_bool(key str) bool {
+        return (get(key) as Boolean)!.value
     }
 
-    /// Return the table mapped to `_key`.
+    /// Return the table mapped to `key`.
     ///
-    /// Panic if `_key` is not present or if the value is not a Table.
-    pub func get_table(_key str) Table {
-        return (get(_key) as Table)!
+    /// Panic if `key` is not present or if the value is not a Table.
+    pub func get_table(key str) Table {
+        return (get(key) as Table)!
     }
 
-    /// Return the array mapped to `_key`.
+    /// Return the array mapped to `key`.
     ///
-    /// Panic if `_key` is not present or if the value is not an Array.
-    pub func get_array(_key str) Array {
-        return (get(_key) as Array)!
+    /// Panic if `key` is not present or if the value is not an Array.
+    pub func get_array(key str) Array {
+        return (get(key) as Array)!
     }
 
-    /// Return true if the table contains a mapping for `_key`.
-    pub func __contains__(_key str) bool {
-        return _key in data
+    /// Return true if the table contains a mapping for `key`.
+    pub func __contains__(key str) bool {
+        return key in data
     }
 
-    /// Create a subtable under `_key` and return it.
-    pub func add_table(_key str) Table {
+    /// Create a subtable under `key` and return it.
+    pub func add_table(key str) Table {
         let sub = Table()
-        data[_key] = sub
+        data[key] = sub
         return sub
     }
 
-    /// Merge all mappings from `_data` into the table.
-    pub func update(_data dict[str, Value]) {
-        data.update(_data)
+    /// Merge all mappings from `data` into the table.
+    pub func update(data dict[str, Value]) {
+        self.data.update(data)
     }
 
     /// Return the keys in insertion order.

@@ -21,22 +21,22 @@ pub class ServerSentEvent {
     pub let id str
     pub let retry int?
 
-    pub func __init__(_event str? = nil, _data str? = nil, _id str? = nil, _retry int? = nil) {
+    pub func __init__(event str? = nil, data str? = nil, id str? = nil, retry int? = nil) {
         var e = "message"
-        if let ev = _event {
+        if let ev = event {
             if ev.len() > 0 { e = ev }
         }
-        event = e
+        self.event = e
 
         var d = ""
-        if let dv = _data { d = dv }
-        data = d
+        if let dv = data { d = dv }
+        self.data = d
 
         var i = ""
-        if let iv = _id { i = iv }
-        id = i
+        if let iv = id { i = iv }
+        self.id = i
 
-        retry = _retry
+        self.retry = retry
     }
 
     /// The data parsed as JSON, as Python's `json.loads(self.data)`.

@@ -31,10 +31,10 @@ pub class Filter[T] : Iterator[T] & Iterable[T] {
     let pred func(T) bool
     let pending list[T]
 
-    /// Wrap `_iterable`, keeping only elements that satisfy `_pred`.
-    pub func __init__(_iterable Iterable[T], _pred func(T) bool) {
-        source = _iterable.iter()
-        pred = _pred
+    /// Wrap `iterable`, keeping only elements that satisfy `pred`.
+    pub func __init__(iterable Iterable[T], pred func(T) bool) {
+        source = iterable.iter()
+        self.pred = pred
         pending = list[T]()
     }
 

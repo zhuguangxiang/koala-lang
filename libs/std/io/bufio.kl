@@ -44,13 +44,13 @@ pub class BufReader : Reader {
     /// Create a new BufReader wrapping the given reader with the specified buffer size.
     ///
     /// Arguments
-    /// - `_inner`: The underlying reader to wrap.
+    /// - `inner`: The underlying reader to wrap.
     /// - `size`: The internal buffer size in bytes. Defaults to 8192.
     ///
     /// The buffer is allocated immediately. Larger sizes reduce system call frequency
     /// but increase memory usage.
-    pub func __init__(_inner Reader, size = 8192) {
-        inner = _inner
+    pub func __init__(inner Reader, size = 8192) {
+        self.inner = inner
         buf = bytes(size)
         start = 0
         end = 0
@@ -343,13 +343,13 @@ pub class BufWriter : Writer {
     /// Create a new BufWriter wrapping the given writer with the specified buffer size.
     ///
     /// Arguments
-    /// - `_inner`: The underlying writer to wrap.
+    /// - `inner`: The underlying writer to wrap.
     /// - `buf_size`: The internal buffer size in bytes. Defaults to 8192.
     ///
     /// The buffer is allocated immediately. Larger sizes reduce system call
     /// frequency but increase memory usage.
-    pub func __init__(_inner Writer, buf_size = 8192) {
-        inner = _inner
+    pub func __init__(inner Writer, buf_size = 8192) {
+        self.inner = inner
         buf = bytes(buf_size)
         pos = 0
     }

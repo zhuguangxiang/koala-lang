@@ -24,14 +24,14 @@ pub class slice {
 
     /// Initialize a slice.
     ///
-    /// Pass `INT_MIN` for `_start` or `_end` to represent an omitted bound.
+    /// Pass `INT_MIN` for `start` or `end` to represent an omitted bound.
     /// The bound is resolved against the target sequence length when the slice is applied.
     ///
     /// `_step` defaults to 1 and must not be zero.
-    pub func __init__(_start int, _end int, _step = 1) {
-        start = _start
-        end = _end
-        step = _step
+    pub func __init__(start int, end int, step = 1) {
+        self.start = start
+        self.end = end
+        self.step = step
     }
 
     /// Format the slice as `slice(start, end, step)`.

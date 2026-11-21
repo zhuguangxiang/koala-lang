@@ -10,8 +10,8 @@ pub class Duration {
     let ns int
 
     /// Create a duration from a raw nanosecond count; prefer the `from_*` constructors.
-    pub func __init__(_ns int) {
-        ns = _ns
+    pub func __init__(ns int) {
+        self.ns = ns
     }
 
     /// Return the sum of two durations (`self + d`).

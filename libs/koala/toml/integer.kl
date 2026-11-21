@@ -8,9 +8,9 @@ pub class Integer : Value {
     /// The integer content, with `_` separators removed.
     pub let value int
 
-    /// Create an integer value holding `_value`.
-    pub func __init__(_value int) {
-        value = _value
+    /// Create an integer value holding `value`.
+    pub func __init__(value int) {
+        self.value = value
     }
 
     /// Write the decimal representation to `f`.

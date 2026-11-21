@@ -75,7 +75,7 @@ pub class Completions {
 pub class Chat {
     pub let completions Completions
 
-    func __init__(_completions Completions) {
-        completions = _completions
+    func __init__(completions Completions) {
+        self.completions = completions
     }
 }

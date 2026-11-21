@@ -43,16 +43,16 @@ pub class Splitter : Iterator[bytes] {
     /// Create a new Splitter that splits the given reader by the specified delimiter.
     ///
     /// Arguments
-    /// - `_br`: The buffered reader to read from.
-    /// - `_delim`: The single byte used as the delimiter (e.g., b',' or b'\n').
+    /// - `br`: The buffered reader to read from.
+    /// - `delim`: The single byte used as the delimiter (e.g., b',' or b'\n').
     /// - `size`: The initial capacity of the internal buffer in bytes
     ///   (default 256). The buffer still grows automatically if a chunk
     ///   exceeds this size. Must be positive.
-    pub func __init__(_br BufReader, _delim uint8, size = 256) {
+    pub func __init__(br BufReader, delim uint8, size = 256) {
         if size <= 0 { panic("Splitter: size must be positive") }
-        br = _br
+        self.br = br
         buf = Buffer(size)
-        delim = _delim
+        self.delim = delim
     }
 
     /// Return true if another chunk is available, buffering it if necessary.
@@ -142,19 +142,19 @@ pub class SplitterWith : Iterator[bytes] {
     /// Whether the underlying reader has reached EOF.
     var done bool = false
 
-    /// Create a SplitterWith splitting `_br` on the separator `_sep`.
+    /// Create a SplitterWith splitting `br` on the separator `sep`.
     ///
-    /// `_sep` must not be empty (panics otherwise). `size` sets the initial
+    /// `sep` must not be empty (panics otherwise). `size` sets the initial
     /// capacity of the internal buffers and the per-read scratch size
     /// (default 256); buffers still grow automatically for larger chunks.
     /// Must be positive.
-    pub func __init__(_br BufReader, _sep bytes, size = 256) {
-        if _sep.len() == 0 { panic("SplitterWith: empty separator") }
+    pub func __init__(br BufReader, sep bytes, size = 256) {
+        if sep.len() == 0 { panic("SplitterWith: empty separator") }
         if size <= 0 { panic("SplitterWith: size must be positive") }
-        br = _br
+        self.br = br
         buf = Buffer(size)
         pending_buf = Buffer(size)
-        sep = _sep
+        self.sep = sep
         tmp = bytes(size)
     }
 
@@ -273,16 +273,16 @@ pub class Lines : Iterator[str] {
     /// Create a new Lines iterator that reads lines from the given buffered reader.
     ///
     /// Arguments
-    /// - `_br`: The buffered reader to read from.
+    /// - `br`: The buffered reader to read from.
     ///
     /// The internal buffer is initialized with a capacity of 256 bytes and will
     /// grow automatically if a line exceeds this size.
     ///
     /// Note: Lines handles both Unix ('\n') and Windows ('\r\n') line endings.
     /// The returned strings have both '\n' and trailing '\r' stripped.
-    pub func __init__(_br BufReader, size = 256) {
+    pub func __init__(br BufReader, size = 256) {
         if size <= 0 { panic("Lines: size must be positive") }
-        br = _br
+        self.br = br
         buf = Buffer(size)
     }
 
@@ -373,13 +373,13 @@ pub class Words : Iterator[str] {
     /// by whitespace (spaces, tabs, newlines, carriage returns).
     ///
     /// Arguments
-    /// - `_br`: The buffered reader to read from.
+    /// - `br`: The buffered reader to read from.
     /// - `size`: The initial capacity of the internal buffer in bytes
     ///   (default 256). The buffer still grows automatically if a token
     ///   exceeds this size. Must be positive.
-    pub func __init__(_br BufReader, size = 256) {
+    pub func __init__(br BufReader, size = 256) {
         if size <= 0 { panic("Words: size must be positive") }
-        br = _br
+        self.br = br
         buf = Buffer(size)
     }
 

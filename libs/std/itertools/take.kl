@@ -27,12 +27,12 @@ pub class Take[T] : Iterator[T] & Iterable[T] {
     let source Iterator[T]
     var remaining int
 
-    /// Wrap `_iterable`, yielding at most `_n` elements.
-    /// Panic if `_n` is negative.
-    pub func __init__(_iterable Iterable[T], _n int) {
-        if _n < 0 { panic("take count must be non-negative") }
-        source = _iterable.iter()
-        remaining = _n
+    /// Wrap `iterable`, yielding at most `n` elements.
+    /// Panic if `n` is negative.
+    pub func __init__(iterable Iterable[T], n int) {
+        if n < 0 { panic("take count must be non-negative") }
+        source = iterable.iter()
+        remaining = n
     }
 
     /// Return this same iterator; take wrappers are single-pass.

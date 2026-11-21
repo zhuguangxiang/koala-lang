@@ -8,9 +8,9 @@ pub class String : Value {
     /// The string content, without the surrounding quotes.
     pub let value str
 
-    /// Create a string value holding `_value`.
-    pub func __init__(_value str) {
-        value = _value
+    /// Create a string value holding `value`.
+    pub func __init__(value str) {
+        self.value = value
     }
 
     /// Write the string content to `f`.

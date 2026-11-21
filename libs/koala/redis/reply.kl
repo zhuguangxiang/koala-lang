@@ -16,9 +16,9 @@ pub class StatusReply : Reply {
     /// The status text without the leading `+` or the trailing CRLF.
     pub let value str
 
-    /// Create a status reply holding `_value`.
-    pub func __init__(_value str) {
-        value = _value
+    /// Create a status reply holding `value`.
+    pub func __init__(value str) {
+        self.value = value
     }
 }
 
@@ -27,9 +27,9 @@ pub class BulkReply : Reply {
     /// The string content without the length header or the trailing CRLF.
     pub let value str
 
-    /// Create a bulk reply holding `_value`.
-    pub func __init__(_value str) {
-        value = _value
+    /// Create a bulk reply holding `value`.
+    pub func __init__(value str) {
+        self.value = value
     }
 }
 
@@ -38,9 +38,9 @@ pub class IntReply : Reply {
     /// The integer value.
     pub let value int
 
-    /// Create an integer reply holding `_value`.
-    pub func __init__(_value int) {
-        value = _value
+    /// Create an integer reply holding `value`.
+    pub func __init__(value int) {
+        self.value = value
     }
 }
 
