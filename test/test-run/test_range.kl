@@ -16,7 +16,7 @@ func main() {
 // CHECK: %0 = get_field %r std/builtin.range, start(index=0)
 // CHECK: %1 = get_field %r std/builtin.range, end(index=1)
 // CHECK: %2 = get_field %r std/builtin.range, step(index=2)
-// CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
+// CHECK: %3 = build_tuple, %0 int64, %1 int64, %2 int64
 // CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple[int64, int64, int64], ' ' str, '\n' str
 // CHECK: ret void
 
@@ -28,7 +28,7 @@ func main() {
 // CHECK: %0 = get_field %r std/builtin.range, start(index=0)
 // CHECK: %1 = get_field %r std/builtin.range, end(index=1)
 // CHECK: %2 = get_field %r std/builtin.range, step(index=2)
-// CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
+// CHECK: %3 = build_tuple, %0 int64, %1 int64, %2 int64
 // CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple[int64, int64, int64], ' ' str, '\n' str
 // CHECK: ret void
 
@@ -38,7 +38,7 @@ func main() {
 // CHECK: %0 = get_field %r std/builtin.range, start(index=0)
 // CHECK: %1 = get_field %r std/builtin.range, end(index=1)
 // CHECK: %2 = get_field %r std/builtin.range, step(index=2)
-// CHECK: %3 = build_intern @tuple, nargs=3
+// CHECK: %3 = build_tuple, nargs=3
 // CHECK: %4 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %4 str, ' ' str
 // CHECK: %5 = local str        [fixedslot = 2(next)]
@@ -55,7 +55,7 @@ func main() {
 // CHECK: load_int_imm %1 int64, 10 int64
 // CHECK: %2 = local int64        [fixedslot = 2(next)]
 // CHECK: load_int_imm %2 int64, 2 int64
-// CHECK: %3 = build_intern @tuple, nargs=3        [fixedslot = 0(next)]
+// CHECK: %3 = build_tuple, nargs=3        [fixedslot = 0(next)]
 // CHECK: %4 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %4 str, ' ' str
 // CHECK: %5 = local str        [fixedslot = 2(next)]
@@ -67,7 +67,7 @@ func main() {
 // CHECK: load_int_imm %7 int64, 10 int64
 // CHECK: %8 = local int64        [fixedslot = 2(next)]
 // CHECK: load_int_imm %8 int64, 2 int64
-// CHECK: %9 = build_intern @tuple, nargs=3        [fixedslot = 0(next)]
+// CHECK: %9 = build_tuple, nargs=3        [fixedslot = 0(next)]
 // CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: ret void
 

@@ -715,8 +715,8 @@ KlrValue *klr_build_upcast_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_t
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
-                           InternTag tag, char *name)
+KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
+                          char *name)
 {
     int is_const = 1;
 
@@ -729,7 +729,7 @@ KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpe
         }
     }
 
-    KlrInsn *insn = new_insn(OP_BUILD_INTERN, nargs, name);
+    KlrInsn *insn = new_insn(OP_BUILD_TUPLE, nargs, name);
     insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
 
     for (int j = 0; j < nargs; j++) {
@@ -737,7 +737,6 @@ KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpe
     }
 
     insn->ts = klr_lower_type(ts);
-    insn->intern_tag = tag;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -1020,7 +1019,6 @@ KlrInsn *klr_build_clone(KlrBuilder *bldr, KlrInsn *insn, TypeSpec *ts)
     clone->flags = insn->flags;
     clone->num_args = insn->num_args;
     clone->cast_flag = insn->cast_flag;
-    clone->intern_tag = insn->intern_tag;
     clone->target_ts = insn->target_ts;
     clone->target_path = insn->target_path;
     clone->target_name = insn->target_name;

@@ -41,7 +41,7 @@ func main() {
 
 // CHECK-LABEL: %bb2(while-body):
 // CHECK: %2 = call @Foo:next, %foo test_intf_call_3.Foo
-// CHECK: %3 = build_intern @tuple, %2 int64
+// CHECK: %3 = build_tuple, %2 int64
 // CHECK: %4 = call @Foo:has_next, %foo test_intf_call_3.Foo
 
 // CHECK-LABEL: %bb3(while-end):
@@ -54,7 +54,7 @@ func main() {
 
 // CHECK-LABEL: %bb5(while-body):
 // CHECK: %7 = call @std/builtin.Iterator[int64]:next [intf-index = 2], %it std/builtin.Iterator[int64]
-// CHECK: %8 = build_intern @tuple, %7 int64
+// CHECK: %8 = build_tuple, %7 int64
 // CHECK: %9 = call @std/builtin.Iterator[int64]:has_next [intf-index = 0], %it std/builtin.Iterator[int64]
 
 

@@ -26,7 +26,7 @@ run()
 // CHECK-NEXT:    1: [R0] %0 = new @test_inline_dead_new.Foo
 // CHECK-NEXT:    2: [R1] %1 = local int64        [fixedslot = 0(next) -> R1]
 // CHECK-NEXT:    3: [...] load_int_imm %1 int64, 1 int64
-// CHECK-NEXT:    4: [R1] %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next) -> R1]
+// CHECK-NEXT:    4: [R1] %2 = build_tuple, nargs=1        [fixedslot = 0(next) -> R1]
 // CHECK-NEXT:    5: [R2] %3 = local str        [fixedslot = 1(next) -> R2]
 // CHECK-NEXT:    6: [...] loadk %3 str, ' ' str
 // CHECK-NEXT:    7: [R3] %4 = local str        [fixedslot = 2(next) -> R3]

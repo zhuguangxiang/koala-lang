@@ -24,17 +24,7 @@ OpFormat __op_formats[] = {
 };
 
 char *tag_mapping[] = {
-    "false", "true", "none",      "+0.0",       "-0.0",       "NaN",
-    "+inf",  "-inf", "empty_str", "empty_list", "empty_dict",
-};
-
-char *intern_tag_name[] = {
-    [INTERN_TUPLE] = "tuple",
-    [INTERN_RANGE] = "range",
-    [INTERN_SLICE] = "slice",
-    [INTERN_LIST] = "list",
-    [INTERN_BYTES] = "bytes",
-    [INTERN_MAP] = "map",
+    "false", "true", "none", "+0.0", "-0.0", "NaN", "+inf", "-inf",
 };
 
 void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_funcs)
@@ -50,14 +40,6 @@ void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_
             case FORMAT_Rx: {
                 int Rx = insn & 0xFFFu;
                 printf("r%d", Rx);
-                break;
-            }
-
-            case FORMAT_RTagImm: {
-                int R = (insn >> 16) & 0xFFu;
-                int tag = (insn >> 8) & 0xFFu;
-                int imm = insn & 0xFFu;
-                printf("r%d, @%s, #%d", R, intern_tag_name[tag], imm);
                 break;
             }
 
@@ -168,7 +150,7 @@ void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_
                 printf("#%d", nargs);
                 if (opcode != OP_TAIL_CALL || flag != 0) {
                     flag &= 7; // a tail call to another function sets 8
-                    pc++; // skip the next FORMAT_DATA entry
+                    pc++;      // skip the next FORMAT_DATA entry
                     insn = *(uint32_t *)(code + pc * 4);
                     printf("\n%04zu:  %08X   data ", pc, insn);
                     if (flag == 0) {

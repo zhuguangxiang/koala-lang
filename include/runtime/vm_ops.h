@@ -667,17 +667,13 @@ TARGET(OP_LOAD_TYPE) {
     DISPATCH();
 }
 
-TARGET(OP_BUILD_INTERN) {
-    rd = I_VAL(inst, 16, 8);
-    int tag = I_VAL(inst, 8, 8);
-    imm = I_VAL(inst, 0, 8);
+TARGET(OP_BUILD_TUPLE) {
+    rd = I_VAL(inst, 12, 12);
+    imm = I_VAL(inst, 0, 12);
 
     CHECK_REG_ID(rd);
 
-    /* Building a dict calls each key's hash() slot, which may raise. */
-    SAVE_PC();
-    Object *obj = do_build_intern(ks->stack_top, tag, imm);
-    if (!obj) goto error;
+    Object *obj = kl_new_tuple(ks->stack_top, imm);
     if (rd != 0xFFFu) regs[rd] = obj_value(obj);
     DISPATCH();
 }

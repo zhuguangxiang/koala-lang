@@ -90,7 +90,7 @@ let_nil()
 // CHECK-NEXT: %0 = local str        [fixedslot = 0(next)]
 // CHECK-NEXT: loadk %0 str, 'a' str
 // CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
@@ -104,7 +104,7 @@ let_nil()
 // CHECK-NEXT: %0 = local str        [fixedslot = 0(next)]
 // CHECK-NEXT: loadk %0 str, 'b' str
 // CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
@@ -117,7 +117,7 @@ let_nil()
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %0 = local bool        [fixedslot = 0(next)]
 // CHECK-NEXT: load_tag %0 bool, true bool
-// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %1 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %2 str, ' ' str
 // CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
@@ -130,7 +130,7 @@ let_nil()
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %0 = local bool        [fixedslot = 0(next)]
 // CHECK-NEXT: load_tag %0 bool, false bool
-// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %1 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %2 str, ' ' str
 // CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
@@ -143,7 +143,7 @@ let_nil()
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %0 = local int64        [fixedslot = 0(next)]
 // CHECK-NEXT: load_int_imm %0 int64, 4 int64
-// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %1 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %2 str, ' ' str
 // CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
@@ -156,7 +156,7 @@ let_nil()
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %0 = local int64        [fixedslot = 0(next)]
 // CHECK-NEXT: load_int_imm %0 int64, 5 int64
-// CHECK-NEXT: %1 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %1 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %2 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %2 str, ' ' str
 // CHECK-NEXT: %3 = local str        [fixedslot = 2(next)]
@@ -171,7 +171,7 @@ let_nil()
 // CHECK-NEXT: load_tag %x str?, nil
 // CHECK-NEXT: %0 = nil_check %x str? to str        [fixedslot = 0(next)]
 // CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
@@ -186,7 +186,7 @@ let_nil()
 // CHECK-NEXT: load_tag %x str?, nil
 // CHECK-NEXT: %0 = nil_check %x str? to str        [fixedslot = 0(next)]
 // CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]

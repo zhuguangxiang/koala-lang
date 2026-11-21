@@ -155,12 +155,6 @@ static Object *range_init(RangeObject *x, TValue *items)
     return (Object *)x;
 }
 
-Object *kl_new_range(TValue *items)
-{
-    RangeObject *x = gc_alloc_obj(x);
-    return range_init(x, items);
-}
-
 /* a perm range for the const pool */
 Object *kl_new_perm_range(TValue *items)
 {

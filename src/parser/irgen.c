@@ -460,11 +460,27 @@ static KlrValue *_add_literal(ParserState *ps, Literal *lit)
     }
 }
 
-// bytes are mutable: an evaluation of a bytes constant copies it, like a list literal
-static KlrValue *copy_if_bytes(KlrBuilder *bldr, KlrValue *val)
+static KlrValue *get_callable(ParserState *ps, Symbol *sym);
+
+/* bytes are mutable: an evaluation of a bytes constant copies it, like a list
+ * literal. The copy is a plain static-method call, `bytes.from_bytes(lit)`:
+ * the const-pool template stays read-only and the method returns a fresh
+ * 0-based object. `b""` needs no copy: it is the shared empty bytes, and
+ * nothing can be written through a zero-length array. */
+static KlrValue *copy_if_bytes(ParserState *ps, KlrBuilder *bldr, KlrValue *val)
 {
     if (!klr_is_const(val) || ((KlrConst *)val)->which != CONST_BYTES) return val;
-    return klr_build_intern(bldr, &val, 1, val->ts, INTERN_BYTES, "");
+    if (((KlrConst *)val)->len == 0) return val;
+
+    /* The method is looked up in the class scope: no `bytes.from_bytes(...)`
+     * call need exist in this module, so the symbol may have no IR value yet. */
+    Symbol *kls_sym = get_symbol_by_id(val->ts->sym_id);
+    ASSERT(kls_sym && kls_sym->kind == SYM_CLASS);
+    Symbol *m_sym = stbl_get(kls_sym->stbl, "from_bytes");
+    ASSERT(m_sym);
+    KlrValue *fn = get_callable(ps, m_sym);
+    if (klr_is_extfunc(fn)) ((KlrExtFunc *)fn)->proto = m_sym->ts;
+    return klr_build_call(bldr, fn, val->ts, &val, 1, "");
 }
 
 static void emit_ir_ident(ParserState *ps, Expr *exp)
@@ -524,7 +540,7 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                 // a const is read as its literal; its module global is never loaded
                 KlrValue *val =
                     klr_is_const(sym->ir_val) ? sym->ir_val : _add_literal(ps, var_sym->lit);
-                exp->ir_val = copy_if_bytes(&bldr, val);
+                exp->ir_val = copy_if_bytes(ps, &bldr, val);
             } else if (exp->ctx == EXPR_CTX_LOAD || exp->ctx == EXPR_CTX_LOAD_STORE) {
                 if (var_sym->scope == VAR_SCOPE_GLOBAL) {
                     exp->ir_val = klr_build_get_global(&bldr, sym->ir_val);
@@ -647,7 +663,7 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
                 SET_IR_LOC(exp->ir_val, exp);
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
-                exp->ir_val = copy_if_bytes(&bldr, exp->ir_val);
+                exp->ir_val = copy_if_bytes(ps, &bldr, exp->ir_val);
             }
             break;
         }
@@ -1685,7 +1701,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             KlrValue *global_val = get_ext_global_value(dot->id.name, lhs->sym, ps);
             KlrValue *val;
             if (klr_is_const(global_val)) {
-                val = copy_if_bytes(&bldr, global_val);
+                val = copy_if_bytes(ps, &bldr, global_val);
             } else {
                 val = klr_build_get_global(&bldr, global_val);
             }
@@ -2297,7 +2313,7 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     } else {
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *ret = klr_build_intern(&bldr, items, size, exp->ts, INTERN_TUPLE, "");
+        KlrValue *ret = klr_build_tuple(&bldr, items, size, exp->ts, "");
         exp->ir_val = ret;
     }
 }
@@ -3423,9 +3439,8 @@ static int switch_bin_key_cmp(const void *pa, const void *pb)
  * internal node navigates with one 'subject < keys[mid]' compare; a leaf verifies equality.
  * A match enters the clause body; no match falls through to 'fall_bb' (the default body, or
  * the switch end / unreachable block). Worst case ceil(log2(m))+1 compares. */
-static void switch_build_bst(ParserState *ps, KlrValue *subj, KlrBasicBlock *bb,
-                             SwitchBinKey *keys, int lo, int hi, KlrBasicBlock **body_bb,
-                             KlrBasicBlock *fall_bb)
+static void switch_build_bst(ParserState *ps, KlrValue *subj, KlrBasicBlock *bb, SwitchBinKey *keys,
+                             int lo, int hi, KlrBasicBlock **body_bb, KlrBasicBlock *fall_bb)
 {
     KlrValue *fn = CURRENT_FUNC;
     KlrBuilder b;
@@ -3456,9 +3471,8 @@ static void switch_build_bst(ParserState *ps, KlrValue *subj, KlrBasicBlock *bb,
  * int/uint/enum, every non-default clause has only constant value patterns, and there are at
  * least SWITCH_BINARY_MIN_KEYS keys (below that the chain is as cheap). 'fall_bb' is where a
  * non-matching subject goes: the default clause body, or the switch end / unreachable block. */
-static int switch_emit_binary(ParserState *ps, SwitchStmt *s, KlrValue *subj,
-                              KlrBasicBlock *entry, KlrBasicBlock **body_bb,
-                              KlrBasicBlock *fall_bb, int n)
+static int switch_emit_binary(ParserState *ps, SwitchStmt *s, KlrValue *subj, KlrBasicBlock *entry,
+                              KlrBasicBlock **body_bb, KlrBasicBlock *fall_bb, int n)
 {
     TypeSpec *st = subj->ts;
     if (!(type_is_int(st) || type_is_uint(st) || type_is_enum(st))) return 0;
@@ -3480,8 +3494,10 @@ static int switch_emit_binary(ParserState *ps, SwitchStmt *s, KlrValue *subj,
     /* Widen the subject once to the common compare type. An enum stays native: its member
      * values are int64 and the backend compares them with the generic numeric ops. */
     TypeSpec *widen = NULL;
-    if (type_is_int(st)) widen = int64_type_spec();
-    else if (type_is_uint(st)) widen = uint64_type_spec();
+    if (type_is_int(st))
+        widen = int64_type_spec();
+    else if (type_is_uint(st))
+        widen = uint64_type_spec();
     KlrValue *subj_n = subj;
     if (widen && subj->ts != widen) {
         KlrBuilder b;
@@ -3525,9 +3541,8 @@ static int switch_emit_binary(ParserState *ps, SwitchStmt *s, KlrValue *subj,
 
 /* The linear compare-chain fallback: one test block per clause, multi-pattern clauses chain
  * their tests, and a non-matching subject falls through to the next clause / default / end. */
-static void switch_emit_chain(ParserState *ps, SwitchStmt *s, KlrValue *subj,
-                              KlrBasicBlock *entry, KlrBasicBlock **body_bb,
-                              KlrBasicBlock *nomatch_bb, int n)
+static void switch_emit_chain(ParserState *ps, SwitchStmt *s, KlrValue *subj, KlrBasicBlock *entry,
+                              KlrBasicBlock **body_bb, KlrBasicBlock *nomatch_bb, int n)
 {
     KlrValue *fn = CURRENT_FUNC;
     KlrBasicBlock **test_bb = mm_alloc_fast(n * sizeof(*test_bb));

@@ -31,7 +31,7 @@ func main() {
 // CHECK-NEXT: loadk %0 str, 'zhangsan' str
 // CHECK-NEXT: %1 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %1 str, 'wangwu' str
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=2        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=2        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]

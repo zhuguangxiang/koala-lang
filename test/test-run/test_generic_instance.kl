@@ -2,7 +2,7 @@
 // RUN: koalac %s --opt --dump=ir 2>&1 | filecheck -check-prefix=IR %s
 
 // Test generic class instance IR lowering:
-// - External generic classes (list, dict, tuple) via build_intern
+// - External generic classes (list, dict, tuple) via build_tuple
 // - Local generic classes via new + __init__
 // - No spurious cast instructions
 
@@ -17,7 +17,7 @@ func len_of[T](x list[T]) int {
     return x.len()
 }
 
-// External generic: list (build_intern path)
+// External generic: list (build_tuple path)
 func new_str_list() list[str] = list[str]()
 
 func new_int_list() list[int] = list[int]()
@@ -33,13 +33,13 @@ func new_dict() dict[str, int] = dict[str, int]()
 // Local generic class
 func new_int_box() Box[int] = Box[int]()
 
-// Tuple with runtime args (build_intern @tuple)
+// Tuple with runtime args (build_tuple)
 func make_tuple(x int, y str) tuple[int, str] = tuple[int, str](x, y)
 
-// Range with runtime args (build_intern @range)
+// Range with runtime args (build_tuple @range)
 func make_range(start int, end int) range = range(start, end)
 
-// List literal with runtime items (build_intern @list)
+// List literal with runtime items (build_tuple @list)
 func make_list(x int, y int) list[int] = [x, y]
 
 // Slice with runtime indices (new @slice + call __init__)
@@ -158,7 +158,7 @@ func main() {
 // IR: ret
 
 // IR-LABEL: func @make_tuple(
-// IR: build_intern @tuple
+// IR: build_tuple
 // IR-NOT: cast
 // IR: ret
 

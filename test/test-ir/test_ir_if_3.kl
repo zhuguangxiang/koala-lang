@@ -107,14 +107,14 @@ func foo() {
 // CHECK: %bb2(logical-end):
 // CHECK: branch %lor bool, label %bb3, label %bb4
 // CHECK: %bb3(if-then):
-// CHECK: %1 = build_intern @tuple, 'Path A' str, %0 bool
+// CHECK: %1 = build_tuple, 'Path A' str, %0 bool
 // CHECK: call @print [path = 'std/prelude']
 // CHECK: jmp label %bb5
 // CHECK: %bb4(if-else):
 // CHECK: %land = local bool
 // CHECK: move %land bool, true bool
 // CHECK: move %land bool, false bool
-// CHECK: %2 = build_intern @tuple, 'Path B' str, %land bool
+// CHECK: %2 = build_tuple, 'Path B' str, %land bool
 // CHECK: call @print [path = 'std/prelude']
 // CHECK: jmp label %bb5
 // CHECK: %bb5(if-end):

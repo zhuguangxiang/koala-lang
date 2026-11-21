@@ -13,7 +13,7 @@ func main() {
 // CHECK: loadk r1, #3
 // CHECK: seq.get r1, r1, r0
 // CHECK: move r2, r1
-// CHECK: build_intern r2, @tuple, #1
+// CHECK: build_tuple r2, #1
 // CHECK: loadk r3, #4
 // CHECK: loadk r4, #5
 // CHECK: call flg=0, #3

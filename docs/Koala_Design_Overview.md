@@ -867,20 +867,22 @@ Iterable[T]
 | `range` | 区间 `Sequence[int]`（编译器将 `range(5)` 补全为 `range(0, 5)`） |
 | `slice` | 切片（边界由编译器补全为具体 int，统一用 `end` 表排他上界） |
 | `type` | 运行时反射：`name()` / `methods()` / `lro()`（`typeof(x)` 的产物） |
-| `StrIter` / `StrRevIter` / `BytesIter` / `BytesRevIter` | str / bytes 的 `iter` / `reversed` 产物，纯 Koala 具体迭代器类 |
+| `StrIter` / `StrRevIter` / `BytesIter` / `BytesRevIter` / `FrozenBytesIter` / `FrozenBytesRevIter` | str / bytes / frozenbytes 的 `iter` / `reversed` 产物，纯 Koala 具体迭代器类 |
 
 dict / hashset / SortedSet 当前为**声明先行**（方法 @native 空体、运行时实现欠账，清单见 Koala_TODO §16）。
 
 bytes / Buffer 的二进制编解码职责已**剥离至官方库 encoding**，本体只保留序列语义。原 `ByteBuf` 已更名 `Buffer` 并收缩为纯 append 式缓冲（不再声明 `MutableSequence[uint8]`）。
 
-**bytes 语义说明**：Koala `bytes` 是固定长度、可读写的字节数组，与 C/Rust/Go 的定长字节数组语义一致。不可变字节序列（对应 Python `bytes`）由 `collections` 包的 `FrozenBytes` 提供。
+**bytes 语义说明**：Koala `bytes` 是固定长度、可读写的字节数组，与 C/Rust/Go 的定长字节数组语义一致。不可变字节序列（对应 Python `bytes`）由内置类型 `frozenbytes` 提供。
+
+`frozenbytes` 与 `bytes` 是**两个独立类型**，不是同一对象的两种模式：各自有 C 侧实现（`bytesobj.c` / `frozenbytesobj.c`）与方法表，`frozenbytes` 的每个参数与返回值都是 `frozenbytes`，不接受也不产出 `bytes`。它没有任何原地写入操作（`__setitem__` / `__setslice__` / `fill` / `zero` / `copy` / `copy_str` 均不存在，误用是编译期 "not found in instance of class" 而非运行期 panic）。因为内容永不可变，切片与 `view` 可以是零拷贝视图而无别名写入风险，内容哈希也始终有效，故可作 dict 键 / hashset 元素。
 
 **`std/collections/` 包**（需 import，包别名 `co`）：
 
 | 分类 | 类型 | 要点 |
 |------|------|------|
 | 有序结构 | `SortedSet` / `SortedDict` | 平衡树，按 `Comparable` 排序 |
-| 不可变结构 | `FrozenSet` / `FrozenDict` / `FrozenList` / `FrozenBytes` | 只实现只读 trait（`Set` / `Map` / `Sequence`），可哈希能力待 C 侧实现内容语义 |
+| 不可变结构 | `FrozenSet` / `FrozenDict` / `FrozenList` | 只实现只读 trait（`Set` / `Map` / `Sequence`），可哈希能力待 C 侧实现内容语义（不可变字节序列不在此包，见内置 `frozenbytes`） |
 | 链式队列 | `LinkedList` | C 原生侵入式双向链表（哨兵 + 缓存长度）：`MutableSequence` 全套 + `push/pop/peek_front/back`；**不支持切片**（不实现 `__getslice__`，`ll[a:b]` 编译期报错，改用 `iter()` / `extend`）；`LinkedListIter` / `LinkedListRevIter` 为 C 原生迭代器（游标持节点，整趟 O(n)），结构性修改后再迭代会 panic；`fmt` 与 `Stack` 一致（超过 10 个元素只打印首 4 + `...` + 尾 4）。因 `for` 对 `Sequence` 走下标 fast-path（§8.5），大表遍历请写 `for v in ll.iter()` |
 | 链式队列 | `Deque` | 声明先行（实现欠账，见 Koala_TODO §16） |
 | 队列 | `Queue` / `Stack` | 不实现 trait，只有 `push/pop/peek/len/empty/clear/fmt`。`Queue` 为 FIFO：C 原生 `Vector` + 头偏移，`push`/`pop` 摊还 O(1)（死槽攒够后一次 memmove 压缩），空队列 `pop`/`peek` 报 `pop from empty queue` / `peek from empty queue`；`fmt` 与 `Stack` 一致（超过 10 个元素只打印首 4 + `...` + 尾 4） |

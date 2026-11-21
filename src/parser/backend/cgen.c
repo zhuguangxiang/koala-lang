@@ -116,38 +116,6 @@ static void dump_const(KlMachConst *kc, int index, int indent)
             break;
         }
 
-        case KL_MACH_CONST_LIST: {
-            Vector *list = kc->list;
-            int count = vector_size(list);
-
-            printf("list(%d): \n", count);
-
-            for (int i = 0; i < count; i++) {
-                KlMachConst *elem = vector_at(list, i);
-                printf("%*s[%d] ", indent + 4, "", i);
-                dump_const(elem, i, indent + 8);
-            }
-
-            break;
-        }
-
-        case KL_MACH_CONST_DICT: {
-            Vector *list = kc->list;
-            int count = vector_size(list);
-
-            printf("dict(%d): \n", count / 2);
-
-            for (int i = 0; i + 1 < count; i += 2) {
-                KlMachConst *key = vector_at(list, i);
-                KlMachConst *val = vector_at(list, i + 1);
-                printf("%*s[%d] key: ", indent + 4, "", i / 2);
-                dump_const(key, i / 2, indent + 8);
-                printf("%*s[%d] val: ", indent + 4, "", i / 2);
-                dump_const(val, i / 2, indent + 8);
-            }
-
-            break;
-        }
 
         default: {
             printf("unknown\n");
@@ -215,9 +183,7 @@ static int __mach_const_eq__(void *a, void *b)
             KlMachConst **raw_b = VECTOR_ITEMS(kb->list, KlMachConst *);
             return !memcmp(raw_a, raw_b, sizeof(void *) * 3);
         }
-        case KL_MACH_CONST_LIST:
-        case KL_MACH_CONST_TUPLE:
-        case KL_MACH_CONST_DICT: {
+        case KL_MACH_CONST_TUPLE: {
             Vector *list_a = ka->list;
             Vector *list_b = kb->list;
             int count = vector_size(list_a);
@@ -261,9 +227,7 @@ static unsigned int mach_const_hash(void *key)
         case KL_MACH_CONST_SLICE:
             KlMachConst **raw = VECTOR_ITEMS(kc->list, KlMachConst *);
             return mem_hash(raw, sizeof(void *) * 3);
-        case KL_MACH_CONST_LIST:
-        case KL_MACH_CONST_TUPLE:
-        case KL_MACH_CONST_DICT: {
+        case KL_MACH_CONST_TUPLE: {
             Vector *list = kc->list;
             int count = vector_size(list);
             unsigned int h = 0;
@@ -511,60 +475,6 @@ static KlMachConst *kl_mach_add_range(KlMachModule *m, Vector *items)
     return new_entry;
 }
 
-static KlMachConst *kl_mach_add_list(KlMachModule *m, Vector *items)
-{
-    Vector *list = vector_create_ptr();
-    KlrValue *elem;
-    vector_foreach(elem, items) {
-        KlMachConst *kc = kl_mach_add_const((KlrConst *)elem, m);
-        vector_push_back(list, &kc);
-    }
-
-    /*
-     * Unlike tuples/ranges/slices, lists are MUTABLE, so identical list
-     * literals must not share one const pool entry: const-folded call sites
-     * would alias the same object and mutations would leak between them.
-     * Always append a fresh entry; the LIST hash/eq cases above are still
-     * needed for list elements nested inside deduped tuple/range consts.
-     */
-    KlMachConst *new_entry = mm_alloc_obj(new_entry);
-    new_entry->tag = KL_MACH_CONST_LIST;
-    new_entry->list = list;
-
-    vector_push_back(&m->const_pool, &new_entry);
-    int index = vector_size(&m->const_pool) - 1;
-    new_entry->index = index;
-    log_info("Added new const entry for list (index: %d)", index);
-    return new_entry;
-}
-
-/* A dict literal's operands are pairwise in source order: k0, v0, k1, v1, ... */
-static KlMachConst *kl_mach_add_dict(KlMachModule *m, Vector *items)
-{
-    Vector *list = vector_create_ptr();
-    KlrValue *elem;
-    vector_foreach(elem, items) {
-        KlMachConst *kc = kl_mach_add_const((KlrConst *)elem, m);
-        vector_push_back(list, &kc);
-    }
-
-    /*
-     * Like lists, dicts are MUTABLE, so identical dict literals must not share
-     * one const pool entry: const-folded call sites would alias the same object
-     * and mutations would leak between them. Always append a fresh entry.
-     */
-    KlMachConst *new_entry = mm_alloc_obj(new_entry);
-    new_entry->tag = KL_MACH_CONST_DICT;
-    new_entry->list = list;
-    new_entry->len = vector_size(list);
-
-    vector_push_back(&m->const_pool, &new_entry);
-    int index = vector_size(&m->const_pool) - 1;
-    new_entry->index = index;
-    log_info("Added new const entry for dict (index: %d)", index);
-    return new_entry;
-}
-
 static KlMachConst *kl_mach_add_slice(KlMachModule *m, Vector *items)
 {
     Vector *list = vector_create_ptr();
@@ -629,14 +539,8 @@ KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
         case CONST_RANGE: {
             return kl_mach_add_range(m, kc->list);
         }
-        case CONST_LIST: {
-            return kl_mach_add_list(m, kc->list);
-        }
         case CONST_SLICE: {
             return kl_mach_add_slice(m, kc->list);
-        }
-        case CONST_MAP: {
-            return kl_mach_add_dict(m, kc->list);
         }
         default: {
             UNREACHABLE();
@@ -844,12 +748,6 @@ static void dump_mach_insn(KlMachInsn *mi)
 
         case FORMAT_ROff2: {
             used += printf("r%d, %d", mi->opers[0], mi->opers[1]);
-            break;
-        }
-
-        case FORMAT_RTagImm: {
-            used +=
-                printf("r%d, @%s, #%d", mi->opers[0], intern_tag_name[mi->opers[1]], mi->opers[2]);
             break;
         }
 
@@ -1074,18 +972,6 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             uint32_t Rx = mi->opers[0];
             bytecode |= (op & 0xFFu) << 24;
             bytecode |= (Rx & 0xFFFu);
-            break;
-        }
-
-        case FORMAT_RTagImm: {
-            // | op:8 | R:8 | tag:8 | imm:8 |
-            uint32_t R = mi->opers[0];
-            int tag = mi->opers[1];
-            int imm8 = mi->opers[2];
-            bytecode |= (op & 0xFFu) << 24;
-            bytecode |= (R & 0xFFu) << 16;
-            bytecode |= (tag & 0xFFu) << 8;
-            bytecode |= (imm8 & 0xFFu);
             break;
         }
 
@@ -1314,7 +1200,6 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             break;
         }
 
-        case FORMAT_RTagImm:
         case FORMAT_R_TI_Imm12:
         case FORMAT_RR_TI_MODE:
         case FORMAT_RImmOff:

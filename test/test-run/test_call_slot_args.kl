@@ -3,7 +3,7 @@
 //
 // A single-use value defined before the call is pinned to its call slot. When
 // another insn that uses the call slots comes in between -- not only a call, but
-// also build_intern (@tuple, @list) -- its operands overwrite that slot,
+// also build_tuple (@tuple, @list) -- its operands overwrite that slot,
 // so the value must be moved into the slot right before the call instead.
 // `send(_fd, bs[1:n], 0)` printed fd 1 (the slice start) instead of 42.
 
@@ -60,7 +60,7 @@ print(c.items(5))
 
 // CHECK-LABEL: func @Conn:pair(
 // CHECK: %[[FD2:[0-9]+]] = get_field %self test_call_slot_args.Conn, _fd(index=0){{$}}
-// CHECK: build_intern @tuple, nargs=2
+// CHECK: build_tuple, nargs=2
 // CHECK-NEXT: %[[SFD2:[0-9]+]] = local int64 [fixedslot = 0(next)]
 // CHECK-NEXT: move %[[SFD2]] int64, %[[FD2]] int64
 // CHECK: call @with_pair, nargs=3

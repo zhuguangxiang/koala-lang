@@ -1751,13 +1751,18 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE, "int_to_float")
 X(OP_NEW, FORMAT_RIdx2, "new")
 
 /**
- * OP_BUILD_INTERN — Build builtin object
+ * OP_BUILD_TUPLE — Build a tuple from the call slots
  *
- * FORMAT_RTagImm:
- *     | op:8 | rd:8 | tag:8 | nargs:8 |
+ * FORMAT_RxIdx12:
+ *     | op:8 | rd:12 | nargs:12 |
  *
+ * Details:
+ *     R[rd] = tuple(stack_top[0 .. nargs-1]). Every other builtin literal is
+ *     built the plain way: `new` + `__init__` (list, range, slice),
+ *     `new` + `__init__` + one `seq.set` per pair (dict), or a static
+ *     `bytes.from_bytes` call copying the const-pool template (bytes).
  */
-X(OP_BUILD_INTERN, FORMAT_RTagImm, "build_intern")
+X(OP_BUILD_TUPLE, FORMAT_RxIdx12, "build_tuple")
 
 /*---------------------------------------------------------------+
  |  Global Variable Access Instructions                           |

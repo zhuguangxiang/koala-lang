@@ -1242,47 +1242,6 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_IR_CALL: {
-            if (insn->flags & KLR_INSN_FLAGS_CONST) {
-                KlrValue *callee = insn_oper_value(insn, 0);
-
-                if (callee->kind != KLR_VALUE_KLASS) {
-                    log_info("unsupported const call to non-class.");
-                    break;
-                }
-
-                KlrValue *items[insn->num_opers - 1];
-                memset(items, 0, sizeof(items));
-                // skip callee operand
-                KlrValue *val;
-                _insn_oper_value_foreach(val, insn, 1) {
-                    ASSERT(klr_is_const(val));
-                    items[i__ - 1] = val;
-                }
-
-                if (!strcmp(callee->name, "list")) {
-                    val = klr_const_list(items, insn->num_opers - 1, insn->ts, fn->module);
-                } else if (!strcmp(callee->name, "tuple")) {
-                    val = klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->module);
-                } else if (!strcmp(callee->name, "int64")) {
-                    ASSERT(insn->num_opers == 2);
-                    val = insn_oper_value(insn, 1);
-                    ASSERT(klr_is_const(val));
-                } else {
-                    printf("unsupported const call to class '%s'\n", callee->name);
-                    NYI();
-                }
-
-                if (replace_all_uses_with(val, (KlrValue *)insn)) {
-                    changed = 1;
-                }
-            } else {
-                log_info("no propagation for non-const call insn:");
-                log_insn(insn);
-            }
-            break;
-        }
-
         case OP_IR_CAST: {
             KlrValue *src = insn_oper_value(insn, 0);
             if ((insn->error == 0) && klr_is_const(src)) {

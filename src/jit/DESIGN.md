@@ -226,7 +226,7 @@ ret
 | `OP_GET_FIELD/SET_FIELD` | 对象字段读写 | **内联**：obj=payload，`fields[off]` 在 obj+16+off*16，见 §5.7 |
 | `OP_GLOBAL_GET/SET` | 全局读写 | **内联**：编译期解析 `&values[idx]`（含外部全局），load/store |
 | `OP_NEW` | 建对象 | 调 `kl_jit_new(tp)`（tp 编译期解析） |
-| `OP_BUILD_INTERN` | 建 tuple/list/dict 等 | 调 `kl_jit_build_intern(tag,count)`（用 stack_top） |
+| `OP_BUILD_TUPLE` | 建 tuple | 调 `kl_jit_build_tuple(count)`（用 stack_top） |
 | `OP_SEQ_GET/SET`（含 `_IMM`/`_SLICE`） | 容器索引/切片 | 调 `kl_jit_slot3`/`kl_jit_*_item_imm`（slot 分派） |
 | `OP_LEN/CONTAINS/STR` | 协议方法 | 调 `kl_jit_slot3`（SLOT_LEN/CONTAINS/STR） |
 | `OP_HASH/FMT/PRINT` | hash/格式化/打印 | 调 `kl_jit_hash`/`kl_jit_fmt`/`kl_jit_print` |
@@ -415,8 +415,8 @@ inline cache（Yowie/Bunyip）。
   load/store，无 call——这是 A 组最大的收益点。
 - **全局访问内联**：编译期解析 `&m->values[idx]`（idx≥num_globals 时经 GlobalObject 解析到
   外部模块的 values），嵌地址 load/store。全局数组运行期不 resize，地址稳定。
-- **构造**：NEW 调 `kl_jit_new(tp)`（tp 编译期从 types[idx] 解析）；BUILD_INTERN 调
-  `kl_jit_build_intern`（用 `ks->stack_top` 上的参数）。
+- **构造**：NEW 调 `kl_jit_new(tp)`（tp 编译期从 types[idx] 解析）；BUILD_TUPLE 调
+  `kl_jit_build_tuple`（用 `ks->stack_top` 上的参数）。
 - **容器/协议**：SEQ_*/LEN/CONTAINS/STR/HASH/FMT/PRINT 走 slot 分派 helper（`kl_jit_slot3`
   通用 3 参 + 专用 imm/hash/fmt/print），都带 cf->pc + 出错 trace。
 - **nil 检查内联**：REF_EQ_NULL/NE_NULL 即 `cmp tag,0; setcc`；JMP_REF_*_NULL 即 `cmp; jcc`。

@@ -15,7 +15,7 @@ func main() {
     print("hello", "world", sep=",", end="\n")
 }
 
-// CHECK: %1 = build_intern @tuple, %msg str, %i int64
+// CHECK: %1 = build_tuple, %msg str, %i int64
 // CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[str, int64], ' ' str
 // CHECK: call @print [path = 'std/prelude', const], tuple('hello', 'world')
 

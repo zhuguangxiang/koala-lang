@@ -75,12 +75,6 @@ static int has_side_effect(KlrInsn *insn)
         }
 
         case OP_IR_CALL: {
-            if (insn->flags & KLR_INSN_FLAGS_CONST) {
-                KlrValue *callee = insn_oper_value(insn, 0);
-                if (callee->kind == KLR_VALUE_KLASS) {
-                    return 0;
-                }
-            }
             return 1;
         }
 

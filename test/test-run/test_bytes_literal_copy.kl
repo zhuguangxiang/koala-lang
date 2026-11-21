@@ -2,7 +2,8 @@
 // RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
 
 // bytes are mutable: each evaluation of a bytes literal is a new object, the constant
-// in the module const pool is only copied (build_intern @bytes), never handed out.
+// in the module const pool is only copied (bytes.from_bytes), never handed out.
+// `b""` is the shared empty bytes and needs no copy.
 
 let G = b"glob"
 
@@ -41,5 +42,5 @@ func main() {
 // CHECK-NEXT: b"Glob" 0
 
 // IR-LABEL: func @mk() std/builtin.bytes {
-// IR: %0 = build_intern @bytes, b"hello" std/builtin.bytes
+// IR: %0 = call @bytes:from_bytes [path = 'std/builtin', const], b"hello" std/builtin.bytes
 // IR-NEXT: ret %0 std/builtin.bytes

@@ -27,6 +27,6 @@ func main() {
 
 // IR-LABEL: func @main()
 // IR-NOT: global_get
-// IR: build_intern @bytes, b"0123456789" std/builtin.bytes
-// IR: build_intern @bytes, b"PK" std/builtin.bytes
+// IR: call @bytes:from_bytes [path = 'std/builtin', const], b"0123456789" std/builtin.bytes
+// IR: call @bytes:from_bytes [path = 'std/builtin', const], b"PK" std/builtin.bytes
 // IR: }

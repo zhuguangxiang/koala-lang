@@ -75,10 +75,10 @@ in_loop()
 // CHECK: %q = local [immutable] int64
 // CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple[int64, int64], 0 int64
 // CHECK-NEXT: move %q int64, %1 int64
-// CHECK-NEXT: %2 = build_intern @tuple, %q int64
+// CHECK-NEXT: %2 = build_tuple, %q int64
 // CHECK: %s = local [immutable] str
 // CHECK-NEXT: move %s str, 'mid' str
-// CHECK-NEXT: %3 = build_intern @tuple, %s str
+// CHECK-NEXT: %3 = build_tuple, %s str
 
 // nested: the inner tuple is bound first, then destructured
 // CHECK-LABEL: func @nested() <NO-TYPE> {

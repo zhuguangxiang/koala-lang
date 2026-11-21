@@ -6,7 +6,7 @@
 // into the operand, so the entries reach isel as all-constant `seq.set`s; isel
 // lowers them the normal way (each value loaded, then stored), and no dict or
 // list ends up in the const pool. A duplicated map key is merged by the runtime
-// dict. `@tuple` is not folded either, so `(1, 2)` goes through `build_intern`.
+// dict. `@tuple` is not folded either, so `(1, 2)` goes through `build_tuple`.
 func main() {
     let x = 2
     let d = {1: x, 3: 4, 1: 5}
@@ -30,7 +30,7 @@ func main() {
 // CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, %x int64
 // CHECK: seq.set %0 std/builtin.dict[int64, int64], 3 int64, 4 int64
 // CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, 5 int64
-// CHECK: %2 = build_intern @tuple, 1 int64, %x int64
+// CHECK: %2 = build_tuple, 1 int64, %x int64
 // CHECK: %4 = new @std/builtin.list[int64]
 // CHECK: call @list:__init__ [path = 'std/builtin'], %4 std/builtin.list[int64], 1 int64, %x int64
 // CHECK: %6 = new @std/builtin.list[int64]
@@ -43,7 +43,7 @@ func main() {
 // CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, 2 int64
 // CHECK: seq.set %0 std/builtin.dict[int64, int64], 3 int64, 4 int64
 // CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, 5 int64
-// CHECK: %2 = build_intern @tuple, 1 int64, 2 int64
+// CHECK: %2 = build_tuple, 1 int64, 2 int64
 // CHECK: %4 = new @std/builtin.list[int64]
 // CHECK: call @list:__init__ [path = 'std/builtin'], %4 std/builtin.list[int64], 1 int64, 2 int64
 // CHECK: %6 = new @std/builtin.list[int64]
@@ -51,7 +51,7 @@ func main() {
 
 // isel keeps the dict construction: the values are loaded into registers and
 // stored with seq.set_imm at run time; the duplicated map key `1` is still
-// there. The tuple stays build_intern, each list is `new` + `call @list:__init__`.
+// there. The tuple stays build_tuple, each list is `new` + `call @list:__init__`.
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK: %0 = new @std/builtin.dict[int64, int64]
 // CHECK: call @dict:__init__ [path = 'std/builtin'], nargs=1
@@ -59,7 +59,7 @@ func main() {
 // CHECK: seq.set_imm %0 std/builtin.dict[int64, int64], 1 int64, %2 int64
 // CHECK: load_int_imm %4 int64, 5 int64
 // CHECK: seq.set_imm %0 std/builtin.dict[int64, int64], 1 int64, %4 int64
-// CHECK: %10 = build_intern @tuple, nargs=2
+// CHECK: %10 = build_tuple, nargs=2
 // CHECK: %14 = new @std/builtin.list[int64]
 // CHECK: call @list:__init__ [path = 'std/builtin'], nargs=3
 // CHECK: %21 = new @std/builtin.list[int64]
@@ -69,11 +69,11 @@ func main() {
 // CHECK: ret void
 
 // The bytecode builds the dict with `new` + `__init__` + seq.set_imm, the tuple
-// with build_intern, and each list with `new` + `call @list:__init__`.
+// with build_tuple, and each list with `new` + `call @list:__init__`.
 // CHECK-LABEL: @main[0,49]:
 // CHECK: new r0, #0
 // CHECK: seq.set_imm r0, r1, #1
-// CHECK: build_intern r2, @tuple, #2
+// CHECK: build_tuple r2, #2
 // CHECK: new r0, #1
 // CHECK: call flg=0, #3
 // CHECK: new r0, #1

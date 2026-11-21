@@ -17,7 +17,7 @@ import "std/ut"
 //   eliminated, because the folded `loadk` result is consumed.
 // * The mutation section asserts that writes to a literal stick, both for the
 //   all-constant form (folded into a const-pool template by isel) and for the
-//   form built at runtime by build_intern.
+//   form built at runtime by build_tuple.
 
 // ---------------------------------------------------------------------------
 // Shape / lookup
@@ -166,7 +166,7 @@ func test_dict_literal_two_literals_independent() {
 }
 
 // The same writes on a literal that mentions a variable, i.e. one built at
-// runtime by build_intern rather than folded into a const-pool template.
+// runtime by build_tuple rather than folded into a const-pool template.
 @test
 func test_dict_literal_with_var_operand_mutation() {
     let x = 6

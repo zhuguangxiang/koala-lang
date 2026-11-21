@@ -236,14 +236,13 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
 
         case CONST_STR:
         case CONST_BYTES:
-        case CONST_LIST:
         case CONST_TUPLE:
         case CONST_RANGE:
-        case CONST_SLICE:
-        case CONST_MAP: {
-            /* A constant map is a template in the module const pool, just like
-             * a constant list: it must be materialized by (and instantiated
-             * from) OP_LOADK, never by an immediate form. */
+        case CONST_SLICE: {
+            /* Object constants live in the module const pool and are loaded
+             * by OP_LOADK, never by an immediate form. A bytes constant is a
+             * read-only template: irgen wraps every read in a
+             * `bytes.from_bytes` copy (`b""` is shared and needs none). */
             op = R->load_op;
             break;
         }
@@ -458,16 +457,16 @@ static inline int allow_fixedslot(KlrInsn *insn)
     return 1;
 }
 
-// Does `insn` overwrite the call slot `pos`? Calls, build_intern and print lower
+// Does `insn` overwrite the call slot `pos`? Calls, build_tuple and print lower
 // their operands into the fixed call slots 0..n-1 (see lower_call_argument()), so
 // a value pinned to such a slot before them is overwritten. A call is treated as
-// overwriting every slot (conservative). build_intern and print write exactly n
+// overwriting every slot (conservative). build_tuple and print write exactly n
 // slots: do_isel() lowers the calls first, so they are usually not lowered yet
 // (n is num_opers, as for max_call_args); once lowered, n is num_args.
 static int clobbers_call_slot(KlrInsn *insn, int pos)
 {
     if (klr_is_call((KlrValue *)insn) || insn->code == OP_TAIL_CALL) return 1;
-    if (insn->code == OP_BUILD_INTERN || insn->code == OP_PRINT) {
+    if (insn->code == OP_BUILD_TUPLE || insn->code == OP_PRINT) {
         int n = insn->num_args ? insn->num_args : insn->num_opers;
         return pos < n;
     }
@@ -553,7 +552,7 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
     KlrInsn *next = insn_next(def, insn->bb);
     while (next && next != insn) {
         if (clobbers_call_slot(next, pos)) {
-            // Calls (and build_intern / print, which use the same slots) in the same bb
+            // Calls (and build_tuple / print, which use the same slots) in the same bb
             // require spilling to avoid clobbering live values, e.g. `f(_fd, bs[1:n])`:
             // the `@slice` operands of `bs[1:n]` would overwrite `_fd` in slot 0.
             // This is a conservative heuristic that may introduce some unnecessary spills,
@@ -1301,7 +1300,7 @@ static void isel_lower_jmp_cond(KlrInsn *insn)
     }
 }
 
-static void isel_lower_build_intern(KlrInsn *insn)
+static void isel_lower_build_tuple(KlrInsn *insn)
 {
     int nargs = insn->num_opers;
     for (int i = 0; i < nargs; i++) {
@@ -1608,7 +1607,7 @@ static void do_isel(KlrFunc *fn)
         insn_foreach(insn, bb) {
             if (insn_is(insn, OP_IR_CALL)) {
                 max = MAX(max, insn->num_opers - 1);
-            } else if (insn_is(insn, OP_BUILD_INTERN)) {
+            } else if (insn_is(insn, OP_BUILD_TUPLE)) {
                 max = MAX(max, insn->num_opers);
             } else if (insn_is(insn, OP_PRINT)) {
                 max = MAX(max, insn->num_opers);
@@ -1659,8 +1658,8 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_BUILD_INTERN: {
-                    isel_lower_build_intern(insn);
+                case OP_BUILD_TUPLE: {
+                    isel_lower_build_tuple(insn);
                     break;
                 }
 

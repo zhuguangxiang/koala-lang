@@ -46,7 +46,7 @@ func main() {
 // CHECK: %2 = get_field %self z.Point, x(index=0)
 // CHECK: %3 = get_field %self z.Point, y(index=1)
 // CHECK: %4 = mul %2 int64, %3 int64
-// CHECK: %5 = build_intern @tuple, %0 int64, %1 int64, %4 int64
+// CHECK: %5 = build_tuple, %0 int64, %1 int64, %4 int64
 // CHECK: ret %5 std/builtin.tuple[int64, int64, int64]
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -62,12 +62,12 @@ func main() {
 // CHECK: move %b z.BAR, %1 z.BAR
 // CHECK: %2 = get_field %b z.BAR, x(index=0)
 // CHECK: %3 = get_field %b z.BAR, y(index=1)
-// CHECK: %4 = build_intern @tuple, %b z.BAR, %2 int64, %3 str
+// CHECK: %4 = build_tuple, %b z.BAR, %2 int64, %3 str
 // CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple[z.BAR, int64, str], ' ' str, '\n' str
 // CHECK: %5 = get_field %p z.Point, x(index=0)
 // CHECK: %6 = get_field %p z.Point, y(index=1)
 // CHECK: %7 = get_field %p z.Point, z(index=2)
-// CHECK: %8 = build_intern @tuple, %p z.Point, %5 int64, %6 int64, %7 int64
+// CHECK: %8 = build_tuple, %p z.Point, %5 int64, %6 int64, %7 int64
 // CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple[z.Point, int64, int64, int64], ' ' str, '\n' str
 // CHECK: call @print [path = 'std/prelude', const], tuple(range(100, 200, 1)) std/builtin.tuple[std/builtin.range]
 // CHECK: ret void

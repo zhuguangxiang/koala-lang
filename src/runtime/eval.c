@@ -37,53 +37,6 @@ void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti);
 void do_int_to_float(TValue *regs, int rd, int rs, int mode, int dst_ti);
 void do_float_to_int(TValue *regs, int rd, int rs, int mode, int dst_ti);
 
-static Object *do_build_intern(TValue *values, InternTag tag, int count)
-{
-    switch (tag) {
-        case INTERN_TUPLE: {
-            return kl_new_tuple(values, count);
-        }
-
-        case INTERN_RANGE: {
-            ASSERT(count == 3);
-            return kl_new_range(values);
-        }
-
-        case INTERN_LIST: {
-            return kl_list_from_array(values, count);
-        }
-
-        case INTERN_MAP: {
-            /* values hold pairwise (k0, v0, k1, v1, ...) */
-            ASSERT((count % 2) == 0);
-            Object *dobj = kl_new_dict();
-            for (int i = 0; i < count; i += 2) {
-                TValue ar = kl_dict_add(dobj, &values[i], &values[i + 1]);
-                /* A user key's hash() may raise; abort the build and let the
-                 * opcode handler turn NULL into the pending exception. */
-                if (is_error(&ar)) return NULL;
-            }
-            return dobj;
-        }
-
-        case INTERN_SLICE: {
-            ASSERT(count == 3);
-            return kl_new_slice(values);
-        }
-
-        case INTERN_BYTES: {
-            ASSERT(count == 1);
-            BytesObject *b = (BytesObject *)values[0].obj;
-            ASSERT(IS_BYTES(b));
-            return kl_bytes_from_data(b->data + b->offset, b->size);
-        }
-
-        default: {
-            UNREACHABLE();
-            return NULL;
-        }
-    }
-}
 static TValue kl_call_cfunc(Object *code, TValue *args, int nargs);
 
 /* JIT entry guard; defined with the other JIT runtime helpers at the end of file. */
@@ -767,16 +720,11 @@ TValue kl_jit_print(int nargs, uint32_t pc)
 
 TValue kl_jit_new(TypeObject *tp) { return obj_value(kl_new_instance(tp)); }
 
-TValue kl_jit_build_intern(int tag, int count, uint32_t pc)
+TValue kl_jit_build_tuple(int count, uint32_t pc)
 {
     KoalaState *ks = __ks();
     ks->cf->pc = pc;
-    Object *obj = do_build_intern(ks->stack_top, tag, count);
-    /* NULL means a user slot raised (e.g. a dict key's hash()). */
-    if (!obj) {
-        trace_here(ks->cf);
-        return error_value;
-    }
+    Object *obj = kl_new_tuple(ks->stack_top, count);
     return obj_value(obj);
 }
 

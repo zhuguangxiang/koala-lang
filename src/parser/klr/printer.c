@@ -75,33 +75,6 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, "%s'", BUF_STR(buf));
             FINI_BUF(buf);
             break;
-        case CONST_LIST: {
-            fprintf(fp, "list[");
-            int len = vector_size(v->list);
-            KlrValue *item;
-            vector_foreach(item, v->list) {
-                print_const_item(item, fp);
-                if (i__ < len - 1) fprintf(fp, ", ");
-            }
-            fprintf(fp, "]");
-            break;
-        }
-        case CONST_MAP: {
-            /* entries are stored in source order: key0, value0, key1, ... */
-            fprintf(fp, "dict[");
-            int len = vector_size(v->list);
-            KlrValue *item;
-            vector_foreach(item, v->list) {
-                print_const_item(item, fp);
-                if (i__ % 2) {
-                    if (i__ < len - 1) fprintf(fp, ", ");
-                } else {
-                    fprintf(fp, ": ");
-                }
-            }
-            fprintf(fp, "]");
-            break;
-        }
         case CONST_TUPLE: {
             fprintf(fp, "tuple(");
             int len = vector_size(v->list);
@@ -577,15 +550,14 @@ static void print_is_as(const char *name, KlrInsn *insn, FILE *fp)
     print_type(insn->target_ts, fp);
 }
 
-static void print_build_intern(KlrInsn *insn, FILE *fp)
+static void print_build_tuple(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
 
     if (insn->num_args > 0) {
-        fprintf(fp, " = build_intern @%s, nargs=%d", intern_tag_name[insn->intern_tag],
-                insn->num_args);
+        fprintf(fp, " = build_tuple, nargs=%d", insn->num_args);
     } else {
-        fprintf(fp, " = build_intern @%s", intern_tag_name[insn->intern_tag]);
+        fprintf(fp, " = build_tuple");
         if (insn->num_opers > 0) fprintf(fp, ", ");
 
         KlrOper *oper;
@@ -1289,8 +1261,8 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_is_as(name, insn, fp);
             break;
 
-        case OP_BUILD_INTERN:
-            print_build_intern(insn, fp);
+        case OP_BUILD_TUPLE:
+            print_build_tuple(insn, fp);
             break;
 
         case OP_GET_FIELD:

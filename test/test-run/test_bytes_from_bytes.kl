@@ -1,0 +1,33 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s --check-prefix=IR
+
+// bytes.from_bytes(src) returns a fresh 0-based copy: writing to the copy never
+// touches src, copying a view materializes its bytes into an independent array,
+// and copying b"" returns the shared empty bytes. It is also how every non-empty
+// bytes literal is materialized from its read-only const-pool template.
+
+func empty() bytes { return b"" }
+
+func main() {
+    let a = b"hello"
+    let c = bytes.from_bytes(a)
+    c[0] = 72
+    print(a, c)
+
+    let v = b"abcdef"[2:5]
+    let cv = bytes.from_bytes(v)
+    cv[0] = 88
+    print(v, cv, b"abcdef")
+
+    print(bytes.from_bytes(b"").len(), empty().len())
+}
+
+// CHECK: b"hello" b"Hello"
+// CHECK-NEXT: b"cde" b"Xde" b"abcdef"
+// CHECK-NEXT: 0 0
+// CHECK-NOT: {{.}}
+
+// b"" is the shared empty bytes: loaded straight from the const pool, no copy call
+// IR-LABEL: func @empty() std/builtin.bytes {
+// IR-NOT: from_bytes
+// IR: ret

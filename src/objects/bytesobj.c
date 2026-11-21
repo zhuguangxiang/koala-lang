@@ -354,6 +354,20 @@ static TValue _bytes_from_hex(TValue *self, TValue *args, int nargs)
     return obj_value(res);
 }
 
+/* pub static func from_bytes(src bytes) bytes */
+static TValue _bytes_from_bytes(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Object *so = kl_arg_obj_as(0, bytes_type);
+    BytesObject *src = (BytesObject *)so;
+
+    /* Fresh 0-based copy, never a view of `src`: writing to it must not touch
+     * the source. An empty source yields the shared `b""`. This is also how a
+     * bytes literal is materialized: the const-pool template stays read-only. */
+    Object *out = kl_bytes_from_data(src->data + src->offset, src->size);
+    return obj_value(out);
+}
+
 static TValue _bytes_getitem(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
@@ -1098,6 +1112,7 @@ static MethodDef bytes_methods[] = {
     { "to_str", _bytes_tostr },
     { "to_hex", _bytes_to_hex },
     { "from_hex", _bytes_from_hex },
+    { "from_bytes", _bytes_from_bytes },
     { "index_bytes", _bytes_index_bytes },
     { "rindex_bytes", _bytes_rindex_bytes },
     { "starts_with", _bytes_starts_with },

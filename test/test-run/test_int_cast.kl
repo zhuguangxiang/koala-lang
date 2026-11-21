@@ -37,7 +37,7 @@ func main() {
 // CHECK-LABEL: func @main()
 // CHECK-NOT: call @test_
 // CHECK: load_tag %0 bool, true bool
-// CHECK: %1 = build_intern @tuple, nargs=1
+// CHECK: %1 = build_tuple, nargs=1
 // CHECK: load_tag %4 bool, true bool
 // CHECK: load_int_imm %8 int64, 300 int64
 // CHECK-NEXT: %9 = int.cast %8 int64 to int8

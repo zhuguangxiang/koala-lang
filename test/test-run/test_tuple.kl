@@ -33,14 +33,14 @@ func main() {
 // CHECK: %1 = call @tuple:to_list [path = 'std/builtin'], %t1 std/builtin.tuple[int64, str, bool]
 // CHECK: %l1 = local [immutable] std/builtin.list[any]
 // CHECK: move %l1 std/builtin.list[any], %1 std/builtin.list[any]
-// CHECK: %2 = build_intern @tuple, %t1 std/builtin.tuple[int64, str, bool], %l1 std/builtin.list[any]
+// CHECK: %2 = build_tuple, %t1 std/builtin.tuple[int64, str, bool], %l1 std/builtin.list[any]
 // CHECK: call @print [path = 'std/prelude'], %2 std/builtin.tuple[std/builtin.tuple[int64, str, bool], std/builtin.list[any]], ' ' str, '\n' str
 // CHECK: %3 = call @foo [const], 4 int64, 5 int64, tuple(6, 7) std/builtin.tuple[int64, int64]
 // CHECK: %t2 = local [immutable] std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
 // CHECK: move %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], %3 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
-// CHECK: %4 = build_intern @tuple, %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
+// CHECK: %4 = build_tuple, %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]
 // CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple[std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]]], ' ' str, '\n' str
-// CHECK: %5 = build_intern @tuple, %t std/builtin.tuple[int64, int64, int64], %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], 6 int64
+// CHECK: %5 = build_tuple, %t std/builtin.tuple[int64, int64, int64], %t2 std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], 6 int64
 // CHECK: %t3 = local [immutable] std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], int64]
 // CHECK: move %t3 std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], int64], %5 std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.tuple[int64, int64, int64, int64, std/builtin.tuple[int64, int64]], int64]
 
@@ -53,19 +53,19 @@ func main() {
 // CHECK: data (func_index=2(imported))
 // CHECK: move r2, r0
 // CHECK: loadk r1, #6
-// CHECK: build_intern r1, @tuple, #2
+// CHECK: build_tuple r1, #2
 // CHECK: loadk r2, #7
 // CHECK: loadk r3, #8
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
 // CHECK: load_int_imm r1, ti=0xb, #20
 // CHECK: load_int_imm r2, ti=0xb, #0
-// CHECK: build_intern r5, @tuple, #2
+// CHECK: build_tuple r5, #2
 // CHECK: load_int_imm r1, ti=0xb, #4
 // CHECK: load_int_imm r2, ti=0xb, #5
 // CHECK: load_int_imm r3, ti=0xb, #9
 // CHECK: load_int_imm r4, ti=0xb, #-1
-// CHECK: build_intern r0, @tuple, #5
+// CHECK: build_tuple r0, #5
 
 // CHECK-LABEL: Import Table:
 // CHECK: [000] method std/builtin::tuple::to_list

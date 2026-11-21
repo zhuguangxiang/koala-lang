@@ -23,7 +23,7 @@ func main() {
 // CHECK: %bb0(entry):
 // CHECK: %0 = new @std/builtin.range
 // CHECK: call @range:__init__ [path = 'std/builtin'], %0 std/builtin.range, %n int64, %m int64, 1 int64
-// CHECK: %1 = build_intern @tuple, %0 std/builtin.range
+// CHECK: %1 = build_tuple, %0 std/builtin.range
 // CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[std/builtin.range], ' ' str, '\n' str
 // CHECK: ret void
 
@@ -38,7 +38,7 @@ func main() {
 // CHECK: move %s str, 'hello' str
 // CHECK: %s2 = local [immutable] str
 // CHECK: move %s2 str, %s str
-// CHECK: %0 = build_intern @tuple, %t std/builtin.tuple[int64, int64, int64], %r std/builtin.range, %s str, %s2 str
+// CHECK: %0 = build_tuple, %t std/builtin.tuple[int64, int64, int64], %r std/builtin.range, %s str, %s2 str
 // CHECK: call @print [path = 'std/prelude'], %0 std/builtin.tuple[std/builtin.tuple[int64, int64, int64], std/builtin.range, str, str], ' ' str, '\n' str
 // CHECK: call @foo [const], -1 int64, -10 int64
 // CHECK: ret void
@@ -58,7 +58,7 @@ func main() {
 // CHECK: call @range:__init__ [path = 'std/builtin'], nargs=4
 // CHECK: %5 = local std/builtin.range        [fixedslot = 0(next)]
 // CHECK: move %5 std/builtin.range, %0 std/builtin.range
-// CHECK: %6 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %6 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK: %7 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %7 str, ' ' str
 // CHECK: %8 = local str        [fixedslot = 2(next)]
@@ -77,7 +77,7 @@ func main() {
 // CHECK: loadk %2 str, 'hello' str
 // CHECK: %3 = local str        [fixedslot = 3(next)]
 // CHECK: loadk %3 str, 'hello' str
-// CHECK: %4 = build_intern @tuple, nargs=4        [fixedslot = 0(next)]
+// CHECK: %4 = build_tuple, nargs=4        [fixedslot = 0(next)]
 // CHECK: %5 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %5 str, ' ' str
 // CHECK: %6 = local str        [fixedslot = 2(next)]
@@ -95,11 +95,11 @@ func main() {
 // CHECK: call @range:__init__ [path = 'std/builtin'], nargs=4
 // CHECK: %12 = local std/builtin.range        [fixedslot = 0(next)]
 // CHECK: move %12 std/builtin.range, %7 std/builtin.range
-// CHECK: %13 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %13 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: %16 = local std/builtin.range        [fixedslot = 0(next)]
 // CHECK: loadk %16 std/builtin.range, range(1, 10, 1) std/builtin.range
-// CHECK: %17 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %17 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK: call @print [path = 'std/prelude'], nargs=3
 
 // CHECK: (1, 2, 3) range(1, 10, 1) hello hello

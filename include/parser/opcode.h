@@ -14,21 +14,6 @@
 extern "C" {
 #endif
 
-// OP_LOADK_SPECIAL's operand id for special constants
-typedef enum _SpecialConst {
-    K_NONE = 0,
-    K_FALSE = 1,
-    K_TRUE = 2,
-    K_EMPTY_STR = 3,
-    K_EMPTY_LIST = 4,
-    K_EMPTY_DICT = 5,
-    K_FLOAT_POS_ZERO = 6,
-    K_FLOAT_NEG_ZERO = 7,
-    K_FLOAT_NAN = 8,
-    K_FLOAT_POS_INF = 9,
-    K_FLOAT_NEG_INF = 10,
-} SpecialConst;
-
 // clang-format off
 
 /*
@@ -74,8 +59,6 @@ typedef enum {
     FORMAT_JMP,
     FORMAT_WIDE,
 
-    FORMAT_RTagImm,             // build_intern
-
     FORMAT_R_TI_Imm12,          // load_int_imm
     FORMAT_TI_Imm2,             // ret_int_imm
     FORMAT_RR_TI_MODE,          // int_cast
@@ -113,8 +96,6 @@ static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
 
 extern char *tag_mapping[];
 void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_funcs);
-
-extern char *intern_tag_name[];
 
 #ifdef __cplusplus
 }

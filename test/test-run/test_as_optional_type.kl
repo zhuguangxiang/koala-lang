@@ -57,7 +57,7 @@ run_as()
 // CHECK-NEXT: %3 = call @Box:get, %b test_as_optional_type.Box[test_as_optional_type.Foo?]
 // CHECK-NEXT: %4 = cast %3 test_as_optional_type.Foo? to test_as_optional_type.Foo
 // CHECK-NEXT: %5 = get_field %4 test_as_optional_type.Foo, n(index=0)
-// CHECK-NEXT: %6 = build_intern @tuple, %5 int64
+// CHECK-NEXT: %6 = build_tuple, %5 int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %6 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: %7 = as %a any, str
 // CHECK-NEXT: %8 = new @test_as_optional_type.Box[str?]
@@ -79,7 +79,7 @@ run_as()
 // CHECK-NEXT: jmp label %bb3
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
-// CHECK-NEXT: %12 = build_intern @tuple, %coalesce str
+// CHECK-NEXT: %12 = build_tuple, %coalesce str
 // CHECK-NEXT: call @print [path = 'std/prelude'], %12 std/builtin.tuple[str], ' ' str, '\n' str
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }

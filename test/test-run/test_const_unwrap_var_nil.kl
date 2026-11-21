@@ -22,7 +22,7 @@ var_nil()
 // CHECK-NEXT: load_tag %var_nil.x str?, nil
 // CHECK-NEXT: %0 = nil_check %var_nil.x str? to str        [fixedslot = 0(next)]
 // CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]
@@ -37,7 +37,7 @@ var_nil()
 // CHECK-NEXT: load_tag %x str?, nil
 // CHECK-NEXT: %0 = nil_check %x str? to str        [fixedslot = 0(next)]
 // CHECK-NEXT: %1 = call @str:upper [path = 'std/builtin'], nargs=1        [fixedslot = 0(next)]
-// CHECK-NEXT: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK-NEXT: %2 = build_tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK-NEXT: %3 = local str        [fixedslot = 1(next)]
 // CHECK-NEXT: loadk %3 str, ' ' str
 // CHECK-NEXT: %4 = local str        [fixedslot = 2(next)]

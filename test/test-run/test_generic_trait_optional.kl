@@ -80,7 +80,7 @@ run()
 // CHECK-NEXT: jmp label %bb3
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
-// CHECK-NEXT: %5 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: %5 = build_tuple, %coalesce int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %5 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: call @Maybe:put [intf-index = 1], %m test_generic_trait_optional.Maybe[int64?], 2 int64
 // CHECK-NEXT: %6 = call @Maybe:get [intf-index = 0], %m test_generic_trait_optional.Maybe[int64?]
@@ -98,7 +98,7 @@ run()
 // CHECK-NEXT: jmp label %bb6
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb6(coalesce-end):                             ;; preds = %bb4, %bb5
-// CHECK-NEXT: %9 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: %9 = build_tuple, %coalesce int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %9 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: %10 = call @Cell:get, %c test_generic_trait_optional.Cell[int64?]
 // CHECK-NEXT: %coalesce = local int64
@@ -115,11 +115,11 @@ run()
 // CHECK-NEXT: jmp label %bb9
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb9(coalesce-end):                             ;; preds = %bb7, %bb8
-// CHECK-NEXT: %13 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: %13 = build_tuple, %coalesce int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %13 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: call @Maybe:put [intf-index = 1], %m test_generic_trait_optional.Maybe[int64?], nil
 // CHECK-NEXT: %14 = call @Maybe:get [intf-index = 0], %m test_generic_trait_optional.Maybe[int64?]
-// CHECK-NEXT: %15 = build_intern @tuple, %14 int64?
+// CHECK-NEXT: %15 = build_tuple, %14 int64?
 // CHECK-NEXT: call @print [path = 'std/prelude'], %15 std/builtin.tuple[int64?], ' ' str, '\n' str
 // CHECK-NEXT: %16 = new @test_generic_trait_optional.IntCell
 // CHECK-NEXT: call @IntCell:__init__, %16 test_generic_trait_optional.IntCell
@@ -144,7 +144,7 @@ run()
 // CHECK-NEXT: jmp label %bb12
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb12(coalesce-end):                            ;; preds = %bb10, %bb11
-// CHECK-NEXT: %21 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: %21 = build_tuple, %coalesce int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %21 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: call @Maybe:put [intf-index = 1], %im test_generic_trait_optional.Maybe[int64?], nil
 // CHECK-NEXT: %22 = call @read, %im test_generic_trait_optional.Maybe[int64?]
@@ -162,7 +162,7 @@ run()
 // CHECK-NEXT: jmp label %bb15
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb15(coalesce-end):                            ;; preds = %bb13, %bb14
-// CHECK-NEXT: %25 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: %25 = build_tuple, %coalesce int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %25 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: %26 = make_intf %c test_generic_trait_optional.Cell[int64?] [intf-table-index = 4] to test_generic_trait_optional.Maybe
 // CHECK-NEXT: %27 = call @read, %26 test_generic_trait_optional.Maybe
@@ -180,7 +180,7 @@ run()
 // CHECK-NEXT: jmp label %bb18
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb18(coalesce-end):                            ;; preds = %bb16, %bb17
-// CHECK-NEXT: %30 = build_intern @tuple, %coalesce int64
+// CHECK-NEXT: %30 = build_tuple, %coalesce int64
 // CHECK-NEXT: call @print [path = 'std/prelude'], %30 std/builtin.tuple[int64], ' ' str, '\n' str
 // CHECK-NEXT: %31 = new @test_generic_trait_optional.Cell[str?]
 // CHECK-NEXT: call @Cell:__init__, %31 test_generic_trait_optional.Cell[str?]
@@ -203,7 +203,7 @@ run()
 // CHECK-NEXT: jmp label %bb21
 // CHECK-EMPTY:
 // CHECK-NEXT: %bb21(coalesce-end):                            ;; preds = %bb19, %bb20
-// CHECK-NEXT: %36 = build_intern @tuple, %coalesce str
+// CHECK-NEXT: %36 = build_tuple, %coalesce str
 // CHECK-NEXT: call @print [path = 'std/prelude'], %36 std/builtin.tuple[str], ' ' str, '\n' str
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }

@@ -120,7 +120,7 @@ TValue kl_jit_num_cmp(TValue *a, TValue *b, int slot, uint32_t pc);
 
 /* A group: object / container / string / IO. Slot-dispatch helpers mirror the
  * interpreter's kl_call_* family; all set cf->pc and trace on error, returning
- * TAG_ERROR on failure. kl_jit_new/build_intern construct objects. */
+ * TAG_ERROR on failure. kl_jit_new/build_tuple construct objects. */
 TValue kl_jit_slot3(TValue *a0, TValue *a1, TValue *a2, int nargs, int slot, uint32_t pc);
 TValue kl_jit_get_item_imm(TValue *obj, int64_t idx, uint32_t pc);
 TValue kl_jit_set_item_imm(TValue *obj, int64_t idx, TValue *val, uint32_t pc);
@@ -128,7 +128,7 @@ TValue kl_jit_hash(TValue *obj, uint32_t pc);
 TValue kl_jit_fmt(TValue *obj, TValue *fmt, uint32_t pc);
 TValue kl_jit_print(int nargs, uint32_t pc);
 TValue kl_jit_new(TypeObject *tp);
-TValue kl_jit_build_intern(int tag, int count, uint32_t pc);
+TValue kl_jit_build_tuple(int count, uint32_t pc);
 
 /* Runtime switches (koala --no-jit or env KOALA_JIT=0 disables, KOALA_JIT_THRESHOLD=<n>). */
 int kl_jit_enabled(void);

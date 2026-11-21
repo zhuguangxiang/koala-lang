@@ -130,11 +130,6 @@ typedef enum _KlrConstKind {
     CONST_TUPLE,
     CONST_RANGE,
     CONST_SLICE,
-    CONST_LIST,
-    /* a constant map literal; the entries are stored in `list` in source order,
-     * i.e. key0, value0, key1, value1, ... and `len` is the operand count
-     * (2 * number of entries), the same order `build_intern @map` uses. */
-    CONST_MAP,
 } KlrConstKind;
 
 /* literal constant */
@@ -151,9 +146,6 @@ typedef struct _KlrConst {
 #define TAG_FLOAT_NAN      5
 #define TAG_FLOAT_POS_INF  6
 #define TAG_FLOAT_NEG_INF  7
-#define TAG_EMPTY_STR      8
-#define TAG_EMPTY_LIST     9
-#define TAG_EMPTY_DICT     10
 
     KlrConstKind which;
 
@@ -555,8 +547,6 @@ typedef struct _KlrInsn {
     /* the original variable whose SSA versions are merged by this phi */
     KlrValue *target;
 
-    InternTag intern_tag;
-
     /* target type for 'is' and 'as' instructions */
     TypeSpec *target_ts;
 
@@ -595,17 +585,6 @@ KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
 KlrValue *klr_const_bytes(char *s, int len, KlrModule *m);
-KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
-/* Same as klr_const_list(), but entries sharing a duplicated key are merged
- * when the key can be compared at compile time: int/uint/bool/str/float and the
- * read-only compounds tuple/range. The first occurrence keeps its position and
- * the value of the last one wins (Python semantics). Entries whose key is not
- * comparable (list, map, ...) are kept as-is and never merged.
- * `size` is the operand count, i.e. key0, value0, key1, value1, ...
- * `items` is a caller-owned scratch array; it is compacted in place. */
-KlrValue *klr_const_merged_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
-/* `nargs` operands, source order: key0, value0, key1, value1, ... */
-KlrValue *klr_const_map(KlrValue **items, int nargs, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_none(KlrModule *m);
 KlrValue *klr_const_range(KlrValue **args, TypeSpec *ts, KlrModule *m);
@@ -1210,8 +1189,8 @@ KlrValue *klr_build_upcast_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_t
                                 char *name);
 
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, TypeSpec *ts, char *name);
-KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
-                           InternTag tag, char *name);
+KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
+                          char *name);
 
 KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, TypeSpec *ts,
                               char *name);

@@ -59,3 +59,79 @@
 
 - 现象：`test_gc_*.kl` 去掉 `--no-jit` 全过，但耗时极短，churn 循环可能被 JIT 优化掉，JIT 帧/直调路径下的 root 正确性没有被真正压测。
 - 待办：设计不会被优化掉的 JIT 场景 GC 测试（如自递归直调深处触发 GC）。
+
+## 14. 数字字面量后紧跟 `+` / `-`（无空格）词法报错
+
+- 现象：`let x = 2+3` 报 `syntax error`，`let x = 2-3` 同样；加空格 `2 + 3` 正常输出 `5`。`*` 不受影响（`2*3` 正常）。不限于 list 字面量：`(2+3)` 报 `expected ')'`，`[2+3, 4]` 报 `expected ',' or ']'`，报错位置落在表达式起点而非 `+` 处。
+- 最小复现：`func main() { let x = 2+3; print(x) }`（写成 `2 + 3` 即通过）。
+- 初步分析：数字扫描把紧跟的 `+` / `-` 当成指数符号（`1e+5` 路径）的一部分吞掉，产出非法 token。
+- 建议修法：仅在刚吃掉 `e`/`E`（十六进制的 `p`/`P`）之后才接受 `+`/`-` 作为符号，其余位置立即回退，交回主扫描循环作为独立运算符 token。
+- 建议测试：`test/test-run/test_lex_num_sign.kl`，覆盖 `2+3`、`2-3`、`[i+1, i-1]`、`(2+3)`、`2*3`，并保证 `1e+5` / `1e-5` / `0x1F` 仍正确。
+- 绕过：运算符两侧加空格。
+- 状态：2026-11-21 发现于 Phase 2 基准准备阶段，用户确认先记录、待后续处理。
+
+## 15. 原生变参 `__init__` 的实参展平只对 list 生效
+
+- 背景：Phase 2 把 list 构造从 `build_intern @list` 改为普通的 `new` + `call @list:__init__`。`__init__(args ...T)` 是原生函数，元素在 call slot 里平铺，因此 `emit_ir_call` 把 parser 为变参打包的元组直接拆开，不再分配那个只用一次的中间元组。
+- 现状：展平条件写死为 `type_is_list(callee->ts)`（`irgen.c` `emit_ir_call`）。目前标准库里只有 `list` 和 `tuple` 声明了 `__init__(args ...T)`，tuple 按用户要求仍走 `build_intern @tuple`（不可变、可进常量池），所以展平没有推广到通用路径。
+- 影响：将来若新增别的原生变参 `__init__` 类，仍会先建中间元组再拷贝，白白多一次分配；需要把判断改成「callee 的 `__init__` 是原生且形参为单个 `...T`」之类的通用条件。
+- 附带：`tuple::__init__`（`tupleobj.c` 的 `_tuple_init`）已随本次回退删除，tuple 不再需要它；`list::__init__` 保留。
+- 状态：2026-11-21 记录，待后续决定是否通用化。
+
+## 16. list 构造改为 `new` + `__init__` 的额外开销未量化
+
+- 现象：每个 list 字面量现在比原来多一次方法 dispatch（查 `list::__init__` 的 import slot）和一个 self slot；IR 值 +2、LIR 指令 +5、字节码多 `new`/`call` 两条。
+- 已做：20 万次嵌套 list/tuple 构造的 GC 压力烟测，结果正确、无崩溃、无 valgrind 新增报错。
+- 未做：没有跑吞吐/延迟基准，无法给出相对 `build_intern` 的开销百分比，也没有确认 JIT 下这次 dispatch 能否被内联或消除。
+- 待办：补一个不会被 JIT 优化掉的 list 构造基准（参考 #13 的思路），对比改动前后；若开销显著，考虑让 isel 把「`new` 紧跟 `__init__`」重新折叠成单条指令。
+- 状态：2026-11-21 记录，待后续处理。
+
+## 17. `libs/std/dist/*.klc` 陈旧产物导致运行时 “func not implemented”
+
+- 现象：改完编译器只跑 `./build-debug.sh`，`test-ut` 有 11 个用例报 `Error: func 'tuple::__init__' is not implemented!`。原因是 `libs/std/dist/*.klc` 还是上一版编译器（tuple 也走 `new`+`__init__` 时）编出来的，里面残留 `call @tuple:__init__`，而新编译器已不再提供该原生函数。
+- 复现：在 list/tuple 构造路径来回改动后，只 `./build-debug.sh` 不重新 `wombat build`，再跑 `./test-debug.sh`。
+- 绕过：`cd libs/std && wombat build`，然后 `./build-debug.sh` 重新安装。
+- 建议：`.klc` 里记录编译器版本/ABI 指纹，加载时不匹配就报错或自动重编；至少让 `build-debug.sh` 在编译器源码变动后连带重建标准库产物，避免这类「编译通过、运行才炸」的静默不一致。
+- 状态：2026-11-21 发现于 Phase 2 回退 tuple 期间，已用重新构建绕过。
+
+## 18. dict 字面量混用 bool 键与 int 键时断言崩溃
+
+- 现象：`{true: "a", 1: "b"}` 触发 `object.h:519: to_raw_bool: Assertion '((v)->tag > (64 + 1))' failed`，进程 SIGABRT（退出码 134）。同一文件里 `{1: "a", 1.0: "b"}` 输出 `{1: a, 1: b}`、`{0.0: "a", -0.0: "b"}` 输出 `{0: b}`，均正常。
+- 最小复现：`func main() { print({true: "a", 1: "b"}) }`。
+- 初步分析：bool 与 int 的哈希值相同，两个键落进同一比较分支后，dict 的 key 相等性判断把 int 槽当 bool 解包，`to_raw_bool` 收到 int tag 而断言失败。疑为类型判别缺失，而非断言本身过严。
+- 未定性：尚未判定是本轮 dict lowering 改动（`new` + `__init__` + 逐条 `seq.set`）引入，还是既有缺陷。需用隔离 `PATH` + `KOALA_PATH` 的改动前 release 二进制跑同一探针对比才能定性（驱动经 PATH 解析 `koalac`，混用不同 build 会静默串味）。
+- 建议修法：定位 `to_raw_bool` 在 dict key eq/hash 路径上的调用链，在比较前补齐键类型校验；不要通过放宽断言掩盖。
+- 建议测试：`test/test-run/test_dict_bool_int_key.kl`，覆盖 `{true: 1}`、`{1: true}`、`{true: "a", 1: "b"}`、`{false: "a", 0: "b"}`，锁定预期输出与是否合并。
+- 状态：2026-11-21 发现于 Phase 3 收尾核对 `klr_const_map` 语义期间，用户确认先记录、待后续处理。
+
+## 19. dict 常量键应在编译期合并（逻辑已写好但整条链不可达）
+
+- 需求：dict 字面量中重复的**常量**键应在编译期就合并掉，少发 `seq.set`，而不是全部留给运行期 dict 覆盖。
+- 现状：编译期完全不合并。Phase 3 后 `{1:"a", 2:"b", 1:"c"}` 发出 3 条 `seq.set`（重复的 `1` 出现两次）；改动前的 `build_intern @map, 1,'a', 2,'b', 1,'c'` 同样是 6 个操作数、不去重。即此行为改动前后一致，不是本轮引入的回退。
+- 已有实现：`src/parser/klr/ir.c` 里整套编译期合并逻辑均已写好，但 `klr_const_map` **全仓零调用者**：
+  - `klr_const_map`（ir.c:339）只做两件事——调 `klr_const_merged_list`，再把 `which` 从 `CONST_LIST` 改标为 `CONST_MAP`。
+  - `klr_const_merged_list`（ir.c:297）是真正的算法：按 `key0,val0,key1,val1,...` 遍历，`out` 为写游标原地压缩；命中重复键时只覆盖 `items[2*dup+1] = val` 并 `continue`（`out` 不前进），即**首次出现占位、最后一个值生效**，与运行期覆盖语义一致。
+  - `is_mergeable_key`（ir.c:233）白名单：常量且 `which ∈ {INT, UINT, FLT, BOOL, STR, TUPLE, RANGE}`；排除 list/map，因其可变、运行期可能按身份而非内容比较。
+  - `mergeable_key_equal`（ir.c:255）：要求两者 `which` 相同；INT/UINT 比 `len`+`ival`；FLT 直接用 `==` 且故意忽略位宽（`0.0 == -0.0` 合并、`NaN` 永不合并，对齐运行期 `_dict_entry_eq_()`）；STR 先比 intern 指针再回退 `memcmp`；TUPLE/RANGE 递归逐元素，任一元素不可比则整体判不等。设计上保守——判不等只会少合并，不会误合并。
+- 不可达原因：`const_copy_prop.c:1264` 的常量 call 折叠分支只处理 `list` / `tuple` / `int64`，不走 map；irgen 的 `emit_ir_map` 现在直接发 `new` + `seq.set`，也不经过常量池。
+- 语义已核对：`{1:"a", 1.0:"b"}` 运行期输出 `{1: a, 1: b}`（**不合并**），说明 `which` 必须相同这条前置检查与运行期一致 —— koala dict 不像 Python 那样跨类型合并键。
+- 待办：决定接入点——在 `emit_ir_map` 里对常量键先去重再发 `seq.set`，或复用/改造 `klr_const_merged_list`。约束：
+  1. 只能合并常量键；对象键（自定义 `__hash__`/`__eq__`）必须保留逐条 `seq.set`。
+  2. 合并不得吞掉用户 `hash()` 抛出的异常，也不得改变条目求值顺序带来的副作用。
+  3. 需先解决 #18 的 bool/int 键语义，否则编译期合并规则无法与运行期对齐。
+- 关联：`docs/Koala_TODO.md` §item 3 原计划把 `klr_const_map` / `klr_const_merged_list` / `is_mergeable_key` / `mergeable_key_equal` 当死代码删除（§27）。本条要求改为**保留并接上**，该删除决定需相应撤销。
+- 状态：2026-11-21 记录，用户要求后续解决。
+
+## 20. `list[uint8]` 的整数字面量收窄规则前后不一致
+
+- 现象：同样把 `int64` 字面量放进 `uint8` 元素位置，三条路径给出两种结果：
+  - `var a = list[uint8](65, 66)` → `error: Incompatible type: expected 'uint8', but got 'int64'.`（每个实参各报一次）
+  - `var b list[uint8] = [65, 66]` → `error: Types of two sides are not matched. lhs: list[uint8] =/= rhs: list[int64]`（列表字面量先自行推导成 `list[int64]`，再整体比对，不做逐元素收窄）
+  - `var c list[uint8] = []; c.append(65)` → **编译通过且运行正确**（`T` 已绑定为 `uint8` 的方法调用反而接受了 `int64` 字面量）
+- 最小复现：`func main() { var a = list[uint8](65, 66); print(a.len()) }` 报错；把同一行换成 `var c list[uint8] = []; c.append(65); print(c.len())` 则输出 `1`。
+- 影响：构造 `uint8` 序列（`frozenbytes(data Iterable[uint8])`、`Buffer`、`bytes.fill` 等入口）时，最自然的两种写法都不可用，只能写 `list[uint8](uint8(65), uint8(66))` 或先建空表再 `append`。本轮 `test_frozenbytes.kl` 因此用 `byte_list(s str)` 辅助函数绕开。
+- 初步分析：疑为三处的类型检查入口不统一——泛型构造的变长实参走严格 `compatible` 检查；列表字面量走「先推导整体类型再赋值兼容」；而已实例化泛型的方法实参走了允许字面量收窄的另一条路径。需要定位后统一，而不是单独放宽某一处。
+- 未定性：尚未判定 `append` 接受 `int64` 是「字面量收窄」的有意设计，还是漏检（若存入的值超出 `uint8` 范围会怎样，未测）。
+- 建议测试：`test/test-ut/test_uint8_literal_narrowing.kl`，覆盖上述三条路径 + 越界字面量（`append(256)` / `append(-1)` / `list[uint8](256)`），锁定「哪些位置允许收窄、越界如何报错」。
+- 建议修法：先确定语言规则（整数字面量能否隐式收窄到定长整型、在哪些位置），再让三处共用同一判定；若允许收窄，则列表字面量应按声明的元素类型推导而非先推 `int64`。
+- 状态：2026-11-21 发现于 frozenbytes 独立类型实现的测试编写期间，已用辅助函数绕过，待讨论。

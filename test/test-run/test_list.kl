@@ -30,29 +30,29 @@ func main() {
 // CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[any]
 // CHECK: %l0 = local [immutable] std/builtin.list[any]
 // CHECK: move %l0 std/builtin.list[any], %0 std/builtin.list[any]
-// CHECK: %1 = build_intern @tuple, %l0 std/builtin.list[any]
+// CHECK: %1 = build_tuple, %l0 std/builtin.list[any]
 // CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[std/builtin.list[any]], ' ' str, '\n' str
 // CHECK: %2 = new @std/builtin.list[int64]
 // CHECK: call @list:__init__ [path = 'std/builtin'], %2 std/builtin.list[int64], 1 int64, 2 int64, 3 int64
 // CHECK: %l = local [immutable] std/builtin.list[int64]
 // CHECK: move %l std/builtin.list[int64], %2 std/builtin.list[int64]
 // CHECK: %3 = call @list:len [path = 'std/builtin'], %l std/builtin.list[int64]
-// CHECK: %4 = build_intern @tuple, 'length of l:' str, %3 int64
+// CHECK: %4 = build_tuple, 'length of l:' str, %3 int64
 // CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple[str, int64], ' ' str, '\n' str
 // CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list[int64], 4 int64
-// CHECK: %5 = build_intern @tuple, %l std/builtin.list[int64]
+// CHECK: %5 = build_tuple, %l std/builtin.list[int64]
 // CHECK: call @print [path = 'std/prelude'], %5 std/builtin.tuple[std/builtin.list[int64]], ' ' str, '\n' str
 // CHECK: %6 = call @list:len [path = 'std/builtin'], %l std/builtin.list[int64]
-// CHECK: %7 = build_intern @tuple, 'length of l:' str, %6 int64
+// CHECK: %7 = build_tuple, 'length of l:' str, %6 int64
 // CHECK: call @print [path = 'std/prelude'], %7 std/builtin.tuple[str, int64], ' ' str, '\n' str
 // CHECK: %t = local [immutable] std/builtin.tuple[int64, int64, _?]
 // CHECK: move %t std/builtin.tuple[int64, int64, _?], tuple(1, 2, nil) std/builtin.tuple[int64, int64, _?]
-// CHECK: %8 = build_intern @tuple, %t std/builtin.tuple[int64, int64, _?]
+// CHECK: %8 = build_tuple, %t std/builtin.tuple[int64, int64, _?]
 // CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple[std/builtin.tuple[int64, int64, _?]], ' ' str, '\n' str
 // CHECK: %9 = call @new_list [const], 300 int64
 // CHECK: %l2 = local [immutable] std/builtin.list[int64]
 // CHECK: move %l2 std/builtin.list[int64], %9 std/builtin.list[int64]
-// CHECK: %10 = build_intern @tuple, %l2 std/builtin.list[int64]
+// CHECK: %10 = build_tuple, %l2 std/builtin.list[int64]
 // CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple[std/builtin.list[int64]], ' ' str, '\n' str
 // CHECK: ret void
 
@@ -62,7 +62,7 @@ func main() {
 // CHECK: call flg=0, #1
 // CHECK: data (func_index=2(imported))
 // CHECK: move r1, r0
-// CHECK: build_intern r1, @tuple, #1
+// CHECK: build_tuple r1, #1
 // CHECK: loadk r2, #0
 // CHECK: loadk r3, #1
 // CHECK: call flg=0, #3
@@ -78,7 +78,7 @@ func main() {
 // CHECK: call flg=0, r2, #1
 // CHECK: data (func_index=5(imported))
 // CHECK: loadk r1, #2
-// CHECK: build_intern r1, @tuple, #2
+// CHECK: build_tuple r1, #2
 // CHECK: loadk r2, #0
 // CHECK: loadk r3, #1
 // CHECK: call flg=0, #3
@@ -88,7 +88,7 @@ func main() {
 // CHECK: call flg=0, #2
 // CHECK: data (func_index=3(imported))
 // CHECK: move r1, r0
-// CHECK: build_intern r1, @tuple, #1
+// CHECK: build_tuple r1, #1
 // CHECK: loadk r2, #0
 // CHECK: loadk r3, #1
 // CHECK: call flg=0, #3
@@ -97,13 +97,13 @@ func main() {
 // CHECK: call flg=0, r2, #1
 // CHECK: data (func_index=5(imported))
 // CHECK: loadk r1, #2
-// CHECK: build_intern r1, @tuple, #2
+// CHECK: build_tuple r1, #2
 // CHECK: loadk r2, #0
 // CHECK: loadk r3, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=4(imported))
 // CHECK: loadk r1, #6
-// CHECK: build_intern r1, @tuple, #1
+// CHECK: build_tuple r1, #1
 // CHECK: loadk r2, #0
 // CHECK: loadk r3, #1
 // CHECK: call flg=0, #3
@@ -119,7 +119,7 @@ func main() {
 // CHECK: call flg=0, #2
 // CHECK: data (func_index=3(imported))
 // CHECK: move r1, r0
-// CHECK: build_intern r1, @tuple, #1
+// CHECK: build_tuple r1, #1
 // CHECK: loadk r2, #0
 // CHECK: loadk r3, #1
 // CHECK: call flg=0, #3

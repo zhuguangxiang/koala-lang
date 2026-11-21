@@ -279,6 +279,12 @@ pub class bytes : Sequence[uint8] {
     /// Panic if a character is not a hexadecimal digit or a digit is missing, with its position.
     @native
     pub static func from_hex(s str) bytes {}
+
+    /// Return a fresh copy of `src`, starting at offset 0: writing to the copy
+    /// never touches `src`. Copying a `view` materializes its bytes into an
+    /// independent array; copying `b""` returns the shared empty bytes.
+    @native
+    pub static func from_bytes(src bytes) bytes {}
 }
 
 /// An iterator over the bytes of a byte array, from left to right.

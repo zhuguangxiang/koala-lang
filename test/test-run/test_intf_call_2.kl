@@ -60,7 +60,7 @@ func main() {
 // CHECK: move %8 str, %3 str
 // CHECK: %9 = local str        [fixedslot = 1(next)]
 // CHECK: move %9 str, %5 str
-// CHECK: %10 = build_intern @tuple, nargs=3        [fixedslot = 0(next)]
+// CHECK: %10 = build_tuple, nargs=3        [fixedslot = 0(next)]
 
 // CHECK: Foo is flying
 // CHECK: Foo is flying2

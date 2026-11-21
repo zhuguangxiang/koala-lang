@@ -27,6 +27,6 @@ echo "=============================================="
 
 echo "Done."
 
-cd build/debug
+# cd build/debug
 
-cmake --build . --target install
+# cmake --build . --target install
