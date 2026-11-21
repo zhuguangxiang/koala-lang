@@ -1,0 +1,57 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+// Wire protocol between the Koala pump loop and the embedded page runtime
+// (see runtime.kl). Commands flow Koala -> page as one JSON array per pump
+// iteration; events flow page -> Koala through window.__outbox, one JSON
+// object per line. Protocol version 1.
+
+/// Encode a `mount` command carrying the whole widget tree.
+pub func encode_mount(root json.Value) json.Object {
+    let cmd = json.Object()
+    cmd["cmd"] = json.String("mount")
+    cmd["v"] = json.Integer(1)
+    cmd["root"] = root
+    return cmd
+}
+
+/// Encode a `set` command: change one property of one widget. Id 0 with
+/// prop "theme" addresses the app itself.
+pub func encode_set(id int, prop str, value json.Value) json.Object {
+    let cmd = json.Object()
+    cmd["cmd"] = json.String("set")
+    cmd["id"] = json.Integer(id)
+    cmd["prop"] = json.String(prop)
+    cmd["value"] = value
+    return cmd
+}
+
+/// Encode an `add` command: append a new node under `parent` (0 = root).
+pub func encode_add(parent int, node json.Value) json.Object {
+    let cmd = json.Object()
+    cmd["cmd"] = json.String("add")
+    cmd["parent"] = json.Integer(parent)
+    cmd["node"] = node
+    return cmd
+}
+
+/// Decode one outbox line into `(widget id, kind, value)`. Empty or
+/// whitespace-only lines yield nil (the outbox join produces them).
+/// Panics on malformed JSON or a missing/ill-typed id or kind.
+pub func decode_event(s str) (int, str, json.Value?)? {
+    if s.strip().empty() {
+        return nil
+    }
+    let v = json.parse_str(s)
+    if v is json.Object {
+        let id = v.get_int("id")
+        let kind = v.get_str("kind")
+        let value = v.get("value")
+        return (id, kind, value)
+    }
+    panic("ui: bad event json: " + s)
+}

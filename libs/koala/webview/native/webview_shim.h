@@ -6,18 +6,14 @@
 /*
  * Shared helpers for the koala/webview native module.
  *
- * The window engine is the webview library (0.12.0) vendored unmodified in
- * `native/webview/` (see `native/webview/LICENSE` and `native/webview/VERSION`).
- * Upstream: https://github.com/webview/webview (tag 0.12.0)
- * Header:   https://raw.githubusercontent.com/webview/webview/0.12.0/core/include/webview/webview.h
- * Tarball:  https://codeload.github.com/webview/webview/tar.gz/refs/tags/0.12.0
- * Its public API is C ABI, but its implementation is C++, so this module is
- * compiled with a C++ compiler (`compiler = "c++"` in `__pkg__.toml`) and links
- * the system webview backend: WebKitGTK on Linux, WebView2 on Windows, WKWebView
- * on macOS. No browser engine is bundled.
+ * The window engine is implemented from scratch in pure C (webview_impl.c)
+ * on top of the system backend's C API: WebKitGTK on Linux, WebView2 on
+ * Windows and WKWebView on macOS (the latter two not implemented yet). No
+ * third-party code is vendored or linked and no browser engine is bundled.
  *
- * One C++ file does the binding:
- *   - webview_shim.cpp: module init, the Window type, version()
+ * Files:
+ *   - webview_shim.c: module init, the Window type, version()
+ *   - webview_impl.c: the C window engine behind webview.h
  */
 
 #ifndef KOALA_WEBVIEW_SHIM_H
@@ -27,7 +23,14 @@
 #include <string.h>
 #include "object.h"
 #include "excobj.h"
+
+/* webview.h selects the backend macro (WEBVIEW_GTK/COCOA/EDGE). */
 #include "webview.h"
+
+#if defined(WEBVIEW_GTK)
+#include <gtk/gtk.h>
+#include <webkit2/webkit2.h>
+#endif
 
 /* Copy a `str` argument into a NUL-terminated C string the webview API can
  * read. The Koala declaration types the parameter `str`, so a non-string is

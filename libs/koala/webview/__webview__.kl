@@ -5,11 +5,12 @@
 
 /// Native desktop windows backed by the system webview.
 ///
-/// This package wraps the webview library (0.12.0, vendored in
-/// `native/webview/`): one lightweight native window that renders HTML using
-/// the operating system's own webview engine - WebKitGTK on Linux, WebView2 on
-/// Windows, WKWebView on macOS. No browser engine is bundled, so the footprint
-/// stays small and the window looks like a native app.
+/// The window engine is implemented from scratch in pure C
+/// (`native/webview_impl.c`): one lightweight native window that renders HTML
+/// using the operating system's own webview engine - WebKitGTK on Linux,
+/// WebView2 on Windows, WKWebView on macOS. No third-party code is vendored
+/// and no browser engine is bundled, so the footprint stays small and the
+/// window looks like a native app.
 ///
 ///     import "koala/webview"
 ///
@@ -28,11 +29,29 @@
 ///
 /// `Window` mirrors the webview C API: `set_title`, `set_size`, `navigate`,
 /// `set_html`, `init_js` (run JS on every page load), `eval` (run JS now),
-/// `run`, `terminate` and `destroy`. Call `destroy()` when done - the runtime
-/// does not run finalizers yet, so the window is not released automatically.
+/// `run`, `terminate` and `destroy`. On top of that it adds `poll` (step the
+/// event loop without blocking), `is_open`, `eval_sync` (run JS and get its
+/// result back as a string), `set_fullscreen` and `get_size`. These four are
+/// implemented on Linux (GTK); the Windows (WebView2) and macOS (WKWebView)
+/// backends are stubbed and panic until implemented. With `poll` +
+/// `eval_sync` + `eval` a Koala-side loop can drive the page both ways - no
+/// native->Koala callback needed:
+///
+///     while w.poll() {
+///         let events = w.eval_sync("window.__outbox.splice(0).join(',')")
+///         // handle events, then w.eval(...) to push updates back
+///     }
+///
+/// HTML can live in separate template files: `set_html_file(path, vars)`
+/// reads the file and substitutes `{{key}}` placeholders (module-level
+/// `render_template` / `load_template` do the same without a window).
+///
+/// Call `destroy()` when done - the runtime does not run finalizers yet, so
+/// the window is not released automatically.
 ///
 /// Binding JavaScript calls back into Koala (`webview_bind`/`dispatch`) is not
-/// exposed yet; it needs a native->Koala callback with GC rooting.
+/// exposed yet; it needs a native->Koala callback with GC rooting. Use the
+/// polling pattern above instead.
 ///
 /// Building the native library requires the system webview development
 /// packages. On Linux: `gtk+-3.0` and `webkit2gtk-4.1` (or `webkit2gtk-4.0` on
@@ -53,7 +72,7 @@ pub const HINT_MAX = 2
 /// `set_size` hint: the window size cannot be changed by the user.
 pub const HINT_FIXED = 3
 
-/// The webview library version, as "0.12.0".
+/// The webview engine version, as "0.1.0".
 pub let version = _version()
 
 // Native helper behind `version`. Not part of the API.

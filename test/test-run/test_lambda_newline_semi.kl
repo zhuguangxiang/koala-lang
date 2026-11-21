@@ -1,0 +1,96 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+//
+// A newline before the closing '}' of a lambda body inserts ';' (auto-semicolon
+// after ')', ID, literals, ...). Both {|params| ...} and {|| ...} must accept
+// that ';' and an explicit one; the single-line forms keep working.
+
+import "test_pkg/pkg1" as zz
+
+type IntFn = func(int) int
+
+// a module global: local-variable captures are not implemented yet
+var base = 10
+
+func call_fn(h func(int)) {
+    h(1)
+}
+
+func apply(f IntFn, x int) int { return f(x) }
+
+func make() IntFn {
+    // a multi-line lambda in a return
+    return {|x|
+        x + 200
+    }
+}
+
+func main() {
+    // the original bug: a call body on its own line, ')' + newline inserts ';'
+    call_fn({|x int|
+        print(x)
+    })
+
+    // body ends with an ID (also inserts ';')
+    print(apply({|x int|
+        base
+    }, 0))
+
+    // body ends with an int literal
+    print(apply({|x int|
+        42
+    }, 0))
+
+    // explicit ';' before '}'
+    print(apply({|x int| x + 1; }, 2))
+
+    // single-line, no ';'
+    print(apply({|x int| x + 1}, 3))
+
+    // no params, body on its own line
+    let f = {||
+        7
+    }
+    print(f())
+
+    // no params, explicit ';'
+    let g = {|| 8; }
+    print(g())
+
+    // no params, single-line
+    let h = {|| 9 }
+    print(h())
+
+    // typed local with an inferred parameter, multi-line body
+    let cb IntFn = {|x|
+        x * 2
+    }
+    print(cb(5))
+
+    // a multi-line lambda as a list element
+    let fns list[IntFn] = [{|x int|
+        x + 100
+    }]
+    print(fns[0](1))
+
+    let m = make()
+    print(m(1))
+
+    // the same shape through an imported module function
+    zz.call_fn({|x int|
+        print(x)
+    })
+}
+
+// CHECK: 1
+// CHECK-NEXT: 10
+// CHECK-NEXT: 42
+// CHECK-NEXT: 3
+// CHECK-NEXT: 4
+// CHECK-NEXT: 7
+// CHECK-NEXT: 8
+// CHECK-NEXT: 9
+// CHECK-NEXT: 10
+// CHECK-NEXT: 101
+// CHECK-NEXT: 201
+// CHECK-NEXT: 1

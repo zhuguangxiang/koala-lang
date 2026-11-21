@@ -49,8 +49,13 @@ typedef struct _LoadKlcContext {
 
 static inline int ts_need_fixup(TypeSpec *ts)
 {
+    ASSERT(ts);
+    // if (!ts) return 0;
+
     if (ts->kind == TYPE_OPTIONAL) return ts_need_fixup(ts->opt.src);
+
     if (ts->kind == TYPE_VA_LIST) return ts_need_fixup(ts->va_list.src);
+
     if (ts->kind == TYPE_PROTO) {
         TypeSpec *arg;
         vector_foreach(arg, ts->proto_type.args) {

@@ -1,0 +1,121 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The page runtime: internal asset of koala/ui, embedded as string
+// constants because wombat distributes only .klc/.so (no asset files) and
+// the runtime has no module-path API. App composes them with
+// webview.render_template and loads the result via set_html. Users never
+// see or edit this; it is package code, like the C source inside a .so.
+//
+// Protocol v1 (see protocol.kl):
+//   commands  mount{v,root} / set{id,prop,value} / add{parent,node}
+//   events    window.__outbox entries: {"id":N,"kind":"click"[,"value":V]}
+// All user text goes through textContent/value - never innerHTML.
+
+/// The page template. {{css}} and {{js}} are filled by `App._mount`.
+pub const RUNTIME_HTML = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+{{css}}
+</style>
+</head>
+<body>
+<div id="root" class="col"></div>
+<script>
+{{js}}
+</script>
+</body>
+</html>
+"""
+
+/// Runtime styles: light/dark via CSS variables, flex box layout.
+pub const RUNTIME_CSS = """
+:root {
+  --bg: #ffffff; --fg: #1c1e21; --accent: #2f6fed;
+  --btn-bg: #2f6fed; --btn-fg: #ffffff; --border: #d0d3d9;
+}
+body.dark {
+  --bg: #16181d; --fg: #e6e8ee; --accent: #6ea8fe;
+  --btn-bg: #3b6fd4; --btn-fg: #ffffff; --border: #3a3f4a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+  font-family: system-ui, sans-serif; font-size: 15px;
+}
+.col { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.row { display: flex; flex-direction: row; gap: 10px; align-items: center; }
+button {
+  padding: 6px 16px; border: none; border-radius: 6px;
+  background: var(--btn-bg); color: var(--btn-fg);
+  font-size: 15px; cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+input[type=text] {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--fg); font-size: 15px;
+}
+"""
+
+/// Runtime script: element registry, command application, event outbox.
+pub const RUNTIME_JS = """
+window.__outbox = [];
+window.__ui_ready = false;
+(function() {
+  var els = new Map();
+  function push(id, kind, value) {
+    var e = {id: id, kind: kind};
+    if (value !== undefined) { e.value = value; }
+    window.__outbox.push(JSON.stringify(e));
+  }
+  function build(node) {
+    var d;
+    switch (node.type) {
+      case "column":
+        d = document.createElement("div"); d.className = "col"; break;
+      case "row":
+        d = document.createElement("div"); d.className = "row"; break;
+      case "label":
+        d = document.createElement("span"); d.textContent = node.text; break;
+      case "button":
+        d = document.createElement("button");
+        d.textContent = node.text;
+        d.disabled = !node.enabled;
+        d.addEventListener("click", function() { push(node.id, "click"); });
+        break;
+      default:
+        throw new Error("ui runtime: unknown node type " + node.type);
+    }
+    d.id = "w" + node.id;
+    els.set(node.id, d);
+    if (node.children) {
+      node.children.forEach(function(c) { d.appendChild(build(c)); });
+    }
+    return d;
+  }
+  function apply(c) {
+    if (c.cmd === "mount") {
+      if (c.v !== 1) { throw new Error("ui runtime: protocol mismatch"); }
+      document.getElementById("root").appendChild(build(c.root));
+    } else if (c.cmd === "set") {
+      if (c.prop === "theme") {
+        document.body.className = (c.value === "dark") ? "dark" : "";
+        return;
+      }
+      var d = els.get(c.id);
+      if (!d) { return; }
+      if (c.prop === "text") { d.textContent = c.value; }
+      else if (c.prop === "enabled") { d.disabled = !c.value; }
+    } else if (c.cmd === "add") {
+      var p = els.get(c.parent);
+      if (p) { p.appendChild(build(c.node)); }
+    }
+  }
+  window.__ui_apply = function(cmds) { cmds.forEach(apply); };
+  window.__ui_ready = true;
+})();
+"""

@@ -115,3 +115,7 @@ type String = str
 pub func print_string(s String) String {
     return s + " welcome"
 }
+
+pub func call_fn(h func(int)) {
+    h(1)
+}

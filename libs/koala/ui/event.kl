@@ -1,0 +1,52 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+/// The signature of a UI event handler. Handlers are named functions;
+/// Koala lambdas cannot capture local variables yet, so keep state in
+/// module-level variables or in the `App(state = ...)` object (`e.state`).
+type Handler = func(Event)
+
+/// One UI event, delivered to a [`Handler`](#handler) by the app's pump
+/// loop. `kind` is "click" for buttons (more kinds arrive with the input
+/// widgets). `widget` is the source widget, `app` the owning app, `state`
+/// the object passed to `App(state = ...)`.
+pub class Event {
+    /// The event kind, e.g. "click".
+    pub let kind str
+
+    /// The widget that produced the event (nil for app-level events).
+    pub let widget Widget?
+
+    /// The app that dispatched the event.
+    pub let app App?
+
+    /// The user state object passed to `App(state = ...)`.
+    pub let state any?
+
+    /// The raw JSON value carried by the event, if any.
+    pub let value json.Value?
+
+    pub func __init__(kind str, widget Widget?, app App?, state any?,
+                      value json.Value?) {
+        self.kind = kind
+        self.widget = widget
+        self.app = app
+        self.state = state
+        self.value = value
+    }
+
+    /// The event value as a string (text input events). Panics if the
+    /// event carries no value or it is not a string.
+    pub func value_str() str {
+        if value != nil {
+            if let s = value as json.String {
+                return s.value
+            }
+        }
+        panic("ui: event value is not str")
+    }
+}

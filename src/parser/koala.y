@@ -4229,16 +4229,27 @@ tuple_expr
     }
     ;
 
+/* one value in braces; a newline before '}' inserts ';' */
 lambda_expr
     : LAMBDA_START lambda_params '|' value_expr '}'
     {
         $$ = expr_from_lambda($2, $4);
         expr_set_loc($$, lloc(@1, @5));
     }
+    | LAMBDA_START lambda_params '|' value_expr ';' '}'
+    {
+        $$ = expr_from_lambda($2, $4);
+        expr_set_loc($$, lloc(@1, @6));
+    }
     | LAMBDA_START_OR value_expr '}'
     {
         $$ = expr_from_lambda(vector_create_ptr(), $2);
         expr_set_loc($$, lloc(@1, @3));
+    }
+    | LAMBDA_START_OR value_expr ';' '}'
+    {
+        $$ = expr_from_lambda(vector_create_ptr(), $2);
+        expr_set_loc($$, lloc(@1, @4));
     }
     ;
 

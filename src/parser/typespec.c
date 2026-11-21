@@ -1305,7 +1305,12 @@ static TypeSpec *__to_typespec(char **str)
                 if (arg) vector_push_back(args, &arg);
             }
             if (*s == ')') s++;
-            TypeSpec *ret = __to_typespec(&s);
+            /* A void return writes nothing, so the string ends at ')'.
+             * A '?' right after ')' belongs to the OUTER optional (the
+             * writer emits `(j)?` for `func(int)?`), not to a return type. */
+            TypeSpec *ret = NULL;
+            if (*s != '?' && *s != '\0') ret = __to_typespec(&s);
+            if (!ret) ret = no_type_spec();
             ts = func_type_spec(args, ret);
             break;
         }

@@ -17,4 +17,5 @@ includes = [
     "/home/james/Codes/koala-lang/include/common",
     "/home/james/Codes/koala-lang/include/runtime",
 ]
+cflags = ["-O2"]
 link = ["crypto"]

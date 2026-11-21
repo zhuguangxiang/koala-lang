@@ -1,0 +1,250 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/json"
+import "koala/ui"
+
+// Headless tests: widget serialization, the wire protocol and event
+// dispatch run without a window. App lifecycle (mount/pump/close) needs a
+// graphical session and is covered by the live probe/demo, not here.
+
+// ==================== widget serialization ====================
+
+@test
+func test_label_to_json() {
+    let l = ui.Label("hello")
+    let o = json.parse_object(l.to_json().to_json())
+    ut.assert(o.get_int("id") == 0)
+    ut.assert(o.get_str("type") == "label")
+    ut.assert(o.get_str("text") == "hello")
+}
+
+@test
+func test_button_to_json() {
+    let b = ui.Button("+1")
+    let o = json.parse_object(b.to_json().to_json())
+    ut.assert(o.get_str("type") == "button")
+    ut.assert(o.get_str("text") == "+1")
+    ut.assert(o.get_bool("enabled") == true)
+}
+
+@test
+func test_button_disabled_to_json() {
+    let b = ui.Button("x")
+    b._enabled = false
+    let o = json.parse_object(b.to_json().to_json())
+    ut.assert(o.get_bool("enabled") == false)
+}
+
+@test
+func test_widget_id_before_add() {
+    ut.assert(ui.Label("x").wid() == 0)
+    ut.assert(ui.Button("x").wid() == 0)
+}
+
+// ==================== setters before add ====================
+
+@should_panic("ui: widget not added to an app")
+func test_label_set_text_before_add() {
+    ui.Label("x").set_text("y")
+}
+
+@should_panic("ui: widget not added to an app")
+func test_button_set_text_before_add() {
+    ui.Button("x").set_text("y")
+}
+
+@should_panic("ui: widget not added to an app")
+func test_button_set_enabled_before_add() {
+    ui.Button("x").set_enabled(false)
+}
+
+// ==================== command encoding ====================
+
+@test
+func test_encode_mount() {
+    let node = ui.Label("hi").to_json()
+    let cmd = ui.encode_mount(node)
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("cmd") == "mount")
+    ut.assert(o.get_int("v") == 1)
+    ut.assert(o.get_object("root").get_str("type") == "label")
+}
+
+@test
+func test_encode_set() {
+    let cmd = ui.encode_set(3, "text", json.String("ok"))
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("cmd") == "set")
+    ut.assert(o.get_int("id") == 3)
+    ut.assert(o.get_str("prop") == "text")
+    ut.assert(o.get_str("value") == "ok")
+}
+
+@test
+func test_encode_set_bool_value() {
+    let cmd = ui.encode_set(2, "enabled", json.Boolean(false))
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_bool("value") == false)
+}
+
+@test
+func test_encode_add() {
+    let cmd = ui.encode_add(0, ui.Button("b").to_json())
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("cmd") == "add")
+    ut.assert(o.get_int("parent") == 0)
+    ut.assert(o.get_object("node").get_str("type") == "button")
+}
+
+// ==================== event decoding ====================
+
+@test
+func test_decode_click() {
+    let parsed = ui.decode_event("{\"id\":3,\"kind\":\"click\"}")!
+    let (id, kind, value) = parsed
+    ut.assert(id == 3)
+    ut.assert(kind == "click")
+    ut.assert(value == nil)
+}
+
+@test
+func test_decode_with_value() {
+    let parsed = ui.decode_event("{\"id\":5,\"kind\":\"change\",\"value\":\"hi\"}")!
+    let (id, kind, value) = parsed
+    ut.assert(id == 5)
+    ut.assert(kind == "change")
+    ut.assert(value != nil)
+    if value != nil {
+        if let s = value as json.String {
+            ut.assert(s.value == "hi")
+        } else {
+            ut.assert(false)
+        }
+    }
+}
+
+@test
+func test_decode_empty_lines() {
+    ut.assert(ui.decode_event("") == nil)
+    ut.assert(ui.decode_event("   ") == nil)
+}
+
+@should_panic("ui: bad event json: [1]")
+func test_decode_non_object_root() {
+    ui.decode_event("[1]")
+}
+
+@should_panic("json.Object.get_int: key 'id' is String, expected Integer")
+func test_decode_bad_id_type() {
+    ui.decode_event("{\"id\":\"x\",\"kind\":\"click\"}")
+}
+
+// ==================== Event value getters ====================
+
+@test
+func test_event_value_str() {
+    let e = ui.Event("change", nil, nil, nil, json.String("text"))
+    ut.assert(e.value_str() == "text")
+}
+
+@should_panic("ui: event value is not str")
+func test_event_value_str_missing() {
+    ui.Event("click", nil, nil, nil, nil).value_str()
+}
+
+@should_panic("ui: event value is not str")
+func test_event_value_str_wrong_type() {
+    ui.Event("change", nil, nil, nil, json.Integer(1)).value_str()
+}
+
+// ==================== dispatch ====================
+
+var seen_kind = ""
+var seen_id = 0
+var seen_calls = 0
+var seen_state any? = nil
+
+func record(e ui.Event) {
+    seen_kind = e.kind
+    seen_state = e.state
+    if let w = e.widget {
+        seen_id = w.wid()
+    }
+    seen_calls = seen_calls + 1
+}
+
+func make_widgets() dict[int, ui.Widget] {
+    let widgets = dict[int, ui.Widget]()
+    let b = ui.Button("x")
+    b._id = 3
+    b._handler = record
+    widgets[3] = b
+    return widgets
+}
+
+@test
+func test_dispatch_click() {
+    let widgets = make_widgets()
+    seen_calls = 0
+    ui._dispatch(widgets, nil, nil, "{\"id\":3,\"kind\":\"click\"}")
+    ut.assert(seen_calls == 1)
+    ut.assert(seen_kind == "click")
+    ut.assert(seen_id == 3)
+}
+
+@test
+func test_dispatch_unknown_id_dropped() {
+    let widgets = make_widgets()
+    seen_calls = 0
+    ui._dispatch(widgets, nil, nil, "{\"id\":99,\"kind\":\"click\"}")
+    ut.assert(seen_calls == 0)
+}
+
+@test
+func test_dispatch_unbound_handler_noop() {
+    let widgets = make_widgets()
+    let b = ui.Button("y")
+    b._id = 4
+    widgets[4] = b // no handler bound on id 4
+    seen_calls = 0
+    ui._dispatch(widgets, nil, nil, "{\"id\":4,\"kind\":\"click\"}")
+    ut.assert(seen_calls == 0)
+}
+
+@test
+func test_dispatch_empty_line_noop() {
+    let widgets = make_widgets()
+    seen_calls = 0
+    ui._dispatch(widgets, nil, nil, "")
+    ut.assert(seen_calls == 0)
+}
+
+@test
+func test_dispatch_state_passthrough() {
+    let widgets = make_widgets()
+    seen_calls = 0
+    seen_state = nil
+    ui._dispatch(widgets, nil, "mystate", "{\"id\":3,\"kind\":\"click\"}")
+    ut.assert(seen_calls == 1)
+    var state_ok = false
+    if let v = seen_state {
+        if let s = v as str {
+            state_ok = s == "mystate"
+        }
+    }
+    ut.assert(state_ok)
+}
+
+// ==================== handler binding ====================
+
+@test
+func test_button_on_click_rebind_before_add() {
+    let b = ui.Button("x")
+    ut.assert(b._handler == nil)
+    b.on_click(record)
+    ut.assert(b._handler != nil)
+}

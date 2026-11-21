@@ -1757,10 +1757,7 @@ X(OP_NEW, FORMAT_RIdx2, "new")
  *     | op:8 | rd:12 | nargs:12 |
  *
  * Details:
- *     R[rd] = tuple(stack_top[0 .. nargs-1]). Every other builtin literal is
- *     built the plain way: `new` + `__init__` (list, range, slice),
- *     `new` + `__init__` + one `seq.set` per pair (dict), or a static
- *     `bytes.from_bytes` call copying the const-pool template (bytes).
+ *     R[rd] = tuple(stack_top[0 .. nargs-1]).
  */
 X(OP_BUILD_TUPLE, FORMAT_RxIdx12, "build_tuple")
 

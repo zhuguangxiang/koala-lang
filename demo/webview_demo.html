@@ -1,0 +1,78 @@
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --fg:#e6e8eb; --muted:#8b93a1; --accent:#4ade80; }
+  body.light { --bg:#f4f5f7; --card:#ffffff; --fg:#1a1d24; --muted:#6b7280; --accent:#16a34a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg);
+         color:var(--fg); height:100vh; display:flex; flex-direction:column; }
+  header { padding:20px 28px; border-bottom:1px solid rgba(128,128,128,.2);
+           display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:18px; margin:0; font-weight:600; }
+  header .ver { color:var(--muted); font-size:13px; }
+  main { flex:1; display:flex; gap:20px; padding:28px; flex-wrap:wrap; align-content:flex-start; }
+  .card { background:var(--card); border:1px solid rgba(128,128,128,.18);
+          border-radius:12px; padding:22px; min-width:220px; flex:1; }
+  .card h2 { font-size:13px; color:var(--muted); margin:0 0 12px; font-weight:500;
+             text-transform:uppercase; letter-spacing:.04em; }
+  .big { font-size:40px; font-weight:600; font-variant-numeric:tabular-nums; }
+  button { margin-top:14px; background:var(--accent); color:#04120a; border:none;
+           border-radius:8px; padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid rgba(128,128,128,.35); }
+  footer { padding:14px 28px; color:var(--muted); font-size:12px;
+           border-top:1px solid rgba(128,128,128,.2); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Koala Desktop App</h1>
+    <span class="ver">webview {{version}}</span>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Live clock</h2>
+      <div class="big" id="clock">--:--:--</div>
+    </div>
+    <div class="card">
+      <h2>Counter (Koala-driven)</h2>
+      <div class="big" id="count">0</div>
+      <button id="inc">Click +1</button>
+    </div>
+    <div class="card">
+      <h2>Theme</h2>
+      <div class="big" id="theme-name">Dark</div>
+      <button class="ghost" id="toggle">Toggle theme</button>
+    </div>
+    <div class="card">
+      <h2>Window</h2>
+      <div class="big" id="fs-state">Windowed</div>
+      <button class="ghost" id="fs">Toggle fullscreen</button>
+    </div>
+  </main>
+  <footer>Counter and fullscreen are handled in Koala: clicks queue into window.__outbox,
+  the Koala pump loop drains it via eval_sync and pushes updates back via eval.</footer>
+  <script>
+    // JS -> Koala event queue. The Koala side drains it with
+    // eval_sync("window.__outbox.splice(0).join(',')") on every pump tick.
+    window.__outbox = [];
+    function tick(){
+      var d = new Date();
+      var p = function(n){ return (n<10?'0':'')+n; };
+      document.getElementById('clock').textContent = p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+    }
+    tick(); setInterval(tick, 1000);
+    document.getElementById('inc').onclick = function(){
+      window.__outbox.push('inc');
+    };
+    document.getElementById('toggle').onclick = function(){
+      document.body.classList.toggle('light');
+      document.getElementById('theme-name').textContent =
+        document.body.classList.contains('light') ? 'Light' : 'Dark';
+    };
+    document.getElementById('fs').onclick = function(){
+      window.__outbox.push('fs');
+    };
+  </script>
+</body>
+</html>

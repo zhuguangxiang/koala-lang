@@ -7,10 +7,9 @@ natives = []
 
 [native]
 name = "koala_readline"
-sources = [
-    "native/readline_shim.c",
-]
+sources = ["native/readline_shim.c"]
 includes = [
     "/home/james/Codes/koala-lang/include/common",
     "/home/james/Codes/koala-lang/include/runtime",
 ]
+cflags = ["-O2"]

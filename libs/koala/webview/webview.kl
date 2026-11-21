@@ -3,6 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+import "std/fs"
+
 /// A native desktop window that renders HTML with the system webview.
 ///
 /// Create one with `Window()`, configure it, then call `run()` to enter the
@@ -43,6 +45,14 @@ pub class Window {
     @native
     pub func set_html(html str) {}
 
+    /// Read the HTML template at `path`, substitute `{{key}}` placeholders
+    /// with `vars` (see `render_template`), and render the result.
+    /// Panics if the file cannot be read or a placeholder has no key in
+    /// `vars`.
+    pub func set_html_file(path str, vars dict[str, any]? = nil) {
+        set_html(load_template(path, vars ?? dict[str, any]()))
+    }
+
     /// Inject `js` to run on every page load, before the page's own scripts.
     @native
     pub func init_js(js str) {}
@@ -51,10 +61,53 @@ pub class Window {
     @native
     pub func eval(js str) {}
 
+    /// Evaluate `js` and return its result as a string, pumping the event
+    /// loop until the result arrives. Panics on timeout (`timeout_ms`), on a
+    /// JS exception, or if no page has loaded yet (call `set_html`/`navigate`
+    /// and `poll` until loaded first).
+    ///
+    /// Objects stringify as "[object Object]"; return `JSON.stringify(x)`
+    /// from the JS side to get structured data back.
+    ///
+    /// Implemented on Linux (GTK). The Windows (WebView2) and macOS
+    /// (WKWebView) backends are not implemented yet and panic.
+    @native
+    pub func eval_sync(js str, timeout_ms int = 5000) str {}
+
     /// Enter the event loop. Blocks until the window is closed or
     /// `terminate()` is called.
     @native
     pub func run() {}
+
+    /// Step the event loop once without blocking and return whether the
+    /// window is still open. Drive a Koala-side loop with it:
+    ///
+    ///     while w.poll() {
+    ///         // handle events, push updates
+    ///     }
+    ///
+    /// Returns false once the user closes the window. Implemented on Linux
+    /// (GTK); the Windows (WebView2) and macOS (WKWebView) backends are not
+    /// implemented yet and panic.
+    @native
+    pub func poll() bool {}
+
+    /// Whether the window is still open (the user has not closed it).
+    /// Does not step the event loop; use `poll()` for that.
+    @native
+    pub func is_open() bool {}
+
+    /// Enter or leave fullscreen. Panics if the window is closed.
+    /// Implemented on Linux (GTK); the Windows (WebView2) and macOS
+    /// (WKWebView) backends are not implemented yet and panic.
+    @native
+    pub func set_fullscreen(on bool) {}
+
+    /// The current window size in pixels as `(width, height)`. Panics if the
+    /// window is closed. Implemented on Linux (GTK); the Windows (WebView2)
+    /// and macOS (WKWebView) backends are not implemented yet and panic.
+    @native
+    pub func get_size() (int, int) {}
 
     /// Stop the event loop started by `run()`, from another thread or a
     /// callback. Safe to call before `run()`.
@@ -65,4 +118,64 @@ pub class Window {
     /// method panics afterwards.
     @native
     pub func destroy() {}
+}
+
+/// Substitute `{{key}}` placeholders in `text` with `vars[key]`, formatted
+/// via `format("{}", value)`. Keys are identifier characters only
+/// (letters, digits, underscore); surrounding whitespace inside the braces
+/// is ignored (`{{ name }}` works).
+///
+/// Substitution is raw: values are inserted verbatim, not HTML-escaped, and
+/// inserted values are not rescanned for placeholders. The caller owns the
+/// data and any escaping it needs.
+///
+/// Panics on an unclosed `{{`, an empty or invalid key, or a key missing
+/// from `vars`.
+///
+///     render_template("<h1>{{ title }}</h1>", {"title": "Hi"})
+///     // "<h1>Hi</h1>"
+pub func render_template(text str, vars dict[str, any]) str {
+    var out = ""
+    var pos = 0
+    while true {
+        let open = text.index("{{", pos)
+        if open < 0 {
+            out = out + text.substr(pos)
+            break
+        }
+        out = out + text.substr(pos, open)
+        let close = text.index("}}", open + 2)
+        if close < 0 {
+            panic("render_template: unclosed '{{' at index " + format("{}", open))
+        }
+        let key = text.substr(open + 2, close).strip()
+        if key.empty() {
+            panic("render_template: empty placeholder key at index " + format("{}", open))
+        }
+        for c in key {
+            if !(c.isalnum() || c == "_") {
+                panic("render_template: invalid key '" + key + "'")
+            }
+        }
+        if !(key in vars) {
+            panic("render_template: missing key '" + key + "'")
+        }
+        out = out + format("{}", vars[key])
+        pos = close + 2
+    }
+    return out
+}
+
+/// Read the text file at `path` and render it with `render_template`.
+/// Panics if the file does not exist or cannot be read.
+pub func load_template(path str, vars dict[str, any]? = nil) str {
+    if !fs.exists(path) {
+        panic("webview: template file not found: " + path)
+    }
+    let buf = bytes(int(fs.size(path)))
+    let n = fs.read_bytes(path, buf)
+    if n < 0 {
+        panic("webview: cannot read template file: " + path)
+    }
+    return render_template(buf.view(0, n).to_str(), vars ?? dict[str, any]())
 }
