@@ -1,0 +1,16 @@
+// RUN: koala %s | filecheck %s
+// Constant float comparisons fold in the opt pipeline (const_copy_prop), so they
+// never reach the backend's float-compare lowering (which used to assert).
+
+func main() {
+    print(1.5 < 2.5, 1.5 > 2.5, 1.5 <= 2.5, 1.5 >= 2.5)
+    print(2.5 < 1.5, 1.5 <= 1.5, 1.5 == 2.5, 1.5 != 2.5)
+    if (1.5 < 2.5) { print(1) } else { print(2) }
+    let b = 1.5 >= 2.5
+    print(b)
+}
+
+// CHECK: true false true false
+// CHECK-NEXT: false true false true
+// CHECK-NEXT: 1
+// CHECK-NEXT: false

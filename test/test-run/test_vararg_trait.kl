@@ -1,0 +1,45 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// Regression: a variadic trait-typed parameter (`items ...Shape`) must
+// interface-box each collected argument, so a trait method can be dispatched
+// on the elements. The args were packed raw via expr_from_tuple
+// (handle_valist_and_dfl_args), leaving the elements unboxed; the interface
+// call then failed the is_intf assertion (vm_ops.h OP_CALL / kl_jit_call_dyn)
+// in BOTH JIT modes, standalone (no klc involved).
+
+trait Shape {
+    func name() str
+}
+
+class Circle : Shape {
+    func __init__() {}
+    func name() str = "circle"
+}
+
+class Square : Shape {
+    func __init__() {}
+    func name() str = "square"
+}
+
+class Bag {
+    var items = list[Shape]()
+
+    func __init__(items ...Shape) {
+        for x in items {
+            self.items.append(x)
+        }
+    }
+
+    func dump() {
+        for x in items {
+            print(x.name())
+        }
+    }
+}
+
+func main() {
+    let b = Bag(Circle(), Square())
+    b.dump()
+    // CHECK: circle
+    // CHECK-NEXT: square
+}

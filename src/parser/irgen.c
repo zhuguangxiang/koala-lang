@@ -916,6 +916,43 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
     return ret;
 }
 
+/* A variadic parameter `xs ...Trait` gathers its arguments into a tuple, so the
+ * per-argument upcast in update_call_args sees only the tuple wrapper (a va_list
+ * target has no symbol, so _build_obj_intf_upcast leaves it untouched). Box each
+ * element to the trait here, mirroring the class->trait make_intf of a normal
+ * argument. `...any` keeps the raw representation (the `any` rule needs no
+ * make_intf), and a va_list value forwarded verbatim was already boxed at its own
+ * call site, so both leave the tuple untouched. The rebuilt tuple replaces the
+ * original, which becomes dead and is pruned by dce. */
+static KlrValue *_build_valist_intf_upcast(ParserState *ps, KlrValue *arg, TypeSpec *elem_ts)
+{
+    if (type_is_any_or_opt_any(elem_ts)) return NULL;
+    if (!klr_is_insn(arg)) return NULL;
+    KlrInsn *insn = (KlrInsn *)arg;
+    if (insn->code != OP_BUILD_TUPLE) return NULL;
+
+    int n = insn->num_opers;
+    if (n == 0) return NULL;
+
+    KlrValue *items[n];
+    int changed = 0;
+    for (int i = 0; i < n; i++) {
+        KlrValue *elem = insn_oper_value(insn, i);
+        KlrValue *boxed = _build_obj_intf_upcast(ps, elem, elem_ts, "");
+        if (boxed) {
+            items[i] = boxed;
+            changed = 1;
+        } else {
+            items[i] = elem;
+        }
+    }
+    if (!changed) return NULL;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    return klr_build_tuple(&bldr, items, n, arg->ts, "");
+}
+
 static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSpec *proto_ts)
 {
     if (!proto_ts) {
@@ -931,7 +968,12 @@ static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSp
     for (int i = 0; i < nargs; i++) {
         KlrValue *arg = args[i];
         TypeSpec *param_ts = vector_at(proto_args, i);
-        KlrValue *casted_arg = _build_obj_intf_upcast(ps, arg, param_ts, "");
+        KlrValue *casted_arg;
+        if (type_is_valist(param_ts)) {
+            casted_arg = _build_valist_intf_upcast(ps, arg, param_ts->va_list.src);
+        } else {
+            casted_arg = _build_obj_intf_upcast(ps, arg, param_ts, "");
+        }
         if (casted_arg) args[i] = casted_arg;
     }
 }

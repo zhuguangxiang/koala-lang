@@ -369,8 +369,6 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<stmt> func_proto_decl
 %type<stmt> trait_method
 
-%type<expr> const_expr
-%type<expr> const_tuple_expr
 %type<expr> expr
 %type<expr> value_expr
 %type<expr> if_expr
@@ -421,7 +419,6 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<type_spec> const_type
 %type<type_spec> func_type
 
-%type<vec> const_expr_list
 %type<vec> id_as_list
 %type<vec> top_stmts
 %type<vec> specialized_types_list
@@ -487,7 +484,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %destructor { free_tp_decl($$); } <tpval>
 %destructor { free_param_decl($$); } <param>
 %destructor { free_expr_list($$); }
-    const_expr_list expr_list index_expr_list call_arg_list call_kw_arg_list map_list
+    expr_list index_expr_list call_arg_list call_kw_arg_list map_list
 %destructor { free_stmt_list($$); }
     top_stmts block local_list let_else_stmt class_members_or_empty field_list method_list
     trait_members_or_empty trait_method_list case_body
@@ -1637,127 +1634,33 @@ let_else_stmt
 
 
 const_decl
-    : CONST ID '=' const_expr
+    : CONST ID '=' expr
     {
         Ident id = {$2, loc(@2)};
-        /* NULL: an error was reported (a const tuple) */
-        $$ = $4 ? stmt_from_var_decl(id, NULL, 2, $4) : NULL;
+        $$ = stmt_from_var_decl(id, NULL, 2, $4);
         if ($$) stmt_set_loc($$, lloc(@1, @4));
     }
-    | CONST ID const_type '=' const_expr
+    | CONST ID const_type '=' expr
     {
         Ident id = {$2, loc(@2)};
-        $$ = $5 ? stmt_from_var_decl(id, $3, 2, $5) : NULL;
+        $$ = stmt_from_var_decl(id, $3, 2, $5);
         if ($$) stmt_set_loc($$, lloc(@1, @5));
-    }
-    | CONST ID '=' const_expr error
-    {
-        /* a literal followed by more, e.g. 'const A = 1 + 2' */
-        kl_error(loc(@4), "const value must be a literal.");
-        expr_free($4);
-        yy_clear_ok;
-        $$ = NULL;
-    }
-    | CONST ID const_type '=' const_expr error
-    {
-        kl_error(loc(@5), "const value must be a literal.");
-        type_spec_free($3);
-        expr_free($5);
-        yy_clear_ok;
-        $$ = NULL;
     }
     | CONST ID '=' error
     {
-        kl_error(loc(@4), "const value must be a literal.");
+        kl_error(loc(@4), "const value must be a constant expression.");
         yy_clear_ok;
         $$ = NULL;
     }
     | CONST ID const_type '=' error
     {
-        kl_error(loc(@5), "const value must be a literal.");
+        kl_error(loc(@5), "const value must be a constant expression.");
         type_spec_free($3);
         yy_clear_ok;
         $$ = NULL;
     }
     ;
 
-const_expr
-    : INT_LITERAL
-    {
-        if (errno != 0) {
-            kl_error(loc(@1), "Number %s is out of int range", ps->sval);
-        }
-        $$ = expr_from_lit_int(ps->sval, ps->sign, ps->bit_mode, $1);
-        expr_set_loc($$, loc(@1));
-    }
-    | FLOAT_LITERAL
-    {
-        if (errno != 0) {
-            kl_error(loc(@1), "Number %s is out of float64 range", ps->sval);
-        }
-        $$ = expr_from_lit_float($1);
-        expr_set_loc($$, loc(@1));
-    }
-    | STRING_LITERAL
-    {
-        $$ = expr_from_lit_str(&ps->sbuf);
-        expr_set_loc($$, loc(@1));
-    }
-    | CHAR_LITERAL
-    {
-        $$ = expr_from_lit_char(&ps->sbuf);
-        expr_set_loc($$, loc(@1));
-    }
-    | BYTES_LITERAL
-    {
-        $$ = expr_from_lit_bytes(&ps->sbuf);
-        expr_set_loc($$, loc(@1));
-    }
-    | TRUE
-    {
-        $$ = expr_from_lit_bool(1);
-        expr_set_loc($$, loc(@1));
-    }
-    | FALSE
-    {
-        $$ = expr_from_lit_bool(0);
-        expr_set_loc($$, loc(@1));
-    }
-    | const_tuple_expr
-    {
-        kl_error(loc(@1), "a const tuple is not supported yet.");
-        expr_free($1);
-        $$ = NULL;
-    }
-    ;
-
-const_tuple_expr
-    : '(' const_expr_list ',' ')'
-    {
-        $$ = expr_from_const_tuple($2);
-        expr_set_loc($$, lloc(@1, @4));
-    }
-    | '(' const_expr_list ',' const_expr ')'
-    {
-        // (1, "hello", [1,2,3])
-        vector_push_back($2, &$4);
-        $$ = expr_from_const_tuple($2);
-        expr_set_loc($$, lloc(@1, @5));
-    }
-    ;
-
-const_expr_list
-    : const_expr
-    {
-        $$ = vector_create_ptr();
-        vector_push_back($$, &$1);
-    }
-    | const_expr_list ',' const_expr
-    {
-        vector_push_back($1, &$3);
-        $$ = $1;
-    }
-    ;
 
 var_decl
     : VAR ID optional_type

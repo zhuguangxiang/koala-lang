@@ -65,7 +65,6 @@ typedef enum _ExprKind {
     EXPR_ID_KIND,
     EXPR_UNDER_KIND,
     EXPR_LITERAL_KIND,
-    EXPR_CONST_TUPLE_KIND,
     EXPR_SELF_KIND,
     EXPR_LIST_KIND,
     EXPR_MAP_KIND,
@@ -159,13 +158,6 @@ Expr *expr_from_lit_bytes(Buffer *buf);
 Expr *expr_from_lit_none(void);
 Expr *expr_from_literal(Literal *lit);
 Literal *expr_to_literal(Expr *exp);
-
-typedef struct _ConstTupleExpr {
-    EXPR_HEAD
-    Vector *vec;
-} ConstTupleExpr;
-
-Expr *expr_from_const_tuple(Vector *vec);
 
 typedef struct _ConstPlaceholderExpr {
     EXPR_HEAD

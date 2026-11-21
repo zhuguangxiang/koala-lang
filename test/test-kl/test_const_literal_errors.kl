@@ -1,34 +1,31 @@
 // RUN: ! koalac %s 2>&1 | filecheck %s
-// A const value must be a literal; a const tuple is an error, not a compiler abort.
+// A const initializer must be a whitelisted constant expression: a literal, another
+// const, or a unary/binary operation over constant operands. Anything else errors.
 
-const A0 = 1
 func foo() int = 1
 
-const A = 1 + 2
-// CHECK: const value must be a literal.
 const B = foo()
-// CHECK-NEXT: const value must be a literal.
-const C = A0
-// CHECK-NEXT: const value must be a literal.
+// CHECK: const value must be a constant expression.
 const D = [1]
-// CHECK-NEXT: const value must be a literal.
-const E = "a" + "b"
-// CHECK-NEXT: const value must be a literal.
-const F = nil
-// CHECK-NEXT: const value must be a literal.
-const G uint8 = foo()
-// CHECK-NEXT: const value must be a literal.
-const H uint8 = 1 << 3
-// CHECK-NEXT: const value must be a literal.
+// CHECK: const value must be a constant expression.
 const T = (1, 2)
-// CHECK-NEXT: a const tuple is not supported yet.
+// CHECK: a const tuple is not supported.
+const BY = b"by"
+// CHECK: a const bytes is not supported.
+const SC = "a" == "b"
+// CHECK: str only supports '+' in a const expression.
+const DZ = 5 / 0
+// CHECK: division by zero
+const OV = 9223372036854775807 + 1
+// CHECK: signed integer overflow in binary add
+const SH = 1 << 64
+// CHECK: shift count out of range: 64
+const F = nil
+// CHECK: cannot assign 'nil' to variable 'F' without explicit type
+const CR = CR + 1
+// CHECK: circular reference detected for 'CR'
 
 func main() {
-    const L = A0 + 1
-    // CHECK-NEXT: const value must be a literal.
+    const L = foo()
+    // CHECK: const value must be a constant expression.
 }
-
-// OK
-const N = -5
-const S = "s"
-const X uint8 = 255

@@ -9,6 +9,9 @@
 #include "utf8.h"
 #include "version.h"
 
+#include <inttypes.h>
+#include <math.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -4080,6 +4083,378 @@ void check_shift_count(ParserState *ps, TypeSpec *lhs_ts, Expr *count)
     } else if (value == 0) {
         kl_warn(count->loc, "shift count is 0");
     }
+}
+
+/* ---- compile-time folding of a `const` initializer (whitelist) ----
+ * A const RHS may be a literal, another const, or a whitelisted unary/binary
+ * operation whose operands are all constant. parser_visit_expr has already type
+ * checked the expression exactly as at runtime, so here we only compute the value,
+ * mirroring the numeric semantics of opt/const_copy_prop.c (overflow, division by
+ * zero, fmod sign, shift range). str supports only '+'. */
+
+static Literal *const_lit_int(uint64_t ival, int sign)
+{
+    Literal *lit = mm_alloc_obj(lit);
+    lit->which = LIT_INT;
+    lit->sign = sign;
+    lit->len = 8;
+    lit->ival = ival;
+    return lit;
+}
+
+static Literal *const_lit_float(double fval)
+{
+    Literal *lit = mm_alloc_obj(lit);
+    lit->which = LIT_FLT;
+    lit->len = 8;
+    lit->fval = fval;
+    return lit;
+}
+
+static Literal *const_lit_bool(int bval)
+{
+    Literal *lit = mm_alloc_obj(lit);
+    lit->which = LIT_BOOL;
+    lit->bval = bval;
+    return lit;
+}
+
+static Literal *const_lit_copy(Literal *src)
+{
+    Literal *lit = mm_alloc_obj(lit);
+    *lit = *src;
+    return lit;
+}
+
+static int const_lit_type_matches(Literal *lit, TypeSpec *ts)
+{
+    if (lit->which == LIT_INT) return ts->kind == TYPE_INT;
+    if (lit->which == LIT_FLT) return type_is_float(ts);
+    if (lit->which == LIT_BOOL) return type_is_bool(ts);
+    if (lit->which == LIT_STR) return type_is_str(ts);
+    return 0;
+}
+
+/* the word used in an overflow diagnostic, matching opt/const_copy_prop.c */
+static const char *const_op_word(BiOpKind op)
+{
+    if (op == BINARY_ADD) return "add";
+    if (op == BINARY_SUB) return "sub";
+    if (op == BINARY_MUL) return "mul";
+    if (op == BINARY_DIV) return "div";
+    if (op == BINARY_MOD) return "mod";
+    return "op";
+}
+
+static Literal *const_eval_binary_int(ParserState *ps, BiOpKind op, Loc loc, Literal *a,
+                                      Literal *b)
+{
+    int sign = a->sign;
+    uint64_t ua = a->ival;
+    uint64_t ub = b->ival;
+
+    /* comparisons: signed or unsigned per the literal sign */
+    if (op == BINARY_EQ || op == BINARY_NEQ || op == BINARY_LT || op == BINARY_LE ||
+        op == BINARY_GT || op == BINARY_GE) {
+        int eq;
+        int lt;
+        if (sign) {
+            int64_t x = (int64_t)ua;
+            int64_t y = (int64_t)ub;
+            eq = (x == y);
+            lt = (x < y);
+        } else {
+            eq = (ua == ub);
+            lt = (ua < ub);
+        }
+        if (op == BINARY_EQ) return const_lit_bool(eq);
+        if (op == BINARY_NEQ) return const_lit_bool(!eq);
+        if (op == BINARY_LT) return const_lit_bool(lt);
+        if (op == BINARY_LE) return const_lit_bool(lt || eq);
+        if (op == BINARY_GT) return const_lit_bool(!lt && !eq);
+        return const_lit_bool(!lt); /* BINARY_GE */
+    }
+
+    /* bitwise: operate on the bit pattern, no overflow */
+    if (op == BINARY_BIT_AND) return const_lit_int(ua & ub, sign);
+    if (op == BINARY_BIT_OR) return const_lit_int(ua | ub, sign);
+    if (op == BINARY_BIT_XOR) return const_lit_int(ua ^ ub, sign);
+
+    /* shifts: count in [0, 64); signed '>>' is arithmetic */
+    if (op == BINARY_SHL || op == BINARY_SHR) {
+        uint64_t count = ub;
+        if (b->sign && (int64_t)count < 0) {
+            kl_error(loc, "negative shift count: %" PRId64, (int64_t)count);
+            return NULL;
+        }
+        if (count >= 64) {
+            kl_error(loc, "shift count out of range: %" PRIu64, count);
+            return NULL;
+        }
+        if (op == BINARY_SHL) return const_lit_int(ua << count, sign);
+        if (sign) return const_lit_int((uint64_t)((int64_t)ua >> count), sign);
+        return const_lit_int(ua >> count, sign);
+    }
+
+    /* arithmetic: + - * / % with overflow / division-by-zero checks */
+    if (op == BINARY_ADD || op == BINARY_SUB || op == BINARY_MUL || op == BINARY_DIV ||
+        op == BINARY_MOD) {
+        uint64_t res = 0;
+        int overflow = 0;
+        if (sign) {
+            int64_t x = (int64_t)ua;
+            int64_t y = (int64_t)ub;
+            int64_t r = 0;
+            if (op == BINARY_ADD) {
+                overflow = __builtin_add_overflow(x, y, &r);
+            } else if (op == BINARY_SUB) {
+                overflow = __builtin_sub_overflow(x, y, &r);
+            } else if (op == BINARY_MUL) {
+                overflow = __builtin_mul_overflow(x, y, &r);
+            } else if (op == BINARY_DIV) {
+                if (y == 0) {
+                    kl_error(loc, "division by zero");
+                    return NULL;
+                }
+                if (x == INT64_MIN && y == -1) {
+                    kl_error(loc, "signed integer overflow in binary div");
+                    return NULL;
+                }
+                r = x / y;
+            } else { /* BINARY_MOD */
+                if (y == 0) {
+                    kl_error(loc, "division by zero");
+                    return NULL;
+                }
+                if (x == INT64_MIN && y == -1) {
+                    kl_error(loc, "signed integer overflow in binary mod");
+                    return NULL;
+                }
+                r = x % y;
+            }
+            res = (uint64_t)r;
+        } else {
+            uint64_t r = 0;
+            if (op == BINARY_ADD) {
+                overflow = __builtin_add_overflow(ua, ub, &r);
+            } else if (op == BINARY_SUB) {
+                overflow = __builtin_sub_overflow(ua, ub, &r);
+            } else if (op == BINARY_MUL) {
+                overflow = __builtin_mul_overflow(ua, ub, &r);
+            } else if (op == BINARY_DIV) {
+                if (ub == 0) {
+                    kl_error(loc, "division by zero");
+                    return NULL;
+                }
+                r = ua / ub;
+            } else { /* BINARY_MOD */
+                if (ub == 0) {
+                    kl_error(loc, "division by zero");
+                    return NULL;
+                }
+                r = ua % ub;
+            }
+            res = r;
+        }
+        if (overflow) {
+            if (sign) {
+                kl_error(loc, "signed integer overflow in binary %s", const_op_word(op));
+            } else {
+                kl_error(loc, "unsigned integer overflow in binary %s", const_op_word(op));
+            }
+            return NULL;
+        }
+        return const_lit_int(res, sign);
+    }
+
+    kl_error(loc, "operator '%s' is not defined in type 'int'.", get_binary_op_str(op));
+    return NULL;
+}
+
+static Literal *const_eval_binary(ParserState *ps, BiOpKind op, Loc loc, Literal *a, Literal *b)
+{
+    /* str: only '+' concatenation is allowed in a const expression */
+    if (a->which == LIT_STR || b->which == LIT_STR) {
+        if (op == BINARY_ADD && a->which == LIT_STR && b->which == LIT_STR) {
+            int len = a->len + b->len;
+            char *s = mm_alloc_fast(len + 1);
+            memcpy(s, a->sval, a->len);
+            memcpy(s + a->len, b->sval, b->len);
+            s[len] = '\0';
+            Literal *lit = mm_alloc_obj(lit);
+            lit->which = LIT_STR;
+            lit->len = len;
+            lit->sval = s;
+            return lit;
+        }
+        kl_error(loc, "str only supports '+' in a const expression.");
+        return NULL;
+    }
+
+    if (a->which == LIT_BOOL && b->which == LIT_BOOL) {
+        int av = a->bval;
+        int bv = b->bval;
+        if (op == BINARY_AND) return const_lit_bool(av && bv);
+        if (op == BINARY_OR) return const_lit_bool(av || bv);
+        if (op == BINARY_EQ) return const_lit_bool(av == bv);
+        if (op == BINARY_NEQ) return const_lit_bool(av != bv);
+        kl_error(loc, "operator '%s' is not defined in type 'bool'.", get_binary_op_str(op));
+        return NULL;
+    }
+
+    if (a->which == LIT_FLT && b->which == LIT_FLT) {
+        double x = a->fval;
+        double y = b->fval;
+        if (op == BINARY_ADD) return const_lit_float(x + y);
+        if (op == BINARY_SUB) return const_lit_float(x - y);
+        if (op == BINARY_MUL) return const_lit_float(x * y);
+        if (op == BINARY_DIV) return const_lit_float(x / y);
+        if (op == BINARY_MOD) {
+            double res = fmod(x, y);
+            if (res < 0) res += y;
+            return const_lit_float(res);
+        }
+        if (op == BINARY_EQ) return const_lit_bool(x == y);
+        if (op == BINARY_NEQ) return const_lit_bool(x != y);
+        if (op == BINARY_LT) return const_lit_bool(x < y);
+        if (op == BINARY_LE) return const_lit_bool(x <= y);
+        if (op == BINARY_GT) return const_lit_bool(x > y);
+        if (op == BINARY_GE) return const_lit_bool(x >= y);
+        kl_error(loc, "operator '%s' is not defined in type 'float64'.", get_binary_op_str(op));
+        return NULL;
+    }
+
+    if (a->which == LIT_INT && b->which == LIT_INT) {
+        return const_eval_binary_int(ps, op, loc, a, b);
+    }
+
+    kl_error(loc, "const value must be a constant expression.");
+    return NULL;
+}
+
+static Literal *const_eval_unary(ParserState *ps, UnOpKind op, Loc loc, Literal *a)
+{
+    if (op == UNARY_PLUS) {
+        if (a->which == LIT_INT || a->which == LIT_FLT) return a;
+        kl_error(loc, "unary '+' operator requires int or float type.");
+        return NULL;
+    }
+    if (op == UNARY_NEG) {
+        if (a->which == LIT_FLT) return const_lit_float(-a->fval);
+        if (a->which == LIT_INT) {
+            if (a->sign) {
+                int64_t r;
+                if (__builtin_sub_overflow((int64_t)0, (int64_t)a->ival, &r)) {
+                    kl_error(loc, "signed integer overflow in unary neg");
+                    return NULL;
+                }
+                return const_lit_int((uint64_t)r, 1);
+            }
+            uint64_t r;
+            if (__builtin_sub_overflow((uint64_t)0, a->ival, &r)) {
+                kl_error(loc, "unsigned integer overflow in unary neg");
+                return NULL;
+            }
+            return const_lit_int(r, 0);
+        }
+        kl_error(loc, "unary '-' operator requires int or float type.");
+        return NULL;
+    }
+    if (op == UNARY_BIT_NOT) {
+        if (a->which == LIT_INT) return const_lit_int(~a->ival, a->sign);
+        kl_error(loc, "unary '~' operator requires int type.");
+        return NULL;
+    }
+    /* UNARY_NOT */
+    if (a->which == LIT_BOOL) return const_lit_bool(!a->bval);
+    kl_error(loc, "unary '!' operator requires bool type.");
+    return NULL;
+}
+
+static Literal *const_eval_inner(ParserState *ps, Expr *e)
+{
+    if (!e) return NULL;
+
+    if (e->kind == EXPR_LITERAL_KIND) {
+        LitExpr *le = (LitExpr *)e;
+        if (le->which == LIT_EXPR_BYTES) {
+            kl_error(e->loc, "a const bytes is not supported.");
+            return NULL;
+        }
+        if (le->which == LIT_EXPR_NONE) {
+            kl_error(e->loc, "a const nil is not supported.");
+            return NULL;
+        }
+        return expr_to_literal(e);
+    }
+
+    if (e->kind == EXPR_CONST_PLACEHOLDER) {
+        ConstPlaceholderExpr *cp = (ConstPlaceholderExpr *)e;
+        if (cp->lit) return const_lit_copy(cp->lit);
+        kl_error(e->loc, "const value must be a constant expression.");
+        return NULL;
+    }
+
+    if (e->kind == EXPR_ID_KIND) {
+        Symbol *sym = e->sym;
+        if (sym && sym->kind == SYM_VAR && (sym->flags & SYM_FLAGS_CONST)) {
+            if (sym->status == SYM_RESOLVING) {
+                kl_error(e->loc, "circular reference detected for '%s'", sym->name);
+                return NULL;
+            }
+            Literal *lit = ((VarSymbol *)sym)->lit;
+            if (lit) return const_lit_copy(lit);
+        }
+        kl_error(e->loc, "const value must be a constant expression.");
+        return NULL;
+    }
+
+    if (e->kind == EXPR_UNARY_KIND) {
+        UnaryExpr *un = (UnaryExpr *)e;
+        Literal *a = const_eval_inner(ps, un->exp);
+        if (!a) return NULL;
+        return const_eval_unary(ps, un->op, un->op_loc, a);
+    }
+
+    if (e->kind == EXPR_BINARY_KIND) {
+        BinaryExpr *bin = (BinaryExpr *)e;
+        Literal *a = const_eval_inner(ps, bin->lhs);
+        if (!a) return NULL;
+        Literal *b = const_eval_inner(ps, bin->rhs);
+        if (!b) return NULL;
+        return const_eval_binary(ps, bin->op, bin->op_loc, a, b);
+    }
+
+    if (e->kind == EXPR_TUPLE_KIND) {
+        kl_error(e->loc, "a const tuple is not supported.");
+        return NULL;
+    }
+
+    kl_error(e->loc, "const value must be a constant expression.");
+    return NULL;
+}
+
+/* Fold a const initializer to a literal, narrowing to `expected` when annotated.
+ * Returns NULL (with an error reported) when the expression is not a whitelisted
+ * constant expression. */
+Literal *const_eval(ParserState *ps, Expr *e, TypeSpec *expected)
+{
+    Literal *lit = const_eval_inner(ps, e);
+    if (!lit) return NULL;
+
+    if (expected) {
+        TypeSpec *ts = expected;
+        if (type_is_optional(ts)) ts = ts->opt.src;
+        if (ts) {
+            if (lit->which == LIT_INT && ts->kind == TYPE_INT) {
+                if (!check_literal_as_expected(lit, e->loc, ts, ps)) return NULL;
+            } else if (!const_lit_type_matches(lit, ts)) {
+                kl_error(e->loc, "Types of two sides are not matched.");
+                return NULL;
+            }
+        }
+    }
+    return lit;
 }
 
 static void parse_binary(ParserState *ps, Expr *exp)

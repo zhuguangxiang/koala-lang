@@ -229,14 +229,6 @@ Expr *expr_from_literal(Literal *lit)
     return (Expr *)exp;
 }
 
-Expr *expr_from_const_tuple(Vector *vec)
-{
-    ConstTupleExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_CONST_TUPLE_KIND;
-    exp->vec = vec;
-    return (Expr *)exp;
-}
-
 Expr *expr_from_const_placeholder(Buffer *buf)
 {
     ConstPlaceholderExpr *exp = mm_alloc_obj(exp);
@@ -508,17 +500,6 @@ static void tuple_expr_free(Expr *exp)
     vector_destroy(tuple->vec);
     mm_free(exp);
 }
-static void const_tuple_expr_free(Expr *exp)
-{
-    ConstTupleExpr *tuple = (ConstTupleExpr *)exp;
-    Expr *e;
-    vector_foreach(e, tuple->vec) {
-        if (!e) continue;
-        expr_free(e);
-    }
-    vector_destroy(tuple->vec);
-    mm_free(exp);
-}
 
 static void anony_expr_free(Expr *exp)
 {
@@ -658,7 +639,6 @@ void expr_free(Expr *exp)
         [EXPR_MAP_KIND] = map_expr_free,
         [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,
         [EXPR_TUPLE_KIND] = tuple_expr_free,
-        [EXPR_CONST_TUPLE_KIND] = const_tuple_expr_free,
         [EXPR_ANONY_KIND] = anony_expr_free,
         [EXPR_TYPE_KIND] = type_expr_free,
         [EXPR_OPTIONAL_TYPE_KIND] = optional_type_expr_free,

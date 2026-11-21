@@ -1,0 +1,42 @@
+// RUN: koala %s | filecheck %s
+// A const initializer folds a whitelisted constant expression at compile time:
+// literals, other consts, and unary/binary operations over constant operands.
+
+const A = 2 + 3 * 4
+const B = (2 + 3) * 4
+const C = 7 / 2
+const D = 7 % 2
+const E = ~5
+const F = 1 << 3
+const G = 255 & 15
+const H = 0xFF | 0x0F
+const I = 5 ^ 3
+const J = -8 >> 1
+const K = 1 < 2
+const L = 3 == 3
+const M = true && false
+const N = true || false
+const O = !true
+const P = true != false
+const Q = 1.5 + 2.5
+const R = 7.0 % 2.0
+const S = "a" + "b" + "c"
+const T = A + 1
+const U uint8 = 128 + 127
+const V int8 = 100 + 27
+
+func main() {
+    print(A, B, C, D, E)
+    print(F, G, H, I, J)
+    print(K, L, M, N, O, P)
+    print(Q, R, S)
+    print(T, U, V)
+    if (M) { print(1) } else { print(2) }
+}
+
+// CHECK: 14 20 3 1 -6
+// CHECK-NEXT: 8 15 255 6 -4
+// CHECK-NEXT: true true false true false true
+// CHECK-NEXT: 4 1 abc
+// CHECK-NEXT: 15 255 127
+// CHECK-NEXT: 2

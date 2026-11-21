@@ -208,6 +208,8 @@ void kl_error_detail(ParserState *, Loc *);
 /* clang-format on */
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
+/* fold a `const` initializer (whitelist constant expression) to a literal */
+Literal *const_eval(ParserState *ps, Expr *exp, TypeSpec *expected);
 void parse_literal_as_expected(ParserState *ps, Expr *exp, TypeSpec *expected);
 /* a lambda with a parameter that has no type: it can only be resolved once the
    expected function type is known, so the enclosing construct defers it */

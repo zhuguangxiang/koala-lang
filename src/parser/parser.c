@@ -1436,6 +1436,29 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     if (exp->kind == EXPR_LITERAL_KIND) {
         Literal *lit = expr_to_literal(exp);
         sym->lit = lit;
+        /* a bytes const is no longer supported: bytes is a mutable runtime object */
+        if (var->which == VAR_DECL_CONST && lit->which == LIT_BYTES) {
+            kl_error(exp->loc, "a const bytes is not supported.");
+            sym->flags &= ~SYM_FLAGS_CONST;
+            sym->lit = NULL;
+            sym->status = SYM_RESOLVED;
+            return;
+        }
+    } else if (var->which == VAR_DECL_CONST) {
+        /* a non-literal const initializer must fold to a literal at compile time
+         * (whitelisted unary/binary operations over constant operands) */
+        Literal *lit = const_eval(ps, exp, ts);
+        if (!lit) {
+            /* not a constant expression: the error is reported; drop const-ness so a
+             * later reference does not hit ASSERT(lit != NULL) */
+            sym->flags &= ~SYM_FLAGS_CONST;
+            sym->status = SYM_RESOLVED;
+            return;
+        }
+        sym->lit = lit;
+        if (!ts) sym->ts = exp->ts;
+        sym->status = SYM_RESOLVED;
+        return;
     }
 
     if (!ts) {
