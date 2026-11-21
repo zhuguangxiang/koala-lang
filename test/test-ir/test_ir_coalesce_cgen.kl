@@ -58,7 +58,8 @@ func f_fold_lhs() int { return nil ?? 5 }
 // LIR: %bb1(coalesce-unwrap):
 // LIR: nil_check %l std/builtin.list[test_ir_coalesce_cgen.Foo]? to std/builtin.list[test_ir_coalesce_cgen.Foo]
 // LIR: %bb2(coalesce-rhs):
-// LIR: build_intern @list
+// LIR: %2 = new @std/builtin.list[test_ir_coalesce_cgen.Foo]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=1
 // LIR: ret %coalesce std/builtin.list[test_ir_coalesce_cgen.Foo]
 
 // The irgen fold of `nil ?? 5` becomes a single immediate return.
@@ -109,7 +110,7 @@ func f_fold_lhs() int { return nil ?? 5 }
 // CODE: jmp_false
 // CODE: nil_check
 // CODE: %bb-1(coalesce-rhs):
-// CODE: build_intern
+// CODE: new r0, #1
 // CODE: %bb-1(coalesce-end):
 // CODE: ret
 

@@ -32,6 +32,6 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
-// CHECK: %16 = local [immutable] bool
-// CHECK: move %16 bool, %15 bool
-// CHECK: move_true %16 bool, %13 bool, %14 bool
+// CHECK: %17 = local [immutable] bool
+// CHECK: move %17 bool, %16 bool
+// CHECK: move_true %17 bool, %14 bool, %15 bool

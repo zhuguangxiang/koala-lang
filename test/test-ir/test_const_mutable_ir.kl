@@ -13,51 +13,61 @@
 
 // CHECK-LABEL: func @list_lit() std/builtin.list[int64]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64, 2 int64, 3 int64
 // CHECK-NEXT: ret %0 std/builtin.list[int64]
 // OPT-LABEL: dead-code-elimination (Iter 1) [@list_lit]
-// OPT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// OPT: %0 = new @std/builtin.list[int64]
+// OPT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64, 2 int64, 3 int64
 // OPT-NEXT: ret %0 std/builtin.list[int64]
 // LIR-LABEL: IR Dump After isel [@list_lit]
-// LIR: %3 = build_intern @list, nargs=3
-// LIR-NEXT: ret %3 std/builtin.list[int64]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=4
+// LIR-NEXT: ret %0 std/builtin.list[int64]
 func list_lit() list[int] { return [1, 2, 3] }
 
 // list[T](...) with constant arguments: the variadic tuple is a constant,
 // the list built from it is not
 // CHECK-LABEL: func @list_call() std/builtin.list[int64]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64, 2 int64, 3 int64
 // CHECK-NEXT: ret %0 std/builtin.list[int64]
 // OPT-LABEL: dead-code-elimination (Iter 1) [@list_call]
-// OPT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// OPT: %0 = new @std/builtin.list[int64]
+// OPT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64, 2 int64, 3 int64
 // OPT-NEXT: ret %0 std/builtin.list[int64]
 // LIR-LABEL: IR Dump After isel [@list_call]
-// LIR: %3 = build_intern @list, nargs=3
-// LIR-NEXT: ret %3 std/builtin.list[int64]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=4
+// LIR-NEXT: ret %0 std/builtin.list[int64]
 func list_call() list[int] { return list[int](1, 2, 3) }
 
 // CHECK-LABEL: func @list_call_empty() std/builtin.list[int64]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64]
 // CHECK-NEXT: ret %0 std/builtin.list[int64]
 // LIR-LABEL: IR Dump After isel [@list_call_empty]
 // LIR-NEXT: func @list_call_empty()
 // LIR-NEXT: %bb0(entry):
-// LIR-NEXT: %0 = build_intern @list
+// LIR-NEXT: %0 = new @std/builtin.list[int64]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=1
 // LIR-NEXT: ret %0 std/builtin.list[int64]
 func list_call_empty() list[int] { return list[int]() }
 
 // CHECK-LABEL: func @nested() std/builtin.list[std/builtin.list[int64]]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 1 int64
-// CHECK-NEXT: %1 = build_intern @list, 2 int64
-// CHECK-NEXT: %2 = build_intern @list, %0 std/builtin.list[int64], %1 std/builtin.list[int64]
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64
+// CHECK-NEXT: %1 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %1 std/builtin.list[int64], 2 int64
+// CHECK-NEXT: %2 = new @std/builtin.list[std/builtin.list[int64]]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %2 std/builtin.list[std/builtin.list[int64]], %0 std/builtin.list[int64], %1 std/builtin.list[int64]
 // CHECK-NEXT: ret %2 std/builtin.list[std/builtin.list[int64]]
 // OPT-LABEL: dead-code-elimination (Iter 1) [@nested]
-// OPT: %2 = build_intern @list, %0 std/builtin.list[int64], %1 std/builtin.list[int64]
+// OPT: %2 = new @std/builtin.list[std/builtin.list[int64]]
+// OPT: call @list:__init__ [path = 'std/builtin'], %2 std/builtin.list[std/builtin.list[int64]], %0 std/builtin.list[int64], %1 std/builtin.list[int64]
 // LIR-LABEL: IR Dump After isel [@nested]
-// LIR: %5 = build_intern @list, nargs=2
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=3
 func nested() list[list[int]] { return [[1], [2]] }
 
 // CHECK-LABEL: func @map_lit() std/builtin.dict[str, int64]
@@ -82,12 +92,14 @@ func tuple_imm() (int, (int, str)) { return (1, (2, "a")) }
 // a list item: the tuple is built, not a constant
 // CHECK-LABEL: func @tuple_mut() std/builtin.tuple[int64, std/builtin.list[int64]]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 2 int64
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 2 int64
 // CHECK-NEXT: %1 = build_intern @tuple, 1 int64, %0 std/builtin.list[int64]
 // CHECK-NEXT: ret %1 std/builtin.tuple[int64, std/builtin.list[int64]]
 // LIR-LABEL: IR Dump After isel [@tuple_mut]
-// LIR: %1 = build_intern @list, nargs=1
-// LIR: %3 = build_intern @tuple, nargs=2
+// LIR: %0 = new @std/builtin.list[int64]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=2
+// LIR: %5 = build_intern @tuple, nargs=2
 func tuple_mut() (int, list[int]) { return (1, [2]) }
 
 // CHECK-LABEL: func @map_empty() std/builtin.dict[int64, int64]
@@ -102,31 +114,36 @@ func map_empty() dict[int, int] { return {:} }
 // a list as a map value: the list is built first, then the map
 // CHECK-LABEL: func @map_of_list() std/builtin.dict[int64, std/builtin.list[int64]]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 2 int64
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 2 int64
 // CHECK-NEXT: %1 = build_intern @map, 1 int64, %0 std/builtin.list[int64]
 // CHECK-NEXT: ret %1 std/builtin.dict[int64, std/builtin.list[int64]]
 // LIR-LABEL: IR Dump After isel [@map_of_list]
-// LIR: %1 = build_intern @list, nargs=1
-// LIR: %3 = build_intern @map, nargs=2
+// LIR: %0 = new @std/builtin.list[int64]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=2
+// LIR: %5 = build_intern @map, nargs=2
 func map_of_list() dict[int, list[int]] { return {1: [2]} }
 
 // a tuple nested in a tuple, holding a list: neither tuple is a constant
 // CHECK-LABEL: func @nested_pair() std/builtin.tuple[std/builtin.tuple[int64, std/builtin.list[int64]], int64]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 2 int64
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 2 int64
 // CHECK-NEXT: %1 = build_intern @tuple, 1 int64, %0 std/builtin.list[int64]
 // CHECK-NEXT: %2 = build_intern @tuple, %1 std/builtin.tuple[int64, std/builtin.list[int64]], 3 int64
 // CHECK-NEXT: ret %2
 // LIR-LABEL: IR Dump After isel [@nested_pair]
-// LIR: %1 = build_intern @list, nargs=1
-// LIR: %3 = build_intern @tuple, nargs=2
+// LIR: %0 = new @std/builtin.list[int64]
+// LIR: call @list:__init__ [path = 'std/builtin'], nargs=2
 // LIR: %5 = build_intern @tuple, nargs=2
+// LIR: %7 = build_intern @tuple, nargs=2
 func nested_pair() ((int, list[int]), int) { return ((1, [2]), 3) }
 
 // a field initializer is evaluated in each __init__
 // CHECK-LABEL: func @Box:__init__(%self test_const_mutable_ir.Box) <NO-TYPE>
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @list, 1 int64
+// CHECK-NEXT: %0 = new @std/builtin.list[int64]
+// CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64
 // CHECK-NEXT: set_field %self test_const_mutable_ir.Box, items(index=0), %0 std/builtin.list[int64]
 // CHECK-NEXT: %2 = build_intern @map, 'a' str, 1 int64
 // CHECK-NEXT: set_field %self test_const_mutable_ir.Box, tags(index=1), %2 std/builtin.dict[str, int64]

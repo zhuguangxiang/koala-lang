@@ -5,6 +5,8 @@
 
 // A: `let l = [n]` -> the local takes the register of the list value.
 // C: `l = [i, n]` -> the list is built straight into the register of `l`.
+// The list is `new` + `call @list:__init__`, so the only moves left are the
+// call's argument slots; none of them writes the list register itself.
 func lists(n int) list[int] {
     var l = [n]
     var i = 0
@@ -17,11 +19,13 @@ func lists(n int) list[int] {
 
 // CHECK-LABEL: ====== Linearization @lists(
 // CHECK: %bb-1(entry):
-// CHECK: build_intern r[[L:[0-9]+]], @list, #1
-// CHECK-NOT: move
+// CHECK: new r[[L:[0-9]+]], #0
+// CHECK-NOT: move r[[L]],
 // CHECK: %bb-1(while-body):
-// CHECK: build_intern r[[L]], @list, #2
-// CHECK-NOT: move
+// CHECK: new r[[L]], #0
+// CHECK-NOT: move r[[L]],
+// CHECK: %bb-1(while-end):
+// CHECK: ret r[[L]]
 // CHECK: End of Linearization @lists
 
 // B: the widening cast of `e` keeps the register of `e`, although r0 is free.

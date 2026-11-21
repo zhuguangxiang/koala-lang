@@ -20,8 +20,10 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = build_intern @list
-// CHECK: %1 = build_intern @list
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64]
+// CHECK: %1 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %1 std/builtin.list[int64]
 // CHECK: %2 = build_intern @map, %0 std/builtin.list[int64], 'hi' str, %1 std/builtin.list[int64], 'bye' str
 // CHECK: %l = local [immutable] std/builtin.dict[std/builtin.list[int64], str]
 // CHECK: move %l std/builtin.dict[std/builtin.list[int64], str], %2 std/builtin.dict[std/builtin.list[int64], str]
@@ -32,13 +34,13 @@ func main() {
 // CHECK: ret void
 
 // Key::__init__ is inlined: the objects are created right in the map key slots
-// CHECK-LABEL: @main[0,24]:
-// CHECK: build_intern r1, @list, #0
-// CHECK: build_intern r3, @list, #0
+// CHECK-LABEL: @main[0,32]:
+// CHECK: new r0, #1
+// CHECK: new r1, #1
 // CHECK: build_intern r0, @map, #4
-// CHECK: new r1, #0
-// CHECK-NEXT: new r3, #0
-// CHECK-NEXT: new r5, #0
+// CHECK: new r2, #0
+// CHECK-NEXT: new r4, #0
+// CHECK-NEXT: new r6, #0
 // CHECK: build_intern r0, @map, #6
 
 // CHECK:{[]: hi, []: bye}

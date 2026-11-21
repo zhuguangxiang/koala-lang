@@ -21,7 +21,8 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @foo(%n int64, %m int64) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = build_intern @range, %n int64, %m int64, 1 int64
+// CHECK: %0 = new @std/builtin.range
+// CHECK: call @range:__init__ [path = 'std/builtin'], %0 std/builtin.range, %n int64, %m int64, 1 int64
 // CHECK: %1 = build_intern @tuple, %0 std/builtin.range
 // CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple[std/builtin.range], ' ' str, '\n' str
 // CHECK: ret void
@@ -45,18 +46,23 @@ func main() {
 // CHECK-LABEL: --- IR Dump After isel [@foo] ---
 // CHECK-LABEL: func @foo(%n int64, %m int64) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = local int64        [fixedslot = 0(next)]
-// CHECK: move %0 int64, %n int64
-// CHECK: %1 = local int64        [fixedslot = 1(next)]
-// CHECK: move %1 int64, %m int64
-// CHECK: %2 = local int64        [fixedslot = 2(next)]
-// CHECK: load_int_imm %2 int64, 1 int64
-// CHECK: %3 = build_intern @range, nargs=3        [fixedslot = 0(next)]
-// CHECK: %4 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
-// CHECK: %5 = local str        [fixedslot = 1(next)]
-// CHECK: loadk %5 str, ' ' str
-// CHECK: %6 = local str        [fixedslot = 2(next)]
-// CHECK: loadk %6 str, '\n' str
+// CHECK: %0 = new @std/builtin.range
+// CHECK: %1 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: move %1 std/builtin.range, %0 std/builtin.range
+// CHECK: %2 = local int64        [fixedslot = 1(next)]
+// CHECK: move %2 int64, %n int64
+// CHECK: %3 = local int64        [fixedslot = 2(next)]
+// CHECK: move %3 int64, %m int64
+// CHECK: %4 = local int64        [fixedslot = 3(next)]
+// CHECK: load_int_imm %4 int64, 1 int64
+// CHECK: call @range:__init__ [path = 'std/builtin'], nargs=4
+// CHECK: %5 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: move %5 std/builtin.range, %0 std/builtin.range
+// CHECK: %6 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %7 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %7 str, ' ' str
+// CHECK: %8 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %8 str, '\n' str
 // CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: ret void
 
@@ -77,18 +83,23 @@ func main() {
 // CHECK: %6 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %6 str, '\n' str
 // CHECK: call @print [path = 'std/prelude'], nargs=3
-// CHECK: %7 = local int64        [fixedslot = 0(next)]
-// CHECK: load_int_imm %7 int64, -1 int64
-// CHECK: %8 = local int64        [fixedslot = 1(next)]
-// CHECK: load_int_imm %8 int64, -10 int64
-// CHECK: %9 = local int64        [fixedslot = 2(next)]
-// CHECK: load_int_imm %9 int64, 1 int64
-// CHECK: %10 = build_intern @range, nargs=3        [fixedslot = 0(next)]
-// CHECK: %11 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %7 = new @std/builtin.range
+// CHECK: %8 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: move %8 std/builtin.range, %7 std/builtin.range
+// CHECK: %9 = local int64        [fixedslot = 1(next)]
+// CHECK: load_int_imm %9 int64, -1 int64
+// CHECK: %10 = local int64        [fixedslot = 2(next)]
+// CHECK: load_int_imm %10 int64, -10 int64
+// CHECK: %11 = local int64        [fixedslot = 3(next)]
+// CHECK: load_int_imm %11 int64, 1 int64
+// CHECK: call @range:__init__ [path = 'std/builtin'], nargs=4
+// CHECK: %12 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: move %12 std/builtin.range, %7 std/builtin.range
+// CHECK: %13 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK: call @print [path = 'std/prelude'], nargs=3
-// CHECK: %14 = local std/builtin.range        [fixedslot = 0(next)]
-// CHECK: loadk %14 std/builtin.range, range(1, 10, 1) std/builtin.range
-// CHECK: %15 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %16 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: loadk %16 std/builtin.range, range(1, 10, 1) std/builtin.range
+// CHECK: %17 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
 // CHECK: call @print [path = 'std/prelude'], nargs=3
 
 // CHECK: (1, 2, 3) range(1, 10, 1) hello hello

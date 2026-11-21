@@ -119,7 +119,8 @@ func f_list_default(l list[Foo]?) list[Foo] { return l ?? list[Foo]() }
 // CHECK: jmp label %bb3
 //
 // CHECK: %bb2(coalesce-rhs):
-// CHECK: %2 = build_intern @list
+// CHECK: %2 = new @std/builtin.list[test_ir_coalesce_param.Foo]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %2 std/builtin.list[test_ir_coalesce_param.Foo]
 // CHECK: move %coalesce std/builtin.list[test_ir_coalesce_param.Foo], %2 std/builtin.list[test_ir_coalesce_param.Foo]
 // CHECK: jmp label %bb3
 //

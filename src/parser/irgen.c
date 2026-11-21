@@ -806,6 +806,10 @@ static KlrValue *emit_str_call(KlrBuilder *bldr, KlrValue **args, int nargs)
     return klr_build_str(bldr, arg, "");
 }
 
+static KlrValue *get_callable(ParserState *ps, Symbol *sym);
+static TypeSpec *literal_type_arg(TypeSpec *ts, int index);
+static KlrValue *literal_item(ParserState *ps, KlrValue *val, TypeSpec *elem_ts);
+
 static KlrValue *emit_range_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
                                  KlrValue **args, int nargs)
 {
@@ -836,7 +840,20 @@ static KlrValue *emit_range_call(ParserState *ps, KlrBuilder *bldr, KlrValue *ca
     if (konst) {
         ret = klr_const_range(args, callee->ts, MOD);
     } else {
-        ret = klr_build_intern(bldr, args, nargs, callee->ts, INTERN_RANGE, "");
+        /* the plain construction of any class: `new` + `__init__`. The bounds are
+         * already `int`, so no argument cast is needed. `__init__` is looked up in
+         * the class scope: the `__init__` cache is only filled by a `range(...)`
+         * call the parser resolved, which need not exist in this module. */
+        Symbol *kls_sym = get_symbol_by_id(callee->ts->sym_id);
+        ASSERT(kls_sym && kls_sym->kind == SYM_CLASS);
+        Symbol *init_sym = stbl_get(kls_sym->stbl, "__init__");
+        ASSERT(init_sym);
+        KlrValue *init_fn = get_callable(ps, init_sym);
+
+        ret = klr_build_new(bldr, callee, callee->ts, "");
+        KlrValue *all[4] = { ret, args[0], args[1], args[2] };
+        klr_builder_end(bldr, ps->scope->bb);
+        klr_build_call(bldr, init_fn, no_type_spec(), all, 4, "");
     }
     return ret;
 }
@@ -850,36 +867,37 @@ static KlrValue *emit_tuple_call(ParserState *ps, KlrBuilder *bldr, KlrValue *ca
     return arg;
 }
 
+/* `list(...)`: the plain construction of any class, `new` + `__init__`. The
+ * elements arrive flattened (emit_ir_call unpacks the tuple the parser built
+ * for `__init__(args ...T)`), so no intermediate tuple is allocated. A list is
+ * mutable: always built afresh, never a const-pool entry. */
 static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
                                 KlrValue **args, int nargs, TypeSpec *ret_ts)
 {
-    if (nargs == 0) {
-        // list() → empty list
-        KlrValue *ret = klr_build_intern(bldr, NULL, 0, ret_ts, INTERN_LIST, "");
-        return ret;
+    TypeSpec *elem_ts = literal_type_arg(ret_ts, 0);
+    for (int i = 0; i < nargs; i++) {
+        args[i] = literal_item(ps, args[i], elem_ts);
     }
 
-    ASSERT(nargs == 1);
-    KlrValue *arg = args[0];
+    /* `__init__` is looked up in the class scope: the `__init__` cache is only
+     * filled by a `list(...)` call the parser resolved, which need not exist in
+     * this module (a bare `[1, 2]` literal never resolves one). */
+    Symbol *kls_sym = get_symbol_by_id(callee->ts->sym_id);
+    ASSERT(kls_sym && kls_sym->kind == SYM_CLASS);
+    Symbol *init_sym = stbl_get(kls_sym->stbl, "__init__");
+    ASSERT(init_sym);
+    KlrValue *init_fn = get_callable(ps, init_sym);
+    if (klr_is_extfunc(init_fn)) ((KlrExtFunc *)init_fn)->proto = init_sym->ts;
 
-    if (klr_is_const(arg)) {
-        KlrConst *kc = (KlrConst *)arg;
-        ASSERT(kc->which == CONST_TUPLE);
-        // list[tuple(...)]
-        // a list is mutable: always built afresh, never a const-pool entry
-        // (also list[T]() with zero variadic arguments, an empty tuple here)
-        Vector *vec = kc->list;
-        KlrValue **_args = VECTOR_ITEMS(vec, KlrValue *);
-        return klr_build_intern(bldr, _args, vector_size(vec), ret_ts, INTERN_LIST, "");
-    } else {
-        // build_intern @tuple(...) → build_intern @list(...)
-        ASSERT(arg->kind == KLR_VALUE_INSN);
-        KlrInsn *insn = (KlrInsn *)arg;
-        ASSERT(insn->code == OP_BUILD_INTERN && insn->intern_tag == INTERN_TUPLE);
-        insn->intern_tag = INTERN_LIST;
-        insn->ts = klr_lower_type(ret_ts);
-        return arg;
+    KlrValue *ret = klr_build_new(bldr, callee, ret_ts, "");
+    KlrValue *all[nargs + 1];
+    all[0] = ret;
+    for (int i = 0; i < nargs; i++) {
+        all[i + 1] = args[i];
     }
+    klr_builder_end(bldr, ps->scope->bb);
+    klr_build_call(bldr, init_fn, no_type_spec(), all, nargs + 1, "");
+    return ret;
 }
 
 static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSpec *proto_ts)
@@ -1027,6 +1045,7 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     klr_builder_end(&bldr, ps->scope->bb);
 
     TypeSpec *ts = callee->ts;
+
     if (ts->kind == TYPE_INT) {
         ret = emit_int_call(&bldr, callee, args, nargs);
     } else if (ts->kind == TYPE_FLOAT) {
@@ -1038,6 +1057,7 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     } else if (type_is_tuple(ts)) {
         ret = emit_tuple_call(ps, &bldr, callee, args, nargs);
     } else if (type_is_list(ts)) {
+        /* the variadic arguments were flattened by emit_ir_call */
         ret = emit_list_call(ps, &bldr, callee, args, nargs, ret_ts);
     } else if (ts->kind == TYPE_KLASS) {
         ASSERT(init_fn);
@@ -1141,7 +1161,6 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     CallExpr *call = (CallExpr *)exp;
     Expr *lhs = call->lhs;
     Vector *args = call->args;
-    int size = vector_size(args);
 
     // gen ir for lhs
     int function_value =
@@ -1150,11 +1169,28 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
-    KlrValue *ir_args[size];
+    KlrValue *callee = lhs->ir_val;
+
+    /*
+     * `list(a, b)`: the parser packs the variadic arguments of
+     * `__init__(args ...T)` into one tuple. That `__init__` is native and takes the
+     * elements flattened in the call slots, so emit the tuple's items directly:
+     * building the tuple first would allocate an object that is only copied and
+     * then dropped. (`tuple(...)` keeps building that tuple: it is the result.)
+     */
+    Vector *items = args;
+    if ((callee->kind == KLR_VALUE_KLASS || callee->kind == KLR_VALUE_EXT_KLASS) &&
+        type_is_list(callee->ts) && vector_size(args) == 1) {
+        Expr *a0 = vector_get(args, 0);
+        if (a0->kind == EXPR_TUPLE_KIND) items = ((TupleExpr *)a0)->vec;
+    }
+
+    int size = vector_size(items);
+    KlrValue *ir_args[size > 0 ? size : 1];
 
     // gen ir for arguments
     Expr *e;
-    vector_foreach(e, args) {
+    vector_foreach(e, items) {
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
@@ -1163,7 +1199,6 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
     // codegen
 
-    KlrValue *callee = lhs->ir_val;
     KlrValue *ret;
 
     if (function_value) {
@@ -1829,9 +1864,19 @@ static void emit_ir_slice(ParserState *ps, Expr *exp)
     if (konst) {
         exp->ir_val = klr_const_slice(args, exp->ts, MOD);
     } else {
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, ps->scope->bb);
-        exp->ir_val = klr_build_intern(&bldr, args, 3, exp->ts, INTERN_SLICE, "");
+        /* `a[i:j]` is `slice(i, j, s)`: build it the way any class is built, with
+         * `new` + `__init__`. There is no call expression to take the callee from,
+         * so look `__init__` up in the class scope -- the `__init__` cache is only
+         * filled by a `slice(...)` call the parser resolved, which need not exist
+         * in this module. */
+        Symbol *kls_sym = get_symbol_by_id(exp->ts->sym_id);
+        ASSERT(kls_sym && kls_sym->kind == SYM_CLASS);
+        Symbol *init_sym = stbl_get(kls_sym->stbl, "__init__");
+        ASSERT(init_sym);
+        KlrValue *init_fn = get_callable(ps, init_sym);
+        if (klr_is_extfunc(init_fn)) ((KlrExtFunc *)init_fn)->proto = init_sym->ts;
+        ASSERT(kls_sym->ir_val);
+        exp->ir_val = emit_type_call(ps, kls_sym->ir_val, init_fn, args, 3, exp);
     }
 }
 
@@ -2177,23 +2222,24 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
     ListExpr *list = (ListExpr *)exp;
 
     int size = vector_size(list->vec);
-    KlrValue *items[size];
-    TypeSpec *elem_ts = literal_type_arg(exp->ts, 0);
+    KlrValue *items[size > 0 ? size : 1];
 
     Expr *e;
     vector_foreach(e, list->vec) {
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
-        items[i__] = literal_item(ps, e->ir_val, elem_ts);
+        items[i__] = e->ir_val;
     }
 
     emit_ir_type(ps, exp);
+    KlrValue *callee = exp->ir_val;
+    ASSERT(callee);
 
     // a list is mutable: always built afresh, even from constant items
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
-    exp->ir_val = klr_build_intern(&bldr, items, size, exp->ts, INTERN_LIST, "");
+    exp->ir_val = emit_list_call(ps, &bldr, callee, items, size, exp->ts);
 }
 
 /* A constant that may be shared from the const pool: an immutable value. A
@@ -3597,15 +3643,31 @@ static void get_range_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, str
     out->step = build_get_field(val->ts, "step", bldr, val, NULL, ps);
 }
 
+/*
+ * `range(a, b, s)` lowers to `new @range` + `call @range:__init__`. A `for` loop
+ * only needs the three bounds, so when the fresh object is used by nothing but
+ * that call the whole construction is folded away: the bounds are taken from
+ * the call's arguments and both insns are erased.
+ */
 static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
 {
-    if (insn->code != OP_BUILD_INTERN) return 0;
-    if (insn->intern_tag != INTERN_RANGE) return 0;
-    int num_opers = insn->num_opers;
-    ASSERT(num_opers == 3);
-    out->start = insn_oper_value(insn, 0);
-    out->end = insn_oper_value(insn, 1);
-    out->step = insn_oper_value(insn, 2);
+    if (insn->code != OP_NEW) return 0;
+    if (!type_is_range(insn->ts)) return 0;
+    if (insn->use_count != 1) return 0;
+
+    KlrInsn *call = use_first(insn)->insn;
+    if (call->code != OP_IR_CALL) return 0;
+    /* callee + `__init__(obj, start, end, step)`, and obj must be this very `new` */
+    if (call->num_opers != 5) return 0;
+    if (insn_oper_value(call, 1) != (KlrValue *)insn) return 0;
+    if (!str_equal(insn_oper_value(call, 0)->name, "__init__")) return 0;
+
+    out->start = insn_oper_value(call, 2);
+    out->end = insn_oper_value(call, 3);
+    out->step = insn_oper_value(call, 4);
+
+    // drop the call first: the `new` still has it as a use
+    klr_erase_insn(call);
     return 1;
 }
 

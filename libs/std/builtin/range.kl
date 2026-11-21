@@ -23,8 +23,13 @@ pub class range : Sequence[int] {
     pub let step int
 
     /// Initialize a range from `_start` (inclusive) to `_end` (exclusive).
-    @native
-    pub func __init__(_start int, _end int, _step = 1) {}
+    ///
+    /// `_step` defaults to 1 and must not be zero.
+    pub func __init__(_start int, _end int, _step = 1) {
+        start = _start
+        end = _end
+        step = _step
+    }
 
     /// Return an iterator for the range.
     @native

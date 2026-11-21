@@ -52,12 +52,14 @@ func foo_opt_param(f Foo[A?]) A? {
 
 // the container type is lowered: list[A] is list[int64], the items are int64 constants
 // CHECK-LABEL: func @mk_list() std/builtin.list[int64] {
-// CHECK: %0 = build_intern @list, 0 int64, 5 int64
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 0 int64, 5 int64
 // CHECK: %l = local [immutable] std/builtin.list[int64]
 // CHECK: ret %l std/builtin.list[int64]
 
 // CHECK-LABEL: func @mk_opt_list() std/builtin.list[int64?] {
-// CHECK: %0 = build_intern @list, 0 int64, nil
+// CHECK: %0 = new @std/builtin.list[int64?]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64?], 0 int64, nil
 // CHECK: ret %l std/builtin.list[int64?]
 
 // a value read from the list is an int64

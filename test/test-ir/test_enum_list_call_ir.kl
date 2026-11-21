@@ -50,47 +50,59 @@ func tuple_from_params(a A, b A?) list[(A, A?)] {
 }
 
 // CHECK-LABEL: func @from_param(%a int64) std/builtin.list[int64] {
-// CHECK: build_intern @list, %a int64
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], %a int64
 // CHECK: ret {{%[^ ]+}} std/builtin.list[int64]
 
 // CHECK-LABEL: func @from_params(%a int64, %b int64) std/builtin.list[int64] {
-// CHECK: build_intern @list, %a int64, %b int64
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], %a int64, %b int64
 // CHECK: ret {{%[^ ]+}} std/builtin.list[int64]
 
 // CHECK-LABEL: func @from_optional(%a int64?) std/builtin.list[int64?] {
-// CHECK: build_intern @list, %a int64?
+// CHECK: %0 = new @std/builtin.list[int64?]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64?], %a int64?
 // CHECK: ret {{%[^ ]+}} std/builtin.list[int64?]
 
 // CHECK-LABEL: func @empty_list() std/builtin.list[int64] {
-// CHECK: build_intern @list
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[int64]
 
 // CHECK-LABEL: func @empty_optional_list() std/builtin.list[int64?] {
-// CHECK: build_intern @list
+// CHECK: %0 = new @std/builtin.list[int64?]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64?]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[int64?]
 
 // CHECK-LABEL: func @empty_nested_list() std/builtin.list[std/builtin.list[int64]] {
-// CHECK: build_intern @list
+// CHECK: %0 = new @std/builtin.list[std/builtin.list[int64]]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[std/builtin.list[int64]]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[std/builtin.list[int64]]
 
 // CHECK-LABEL: func @nested_from_param(%items std/builtin.list[int64]) std/builtin.list[std/builtin.list[int64]] {
-// CHECK: build_intern @list, %items std/builtin.list[int64]
+// CHECK: %0 = new @std/builtin.list[std/builtin.list[int64]]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[std/builtin.list[int64]], %items std/builtin.list[int64]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[std/builtin.list[int64]]
 
 // CHECK-LABEL: func @nested_from_value(%a int64) std/builtin.list[std/builtin.list[int64]] {
-// CHECK: build_intern @list, %a int64
-// CHECK: build_intern @list, {{%[^ ]+}} std/builtin.list[int64]
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], %a int64
+// CHECK: %1 = new @std/builtin.list[std/builtin.list[int64]]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %1 std/builtin.list[std/builtin.list[int64]], %0 std/builtin.list[int64]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[std/builtin.list[int64]]
 
 // CHECK-LABEL: func @nested_optional_items(%items std/builtin.list[int64?]) std/builtin.list[std/builtin.list[int64?]] {
-// CHECK: build_intern @list, %items std/builtin.list[int64?]
+// CHECK: %0 = new @std/builtin.list[std/builtin.list[int64?]]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[std/builtin.list[int64?]], %items std/builtin.list[int64?]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[std/builtin.list[int64?]]
 
 // CHECK-LABEL: func @optional_inner_list(%items std/builtin.list[int64]?) std/builtin.list[std/builtin.list[int64]?] {
-// CHECK: build_intern @list, %items std/builtin.list[int64]?
+// CHECK: %0 = new @std/builtin.list[std/builtin.list[int64]?]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[std/builtin.list[int64]?], %items std/builtin.list[int64]?
 // CHECK: ret {{%[^ ]+}} std/builtin.list[std/builtin.list[int64]?]
 
 // CHECK-LABEL: func @tuple_from_params(%a int64, %b int64?) std/builtin.list[std/builtin.tuple[int64, int64?]] {
 // CHECK: build_intern @tuple, %a int64, %b int64?
-// CHECK: build_intern @list, {{%[^ ]+}} std/builtin.tuple[int64, int64?]
+// CHECK: %1 = new @std/builtin.list[std/builtin.tuple[int64, int64?]]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %1 std/builtin.list[std/builtin.tuple[int64, int64?]], %0 std/builtin.tuple[int64, int64?]
 // CHECK: ret {{%[^ ]+}} std/builtin.list[std/builtin.tuple[int64, int64?]]

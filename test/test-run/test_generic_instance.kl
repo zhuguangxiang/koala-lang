@@ -42,7 +42,7 @@ func make_range(start int, end int) range = range(start, end)
 // List literal with runtime items (build_intern @list)
 func make_list(x int, y int) list[int] = [x, y]
 
-// Slice with runtime indices (build_intern @slice)
+// Slice with runtime indices (new @slice + call __init__)
 func slice_list(a list[int], start int, end int) list[int] = a[start:end]
 
 func main() {
@@ -126,22 +126,22 @@ func main() {
 
 // IR verification: no spurious cast instructions
 // IR-LABEL: func @new_str_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
 // IR-LABEL: func @new_int_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
 // IR-LABEL: func @new_box_int_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
 // IR-LABEL: func @new_box_str_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
@@ -163,17 +163,19 @@ func main() {
 // IR: ret
 
 // IR-LABEL: func @make_range(
-// IR: build_intern @range
+// IR: new @std/builtin.range
+// IR: call @range:__init__
 // IR-NOT: cast
 // IR: ret
 
 // IR-LABEL: func @make_list(
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
 // IR-LABEL: func @slice_list(
-// IR: build_intern
+// IR: new @std/builtin.slice
+// IR: call @slice:__init__
 // IR-NOT: cast
 // IR: ret
 }

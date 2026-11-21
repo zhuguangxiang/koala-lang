@@ -112,12 +112,12 @@ func main() {
 // IR: ret
 
 // IR-LABEL: func @new_box_int_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
 // IR-LABEL: func @new_box_str_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 
@@ -140,7 +140,7 @@ func main() {
 // IR: ret
 
 // IR-LABEL: func @new_list_box_list()
-// IR: build_intern @list
+// IR: new @std/builtin.list
 // IR-NOT: cast
 // IR: ret
 

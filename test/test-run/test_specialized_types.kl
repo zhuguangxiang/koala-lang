@@ -49,7 +49,8 @@ func main() {
 }
 
 // CHECK-LABEL: func @probe_int64(%x int64, %y int64) int64 {
-// CHECK: build_intern @list, %x int64, %y int64
+// CHECK: %0 = new @std/builtin.list[int64]
+// CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], %x int64, %y int64
 // CHECK: %l = local [immutable] std/builtin.list[int64]
 // CHECK: seq.get %l std/builtin.list[int64], 0 int64
 // CHECK: %e = local int64

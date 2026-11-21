@@ -13,7 +13,7 @@ func main() {
     print(enum_cross.Proto.ICMP.name())
     // CHECK: ICMP
 
-    let p enum_cross.Proto = enum_cross.Proto.TCP
+    let p = enum_cross.Proto.TCP
     print(p.name())
     // CHECK: TCP
 

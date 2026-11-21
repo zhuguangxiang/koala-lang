@@ -809,7 +809,26 @@ static TValue _list_add(TValue *self, TValue *args, int nargs)
     return obj_value(res);
 }
 
+/*
+ * `__init__(args ...T)`: the elements arrive flattened in the call slots, so the
+ * backing array is allocated once and filled with a single memcpy. `self` comes
+ * from `new @list`, which zeroes it into a valid empty list.
+ */
+static TValue _list_init(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs >= 0);
+
+    if (nargs > 0) {
+        expand_capacity(list, nargs);
+        memcpy(list->array, args, sizeof(TValue) * nargs);
+        list->end = nargs;
+    }
+    return no_value;
+}
+
 static MethodDef list_methods[] = {
+    { "__init__", _list_init },
     { "len", _list_len },
     { "empty", _list_empty },
     { "__getitem__", _list_getitem },
