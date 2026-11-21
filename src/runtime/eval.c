@@ -58,7 +58,10 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
             ASSERT((count % 2) == 0);
             Object *dobj = kl_new_dict();
             for (int i = 0; i < count; i += 2) {
-                kl_dict_add(dobj, &values[i], &values[i + 1]);
+                TValue ar = kl_dict_add(dobj, &values[i], &values[i + 1]);
+                /* A user key's hash() may raise; abort the build and let the
+                 * opcode handler turn NULL into the pending exception. */
+                if (is_error(&ar)) return NULL;
             }
             return dobj;
         }
@@ -732,8 +735,9 @@ TValue kl_jit_hash(TValue *obj, uint32_t pc)
 {
     KoalaState *ks = __ks();
     ks->cf->pc = pc;
-    unsigned int h = kl_call_hash(obj);
-    if (ks->exc) {
+    unsigned int h;
+    TValue hr = kl_call_hash(obj, &h);
+    if (is_error(&hr)) {
         trace_here(ks->cf);
         return error_value;
     }
@@ -763,9 +767,16 @@ TValue kl_jit_print(int nargs, uint32_t pc)
 
 TValue kl_jit_new(TypeObject *tp) { return obj_value(kl_new_instance(tp)); }
 
-TValue kl_jit_build_intern(int tag, int count)
+TValue kl_jit_build_intern(int tag, int count, uint32_t pc)
 {
-    Object *obj = do_build_intern(__ks()->stack_top, tag, count);
+    KoalaState *ks = __ks();
+    ks->cf->pc = pc;
+    Object *obj = do_build_intern(ks->stack_top, tag, count);
+    /* NULL means a user slot raised (e.g. a dict key's hash()). */
+    if (!obj) {
+        trace_here(ks->cf);
+        return error_value;
+    }
     return obj_value(obj);
 }
 

@@ -98,7 +98,9 @@ static TValue _hashset_contains(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     HashSetEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return error_value;
     hashmap_entry_init(&key_entry, hash);
     HashSetEntry *entry = hashmap_get(&set->map, &key_entry);
     return bool_value(entry != NULL);
@@ -115,7 +117,9 @@ static TValue _hashset_add(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     HashSetEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return error_value;
     hashmap_entry_init(&key_entry, hash);
     HashSetEntry *entry = hashmap_get(&set->map, &key_entry);
     if (entry) return bool_value(0);
@@ -145,7 +149,9 @@ static TValue _hashset_remove(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     HashSetEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return error_value;
     hashmap_entry_init(&key_entry, hash);
     HashSetEntry *entry = hashmap_remove(&set->map, &key_entry);
     if (!entry) return bool_value(0);
@@ -219,7 +225,9 @@ static TValue _hashset_update(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&set->map, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
@@ -239,7 +247,9 @@ static TValue _hashset_update(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&set->map, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
@@ -303,7 +313,9 @@ static TValue _hashset_bitor(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&out->map, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
@@ -320,7 +332,9 @@ static TValue _hashset_bitor(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&out->map, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
@@ -375,7 +389,9 @@ static TValue _hashset_bitand(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (hashmap_get(&set->map, &tmp)) {
                 HashSetEntry ne_tmp = { .key = item };
@@ -396,7 +412,9 @@ static TValue _hashset_bitand(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (hashmap_get(&set->map, &tmp)) {
                 HashSetEntry ne_tmp = { .key = item };
@@ -461,7 +479,9 @@ static TValue _hashset_sub(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             HashSetEntry *found = hashmap_remove(&out->map, &tmp);
             if (found) mm_free(found);
@@ -474,7 +494,9 @@ static TValue _hashset_sub(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             HashSetEntry *found = hashmap_remove(&out->map, &tmp);
             if (found) mm_free(found);
@@ -525,7 +547,9 @@ static TValue _hashset_is_subset(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) goto cleanup_err;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) goto cleanup_err;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&temp, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
@@ -542,7 +566,9 @@ static TValue _hashset_is_subset(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) goto cleanup_err;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) goto cleanup_err;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&temp, &tmp)) {
                 HashSetEntry *ne = mm_alloc(sizeof(HashSetEntry));
@@ -609,7 +635,9 @@ static TValue _hashset_is_superset(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&set->map, &tmp)) return bool_value(0);
         }
@@ -624,7 +652,9 @@ static TValue _hashset_is_superset(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (!hashmap_get(&set->map, &tmp)) return bool_value(0);
         }
@@ -689,7 +719,9 @@ static TValue _hashset_sym_diff(TValue *self, TValue *args, int nargs)
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (hashmap_get(&set->map, &tmp)) {
                 HashSetEntry *found = hashmap_remove(&out->map, &tmp);
@@ -709,7 +741,9 @@ static TValue _hashset_sym_diff(TValue *self, TValue *args, int nargs)
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
             HashSetEntry tmp = { .key = item };
-            unsigned int h = kl_call_hash(&item);
+            unsigned int h;
+            TValue hr = kl_call_hash(&item, &h);
+            if (is_error(&hr)) return error_value;
             hashmap_entry_init(&tmp, h);
             if (hashmap_get(&set->map, &tmp)) {
                 HashSetEntry *found = hashmap_remove(&out->map, &tmp);

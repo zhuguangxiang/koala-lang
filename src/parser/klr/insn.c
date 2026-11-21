@@ -815,9 +815,14 @@ void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValu
         panic("'seq_set' op requires a reg/param/const value for index");
     }
 
+    /* A function or class used as a value (e.g. {"a": { |x| x + 1 }} or
+     * d[k] = lambda) has no register yet: isel_lower_seq_set() materializes it
+     * with load_func / load_type, exactly as isel_lower_set_field() does. */
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
-        val->kind != KLR_VALUE_PARAM) {
-        panic("'seq_set' op requires a reg/param/const value for val");
+        val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_FUNC &&
+        val->kind != KLR_VALUE_EXT_FUNC && val->kind != KLR_VALUE_KLASS &&
+        val->kind != KLR_VALUE_EXT_KLASS) {
+        panic("'seq_set' op requires a reg/param/const/func/klass value for val");
     }
 
     KlrInsn *insn = new_insn(OP_SEQ_SET, 3, "");

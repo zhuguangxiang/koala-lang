@@ -1440,14 +1440,21 @@ static void isel_lower_seq_set(KlrInsn *insn)
 
     ASSERT(klr_is_insn(obj) || klr_is_param(obj) || klr_is_const(obj));
     ASSERT(klr_is_insn(index) || klr_is_param(index) || klr_is_const(index));
-    ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val));
+    ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val) ||
+           is_function_symbol(val) || is_type_symbol(val));
 
     if (klr_is_const(obj)) {
         KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
         set_operand_at(insn, 0, _obj);
     }
 
-    if (klr_is_const(val)) {
+    /* A function or class stored as an item is materialized into a register
+     * first, like isel_lower_set_field() does for a field assignment. */
+    if (is_function_symbol(val)) {
+        set_operand_at(insn, 2, lower_function_value(insn, val));
+    } else if (is_type_symbol(val)) {
+        set_operand_at(insn, 2, lower_type_value(insn, val));
+    } else if (klr_is_const(val)) {
         KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 2, _val);
     }

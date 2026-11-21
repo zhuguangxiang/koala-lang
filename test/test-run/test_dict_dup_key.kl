@@ -1,12 +1,13 @@
 // RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
 //
 // A duplicated key in a map literal is merged at run time: a dict is mutable,
-// so a map literal is always `build_intern @map` (never a const-pool entry)
-// and keeps every key/value pair of the source, duplicates included. The
-// runtime dict inserts them in order: the first occurrence keeps its position
-// and the value of the last occurrence wins. Keys compare with the runtime
-// rule in _dict_entry_eq_(): floats with `==`, so 0.0 and -0.0 are the same
-// key while NaN never equals itself; tuples and ranges by their items.
+// so a map literal is always `new @dict` + `__init__` + one `seq.set` per entry
+// (never a const-pool entry) and keeps every key/value pair of the source,
+// duplicates included. The runtime dict inserts them in order: the first
+// occurrence keeps its position and the value of the last occurrence wins.
+// Keys compare with the runtime rule in _dict_entry_eq_(): floats with `==`,
+// so 0.0 and -0.0 are the same key while NaN never equals itself; tuples and
+// ranges by their items.
 func main() {
     let d = {1: "a", 2: "b", 1: "c"}
     print(d)
@@ -32,25 +33,46 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = build_intern @map, 1 int64, 'a' str, 2 int64, 'b' str, 1 int64, 'c' str
-// CHECK: %2 = build_intern @map, 'x' str, 1 int64, 'y' str, 2 int64, 'x' str, 3 int64
-// CHECK: %4 = build_intern @map, 1 int64, 'a' str, 1.500000 float64, 'f' str, 2 int64, 'b' str, 1 int64, 'c' str
-// CHECK: %6 = build_intern @map, 1.500000 float64, 'a' str, 2.500000 float64, 'b' str, 1.500000 float64, 'c' str
-// CHECK: %8 = build_intern @map, 0.000000 float64, 'a' str, -0.000000 float64, 'b' str
-// CHECK: %10 = build_intern @map, tuple(1, 2) std/builtin.tuple[int64, int64], 'a' str, tuple(3, 4) std/builtin.tuple[int64, int64], 'b' str, tuple(1, 2) std/builtin.tuple[int64, int64], 'c' str
-// CHECK: %12 = build_intern @map, range(0, 3, 1) std/builtin.range, 'a' str, range(0, 5, 1) std/builtin.range, 'b' str, range(0, 3, 1) std/builtin.range, 'c' str
+// CHECK: %0 = new @std/builtin.dict[int64, str]
+// CHECK: seq.set %0 std/builtin.dict[int64, str], 1 int64, 'a' str
+// CHECK: seq.set %0 std/builtin.dict[int64, str], 2 int64, 'b' str
+// CHECK: seq.set %0 std/builtin.dict[int64, str], 1 int64, 'c' str
+// CHECK: %2 = new @std/builtin.dict[str, int64]
+// CHECK: seq.set %2 std/builtin.dict[str, int64], 'x' str, 1 int64
+// CHECK: seq.set %2 std/builtin.dict[str, int64], 'y' str, 2 int64
+// CHECK: seq.set %2 std/builtin.dict[str, int64], 'x' str, 3 int64
+// CHECK: %4 = new @std/builtin.dict[any, str]
+// CHECK: seq.set %4 std/builtin.dict[any, str], 1 int64, 'a' str
+// CHECK: seq.set %4 std/builtin.dict[any, str], 1.500000 float64, 'f' str
+// CHECK: seq.set %4 std/builtin.dict[any, str], 2 int64, 'b' str
+// CHECK: seq.set %4 std/builtin.dict[any, str], 1 int64, 'c' str
+// CHECK: %6 = new @std/builtin.dict[float64, str]
+// CHECK: seq.set %6 std/builtin.dict[float64, str], 1.500000 float64, 'a' str
+// CHECK: seq.set %6 std/builtin.dict[float64, str], 2.500000 float64, 'b' str
+// CHECK: seq.set %6 std/builtin.dict[float64, str], 1.500000 float64, 'c' str
+// CHECK: %8 = new @std/builtin.dict[float64, str]
+// CHECK: seq.set %8 std/builtin.dict[float64, str], 0.000000 float64, 'a' str
+// CHECK: seq.set %8 std/builtin.dict[float64, str], -0.000000 float64, 'b' str
+// CHECK: %10 = new @std/builtin.dict[std/builtin.tuple[int64, int64], str]
+// CHECK: seq.set %10 std/builtin.dict[std/builtin.tuple[int64, int64], str], tuple(1, 2) std/builtin.tuple[int64, int64], 'a' str
+// CHECK: seq.set %10 std/builtin.dict[std/builtin.tuple[int64, int64], str], tuple(3, 4) std/builtin.tuple[int64, int64], 'b' str
+// CHECK: seq.set %10 std/builtin.dict[std/builtin.tuple[int64, int64], str], tuple(1, 2) std/builtin.tuple[int64, int64], 'c' str
+// CHECK: %12 = new @std/builtin.dict[std/builtin.range, str]
+// CHECK: seq.set %12 std/builtin.dict[std/builtin.range, str], range(0, 3, 1) std/builtin.range, 'a' str
+// CHECK: seq.set %12 std/builtin.dict[std/builtin.range, str], range(0, 5, 1) std/builtin.range, 'b' str
+// CHECK: seq.set %12 std/builtin.dict[std/builtin.range, str], range(0, 3, 1) std/builtin.range, 'c' str
 // CHECK: ret void
 
-// Seven build_intern of 3, 3, 4, 3, 2, 3 and 3 entries (6, 6, 8, 6, 4, 6 and
-// 6 operands): no key is merged at compile time.
-// CHECK-LABEL: @main[0,91]:
-// CHECK: build_intern r0, @map, #6
-// CHECK: build_intern r0, @map, #6
-// CHECK: build_intern r0, @map, #8
-// CHECK: build_intern r0, @map, #6
-// CHECK: build_intern r0, @map, #4
-// CHECK: build_intern r0, @map, #6
-// CHECK: build_intern r0, @map, #6
+// Seven separate dict allocations of 3, 3, 4, 3, 2, 3 and 3 entries (21 seq.set
+// in total): no key is merged at compile time.
+// CHECK-LABEL: @main[0,127]:
+// CHECK: new r0, #0
+// CHECK: new r0, #0
+// CHECK: new r0, #0
+// CHECK: new r0, #0
+// CHECK: new r0, #0
+// CHECK: new r0, #0
+// CHECK: new r0, #0
 
 // CHECK-LABEL: Constant Pool:
 // CHECK-NOT: dict(

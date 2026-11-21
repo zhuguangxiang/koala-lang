@@ -1,9 +1,9 @@
 // RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
 //
-// A map literal lowers like a list literal: always `build_intern @map`, even
-// when every key and value is a constant. A dict is mutable, so it is never a
-// const-pool entry and every evaluation creates a fresh object. The operands
-// are in source order, i.e. key0, value0, key1, value1, ...
+// A map literal lowers to `new @dict` + `call @dict:__init__` + one `seq.set`
+// per entry, even when every key and value is a constant. A dict is mutable, so
+// it is never a const-pool entry and every evaluation creates a fresh object.
+// The entries are emitted in source order: key0/value0, key1/value1, ...
 func main() {
     let d0 = {:}
     print(d0)
@@ -18,28 +18,35 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = build_intern @map
+// CHECK: %0 = new @std/builtin.dict[any, any]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], %0 std/builtin.dict[any, any]
 // CHECK: %d0 = local [immutable] std/builtin.dict[any, any]
 // CHECK: move %d0 std/builtin.dict[any, any], %0 std/builtin.dict[any, any]
-// CHECK: %2 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
+// CHECK: %2 = new @std/builtin.dict[int64, int64]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], %2 std/builtin.dict[int64, int64]
+// CHECK: seq.set %2 std/builtin.dict[int64, int64], 1 int64, 2 int64
+// CHECK: seq.set %2 std/builtin.dict[int64, int64], 3 int64, 4 int64
 // CHECK: %d = local [immutable] std/builtin.dict[int64, int64]
 // CHECK: move %d std/builtin.dict[int64, int64], %2 std/builtin.dict[int64, int64]
 // CHECK: %x = local [immutable] int64
 // CHECK: move %x int64, 5 int64
-// CHECK: %4 = build_intern @map, 1 int64, %x int64, 3 int64, 4 int64
+// CHECK: %4 = new @std/builtin.dict[int64, int64]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], %4 std/builtin.dict[int64, int64]
+// CHECK: seq.set %4 std/builtin.dict[int64, int64], 1 int64, %x int64
+// CHECK: seq.set %4 std/builtin.dict[int64, int64], 3 int64, 4 int64
 // CHECK: %d2 = local [immutable] std/builtin.dict[int64, int64]
 // CHECK: move %d2 std/builtin.dict[int64, int64], %4 std/builtin.dict[int64, int64]
 // CHECK: ret void
 
 // Every map is built at run time: `{1: x, 3: 4}` gets x's value 5 by const
-// propagation, but stays a build_intern; the keys and values are loaded as
-// immediates and no dict is in the const pool.
-// CHECK-LABEL: @main[0,29]:
-// CHECK: build_intern r0, @map, #0
-// CHECK: load_int_imm r2, ti=0xb, #2
-// CHECK: build_intern r0, @map, #4
-// CHECK: load_int_imm r2, ti=0xb, #5
-// CHECK: build_intern r0, @map, #4
+// propagation, but is still new + __init__ + seq.set; the keys and values are
+// loaded as immediates and no dict is in the const pool.
+// CHECK-LABEL: @main[0,38]:
+// CHECK: new r0, #0
+// CHECK: load_int_imm r1, ti=0xb, #2
+// CHECK: seq.set_imm r0, r1, #1
+// CHECK: load_int_imm r1, ti=0xb, #5
+// CHECK: seq.set_imm r0, r1, #1
 
 // CHECK-LABEL: Constant Pool:
 // CHECK-NEXT: [000] str     = " "
@@ -47,7 +54,9 @@ func main() {
 // CHECK-NOT: dict(
 
 // CHECK-LABEL: Import Table:
-// CHECK: [000] func   std/prelude::print, slot_index: 1
+// CHECK: [000] type   std/builtin::dict, slot_index: 0
+// CHECK: [001] method std/builtin::dict::__init__, slot_index: 1
+// CHECK: [002] func   std/prelude::print, slot_index: 2
 
 // CHECK:{}
 // CHECK:{1: 2, 3: 4}

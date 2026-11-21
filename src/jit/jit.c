@@ -1313,14 +1313,17 @@ static void emit_new(JitCtx *j, int rd, TypeObject *tp)
     emit_store_ret(j, rd);
 }
 
-static void emit_build_intern(JitCtx *j, int rd, int tag, int count)
+static void emit_build_intern(JitCtx *j, int rd, int tag, int count, int pc_abs)
 {
     EmitBuf *b = &j->buf;
     emit_mov_reg_imm32(b, RDI, tag);
     emit_mov_reg_imm32(b, RSI, count);
+    emit_mov_reg_imm32(b, RDX, pc_abs);
     emit_sub_rsp_imm32(b, 8);
     emit_call_abs(j, (void *)kl_jit_build_intern);
     emit_add_rsp_imm32(b, 8);
+    /* A dict key's hash() slot may raise; bail out like the other slot calls. */
+    emit_err_check(j);
     if (rd != 0xFFF) emit_store_ret(j, rd);
 }
 
@@ -2493,7 +2496,7 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             rd = I_VAL(insn, 16, 8);
             off = I_VAL(insn, 8, 8); /* tag */
             imm = I_VAL(insn, 0, 8); /* count */
-            emit_build_intern(j, rd, off, imm);
+            emit_build_intern(j, rd, off, imm, code->cs.start_pc + pc);
             break;
 
         case OP_GLOBAL_GET:

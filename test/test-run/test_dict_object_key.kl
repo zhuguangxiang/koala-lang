@@ -1,7 +1,8 @@
 // RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
 //
-// Object keys go through `build_intern @map` too: the key operands are the
-// object values themselves, still in source order (k0, v0, k1, v1, ...).
+// Object keys go through `new @dict` + `__init__` + `seq.set` too: the key
+// operands of each seq.set are the object values themselves, still in source
+// order (k0/v0, k1/v1, ...).
 // Two empty lists are distinct keys; three `Key()` objects are equal because
 // Key::hash/__eq__ say so, hence only the last entry survives.
 class Key {
@@ -24,24 +25,34 @@ func main() {
 // CHECK: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64]
 // CHECK: %1 = new @std/builtin.list[int64]
 // CHECK: call @list:__init__ [path = 'std/builtin'], %1 std/builtin.list[int64]
-// CHECK: %2 = build_intern @map, %0 std/builtin.list[int64], 'hi' str, %1 std/builtin.list[int64], 'bye' str
+// CHECK: %2 = new @std/builtin.dict[std/builtin.list[int64], str]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], %2 std/builtin.dict[std/builtin.list[int64], str]
+// CHECK: seq.set %2 std/builtin.dict[std/builtin.list[int64], str], %0 std/builtin.list[int64], 'hi' str
+// CHECK: seq.set %2 std/builtin.dict[std/builtin.list[int64], str], %1 std/builtin.list[int64], 'bye' str
 // CHECK: %l = local [immutable] std/builtin.dict[std/builtin.list[int64], str]
 // CHECK: move %l std/builtin.dict[std/builtin.list[int64], str], %2 std/builtin.dict[std/builtin.list[int64], str]
 // CHECK: %4 = new @test_dict_object_key.Key
 // CHECK: call @Key:__init__, %4 test_dict_object_key.Key
-// CHECK: %7 = build_intern @map, %4 test_dict_object_key.Key, 'bar' str, %5 test_dict_object_key.Key, 'baz' str, %6 test_dict_object_key.Key, 'qux' str
+// CHECK: %7 = new @std/builtin.dict[test_dict_object_key.Key, str]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], %7 std/builtin.dict[test_dict_object_key.Key, str]
+// CHECK: seq.set %7 std/builtin.dict[test_dict_object_key.Key, str], %4 test_dict_object_key.Key, 'bar' str
+// CHECK: seq.set %7 std/builtin.dict[test_dict_object_key.Key, str], %5 test_dict_object_key.Key, 'baz' str
+// CHECK: seq.set %7 std/builtin.dict[test_dict_object_key.Key, str], %6 test_dict_object_key.Key, 'qux' str
 // CHECK: %k = local [immutable] std/builtin.dict[test_dict_object_key.Key, str]
 // CHECK: ret void
 
-// Key::__init__ is inlined: the objects are created right in the map key slots
-// CHECK-LABEL: @main[0,32]:
+// Key::__init__ is inlined (empty body): the three Key objects are allocated
+// back to back, then the dict that holds them.
+// CHECK-LABEL: @main[0,41]:
 // CHECK: new r0, #1
 // CHECK: new r1, #1
-// CHECK: build_intern r0, @map, #4
-// CHECK: new r2, #0
-// CHECK-NEXT: new r4, #0
-// CHECK-NEXT: new r6, #0
-// CHECK: build_intern r0, @map, #6
+// CHECK: new r2, #2
+// CHECK: seq.set r2, r3, r0
+// CHECK: new r0, #0
+// CHECK-NEXT: new r1, #0
+// CHECK-NEXT: new r2, #0
+// CHECK: new r3, #2
+// CHECK: seq.set r3, r4, r0
 
 // CHECK:{[]: hi, []: bye}
 // CHECK:{<test_dict_object_key.Key object at {{0x[0-9a-f]+}}>: qux}

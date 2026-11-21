@@ -61,11 +61,14 @@ static int _dict_entry_eq_(void *a, void *b)
 /* Insert a (key, value) mapping. If `key` already exists its value is
  * replaced in place and the original insertion slot is preserved; otherwise
  * a fresh DictEntry is allocated and appended to the ordered list. Shared
- * by __setitem__, update() and setdefault(). */
-static void _dict_insert(DictObject *dict, TValue *key, TValue *value)
+ * by __setitem__, update() and setdefault(). Returns no_value on success, or
+ * the error raised by the key's hash() so callers can propagate it. */
+static TValue _dict_insert(DictObject *dict, TValue *key, TValue *value)
 {
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_get(&dict->map, &key_entry);
     if (entry) {
@@ -77,6 +80,7 @@ static void _dict_insert(DictObject *dict, TValue *key, TValue *value)
         hashmap_entry_init(entry, hash);
         hashmap_put(&dict->map, entry);
     }
+    return no_value;
 }
 
 static TValue _dict_init(TValue *self, TValue *args, int nargs)
@@ -133,8 +137,7 @@ static TValue _dict_set_item(TValue *self, TValue *args, int nargs)
 {
     DictObject *dict = SELF_AS(dict_type);
     ASSERT(nargs == 2);
-    _dict_insert(dict, &args[0], &args[1]);
-    return no_value;
+    return _dict_insert(dict, &args[0], &args[1]);
 }
 
 static TValue _dict_get_item(TValue *self, TValue *args, int nargs)
@@ -144,7 +147,9 @@ static TValue _dict_get_item(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_get(&dict->map, &key_entry);
     if (entry) {
@@ -162,7 +167,9 @@ static TValue _dict_contains(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_get(&dict->map, &key_entry);
     return bool_value(entry != NULL);
@@ -191,7 +198,9 @@ static TValue _dict_remove(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_remove(&dict->map, &key_entry);
     if (!entry) {
@@ -211,7 +220,9 @@ static TValue _dict_remove_or(TValue *self, TValue *args, int nargs)
     TValue *default_value = &args[1];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_remove(&dict->map, &key_entry);
     if (!entry) return *default_value;
@@ -227,7 +238,9 @@ static TValue _dict_get(TValue *self, TValue *args, int nargs)
     TValue *key = &args[0];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_get(&dict->map, &key_entry);
     /* Missing key yields nil so callers can unwrap with `if let`. */
@@ -243,7 +256,9 @@ static TValue _dict_get_or(TValue *self, TValue *args, int nargs)
     TValue *default_value = &args[1];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_get(&dict->map, &key_entry);
     if (!entry) return *default_value;
@@ -254,12 +269,12 @@ static TValue _dict_get_or(TValue *self, TValue *args, int nargs)
  * `dict`. The signature `src Iterable[(K, V)]` is enforced by the compiler,
  * so every yielded element is statically a 2-tuple of (K, V); only ASSERT
  * here as a defensive invariant check, no runtime exception is warranted. */
-static inline void _dict_update_one(DictObject *dict, TValue *item)
+static inline TValue _dict_update_one(DictObject *dict, TValue *item)
 {
     Object *pair = to_obj(item);
     ASSERT(IS_TUPLE(pair) && TUPLE_SIZE(pair) == 2);
     TValue *kv = TUPLE_ITEMS(pair);
-    _dict_insert(dict, &kv[0], &kv[1]);
+    return _dict_insert(dict, &kv[0], &kv[1]);
 }
 
 /* Merge every (key, value) pair yielded by `src` into `dict`, replacing the
@@ -279,7 +294,8 @@ static TValue _dict_merge(DictObject *dict, TValue *src)
         hashmap_iter_init(&src_dict->map, &it, 0, 1);
         while (hashmap_iter_next(&it)) {
             DictEntry *entry = hashmap_iter_entry(&it);
-            _dict_insert(dict, &entry->key, &entry->value);
+            TValue ir = _dict_insert(dict, &entry->key, &entry->value);
+            if (is_error(&ir)) return ir;
         }
         return no_value;
     }
@@ -294,7 +310,8 @@ static TValue _dict_merge(DictObject *dict, TValue *src)
             TValue idx = int64_value((int64_t)i);
             TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
-            _dict_update_one(dict, &item);
+            TValue ur = _dict_update_one(dict, &item);
+            if (is_error(&ur)) return ur;
         }
         return no_value;
     }
@@ -309,7 +326,8 @@ static TValue _dict_merge(DictObject *dict, TValue *src)
             item = kl_call_next(&it);
             if (is_error(&item)) return error_value;
             if (is_nil(&item)) break;
-            _dict_update_one(dict, &item);
+            TValue ur = _dict_update_one(dict, &item);
+            if (is_error(&ur)) return ur;
         }
         return no_value;
     }
@@ -345,7 +363,8 @@ static TValue _dict_bitor(TValue *self, TValue *args, int nargs)
     hashmap_iter_init(&dict->map, &it, 0, 1);
     while (hashmap_iter_next(&it)) {
         DictEntry *entry = hashmap_iter_entry(&it);
-        _dict_insert(new_dict, &entry->key, &entry->value);
+        TValue ir = _dict_insert(new_dict, &entry->key, &entry->value);
+        if (is_error(&ir)) return ir;
     }
 
     TValue ret = _dict_merge(new_dict, &args[0]);
@@ -405,7 +424,9 @@ static TValue _dict_setdefault(TValue *self, TValue *args, int nargs)
     TValue *default_value = &args[1];
 
     DictEntry key_entry = { .key = *key };
-    unsigned int hash = kl_call_hash(key);
+    unsigned int hash;
+    TValue hr = kl_call_hash(key, &hash);
+    if (is_error(&hr)) return hr;
     hashmap_entry_init(&key_entry, hash);
     DictEntry *entry = hashmap_get(&dict->map, &key_entry);
     /* Key already present: return the existing value, do NOT overwrite. */
@@ -697,10 +718,10 @@ Object *kl_new_perm_dict(void)
     return (Object *)dict;
 }
 
-void kl_dict_add(Object *dict, TValue *key, TValue *value)
+TValue kl_dict_add(Object *dict, TValue *key, TValue *value)
 {
     ASSERT(IS_DICT(dict));
-    _dict_insert((DictObject *)dict, key, value);
+    return _dict_insert((DictObject *)dict, key, value);
 }
 
 void kl_dict_foreach(Object *dict, DictVisitFunc visit, void *arg)

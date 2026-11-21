@@ -14,10 +14,17 @@ static inline TValue kl_call_le(TValue *a, TValue *b) { return kl_call_cmp(a, b,
 static inline TValue kl_call_gt(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_GT); }
 static inline TValue kl_call_ge(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_GE); }
 
-static inline unsigned int kl_call_hash(TValue *val)
+/* Hash `val` through its SLOT_HASH. On success stores the hash in *out and
+ * returns no_value. A user-defined hash() may raise, in which case the slot
+ * call yields error_value: return it untouched so the caller can propagate,
+ * and leave *out alone. Never feed an error value to to_int64() -- it asserts
+ * on the int/uint tag and would abort instead of propagating. */
+static inline TValue kl_call_hash(TValue *val, unsigned int *out)
 {
     TValue ret = kl_call_slot(val, 1, SLOT_HASH);
-    return (unsigned int)to_int64(&ret);
+    if (is_error(&ret)) return ret;
+    *out = (unsigned int)to_int64(&ret);
+    return no_value;
 }
 
 static inline void kl_call_fmt(TValue *obj, Formatter *fmt)

@@ -1,0 +1,25 @@
+// RUN: koala %s ++ 2>&1 | filecheck %s
+// RUN: koala %s ++ --no-jit 2>&1 | filecheck %s
+// Same defect via `d[k] = v` (OP_SEQ_SET): the opcode does check is_error(),
+// but _dict_set_item() returned no_value unconditionally because _dict_insert()
+// was void and dropped the error raised by the key's hash().
+
+class Key {
+    func hash() int { let l list[int] = []; return l[100] }
+    func __eq__(other Key) bool = true
+}
+
+func main() {
+    let d = dict[Key, int]()
+    d[Key()] = 2
+    print(d.len())
+    print("not reached")
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_dict_setitem_hash_error.kl", line 8, in Key$hash
+// CHECK-NEXT:     func hash() int { let l list[int] = []; return l[100] }
+// CHECK-NEXT:   File "{{.*}}test_dict_setitem_hash_error.kl", line 14, in main
+// CHECK-NEXT:     d[Key()] = 2
+// CHECK: Error: list index out of range
+// CHECK-NOT: not reached

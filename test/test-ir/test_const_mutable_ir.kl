@@ -3,9 +3,9 @@
 // RUN: koala %s ++ --dump=lir | filecheck %s --check-prefix=LIR
 //
 // A list or map is mutable, so a literal is never a const-pool entry, even
-// when all its items are constants: irgen emits `build_intern @list` /
-// `build_intern @map`, no pass folds it back into a constant, and isel lowers
-// it as a normal build_intern (each item loaded, then the object built), so
+// when all its items are constants: irgen emits `new` + `__init__` (plus one
+// `seq.set` per map entry), no pass folds it back into a constant, and isel
+// lowers it as a normal construction (each item loaded, then stored), so
 // every evaluation creates a fresh object; that also holds for a field
 // initializer and for a list inside a map or a nested tuple. A tuple is a
 // constant only when all its items are immutable constants (test-run/test_const_mutable_fresh.kl
@@ -72,13 +72,18 @@ func nested() list[list[int]] { return [[1], [2]] }
 
 // CHECK-LABEL: func @map_lit() std/builtin.dict[str, int64]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @map, 'a' str, 1 int64
+// CHECK-NEXT: %0 = new @std/builtin.dict[str, int64]
+// CHECK-NEXT: call @dict:__init__ [path = 'std/builtin'], %0 std/builtin.dict[str, int64]
+// CHECK-NEXT: seq.set %0 std/builtin.dict[str, int64], 'a' str, 1 int64
 // CHECK-NEXT: ret %0 std/builtin.dict[str, int64]
 // OPT-LABEL: dead-code-elimination (Iter 1) [@map_lit]
-// OPT: %0 = build_intern @map, 'a' str, 1 int64
+// OPT: %0 = new @std/builtin.dict[str, int64]
+// OPT: seq.set %0 std/builtin.dict[str, int64], 'a' str, 1 int64
 // LIR-LABEL: IR Dump After isel [@map_lit]
-// LIR: %2 = build_intern @map, nargs=2
-// LIR-NEXT: ret %2 std/builtin.dict[str, int64]
+// LIR: %0 = new @std/builtin.dict[str, int64]
+// LIR: call @dict:__init__ [path = 'std/builtin'], nargs=1
+// LIR: seq.set %0 std/builtin.dict[str, int64], %3 str, %2 int64
+// LIR-NEXT: ret %0 std/builtin.dict[str, int64]
 func map_lit() dict[str, int] { return {"a": 1} }
 
 // all items immutable: the tuple stays a constant (ret_const in LIR)
@@ -104,10 +109,12 @@ func tuple_mut() (int, list[int]) { return (1, [2]) }
 
 // CHECK-LABEL: func @map_empty() std/builtin.dict[int64, int64]
 // CHECK-NEXT: %bb0(entry):
-// CHECK-NEXT: %0 = build_intern @map
+// CHECK-NEXT: %0 = new @std/builtin.dict[int64, int64]
+// CHECK-NEXT: call @dict:__init__ [path = 'std/builtin'], %0 std/builtin.dict[int64, int64]
 // CHECK-NEXT: ret %0 std/builtin.dict[int64, int64]
 // LIR-LABEL: IR Dump After isel [@map_empty]
-// LIR: %0 = build_intern @map
+// LIR: %0 = new @std/builtin.dict[int64, int64]
+// LIR: call @dict:__init__ [path = 'std/builtin'], nargs=1
 // LIR-NEXT: ret %0 std/builtin.dict[int64, int64]
 func map_empty() dict[int, int] { return {:} }
 
@@ -116,12 +123,16 @@ func map_empty() dict[int, int] { return {:} }
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %0 = new @std/builtin.list[int64]
 // CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 2 int64
-// CHECK-NEXT: %1 = build_intern @map, 1 int64, %0 std/builtin.list[int64]
+// CHECK-NEXT: %1 = new @std/builtin.dict[int64, std/builtin.list[int64]]
+// CHECK-NEXT: call @dict:__init__ [path = 'std/builtin'], %1 std/builtin.dict[int64, std/builtin.list[int64]]
+// CHECK-NEXT: seq.set %1 std/builtin.dict[int64, std/builtin.list[int64]], 1 int64, %0 std/builtin.list[int64]
 // CHECK-NEXT: ret %1 std/builtin.dict[int64, std/builtin.list[int64]]
 // LIR-LABEL: IR Dump After isel [@map_of_list]
 // LIR: %0 = new @std/builtin.list[int64]
 // LIR: call @list:__init__ [path = 'std/builtin'], nargs=2
-// LIR: %5 = build_intern @map, nargs=2
+// LIR: %3 = new @std/builtin.dict[int64, std/builtin.list[int64]]
+// LIR: call @dict:__init__ [path = 'std/builtin'], nargs=1
+// LIR: seq.set_imm %3 std/builtin.dict[int64, std/builtin.list[int64]], 1 int64, %0 std/builtin.list[int64]
 func map_of_list() dict[int, list[int]] { return {1: [2]} }
 
 // a tuple nested in a tuple, holding a list: neither tuple is a constant
@@ -145,7 +156,9 @@ func nested_pair() ((int, list[int]), int) { return ((1, [2]), 3) }
 // CHECK-NEXT: %0 = new @std/builtin.list[int64]
 // CHECK-NEXT: call @list:__init__ [path = 'std/builtin'], %0 std/builtin.list[int64], 1 int64
 // CHECK-NEXT: set_field %self test_const_mutable_ir.Box, items(index=0), %0 std/builtin.list[int64]
-// CHECK-NEXT: %2 = build_intern @map, 'a' str, 1 int64
+// CHECK-NEXT: %2 = new @std/builtin.dict[str, int64]
+// CHECK-NEXT: call @dict:__init__ [path = 'std/builtin'], %2 std/builtin.dict[str, int64]
+// CHECK-NEXT: seq.set %2 std/builtin.dict[str, int64], 'a' str, 1 int64
 // CHECK-NEXT: set_field %self test_const_mutable_ir.Box, tags(index=1), %2 std/builtin.dict[str, int64]
 class Box {
     var items = [1]

@@ -128,7 +128,7 @@ TValue kl_jit_hash(TValue *obj, uint32_t pc);
 TValue kl_jit_fmt(TValue *obj, TValue *fmt, uint32_t pc);
 TValue kl_jit_print(int nargs, uint32_t pc);
 TValue kl_jit_new(TypeObject *tp);
-TValue kl_jit_build_intern(int tag, int count);
+TValue kl_jit_build_intern(int tag, int count, uint32_t pc);
 
 /* Runtime switches (koala --no-jit or env KOALA_JIT=0 disables, KOALA_JIT_THRESHOLD=<n>). */
 int kl_jit_enabled(void);

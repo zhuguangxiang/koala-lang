@@ -1,15 +1,15 @@
 // RUN: koalac %s --opt --dump=ir | filecheck %s
 //
-// A map literal is always `build_intern @map, ...` (a dict is mutable, so it
-// is never a const-pool entry; see test_map_literal.kl). None of the 5 opt
-// passes (const-copy-prop, normalize, lvn, cfg-bb-opt, dce) folds it back into
-// a constant; this file locks that in.
+// A map literal is always `new @dict` + `call @dict:__init__` + one `seq.set`
+// per entry (a dict is mutable, so it is never a const-pool entry; see
+// test_map_literal.kl). None of the 5 opt passes (const-copy-prop, normalize,
+// lvn, cfg-bb-opt, dce) folds it back into a constant; this file locks that in.
 //
 // Intended limits (the same as for list literals):
-//   * opt never folds a build_intern whose operands all became constants
+//   * opt never folds a construction whose operands all became constants
 //     after propagation back into the const pool;
-//   * a build_intern whose result is unused (the object does not escape, the
-//     allocation is not observable) is removed by dce.
+//   * `new` and `__init__` are side effects, so a construction whose result is
+//     unused is still kept by dce: it is never removed.
 
 func const_map() dict[int, int] {
     let m = {1: 2, 3: 4}
@@ -17,7 +17,10 @@ func const_map() dict[int, int] {
 }
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@const_map] ---
-// CHECK: %0 = build_intern @map, 1 int64, 2 int64, 3 int64, 4 int64
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], %0 std/builtin.dict[int64, int64]
+// CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, 2 int64
+// CHECK: seq.set %0 std/builtin.dict[int64, int64], 3 int64, 4 int64
 // CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 // CHECK: ret %m std/builtin.dict[int64, int64]
 
@@ -27,7 +30,8 @@ func build_map(x int) dict[int, int] {
 }
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@build_map] ---
-// CHECK: %0 = build_intern @map, 1 int64, %x int64
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, %x int64
 // CHECK: ret %m std/builtin.dict[int64, int64]
 
 // the map built in each branch is kept, cfg-bb-opt neither merges nor drops it
@@ -41,16 +45,18 @@ func branches(x bool) dict[int, int] {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@branches] ---
 // CHECK: %bb0(entry):
-// CHECK: %0 = build_intern @map, 1 int64, 2 int64
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, 2 int64
 // CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 // CHECK: %bb1(if-then):
-// CHECK: %1 = build_intern @map, 3 int64, 4 int64
+// CHECK: %1 = new @std/builtin.dict[int64, int64]
+// CHECK: seq.set %1 std/builtin.dict[int64, int64], 3 int64, 4 int64
 // CHECK: move %m std/builtin.dict[int64, int64], %1 std/builtin.dict[int64, int64]
 // CHECK: %bb2(if-end):
 // CHECK: ret %m std/builtin.dict[int64, int64]
 
 // after const propagation turns %k into 1, every operand is a constant, but
-// it stays build_intern @map: a dict is mutable, so each evaluation builds one.
+// the dict is still built fresh: a dict is mutable, so each evaluation builds one.
 func prop_key() dict[int, int] {
     let k = 1
     let m = {k: 2}
@@ -58,9 +64,12 @@ func prop_key() dict[int, int] {
 }
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@prop_key] ---
-// CHECK: %0 = build_intern @map, 1 int64, 2 int64
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: seq.set %0 std/builtin.dict[int64, int64], 1 int64, 2 int64
 // CHECK: ret %m std/builtin.dict[int64, int64]
 
+// The result never escapes, but `new` / `__init__` / `seq.set` are side effects,
+// so dce keeps the whole construction; only the dead `move` into %m is gone.
 func dead_map(x int) int {
     let m = {1: x}
     return 0
@@ -69,5 +78,8 @@ func dead_map(x int) int {
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@dead_map] ---
 // CHECK-NEXT: func @dead_map(%x int64) int64 {
 // CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = new @std/builtin.dict[int64, int64]
+// CHECK-NEXT: call @dict:__init__ [path = 'std/builtin'], %0 std/builtin.dict[int64, int64]
+// CHECK-NEXT: seq.set %0 std/builtin.dict[int64, int64], 1 int64, %x int64
 // CHECK-NEXT: ret 0 int64
 // CHECK-NEXT: }

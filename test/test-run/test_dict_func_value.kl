@@ -1,0 +1,57 @@
+// RUN: koala %s ++ 2>&1 | filecheck %s
+// RUN: koala %s ++ --no-jit 2>&1 | filecheck %s
+// A function value stored in a dict. seq.set lowers its value operand straight
+// to a register, so a lambda (which has no register yet) must be materialized
+// with load_func first, exactly as set_field does. Covers both the {k: lambda}
+// literal and the d[k] = lambda assignment.
+
+type IntFn = func(int) int
+
+func apply(f IntFn, v int) int = f(v)
+
+func main() {
+    // a dict literal holding a lambda
+    let d dict[str, IntFn] = {"a": { |x| x + 1 }}
+    print(d["a"](3))
+
+    // several pairs in one literal
+    let e dict[str, IntFn] = {"inc": { |x| x + 1 }, "dbl": { |x| x * 2 }}
+    print(e["inc"](10))
+    print(e["dbl"](10))
+
+    // assignment through seq.set
+    var m dict[str, IntFn] = {:}
+    m["sq"] = { |x| x * x }
+    print(m["sq"](5))
+
+    // overwrite an existing key
+    m["sq"] = { |x| x - 1 }
+    print(m["sq"](5))
+
+    // a lambda already held in a variable
+    let f IntFn = { |x| x + 100 }
+    let g dict[str, IntFn] = {"f": f}
+    print(g["f"](1))
+
+    // nested: a list of dicts, and a dict of lists
+    let ld list[dict[str, IntFn]] = [{"a": { |x| x + 1 }}, {"b": { |x| x * 3 }}]
+    print(ld[0]["a"](4))
+    print(ld[1]["b"](4))
+
+    let dl dict[str, list[IntFn]] = {"a": [{ |x| x + 7 }]}
+    print(dl["a"][0](3))
+
+    // handed on to a function taking IntFn
+    print(apply(d["a"], 41))
+}
+
+// CHECK: 4
+// CHECK-NEXT: 11
+// CHECK-NEXT: 20
+// CHECK-NEXT: 25
+// CHECK-NEXT: 4
+// CHECK-NEXT: 101
+// CHECK-NEXT: 5
+// CHECK-NEXT: 12
+// CHECK-NEXT: 10
+// CHECK-NEXT: 42

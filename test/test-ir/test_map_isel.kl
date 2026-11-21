@@ -1,12 +1,11 @@
 // RUN: koalac %s --isel --dump=lir | filecheck %s
 //
-// isel lowering of map literals (the same as for lists):
+// isel lowering of map literals:
 //   * a map is mutable, so even an all-constant map is never a const-pool
-//     entry: irgen emits `build_intern @map` and isel lowers it the normal
-//     way, each key/value loaded into consecutive argument slots
-//     (fixedslot = 0, 1, ...) in the order k0, v0, k1, v1, ...; tag and nargs
-//     are encoded in the tag:8 / nargs:8 fields of FORMAT_RTagImm, and
-//     `INTERN_MAP` (= 4) is passed through as is;
+//     entry: irgen emits `new @dict` + `call @dict:__init__` + one `seq.set`
+//     per entry, and isel lowers each entry the normal way (the value loaded
+//     into a register, then stored). A constant key folds into `seq.set_imm`;
+//   * the dict self is passed to __init__ in fixedslot 0;
 //   * a nested map ({x: {1: 2}}) is built first, then used as an operand.
 
 func const_map() dict[int, int] {
@@ -15,10 +14,13 @@ func const_map() dict[int, int] {
 }
 
 // CHECK-LABEL: --- IR Dump After isel [@const_map] ---
-// CHECK: load_int_imm %0 int64, 1 int64
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], nargs=1
+// CHECK: load_int_imm %2 int64, 2 int64
+// CHECK: seq.set_imm %0 std/builtin.dict[int64, int64], 1 int64, %2 int64
 // CHECK: load_int_imm %3 int64, 4 int64
-// CHECK: %4 = build_intern @map, nargs=4
-// CHECK: move %m std/builtin.dict[int64, int64], %4 std/builtin.dict[int64, int64]
+// CHECK: seq.set_imm %0 std/builtin.dict[int64, int64], 3 int64, %3 int64
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 // CHECK: ret %m std/builtin.dict[int64, int64]
 
 func empty_map() dict[int, int] {
@@ -27,7 +29,8 @@ func empty_map() dict[int, int] {
 }
 
 // CHECK-LABEL: --- IR Dump After isel [@empty_map] ---
-// CHECK: %0 = build_intern @map
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], nargs=1
 // CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 
 func build_map(x int) dict[int, int] {
@@ -35,13 +38,12 @@ func build_map(x int) dict[int, int] {
     return m
 }
 
+// a variable value is used directly, no argument slot is materialized for it
 // CHECK-LABEL: --- IR Dump After isel [@build_map] ---
-// CHECK: %0 = local int64
-// CHECK: load_int_imm %0 int64, 1 int64
-// CHECK: %1 = local int64
-// CHECK: move %1 int64, %x int64
-// CHECK: %2 = build_intern @map, nargs=2
-// CHECK: move %m std/builtin.dict[int64, int64], %2 std/builtin.dict[int64, int64]
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: call @dict:__init__ [path = 'std/builtin'], nargs=1
+// CHECK: seq.set_imm %0 std/builtin.dict[int64, int64], 1 int64, %x int64
+// CHECK: move %m std/builtin.dict[int64, int64], %0 std/builtin.dict[int64, int64]
 
 func mixed(x int) dict[int, dict[int, int]] {
     let m = {x: {1: 2}}
@@ -49,6 +51,7 @@ func mixed(x int) dict[int, dict[int, int]] {
 }
 
 // CHECK-LABEL: --- IR Dump After isel [@mixed] ---
-// CHECK: %2 = build_intern @map, nargs=2        [fixedslot = 1(next)]
-// CHECK: move %3 int64, %x int64
-// CHECK: %4 = build_intern @map, nargs=2
+// CHECK: %0 = new @std/builtin.dict[int64, int64]
+// CHECK: seq.set_imm %0 std/builtin.dict[int64, int64], 1 int64, %2 int64
+// CHECK: %3 = new @std/builtin.dict[int64, std/builtin.dict[int64, int64]]
+// CHECK: seq.set %3 std/builtin.dict[int64, std/builtin.dict[int64, int64]], %x int64, %0 std/builtin.dict[int64, int64]

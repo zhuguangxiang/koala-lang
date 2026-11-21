@@ -25,7 +25,7 @@ Object *kl_new_perm_dict(void);
 
 /* Insert or replace a (key, value) mapping. Used by the module loader to
  * materialize constant dict literals, mirroring how lists are built. */
-void kl_dict_add(Object *dict, TValue *key, TValue *value);
+TValue kl_dict_add(Object *dict, TValue *key, TValue *value);
 
 /* Call `visit(key, value, arg)` for each mapping, in insertion order.
  * `visit` must not change the dict. */

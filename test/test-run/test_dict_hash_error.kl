@@ -1,0 +1,24 @@
+// RUN: koala %s ++ 2>&1 | filecheck %s
+// RUN: koala %s ++ --no-jit 2>&1 | filecheck %s
+// A user-defined hash() that raises must propagate out of a dict literal.
+// kl_call_hash() used to feed the error value straight into to_int64(),
+// tripping its int/uint tag assertion and aborting instead of unwinding.
+
+class Key {
+    func hash() int { let l list[int] = []; return l[100] }
+    func __eq__(other Key) bool = true
+}
+
+func main() {
+    let d = {Key(): 1}
+    print(d.len())
+    print("not reached")
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_dict_hash_error.kl", line 8, in Key$hash
+// CHECK-NEXT:     func hash() int { let l list[int] = []; return l[100] }
+// CHECK-NEXT:   File "{{.*}}test_dict_hash_error.kl", line 13, in main
+// CHECK-NEXT:     let d = {Key(): 1}
+// CHECK: Error: list index out of range
+// CHECK-NOT: not reached

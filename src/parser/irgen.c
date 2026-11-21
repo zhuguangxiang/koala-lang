@@ -2302,22 +2302,26 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     }
 }
 
-/* map literal: {k0: v0, k1: v1, ...} lowers to build_intern @map exactly like
- * list literals do, with operands in source order: k0, v0, k1, v1, ...
- * A map is always built by `build_intern @map`, even when every key and value
- * is a constant: a dict is mutable, so sharing one instance through the const
- * pool would leak mutations between evaluations (and the machine-level
- * constant loader has no dict form). `exp->ts` is already resolved by
- * parse_map().
- * NOTE: emit_ir_type() must not be called here - it only accepts tuple/list
- * origins (see its ASSERT) and OP_BUILD_INTERN carries no klass operand. */
+/* map literal: {k0: v0, k1: v1, ...} lowers to `new @dict` + `call
+ * @dict:__init__` + one `seq.set` per pair, exactly like `dict[K, V]()`
+ * followed by N assignments. Keys and values are still evaluated first, in
+ * source order, so side effects keep their original order.
+ * A map is always built afresh, even when every key and value is a constant:
+ * a dict is mutable, so sharing one instance through the const pool would leak
+ * mutations between evaluations (and the machine-level constant loader has no
+ * dict form). `exp->ts` is already resolved by parse_map(), which also sets
+ * `exp->sym` to the dict[K, V] instance, so emit_ir_type() can supply the klass
+ * operand that `new` needs.
+ * Unlike the former `build_intern @map` form this has no 2N-contiguous-register
+ * cap (each set uses only 3 slots and the dict register is reused), and every
+ * set propagates an exception raised by a user key's hash(). */
 static void emit_ir_map(ParserState *ps, Expr *exp)
 {
     MapExpr *map = (MapExpr *)exp;
 
     int size = vector_size(map->vec);
-    int nargs = size * 2;
-    KlrValue *items[nargs > 0 ? nargs : 1];
+    KlrValue *keys[size > 0 ? size : 1];
+    KlrValue *vals[size > 0 ? size : 1];
     TypeSpec *key_ts = literal_type_arg(exp->ts, 0);
     TypeSpec *val_ts = literal_type_arg(exp->ts, 1);
 
@@ -2329,19 +2333,45 @@ static void emit_ir_map(ParserState *ps, Expr *exp)
         key->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, key);
         if (!key->ir_val) return;
-        items[i__ * 2] = literal_item(ps, key->ir_val, key_ts);
+        keys[i__] = literal_item(ps, key->ir_val, key_ts);
 
         Expr *val = entry->val;
         val->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, val);
         if (!val->ir_val) return;
-        items[i__ * 2 + 1] = literal_item(ps, val->ir_val, val_ts);
+        vals[i__] = literal_item(ps, val->ir_val, val_ts);
     }
 
-    // a map is mutable: always built afresh, even from constant items
+    emit_ir_type(ps, exp);
+    KlrValue *callee = exp->ir_val;
+    ASSERT(callee);
+
+    /* `__init__` is looked up in the class scope: the `__init__` cache is only
+     * filled by a `dict(...)` call the parser resolved, which need not exist in
+     * this module (a bare `{1: 2}` literal never resolves one). */
+    Symbol *kls_sym = get_symbol_by_id(callee->ts->sym_id);
+    ASSERT(kls_sym && kls_sym->kind == SYM_CLASS);
+    Symbol *init_sym = stbl_get(kls_sym->stbl, "__init__");
+    ASSERT(init_sym);
+    KlrValue *init_fn = get_callable(ps, init_sym);
+    if (klr_is_extfunc(init_fn)) ((KlrExtFunc *)init_fn)->proto = init_sym->ts;
+
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
-    exp->ir_val = klr_build_intern(&bldr, items, nargs, exp->ts, INTERN_MAP, "");
+    KlrValue *ret = klr_build_new(&bldr, callee, exp->ts, "");
+    SET_IR_LOC(ret, exp);
+
+    /* dict.__init__ takes no argument beyond self. */
+    KlrValue *all[1] = { ret };
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_call(&bldr, init_fn, no_type_spec(), all, 1, "");
+
+    for (int i = 0; i < size; i++) {
+        klr_builder_end(&bldr, ps->scope->bb);
+        klr_build_seq_set(&bldr, ret, keys[i], vals[i]);
+    }
+
+    exp->ir_val = ret;
 }
 
 static void emit_ir_kw(ParserState *ps, Expr *exp) { UNREACHABLE(); }

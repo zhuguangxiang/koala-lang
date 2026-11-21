@@ -1,0 +1,24 @@
+// RUN: koala %s ++ 2>&1 | filecheck %s
+// RUN: koala %s ++ --no-jit 2>&1 | filecheck %s
+// hashset shares kl_call_hash() with dict, so a raising hash() must unwind
+// here too rather than abort on the to_int64() tag assertion.
+
+class Key {
+    func hash() int { let l list[int] = []; return l[100] }
+    func __eq__(other Key) bool = true
+}
+
+func main() {
+    let s = hashset[Key]()
+    s.add(Key())
+    print(s.len())
+    print("not reached")
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}test_hashset_hash_error.kl", line 7, in Key$hash
+// CHECK-NEXT:     func hash() int { let l list[int] = []; return l[100] }
+// CHECK-NEXT:   File "{{.*}}test_hashset_hash_error.kl", line 13, in main
+// CHECK-NEXT:     s.add(Key())
+// CHECK: Error: list index out of range
+// CHECK-NOT: not reached

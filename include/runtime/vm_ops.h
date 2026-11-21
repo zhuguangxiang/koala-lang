@@ -674,7 +674,10 @@ TARGET(OP_BUILD_INTERN) {
 
     CHECK_REG_ID(rd);
 
+    /* Building a dict calls each key's hash() slot, which may raise. */
+    SAVE_PC();
     Object *obj = do_build_intern(ks->stack_top, tag, imm);
+    if (!obj) goto error;
     if (rd != 0xFFFu) regs[rd] = obj_value(obj);
     DISPATCH();
 }
@@ -1860,6 +1863,7 @@ TARGET(OP_SEQ_SET) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
+    SAVE_PC();
     TValue ret = kl_call_set_item(regs + rd, regs + rt, regs + rs);
     if (is_error(&ret)) goto error;
 
@@ -1906,8 +1910,9 @@ TARGET(OP_HASH) {
 
     // the hash slot of the value's own type, also for an interface value
     SAVE_PC();
-    unsigned int hash = kl_call_hash(regs + rs);
-    if (ks->exc) goto error;
+    unsigned int hash;
+    TValue hr = kl_call_hash(regs + rs, &hash);
+    if (is_error(&hr)) goto error;
 
     if (rd != 0xFFFu) regs[rd] = int64_value(hash);
 
