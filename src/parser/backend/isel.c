@@ -336,6 +336,31 @@ static void isel_lower_binary(KlrInsn *insn)
     KlrValue *lhs = insn_oper_value(insn, 0);
     KlrValue *rhs = insn_oper_value(insn, 1);
 
+    /* SSA renaming may feed a function/class symbol into a comparison (e.g. the
+     * nil check of a shadow var). Materialize it into a local carrying its value
+     * type (proto / klass) before the rule lookup: it has no register of its own,
+     * and a function's ->ts is its return type, which would pick an int rule. */
+    if (klr_is_sym_const(lhs)) {
+        KlrValue *local;
+        if (is_function_symbol(lhs)) {
+            local = lower_function_value(insn, lhs);
+        } else {
+            local = lower_type_value(insn, lhs);
+        }
+        set_operand_at(insn, 0, local);
+        lhs = local;
+    }
+    if (klr_is_sym_const(rhs)) {
+        KlrValue *local;
+        if (is_function_symbol(rhs)) {
+            local = lower_function_value(insn, rhs);
+        } else {
+            local = lower_type_value(insn, rhs);
+        }
+        set_operand_at(insn, 1, local);
+        rhs = local;
+    }
+
     BinaryRule *R = find_binary_rule(insn->code, insn_oper_ts(insn, 0));
     if (R == NULL) {
         isel_lower_num_ops(insn);
@@ -964,6 +989,36 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
 static void isel_lower_cast(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
+
+    /* SSA renaming may feed a function/class symbol into the unwrap cast a
+     * shadow-var load emitted (the ssa pipeline runs no const_copy_prop fold):
+     * the symbol is never nil, so the cast only materializes it (same type) or
+     * boxes it into any, the same representation a call argument slot uses */
+    if (is_function_symbol(src) || is_type_symbol(src)) {
+        TypeSpec *val_ts;
+        if (is_function_symbol(src)) {
+            val_ts = function_proto(src);
+        } else {
+            val_ts = src->ts;
+        }
+        if (type_spec_equal_exact(val_ts, insn->ts) || type_is_any(insn->ts)) {
+            KlrBuilder bldr;
+            klr_builder_before(&bldr, insn);
+            KlrValue *local = klr_build_local(&bldr, insn->ts, "");
+            if (is_function_symbol(src)) {
+                klr_build_load_func(&bldr, local, src);
+            } else {
+                klr_build_load_type(&bldr, local, src);
+            }
+            KlrInsn *local_insn = (KlrInsn *)local;
+            local_insn->fixedslot = insn->fixedslot;
+            local_insn->slotindex = insn->slotindex;
+            replace_all_uses_with(local, (KlrValue *)insn);
+            klr_erase_insn(insn);
+            return;
+        }
+    }
+
     ASSERT(klr_is_insn(src) || klr_is_param(src) || klr_is_const(src));
     TypeSpec *dst_ts = insn->ts;
     TypeSpec *src_ts = src->ts;

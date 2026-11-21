@@ -77,6 +77,14 @@ static void _assign_coord(KlrFunc *fn)
     }
 }
 
+/* A function/class symbol behaves like a constant here: no definition point in
+ * this function, never stored at a definition, always copied on the edge it
+ * arrives by (isel lowers the copy to load_func / load_type). */
+static inline int _is_const_like(KlrValue *val)
+{
+    return klr_is_const(val) || klr_is_sym_const(val);
+}
+
 /* Compute interval end as max of all use points in [start, end) model.
  * PHI operand: consumed at pred->last_pos (predecessor exit).
  * Normal use:  consumed at insn->pos.
@@ -84,7 +92,7 @@ static void _assign_coord(KlrFunc *fn)
 static int _build_interval_end(KlrValue *val)
 {
     /* Constants have no uses — end is already set to 0 by caller */
-    if (klr_is_const(val)) return 0;
+    if (_is_const_like(val)) return 0;
 
     int end = -1;
 
@@ -118,7 +126,7 @@ static void _build_interval(KlrCongruenceValue *val)
 
     if (klr_is_param(v)) {
         val->start = 0;
-    } else if (klr_is_const(v)) {
+    } else if (_is_const_like(v)) {
         val->start = 0; /* Constants are considered to have a start position of 0 */
     } else {
         ASSERT(klr_is_insn(v));
@@ -443,7 +451,7 @@ static KlrCongruenceClass *_class_of(KlrCoalesceContext *ctx, KlrValue *val)
 static KlrValue *_loc_of(KlrCoalesceContext *ctx, KlrValue *val)
 {
     /* a constant joins whatever class (its interval is empty) but is never stored there */
-    if (klr_is_const(val)) return NULL;
+    if (_is_const_like(val)) return NULL;
     KlrCongruenceClass *cls = _class_of(ctx, val);
     return cls ? cls->lc : NULL;
 }
@@ -480,7 +488,7 @@ static void _collect_edge_copies(KlrCoalesceContext *ctx, KlrBasicBlock *pred, K
             if (phi->phi_preds[i] != pred) continue;
 
             KlrValue *src = insn_oper_value(phi, i);
-            if (!klr_is_const(src) && _class_of(ctx, src) == cls) continue;
+            if (!_is_const_like(src) && _class_of(ctx, src) == cls) continue;
 
             bool dup = false;
             PhiCopy *c;
@@ -502,7 +510,7 @@ static void _collect_edge_copies(KlrCoalesceContext *ctx, KlrBasicBlock *pred, K
 /* Is the SSA value `val` live on entry to `bb`? Walks back from each use to the definition. */
 static bool _value_live_in(KlrFunc *fn, KlrValue *val, KlrBasicBlock *bb)
 {
-    if (klr_is_const(val)) return false;
+    if (_is_const_like(val)) return false;
 
     /* a parameter is defined before the entry block */
     KlrBasicBlock *def_bb = klr_is_insn(val) ? ((KlrInsn *)val)->bb : NULL;
@@ -567,7 +575,7 @@ static bool _class_live_on_edge(KlrFunc *fn, KlrCoalesceContext *ctx, KlrCongrue
         for (int i = 0; i < phi->num_opers; i++) {
             if (phi->phi_preds[i] != pred) continue;
             KlrValue *src = insn_oper_value(phi, i);
-            if (!klr_is_const(src) && _class_of(ctx, src) == cls) return true;
+            if (!_is_const_like(src) && _class_of(ctx, src) == cls) return true;
         }
     }
     return false;
@@ -937,7 +945,7 @@ static void klr_coalesce_rewrite(KlrFunc *fn, KlrCoalesceContext *ctx)
         KlrCongruenceMember *member;
         vector_foreach(member, &cls->members) {
             KlrValue *val = member->key->val;
-            if (klr_is_const(val) || klr_is_phi(val)) continue;
+            if (_is_const_like(val) || klr_is_phi(val)) continue;
 
             KlrBuilder bldr;
             if (klr_is_param(val)) {
@@ -985,7 +993,7 @@ static void klr_coalesce_rewrite(KlrFunc *fn, KlrCoalesceContext *ctx)
             ASSERT(member->key && member->key->val);
             KlrValue *val = member->key->val;
 
-            if (klr_is_const(val)) continue;
+            if (_is_const_like(val)) continue;
 
             if (klr_is_insn(val)) {
                 KlrInsn *_insn = (KlrInsn *)val;

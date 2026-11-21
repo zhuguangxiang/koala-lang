@@ -1022,6 +1022,13 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         case TYPE_OPTIONAL: {
             if (!ts->opt.src) {
                 buf_write_str(buf, "_?");
+            } else if (ts->opt.src->kind == TYPE_PROTO) {
+                /* Parenthesize a function-type src: bare `(j)j?` would be
+                 * indistinguishable from a function returning `int?`. */
+                buf_write_char(buf, '(');
+                type_spec_to_str(ts->opt.src, buf);
+                buf_write_char(buf, ')');
+                buf_write_char(buf, '?');
             } else {
                 type_spec_to_str(ts->opt.src, buf);
                 buf_write_char(buf, '?');
@@ -1299,6 +1306,14 @@ static TypeSpec *__to_typespec(char **str)
         }
         case '(': {
             s++;
+            if (*s == '(') {
+                /* Grouped type: the writer parenthesizes an optional's
+                 * function-type src (`((j)j)?`); the '?' suffix below
+                 * then belongs unambiguously to the outer optional. */
+                ts = __to_typespec(&s);
+                if (*s == ')') s++;
+                break;
+            }
             Vector *args = vector_create_ptr();
             while (*s != ')' && *s != '\0') {
                 arg = __to_typespec(&s);
@@ -1306,10 +1321,11 @@ static TypeSpec *__to_typespec(char **str)
             }
             if (*s == ')') s++;
             /* A void return writes nothing, so the string ends at ')'.
-             * A '?' right after ')' belongs to the OUTER optional (the
-             * writer emits `(j)?` for `func(int)?`), not to a return type. */
+             * A '?' right after ')' belongs to the OUTER optional (old
+             * klc artifacts spell `func(int)?` as `(j)?`), not to a
+             * return type; ')' closes an enclosing group. */
             TypeSpec *ret = NULL;
-            if (*s != '?' && *s != '\0') ret = __to_typespec(&s);
+            if (*s != '?' && *s != ')' && *s != '\0') ret = __to_typespec(&s);
             if (!ret) ret = no_type_spec();
             ts = func_type_spec(args, ret);
             break;
@@ -1451,6 +1467,13 @@ static void __friendly_type_print(char **str, Buffer *buf)
         }
         case '(': {
             s++;
+            if (*s == '(') {
+                /* Grouped func src of an optional (`((j)j)?`): print the
+                 * inner type; the '?' suffix below wraps it in parens. */
+                __friendly_type_print(&s, &tmp);
+                if (*s == ')') s++;
+                break;
+            }
             buf_write_str(&tmp, "func(");
             int i = 0;
             while (*s != ')' && *s != '\0') {
@@ -1462,7 +1485,8 @@ static void __friendly_type_print(char **str, Buffer *buf)
                 buf_write_char(&tmp, ')');
                 s++;
             }
-            __friendly_type_print(&s, &tmp);
+            if (*s != '?' && *s != ')' && *s != '\0')
+                __friendly_type_print(&s, &tmp);
             break;
         }
         case 'P': {

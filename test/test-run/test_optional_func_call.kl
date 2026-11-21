@@ -1,0 +1,116 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+//
+// Calling an optional function value after a nil check. Narrowing gives the
+// local a shadow symbol carrying the unwrapped type: parse_call and irgen must
+// take the function-value path for it (regression for the parse_call
+// UNREACHABLE on SYM_SHADOW_VAR). Inside a loop, SSA renaming feeds the
+// function symbol itself into the unwrap cast the shadow load emitted; isel
+// lowers that same-type cast to load_func.
+
+type IntFn = func(int) int
+
+func twice(v int) int { return v * 2 }
+
+class Call {
+    pub func __init__() {}
+    pub func run(x int) int { return x + 1 }
+}
+
+func bang_call() int {
+    let a IntFn? = twice
+    return a!(1)
+}
+
+func checked_call() int {
+    let a IntFn? = twice
+    if a != nil { return a(2) }
+    return 0
+}
+
+func else_call(c bool) int {
+    let a IntFn? = if c { twice } else { nil }
+    if a == nil { return -1 } else { return a(3) }
+}
+
+func merged_call(c bool) int {
+    var f IntFn? = nil
+    if c { f = twice }
+    if f != nil { return f(4) }
+    return -1
+}
+
+func loop_call(n int) int {
+    var f IntFn? = nil
+    var i = 0
+    while i < n {
+        f = twice
+        if f != nil { print(f(i)) }
+        i = i + 1
+    }
+    if f != nil { return f(10) }
+    return -1
+}
+
+func is_call(v any) int {
+    if v is Call { return v.run(3) }
+    return 0
+}
+
+// A symbol boxed into any through a narrowed optional: SSA renaming feeds the
+// symbol into the cast to any; isel materializes it (load_type / load_func).
+func any_class_loop(n int) int {
+    var k any? = nil
+    var i = 0
+    while i < n {
+        k = Call
+        if k != nil { print(k) }
+        i = i + 1
+    }
+    return 0
+}
+
+func any_func_loop(n int) int {
+    var k any? = nil
+    var i = 0
+    while i < n {
+        k = twice
+        if k != nil { print(k) }
+        i = i + 1
+    }
+    return 0
+}
+
+func main() {
+    print(bang_call())
+    print(checked_call())
+    print(else_call(true))
+    print(else_call(false))
+    print(merged_call(true))
+    print(merged_call(false))
+    print(loop_call(2))
+    print(loop_call(0))
+    print(is_call(Call()))
+    print(is_call(42))
+    print(any_class_loop(2))
+    print(any_func_loop(2))
+}
+
+// CHECK: 2
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6
+// CHECK-NEXT: -1
+// CHECK-NEXT: 8
+// CHECK-NEXT: -1
+// CHECK-NEXT: 0
+// CHECK-NEXT: 2
+// CHECK-NEXT: 20
+// CHECK-NEXT: -1
+// CHECK-NEXT: 4
+// CHECK-NEXT: 0
+// CHECK-NEXT: <class 'test_optional_func_call.Call'>
+// CHECK-NEXT: <class 'test_optional_func_call.Call'>
+// CHECK-NEXT: 0
+// CHECK-NEXT: <function(code) 'twice' in module 'test_optional_func_call'>
+// CHECK-NEXT: <function(code) 'twice' in module 'test_optional_func_call'>
+// CHECK-NEXT: 0

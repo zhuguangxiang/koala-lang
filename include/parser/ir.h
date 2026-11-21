@@ -655,6 +655,15 @@ static inline int klr_is_extfunc(KlrValue *val)
     return 0;
 }
 
+/* A function or class symbol used as a value: module-level and immutable, with
+ * no definition point inside a function. Like a constant it may flow through
+ * 'move' and phi operands; isel materializes it with load_func / load_type. */
+static inline int klr_is_sym_const(KlrValue *val)
+{
+    return val->kind == KLR_VALUE_FUNC || val->kind == KLR_VALUE_EXT_FUNC ||
+           val->kind == KLR_VALUE_KLASS || val->kind == KLR_VALUE_EXT_KLASS;
+}
+
 static inline int klr_is_intf(KlrValue *val)
 {
     if (val->kind == KLR_VALUE_INTF) return 1;

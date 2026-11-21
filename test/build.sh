@@ -18,6 +18,7 @@ koala -c --package-name=test_pkg/enum_cross test_pkg/enum_cross
 koala -c --package-name=test_pkg/pkg_const_bytes test_pkg/pkg_const_bytes
 koala -c --package-name=test_pkg/pkg_mock test_pkg/pkg_mock
 koala -c --package-name=test_pkg/pkg_global test_pkg/pkg_global
+koala -c --package-name=test_pkg/pkg_func_type test_pkg/pkg_func_type
 
 cd test_pkg
 gcc -fPIC -shared pkg1_native/pkg1_native_impl.c -o libpkg1_native.so -I../../include/runtime -I../../include/common -L../../build/DebugTest/lib/ -g

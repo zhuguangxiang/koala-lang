@@ -1,0 +1,42 @@
+// koala -c test/test_pkg/pkg_func_type --package-name=test_pkg/pkg_func_type
+//
+// Optional function types cross the klc boundary only through aliases
+// (inline `func(int)?` is not grammar). The writer parenthesizes an
+// optional's function-type src (`((j)j)?`) so the trailing '?' cannot be
+// misread as the return type's optional suffix; void-ret aliases spell
+// `((j))?`. These exports pin every shape: fields, parameters, returns,
+// and a function returning an optional, itself optional.
+
+type H = func(int)
+type G = func(int) int
+type F = func(int) int?
+
+pub class Box {
+    pub var h H? = nil
+    pub var a F? = nil
+
+    pub func __init__() {
+        h = nil
+    }
+
+    pub func take(fn G?) {
+        if let f = fn { print("take", f(3)) } else { print("take nil") }
+    }
+
+    pub func plain(fn G) G {
+        return fn
+    }
+
+    pub func opt_ret(fn F) F? {
+        return fn
+    }
+
+    pub func voidfn(fn H?) {
+        if let f = fn { f(7) } else { print("void nil") }
+    }
+}
+
+pub func call_opt(fn G?) int {
+    if let f = fn { return f(10) }
+    return -1
+}

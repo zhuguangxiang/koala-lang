@@ -511,8 +511,11 @@ void klr_append_phi_operand(KlrInsn *phi, KlrValue *val, KlrBasicBlock *pred)
         panic("'append_phi_operand' requires a phi insn");
     }
 
+    /* same value set as 'move': a function/class symbol is a constant-like
+     * value, de-ssa copies it on the edge and isel lowers it to load_func /
+     * load_type */
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
-        val->kind != KLR_VALUE_PARAM) {
+        val->kind != KLR_VALUE_PARAM && !klr_is_sym_const(val)) {
         panic("'append_phi_operand' requires a reg value or const");
     }
 

@@ -1,0 +1,51 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+
+// Optional function types survive the klc round-trip: void-ret and
+// value-ret aliases in fields, parameters and returns, including a
+// function returning an optional, itself optional.
+
+import "test_pkg/pkg_func_type"
+
+func cb(x int) int { return x + 1 }
+func cbo(x int) int? { return x + 1 }
+func nop(x int) { print("nop", x) }
+
+func main() {
+    let b = pkg_func_type.Box()
+
+    b.h = nop
+    if let f = b.h { f(1) }
+    // CHECK: nop 1
+
+    b.a = cbo
+    if let f = b.a {
+        if let v = f(10) { print("a", v) }
+    }
+    // CHECK: a 11
+
+    b.take(cb)
+    // CHECK: take 4
+    b.take(nil)
+    // CHECK: take nil
+
+    let g = b.plain(cb)
+    print("plain", g(4))
+    // CHECK: plain 5
+
+    let r = b.opt_ret(cbo)
+    if let f = r {
+        if let v = f(20) { print("opt_ret", v) }
+    }
+    // CHECK: opt_ret 21
+
+    b.voidfn(nop)
+    // CHECK: nop 7
+    b.voidfn(nil)
+    // CHECK: void nil
+
+    print("call_opt", pkg_func_type.call_opt(cb))
+    // CHECK: call_opt 11
+    print("call_opt", pkg_func_type.call_opt(nil))
+    // CHECK: call_opt -1
+}

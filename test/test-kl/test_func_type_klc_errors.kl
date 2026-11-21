@@ -1,0 +1,30 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// Misuse of optional function types imported from klc: the decoded types
+// keep the outer optional and the return type's own optional distinct.
+
+import "test_pkg/pkg_func_type"
+
+func cb(x int) int { return x }
+func cb2(x int, y int) int { return x + y }
+
+func main() {
+    let b = pkg_func_type.Box()
+
+    b.h = cb
+    // CHECK: test_func_type_klc_errors.kl:14:{{.*}}Types of two sides are not matched.
+    // CHECK-NEXT: lhs: (func(int64)<NO-TYPE>)? =/= rhs: func(int64)int64
+
+    b.h(1)
+    // CHECK: test_func_type_klc_errors.kl:18:{{.*}}'h' is not callable
+
+    b.plain(nil)
+    // CHECK: test_func_type_klc_errors.kl:21:{{.*}}Incompatible type: expected 'func(int64)int64', but got '_?'.
+
+    b.a = cb
+    // CHECK: test_func_type_klc_errors.kl:24:{{.*}}Types of two sides are not matched.
+    // CHECK-NEXT: lhs: (func(int64)int64?)? =/= rhs: func(int64)int64
+
+    b.take(cb2)
+    // CHECK: test_func_type_klc_errors.kl:28:{{.*}}Incompatible type: expected '(func(int64)int64)?', but got 'func(int64, int64)int64'.
+}

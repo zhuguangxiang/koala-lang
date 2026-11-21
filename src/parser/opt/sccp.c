@@ -109,6 +109,12 @@ LatticeValue get_lattice(SCCPContext *ctx, KlrValue *val)
     /* value is constant, no need for map lookup */
     if (klr_is_const(val)) return lv_const(val);
 
+    /* a function/class symbol is a fixed, never-nil value, like a parameter.
+     * It must not fall through to TOP: meet(TOP, nil) = nil would fold a
+     * phi(func, nil) to nil. Not lv_const either: fold_binary would read it
+     * as a KlrConst. */
+    if (klr_is_sym_const(val)) return lv_bottom();
+
     /* value is parameter, no need for map lookup */
     if (klr_is_param(val)) return lv_bottom();
 

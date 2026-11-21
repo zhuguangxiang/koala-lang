@@ -135,3 +135,42 @@
 - 建议测试：`test/test-ut/test_uint8_literal_narrowing.kl`，覆盖上述三条路径 + 越界字面量（`append(256)` / `append(-1)` / `list[uint8](256)`），锁定「哪些位置允许收窄、越界如何报错」。
 - 建议修法：先确定语言规则（整数字面量能否隐式收窄到定长整型、在哪些位置），再让三处共用同一判定；若允许收窄，则列表字面量应按声明的元素类型推导而非先推 `int64`。
 - 状态：2026-11-21 发现于 frozenbytes 独立类型实现的测试编写期间，已用辅助函数绕过，待讨论。
+
+## 21. koala 驱动器经 PATH 找 koalac，旧安装版会静默遮蔽新构建
+
+- 现象：`./build-debug.sh` 后直接用 `./build/debug/bin/koala x.kl` 验证，执行的仍是 `~/.local/bin/koalac`（旧安装版）：驱动器用 `posix_spawnp("koalac", ...)` 按 PATH 解析编译器，而 `env.sh` 并未把 `build/debug/bin` 加入 PATH。本轮 SSA 修复后曾误判「修复无效」，实为旧编译器在跑。
+- 最小复现：改动编译器后 `./build-debug.sh`（不 install），`source env.sh && ./build/debug/bin/koala x.kl`；`which koalac` 指向 `~/.local/bin/koalac`。
+- 影响：所有「构建后直接跑 build/debug/bin/koala」的验证都不可信；lit 不受影响（lit.cfg 自行把构建目录置顶 PATH）。
+- 建议：驱动器优先按自身可执行文件所在目录解析 koalac（/proc/self/exe 或 argv[0]  dirname），PATH 仅作回退；或启动时比对版本/构建时间并在不一致时告警。短期约定：验证前 `export PATH=$(pwd)/build/debug/bin:$PATH` 或先 `./install-debug.sh`。
+- 状态：2026-11-21 记录于 lambda/SSA 修复期间，已用 install-debug.sh 绕过，待讨论。
+
+## 22. 可选函数类型的局部变量判空收窄后调用，parser 阶段 UNREACHABLE 崩溃
+
+- 现象：`let a IntFn? = twice; if a != nil { print(a(1)) }` 编译崩溃：`parser_expr.c:2796: Why goes here?`（UNREACHABLE），plain 与 --ssa 均触发。`a!(1)` 同样崩溃。
+- 最小复现：`type IntFn = func(int) int` + `func twice(v int) int { return v * 2 }` + `func main() { let a IntFn? = twice; if a != nil { print(a(1)) } }`。
+- 初步分析：流敏感收窄把 `a` 的类型改为 IntFn 后，call 的 lhs 符号 kind 不在 parse_call 的分支列表（SYM_FUNC/SYM_INSTANCE_FUNC/...）中，落入 else UNREACHABLE。先 `let b = a!` 再 `b(1)` 可绕过（但会有 "bang on non-nullable" 误报 warning，收窄后 bang 应视为合法）。
+- 影响：所有「可选函数值判空后直接调用」的自然写法不可用；与本轮 SSA 修复无关，修复前即存在（git diff 未触及 parser_expr.c）。
+- 建议测试：test/test-run/test_optional_func_call.kl，覆盖 if 判空后调用、`!` 后调用、`??` 后调用、跨 phi 的可选函数调用。
+- 建议修法：定位收窄后 lhs->sym 的实际 kind，在 parse_call 中按函数类型分派（与 SYM_FUNC 同路径），而非 UNREACHABLE。
+- 状态：2026-11-21 发现并修复：parse_call 与 emit_ir_call 接受 SYM_SHADOW_VAR 走函数值路径；isel_lower_cast 对符号同型 cast 降为 load_func/load_type（--ssa 循环内收窄调用）。回归 test_optional_func_call.kl。全局可选变量收窄另见 #23。
+
+## 23. 全局可选变量判空收窄后使用，ir_cast panic（既有缺陷）
+
+- 现象：`var gs str? = nil; func main() { gs = "hi"; if gs != nil { print(gs.len()) } }` 编译崩溃：`panic: 'ir_cast' op requires a reg value or const`，plain 与 --ssa 均触发；与函数值无关，str? 即复现。
+- 根因：emit_ir_ident 的 SYM_SHADOW_VAR LOAD 路径（irgen.c 约 580-588 行）对全局变量直接取 origin->ir_val（KLR_VALUE_GLOBAL）送 klr_build_cast，未先 klr_build_get_global 加载；cast 只接受 reg/const。
+- 影响：所有「全局可选变量判空后直接使用」的写法不可用（局部变量正常）。与 #22 修复无关，修复前即存在。
+- 建议测试：test/test-run/test_global_optional_narrow.kl，覆盖全局 str?/int?/函数? 判空后使用、else 分支收窄、循环内收窄。
+- 建议修法：shadow LOAD 对 VAR_SCOPE_GLOBAL 先 klr_build_get_global 再按需 cast（与 SYM_VAR LOAD 的全局路径一致）；STORE/LOAD_STORE 路径同理需检查。
+- 状态：2026-11-21 修复 #22 期间探测发现，未修，待讨论。
+
+## 24. SSA 重命名把函数/类符号暴露给比较指令：isel 不物化符号，崩溃或垃圾编码
+
+- 现象（均 --ssa，plain 正确）：
+  1. 类符号：`var k any? = nil; while ... { k = Foo; if k != nil { print(k) } }` → 运行时断言 `vm_ops.h:1484: (rs) < max_regs`。code dump：`num.ne r2, r255, r2`（符号无 vreg，-1 编码为 r255）。
+  2. 函数符号：循环内 `f = twice; if f != nil { ... }` → 编码为 `jmp_int_eq_imm r255, #-121`（寄存器号与立即数均为垃圾），不崩溃但语义错误，现有 test_optional_func_call.kl 的 loop_call 碰巧通过（r255 读到零值、结果恰好正确）。非 fusion 管线另触发 `check_in_imm8` 断言（nil 为 CONST_NONE）。
+- 根因：SSA 重命名把块内「写后读」直接替换为符号值；isel_lower_binary/isel_lower_num_ops 只物化常量（klr_is_const），符号直接取 ->vreg。且 KlrFunc->ts 是返回类型（new_func(ret, name)），find_binary_rule 据此误选 int 规则，nil 被当 int 立即数。
+- 关联：#22 的 isel_lower_cast 符号物化分支本身正确（load_type r2,#0 / load_func 编码已验证，同型场景过回归）；any 装箱场景的崩溃根源在本条比较指令，不在 cast。test_optional_func_call.kl 新增 any_class_loop/any_func_loop 因此暂红（lit 623/624）。
+- 最小复现：`class Foo { pub func __init__() {} }` + `func t(n int) int { var k any? = nil; var i = 0; while i < n { k = Foo; if k != nil { print(k) }; i = i + 1 }; return 0 }` + `func main() { print(t(2)) }`，`koala x.kl ++ --ssa`。
+- 建议修法：isel_lower_binary 开头对 sym-const 的 lhs/rhs 先 lower_function_value/lower_type_value 物化为 local（带 proto/klass 类型）再选规则，函数/类均落入 num 对象比较路径，nil 走 load_tag；单点同治两形态。
+- 建议测试：any_class_loop/any_func_loop 已在 test_optional_func_call.kl（双 RUN）；修复后用 --dump=code 确认 loop_call 无 r255 垃圾编码。
+- 状态：2026-11-21 记录并修复：isel_lower_binary 开头物化 sym-const 操作数（lower_function_value/lower_type_value，local 带 proto/klass 类型）再选规则。code dump 确认 loop_call 编码为 load_func+load_tag+num.ne，无 r255；any_class_loop/any_func_loop 转绿，lit 626/626、ctest 9/9。

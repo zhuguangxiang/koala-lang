@@ -1179,8 +1179,9 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     Vector *args = call->args;
 
     // gen ir for lhs
-    int function_value =
-        lhs->ts && lhs->ts->kind == TYPE_PROTO && (!lhs->sym || lhs->sym->kind == SYM_VAR);
+    int function_value = lhs->ts && lhs->ts->kind == TYPE_PROTO &&
+                         (!lhs->sym || lhs->sym->kind == SYM_VAR ||
+                          lhs->sym->kind == SYM_SHADOW_VAR);
     lhs->ctx = function_value ? EXPR_CTX_LOAD : EXPR_CTX_CALL;
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
@@ -2573,6 +2574,9 @@ static void emit_ir_contains(ParserState *ps, Expr *exp)
 static KlrValue *coalesce_fit(ParserState *ps, KlrValue *val, TypeSpec *res_ts)
 {
     if (!val->ts || !res_ts || val->ts == res_ts) return val;
+    /* a function/class symbol is already the value itself: no optional wrapper
+     * to strip and no runtime conversion, the semantic pass checked the fit */
+    if (klr_is_sym_const(val)) return val;
     if (type_spec_equal_exact(val->ts, res_ts)) return val;
     if (type_is_optional(val->ts) || type_is_optional(res_ts)) return val;
     KlrBuilder bldr;

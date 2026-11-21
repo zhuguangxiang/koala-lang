@@ -1,0 +1,219 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
+//
+// Exotic but legal lambda spellings: lexical variants ('{' and '|' separated
+// by spaces/tabs, a newline inside the parameter list), bodies ending in every
+// token that triggers auto-semicolon insertion (')', ']', '}', ID, literals,
+// 'true', postfix '!'), if expressions and nested lambdas as the body, comment
+// interference, and lambdas in every value position (immediate call, dict
+// value, tuple element, var-arg, class field, method argument, list element).
+
+type IntFn = func(int) int
+type StrFn = func(int) str
+type BoolFn = func(int) bool
+type TupFn = func(int) (int, int)
+type MapFn = func(int) dict[str, int]
+type Maker = func() IntFn
+
+var g_opt int? = 5
+
+func apply2(f IntFn, g IntFn) int { return f(1) + g(2) }
+
+func run_all(cbs ...IntFn) int {
+    var s = 0
+    for f in cbs { s = s + f(1) }
+    return s
+}
+
+class Runner {
+    // a multi-line lambda as a field initializer
+    pub var f IntFn = {|x int|
+        x + 1
+    }
+    pub func __init__() {}
+    pub func run(cb IntFn, v int) int { return cb(v) }
+}
+
+func main() {
+    // spaces / tabs between '{' and '|'
+    let f1 IntFn = { |x int| x + 1 }
+    print(f1(1))
+    let f2 IntFn = {	|x int|	x + 1	}
+    print(f2(1))
+    let f3 = { || 42 }
+    print(f3())
+
+    // a newline inside the parameter list ('|' inserts no ';')
+    let f4 IntFn = {|
+        x int|
+        x + 1
+    }
+    print(f4(1))
+
+    // body ends with a string literal
+    let f5 StrFn = {|x int|
+        "hi"
+    }
+    print(f5(0))
+
+    // body ends with ']' (an index expression)
+    let f6 IntFn = {|x int|
+        [x, x + 1][1]
+    }
+    print(f6(1))
+
+    // body ends with 'true'
+    let f7 BoolFn = {|x int|
+        true
+    }
+    print(f7(0))
+
+    // an if expression as the body, single-line ...
+    let f8 IntFn = {|x int| if x > 0 { 1 } else { -1 } }
+    print(f8(2))
+
+    // ... and multi-line with an else-if chain (the branch '}' inserts ';')
+    let f9 IntFn = {|x int|
+        if x > 0 { 1 } else if x == 0 { 0 } else { -1 }
+    }
+    print(f9(0))
+
+    // body ends with ')' (a tuple)
+    let f10 TupFn = {|x int|
+        (x, x + 1)
+    }
+    let (a, b) = f10(1)
+    print(a)
+    print(b)
+
+    // body ends with '}' (a dict literal)
+    let f11 MapFn = {|x int|
+        {"a": x}
+    }
+    print(f11(3)["a"])
+
+    // body ends with ')' (a parenthesized expression)
+    let f12 IntFn = {|x int|
+        (x + 1)
+    }
+    print(f12(1))
+
+    // body ends with postfix '!' (unwrap of a global optional)
+    let f13 IntFn = {|x int|
+        g_opt!
+    }
+    print(f13(0))
+
+    // a nested lambda as the body (no captures)
+    let mk Maker = {||
+        {|x| x + 1}
+    }
+    print(mk()(1))
+
+    // a trailing line comment before the newline that inserts ';'
+    let f14 IntFn = {|x int|
+        x + 1 // trailing comment
+    }
+    print(f14(1))
+
+    // a block comment spanning lines inside the body (no ';' inside)
+    let f15 IntFn = {|x int| /* multi
+        line */ x + 1
+    }
+    print(f15(1))
+
+    // immediately invoked lambdas
+    print({|| 42}())
+    print({|x int| x * 2}(21))
+    print({|x int|
+        x * 2
+    }(21))
+
+    // a multi-line lambda as a dict value
+    let d dict[str, IntFn] = {"a": {|x int|
+        x + 1
+    }}
+    print(d["a"](1))
+
+    // the dict's own '}' on the next line (inner '}' inserts ';' before it)
+    let d2 dict[str, IntFn] = {"a": {|x int| x + 1}
+    }
+    print(d2["a"](2))
+
+    // multi-line lambdas as tuple elements
+    let t (IntFn, IntFn) = ({|x|
+        x + 1
+    }, {|x|
+        x + 2
+    })
+    let (fa, fb) = t
+    print(fa(1))
+    print(fb(1))
+
+    // two multi-line lambdas as consecutive call arguments
+    print(apply2({|x|
+        x + 1
+    }, {|x|
+        x * 2
+    }))
+
+    // multi-line lambdas as var-args
+    print(run_all({|x|
+        x + 1
+    }, {|x|
+        x * 2
+    }))
+
+    // the field initializer and a method argument
+    let r = Runner()
+    print(r.f(1))
+    print(r.run({|x int|
+        x + 3
+    }, 1))
+
+    // nested immediate calls, and an index on the result
+    print({|| {|x int| x + 1}}()(5))
+    print({|| [1, 2]}()[0])
+
+    // lambdas as if-expression branch values
+    let v IntFn = if true { {|x int| x + 1} } else { {|x int| x} }
+    print(v(1))
+
+    // a list element followed by a trailing comma on its own line
+    let fns list[IntFn] = [{|x int| x + 1},
+    ]
+    print(fns[0](1))
+}
+
+// CHECK: 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: 42
+// CHECK-NEXT: 2
+// CHECK-NEXT: hi
+// CHECK-NEXT: 2
+// CHECK-NEXT: true
+// CHECK-NEXT: 1
+// CHECK-NEXT: 0
+// CHECK-NEXT: 1
+// CHECK-NEXT: 2
+// CHECK-NEXT: 3
+// CHECK-NEXT: 2
+// CHECK-NEXT: 5
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2
+// CHECK-NEXT: 42
+// CHECK-NEXT: 42
+// CHECK-NEXT: 42
+// CHECK-NEXT: 2
+// CHECK-NEXT: 3
+// CHECK-NEXT: 2
+// CHECK-NEXT: 3
+// CHECK-NEXT: 6
+// CHECK-NEXT: 4
+// CHECK-NEXT: 2
+// CHECK-NEXT: 4
+// CHECK-NEXT: 6
+// CHECK-NEXT: 1
+// CHECK-NEXT: 2
+// CHECK-NEXT: 2

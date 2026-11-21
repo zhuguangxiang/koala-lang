@@ -2470,7 +2470,9 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else if (!lhs_sym) {
         kl_error(lhs->loc, "expression is not callable.");
         return;
-    } else if (lhs_sym->kind == SYM_VAR) {
+    } else if (lhs_sym->kind == SYM_VAR || lhs_sym->kind == SYM_SHADOW_VAR) {
+        /* a shadow var carries the narrowed type, e.g. IntFn after `if a != nil`
+         * on an IntFn? local: calling it goes the same function-value path */
         TypeSpec *ts = lhs_sym->ts;
 
         log_info("call lhs is variable of type:");
