@@ -5,14 +5,10 @@
 
 #include <math.h>
 #include <pthread.h>
-#include "bytesobj.h"
-#include "dictobj.h"
 #include "excobj.h"
 #include "jit/jit.h"
-#include "listobj.h"
 #include "modobj.h"
 #include "opcode_only.h"
-#include "rangeobj.h"
 #include "tupleobj.h"
 
 #ifdef __cplusplus

@@ -22,6 +22,7 @@
  */
 
 #include "webview_shim.h"
+#include "excobj.h"
 #include "tupleobj.h"
 
 typedef struct _WindowObject {

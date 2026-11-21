@@ -16,11 +16,10 @@
 
 #if defined(WEBVIEW_GTK)
 
+#include <gtk/gtk.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-#include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
 
 #ifdef GDK_WINDOWING_X11
@@ -103,10 +102,8 @@ webview_t webview_create(int debug, void *window)
     apply_dmabuf_workaround();
 
     inst->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    g_signal_connect(G_OBJECT(inst->window), "destroy",
-                     G_CALLBACK(on_window_destroy), inst);
-    g_signal_connect(G_OBJECT(inst->window), "delete-event",
-                     G_CALLBACK(on_window_delete), inst);
+    g_signal_connect(G_OBJECT(inst->window), "destroy", G_CALLBACK(on_window_destroy), inst);
+    g_signal_connect(G_OBJECT(inst->window), "delete-event", G_CALLBACK(on_window_delete), inst);
 
     inst->webview = webkit_web_view_new();
     g_object_ref_sink(inst->webview);
@@ -199,8 +196,7 @@ static gboolean dispatch_trampoline(gpointer arg)
     return G_SOURCE_REMOVE;
 }
 
-webview_error_t webview_dispatch(webview_t w, void (*fn)(webview_t, void *),
-                                 void *arg)
+webview_error_t webview_dispatch(webview_t w, void (*fn)(webview_t, void *), void *arg)
 {
     DispatchCall *call;
 
@@ -226,10 +222,14 @@ void *webview_get_native_handle(webview_t w, webview_native_handle_kind_t kind)
 
     if (!inst) return NULL;
     switch (kind) {
-        case WEBVIEW_NATIVE_HANDLE_KIND_UI_WINDOW: return inst->window;
-        case WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET: return inst->webview;
-        case WEBVIEW_NATIVE_HANDLE_KIND_BROWSER_CONTROLLER: return inst->webview;
-        default: return NULL;
+        case WEBVIEW_NATIVE_HANDLE_KIND_UI_WINDOW:
+            return inst->window;
+        case WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET:
+            return inst->webview;
+        case WEBVIEW_NATIVE_HANDLE_KIND_BROWSER_CONTROLLER:
+            return inst->webview;
+        default:
+            return NULL;
     }
 }
 
@@ -242,8 +242,7 @@ webview_error_t webview_set_title(webview_t w, const char *title)
     return WEBVIEW_ERROR_OK;
 }
 
-webview_error_t webview_set_size(webview_t w, int width, int height,
-                                 webview_hint_t hints)
+webview_error_t webview_set_size(webview_t w, int width, int height, webview_hint_t hints)
 {
     WvInstance *inst = (WvInstance *)w;
     GdkGeometry geo;
@@ -261,8 +260,7 @@ webview_error_t webview_set_size(webview_t w, int width, int height,
         case WEBVIEW_HINT_MAX:
             geo.max_width = width;
             geo.max_height = height;
-            gtk_window_set_geometry_hints(GTK_WINDOW(inst->window), NULL, &geo,
-                                          GDK_HINT_MAX_SIZE);
+            gtk_window_set_geometry_hints(GTK_WINDOW(inst->window), NULL, &geo, GDK_HINT_MAX_SIZE);
             break;
         default:
             return WEBVIEW_ERROR_INVALID_ARGUMENT;
@@ -297,8 +295,7 @@ webview_error_t webview_init(webview_t w, const char *js)
     if (!inst || !js) return WEBVIEW_ERROR_INVALID_ARGUMENT;
     manager = webkit_web_view_get_user_content_manager(WEBKIT_WEB_VIEW(inst->webview));
     script = webkit_user_script_new(js, WEBKIT_USER_CONTENT_INJECT_TOP_FRAME,
-                                    WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START,
-                                    NULL, NULL);
+                                    WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START, NULL, NULL);
     webkit_user_content_manager_add_script(manager, script);
     webkit_user_script_unref(script);
     return WEBVIEW_ERROR_OK;
@@ -314,8 +311,7 @@ webview_error_t webview_eval(webview_t w, const char *js)
     /* URI is NULL before content has begun loading. */
     if (!webkit_web_view_get_uri(wv)) return WEBVIEW_ERROR_OK;
 #if (WEBKIT_MAJOR_VERSION == 2 && WEBKIT_MINOR_VERSION >= 40) || WEBKIT_MAJOR_VERSION > 2
-    webkit_web_view_evaluate_javascript(wv, js, (gssize)strlen(js), NULL, NULL,
-                                        NULL, NULL, NULL);
+    webkit_web_view_evaluate_javascript(wv, js, (gssize)strlen(js), NULL, NULL, NULL, NULL, NULL);
 #else
     webkit_web_view_run_javascript(wv, js, NULL, NULL, NULL);
 #endif
@@ -335,55 +331,82 @@ webview_t webview_create(int debug, void *window)
     return NULL;
 }
 
-webview_error_t webview_destroy(webview_t w) { (void)w; return WEBVIEW_ERROR_MISSING_DEPENDENCY; }
-webview_error_t webview_run(webview_t w) { (void)w; return WEBVIEW_ERROR_MISSING_DEPENDENCY; }
-webview_error_t webview_terminate(webview_t w) { (void)w; return WEBVIEW_ERROR_MISSING_DEPENDENCY; }
-webview_error_t webview_dispatch(webview_t w, void (*fn)(webview_t, void *), void *arg)
+webview_error_t webview_destroy(webview_t w)
 {
-    (void)w; (void)fn; (void)arg;
+    (void)w;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
-void *webview_get_window(webview_t w) { (void)w; return NULL; }
+webview_error_t webview_run(webview_t w)
+{
+    (void)w;
+    return WEBVIEW_ERROR_MISSING_DEPENDENCY;
+}
+webview_error_t webview_terminate(webview_t w)
+{
+    (void)w;
+    return WEBVIEW_ERROR_MISSING_DEPENDENCY;
+}
+webview_error_t webview_dispatch(webview_t w, void (*fn)(webview_t, void *), void *arg)
+{
+    (void)w;
+    (void)fn;
+    (void)arg;
+    return WEBVIEW_ERROR_MISSING_DEPENDENCY;
+}
+void *webview_get_window(webview_t w)
+{
+    (void)w;
+    return NULL;
+}
 void *webview_get_native_handle(webview_t w, webview_native_handle_kind_t kind)
 {
-    (void)w; (void)kind;
+    (void)w;
+    (void)kind;
     return NULL;
 }
 webview_error_t webview_set_title(webview_t w, const char *title)
 {
-    (void)w; (void)title;
+    (void)w;
+    (void)title;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
 webview_error_t webview_set_size(webview_t w, int width, int height, webview_hint_t hints)
 {
-    (void)w; (void)width; (void)height; (void)hints;
+    (void)w;
+    (void)width;
+    (void)height;
+    (void)hints;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
 webview_error_t webview_navigate(webview_t w, const char *url)
 {
-    (void)w; (void)url;
+    (void)w;
+    (void)url;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
 webview_error_t webview_set_html(webview_t w, const char *html)
 {
-    (void)w; (void)html;
+    (void)w;
+    (void)html;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
 webview_error_t webview_init(webview_t w, const char *js)
 {
-    (void)w; (void)js;
+    (void)w;
+    (void)js;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
 webview_error_t webview_eval(webview_t w, const char *js)
 {
-    (void)w; (void)js;
+    (void)w;
+    (void)js;
     return WEBVIEW_ERROR_MISSING_DEPENDENCY;
 }
 
 #endif /* WEBVIEW_GTK */
 
 static const webview_version_info_t engine_version = {
-    {0, 1, 0},
+    { 0, 1, 0 },
     "0.1.0",
     "",
     "",

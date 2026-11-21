@@ -1,0 +1,22 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+
+import "test_pkg/pkg_method_param" as zz
+
+func h(x int) { print("h", x) }
+
+func main() {
+    let a = zz.A()
+    a.m(h)
+    // CHECK: h 1
+
+    let b = zz.B()
+    b.m(h)
+    // CHECK: h 2
+
+    zz.A().m(h)
+    // CHECK: h 1
+
+    zz.B().m(h)
+    // CHECK: h 2
+}

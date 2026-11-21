@@ -19,10 +19,8 @@
 #ifndef KOALA_WEBVIEW_SHIM_H
 #define KOALA_WEBVIEW_SHIM_H
 
-#include <stdlib.h>
 #include <string.h>
 #include "object.h"
-#include "excobj.h"
 
 /* webview.h selects the backend macro (WEBVIEW_GTK/COCOA/EDGE). */
 #include "webview.h"

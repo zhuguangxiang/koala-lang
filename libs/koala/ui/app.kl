@@ -12,13 +12,13 @@ import "std/time"
 /// loop drains page events, dispatches handlers and batches widget updates
 /// back to the page; no HTML/JS/CSS is involved at this level.
 pub class App {
-    pub var _win webview.Window
-    pub var _widgets = dict[int, Widget]()
-    pub var _pending = list[json.Object]()
-    pub var _root = list[Widget]()
-    pub var _next_id int = 1
-    pub var _running bool = false
-    pub var _closed bool = false
+    var win webview.Window
+    var widgets = dict[int, Widget]()
+    var pending = list[json.Object]()
+    var root = list[Widget]()
+    var next_id int = 1
+    var running bool = false
+    var closed bool = false
 
     /// User state object handed to every handler as `e.state`.
     pub var state any? = nil
@@ -28,9 +28,9 @@ pub class App {
     /// Panics if the window cannot be created (e.g. no display).
     pub func __init__(title str, width int = 900, height int = 640,
                       state any? = nil) {
-        _win = webview.Window()
-        _win.set_title(title)
-        _win.set_size(width, height)
+        win = webview.Window()
+        win.set_title(title)
+        win.set_size(width, height)
         self.state = state
     }
 
@@ -41,14 +41,14 @@ pub class App {
         if w.wid() != 0 {
             panic("ui: widget already added")
         }
-        let id = _next_id
-        _next_id = id + 1
-        w._attach(self, id)
-        _widgets[id] = w
-        if _running {
-            _pending.append(encode_add(0, w.to_json()))
+        let id = next_id
+        next_id = id + 1
+        w.attach(self, id)
+        widgets[id] = w
+        if running {
+            pending.append(encode_add(0, w.to_json()))
         } else {
-            _root.append(w)
+            root.append(w)
         }
         return w
     }
@@ -59,7 +59,7 @@ pub class App {
         if name != THEME_LIGHT && name != THEME_DARK {
             panic("ui: unknown theme '" + name + "'")
         }
-        _queue_set(0, "theme", json.String(name))
+        queue_set(0, "theme", json.String(name))
     }
 
     /// Enter the pump loop; blocks until the window is closed or `close()`
@@ -72,22 +72,22 @@ pub class App {
     /// dispatch page events to handlers and flush queued widget updates.
     /// Returns false once the window is closed.
     pub func poll() bool {
-        if _closed {
+        if closed {
             return false
         }
-        if !_running {
-            _mount()
+        if !running {
+            mount()
         }
-        if !_win.poll() {
-            _closed = true
-            _win.destroy()
+        if !win.poll() {
+            closed = true
+            win.destroy()
             return false
         }
-        let raw = _win.eval_sync("window.__outbox.splice(0).join('\\n')")
+        let raw = win.eval_sync("window.__outbox.splice(0).join('\\n')")
         for line in raw.split("\n") {
-            _dispatch(_widgets, self, state, line)
+            dispatch(widgets, self, state, line)
         }
-        _flush()
+        flush()
         time.sleep(time.Duration(10000000)) // 10ms, avoid busy-spinning
         return true
     }
@@ -95,59 +95,66 @@ pub class App {
     /// Close the window and release it. Idempotent; `run`/`poll` return
     /// afterwards.
     pub func close() {
-        if !_closed {
-            _closed = true
-            _win.terminate()
-            _win.destroy()
+        if !closed {
+            closed = true
+            win.terminate()
+            win.destroy()
         }
     }
 
-    /// Internal: queue an incremental property command from a widget setter.
-    pub func _queue_set(id int, prop str, value json.Value) {
-        _pending.append(encode_set(id, prop, value))
+    /// Evaluate JS in the page and return its result as a string. Escape
+    /// hatch for live tests and advanced page interaction; the widget API
+    /// covers normal use. Requires a mounted page (call `poll` first).
+    pub func eval_sync(js str) str {
+        return win.eval_sync(js)
+    }
+
+    /// Queue an incremental property command from a widget setter.
+    func queue_set(id int, prop str, value json.Value) {
+        pending.append(encode_set(id, prop, value))
     }
 
     // Load the embedded runtime, wait until its script is ready, then
     // mount the initial widget tree. Page load is asynchronous, hence the
     // readiness pump (same pattern as the webview demo).
-    func _mount() {
-        let root = json.Object()
-        root["id"] = json.Integer(0)
-        root["type"] = json.String("column")
+    func mount() {
+        let root_node = json.Object()
+        root_node["id"] = json.Integer(0)
+        root_node["type"] = json.String("column")
         let children = json.Array()
-        for w in _root {
+        for w in root {
             children.append(w.to_json())
         }
-        root["children"] = children
+        root_node["children"] = children
 
         let vars dict[str, any] = {"css": RUNTIME_CSS, "js": RUNTIME_JS}
-        _win.set_html(webview.render_template(RUNTIME_HTML, vars))
-        _win.poll()
+        win.set_html(webview.render_template(RUNTIME_HTML, vars))
+        win.poll()
         var waited = 0
-        while _win.eval_sync("window.__ui_ready === true") != "true" {
-            _win.poll()
+        while win.eval_sync("window.__ui_ready === true") != "true" {
+            win.poll()
             time.sleep(time.Duration(10000000))
             waited = waited + 10
             if waited > 5000 {
                 panic("ui: runtime not ready (timeout)")
             }
         }
-        let cmd = encode_mount(root)
-        _win.eval("window.__ui_apply([" + cmd.to_json() + "])")
-        _running = true
+        let cmd = encode_mount(root_node)
+        win.eval("window.__ui_apply([" + cmd.to_json() + "])")
+        running = true
     }
 
     // Send all queued commands to the page in one eval.
-    func _flush() {
-        if _pending.empty() {
+    func flush() {
+        if pending.empty() {
             return
         }
         let arr = json.Array()
-        for c in _pending {
+        for c in pending {
             arr.append(c)
         }
-        _pending.clear()
-        _win.eval("window.__ui_apply(" + arr.to_json() + ")")
+        pending.clear()
+        win.eval("window.__ui_apply(" + arr.to_json() + ")")
     }
 }
 
@@ -155,11 +162,11 @@ pub class App {
 // tests can drive it without a window. Unknown widget ids are dropped:
 // they are stale page events, not an error. Unbound handlers are a no-op,
 // like a tkinter button without command. Each widget handles the event
-// kinds it owns via Widget._handle (function types cannot be generic type
+// kinds it owns via Widget.handle (function types cannot be generic type
 // arguments, so handlers live on the widgets, not in a registry dict).
-pub func _dispatch(widgets dict[int, Widget], app App?, state any?, line str) {
+pub func dispatch(widgets dict[int, Widget], app App?, state any?, line str) {
     let parsed = decode_event(line) else { return }
     let (id, kind, value) = parsed
     let w = widgets.get(id) else { return }
-    w._handle(Event(kind, w, app, state, value))
+    w.handle(Event(kind, w, app, state, value))
 }

@@ -1,0 +1,12 @@
+
+type H = func(int)
+
+pub class A {
+    pub func __init__() {}
+    pub func m(fn H) { fn(1) }
+}
+
+pub class B {
+    pub func __init__() {}
+    pub func m(fn H) { fn(2) }
+}

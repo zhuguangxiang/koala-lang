@@ -1,0 +1,62 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+/// A push button. `on_click` is a named handler function; it can also be
+/// bound or rebound later with the `on_click(fn)` method.
+pub class Button : Widget {
+    pub var text str
+    pub var enabled bool = true
+    pub var app App? = nil
+    pub var id int = 0
+    pub var handler Handler? = nil
+
+    pub func __init__(text str, on_click Handler? = nil) {
+        self.text = text
+        handler = on_click
+    }
+
+    pub func wid() int = id
+
+    /// Replace the button text.
+    pub func set_text(text str) {
+        self.text = text
+        set_prop(app, id, "text", json.String(text))
+    }
+
+    /// Enable or disable the button.
+    pub func set_enabled(enabled bool) {
+        self.enabled = enabled
+        set_prop(app, id, "enabled", json.Boolean(enabled))
+    }
+
+    /// Bind or rebind the click handler.
+    pub func on_click(fn Handler) {
+        handler = fn
+    }
+
+    pub func to_json() json.Value {
+        let o = json.Object()
+        o["id"] = json.Integer(id)
+        o["type"] = json.String("button")
+        o["text"] = json.String(text)
+        o["enabled"] = json.Boolean(enabled)
+        return o
+    }
+
+    pub func attach(app App, id int) {
+        self.app = app
+        self.id = id
+    }
+
+    pub func handle(e Event) {
+        if e.kind == "click" {
+            if let h = handler {
+                h(e)
+            }
+        }
+    }
+}

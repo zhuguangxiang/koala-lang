@@ -1,0 +1,83 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+/// A single-line text input. `on_change` fires on every keystroke and
+/// `on_submit` on Enter; both carry the current text (`e.value_str()`).
+/// Handlers can also be bound or rebound later with the `on_change(fn)`
+/// and `on_submit(fn)` methods.
+pub class TextInput : Widget {
+    pub var text str = ""
+    pub var placeholder str
+    pub var app App? = nil
+    pub var id int = 0
+    pub var change_handler Handler? = nil
+    pub var submit_handler Handler? = nil
+
+    pub func __init__(placeholder str = "", on_change Handler? = nil,
+                      on_submit Handler? = nil) {
+        self.placeholder = placeholder
+        change_handler = on_change
+        submit_handler = on_submit
+    }
+
+    pub func wid() int = id
+
+    /// Replace the input text.
+    pub func set_text(text str) {
+        self.text = text
+        set_prop(app, id, "text", json.String(text))
+    }
+
+    /// Replace the placeholder shown while the input is empty.
+    pub func set_placeholder(placeholder str) {
+        self.placeholder = placeholder
+        set_prop(app, id, "placeholder", json.String(placeholder))
+    }
+
+    /// Bind or rebind the per-keystroke handler.
+    pub func on_change(fn Handler) {
+        change_handler = fn
+    }
+
+    /// Bind or rebind the Enter-key handler.
+    pub func on_submit(fn Handler) {
+        submit_handler = fn
+    }
+
+    pub func to_json() json.Value {
+        let o = json.Object()
+        o["id"] = json.Integer(id)
+        o["type"] = json.String("input")
+        o["text"] = json.String(text)
+        o["placeholder"] = json.String(placeholder)
+        return o
+    }
+
+    pub func attach(app App, id int) {
+        self.app = app
+        self.id = id
+    }
+
+    pub func handle(e Event) {
+        if e.kind == "change" || e.kind == "submit" {
+            if let v = e.value {
+                if let s = v as json.String {
+                    text = s.value
+                }
+            }
+            if e.kind == "change" {
+                if let h = change_handler {
+                    h(e)
+                }
+            } else {
+                if let h = submit_handler {
+                    h(e)
+                }
+            }
+        }
+    }
+}

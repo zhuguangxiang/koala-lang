@@ -1327,7 +1327,12 @@ static TypeSpec *__to_typespec(char **str)
             TypeSpec *ret = NULL;
             if (*s != '?' && *s != ')' && *s != '\0') ret = __to_typespec(&s);
             if (!ret) ret = no_type_spec();
-            ts = func_type_spec(args, ret);
+            /* Intern so the proto has type_id >= 0: FIXUP_FUNC_PROTO feeds these
+               param types to func_type_spec_intern as borrowed args, and intern
+               dedup of an identical method signature frees the duplicate's args
+               via type_spec_vec_free. A non-interned param proto would be freed
+               while still live on the method's ArgInfo (use-after-free). */
+            ts = func_type_spec_intern(args, ret);
             break;
         }
         default: {

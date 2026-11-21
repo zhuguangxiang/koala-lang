@@ -14,8 +14,8 @@
 //   events    window.__outbox entries: {"id":N,"kind":"click"[,"value":V]}
 // All user text goes through textContent/value - never innerHTML.
 
-/// The page template. {{css}} and {{js}} are filled by `App._mount`.
-pub const RUNTIME_HTML = """<!doctype html>
+/// The page template. {{css}} and {{js}} are filled by `App.mount`.
+const RUNTIME_HTML = """<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -33,7 +33,7 @@ pub const RUNTIME_HTML = """<!doctype html>
 """
 
 /// Runtime styles: light/dark via CSS variables, flex box layout.
-pub const RUNTIME_CSS = """
+const RUNTIME_CSS = """
 :root {
   --bg: #ffffff; --fg: #1c1e21; --accent: #2f6fed;
   --btn-bg: #2f6fed; --btn-fg: #ffffff; --border: #d0d3d9;
@@ -59,10 +59,13 @@ input[type=text] {
   padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
   background: var(--bg); color: var(--fg); font-size: 15px;
 }
+.check { display: flex; flex-direction: row; gap: 8px; align-items: center; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+input[type=range] { flex: 1; accent-color: var(--accent); }
 """
 
 /// Runtime script: element registry, command application, event outbox.
-pub const RUNTIME_JS = """
+const RUNTIME_JS = """
 window.__outbox = [];
 window.__ui_ready = false;
 (function() {
@@ -87,6 +90,40 @@ window.__ui_ready = false;
         d.disabled = !node.enabled;
         d.addEventListener("click", function() { push(node.id, "click"); });
         break;
+      case "input":
+        d = document.createElement("input");
+        d.type = "text";
+        d.value = node.text || "";
+        d.placeholder = node.placeholder || "";
+        d.addEventListener("input", function() { push(node.id, "change", d.value); });
+        d.addEventListener("keydown", function(ev) {
+          if (ev.key === "Enter") { push(node.id, "submit", d.value); }
+        });
+        break;
+      case "checkbox": {
+        d = document.createElement("label");
+        d.className = "check";
+        var box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = !!node.checked;
+        box.addEventListener("change", function() { push(node.id, "change", box.checked); });
+        var span = document.createElement("span");
+        span.textContent = node.text;
+        d.appendChild(box);
+        d.appendChild(span);
+        d.__box = box;
+        d.__span = span;
+        break;
+      }
+      case "slider":
+        d = document.createElement("input");
+        d.type = "range";
+        d.step = "any";
+        d.min = node.min;
+        d.max = node.max;
+        d.value = node.value;
+        d.addEventListener("input", function() { push(node.id, "change", parseFloat(d.value)); });
+        break;
       default:
         throw new Error("ui runtime: unknown node type " + node.type);
     }
@@ -108,8 +145,15 @@ window.__ui_ready = false;
       }
       var d = els.get(c.id);
       if (!d) { return; }
-      if (c.prop === "text") { d.textContent = c.value; }
+      if (c.prop === "text") {
+        if (d.__span) { d.__span.textContent = c.value; }
+        else if (d.tagName === "INPUT") { d.value = c.value; }
+        else { d.textContent = c.value; }
+      }
       else if (c.prop === "enabled") { d.disabled = !c.value; }
+      else if (c.prop === "placeholder") { d.placeholder = c.value; }
+      else if (c.prop === "checked") { d.__box.checked = !!c.value; }
+      else if (c.prop === "value") { d.value = c.value; }
     } else if (c.cmd === "add") {
       var p = els.get(c.parent);
       if (p) { p.appendChild(build(c.node)); }

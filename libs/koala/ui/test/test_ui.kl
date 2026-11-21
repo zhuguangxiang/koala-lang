@@ -34,7 +34,7 @@ func test_button_to_json() {
 @test
 func test_button_disabled_to_json() {
     let b = ui.Button("x")
-    b._enabled = false
+    b.enabled = false
     let o = json.parse_object(b.to_json().to_json())
     ut.assert(o.get_bool("enabled") == false)
 }
@@ -180,8 +180,8 @@ func record(e ui.Event) {
 func make_widgets() dict[int, ui.Widget] {
     let widgets = dict[int, ui.Widget]()
     let b = ui.Button("x")
-    b._id = 3
-    b._handler = record
+    b.id = 3
+    b.handler = record
     widgets[3] = b
     return widgets
 }
@@ -190,7 +190,7 @@ func make_widgets() dict[int, ui.Widget] {
 func test_dispatch_click() {
     let widgets = make_widgets()
     seen_calls = 0
-    ui._dispatch(widgets, nil, nil, "{\"id\":3,\"kind\":\"click\"}")
+    ui.dispatch(widgets, nil, nil, "{\"id\":3,\"kind\":\"click\"}")
     ut.assert(seen_calls == 1)
     ut.assert(seen_kind == "click")
     ut.assert(seen_id == 3)
@@ -200,7 +200,7 @@ func test_dispatch_click() {
 func test_dispatch_unknown_id_dropped() {
     let widgets = make_widgets()
     seen_calls = 0
-    ui._dispatch(widgets, nil, nil, "{\"id\":99,\"kind\":\"click\"}")
+    ui.dispatch(widgets, nil, nil, "{\"id\":99,\"kind\":\"click\"}")
     ut.assert(seen_calls == 0)
 }
 
@@ -208,10 +208,10 @@ func test_dispatch_unknown_id_dropped() {
 func test_dispatch_unbound_handler_noop() {
     let widgets = make_widgets()
     let b = ui.Button("y")
-    b._id = 4
+    b.id = 4
     widgets[4] = b // no handler bound on id 4
     seen_calls = 0
-    ui._dispatch(widgets, nil, nil, "{\"id\":4,\"kind\":\"click\"}")
+    ui.dispatch(widgets, nil, nil, "{\"id\":4,\"kind\":\"click\"}")
     ut.assert(seen_calls == 0)
 }
 
@@ -219,7 +219,7 @@ func test_dispatch_unbound_handler_noop() {
 func test_dispatch_empty_line_noop() {
     let widgets = make_widgets()
     seen_calls = 0
-    ui._dispatch(widgets, nil, nil, "")
+    ui.dispatch(widgets, nil, nil, "")
     ut.assert(seen_calls == 0)
 }
 
@@ -228,7 +228,7 @@ func test_dispatch_state_passthrough() {
     let widgets = make_widgets()
     seen_calls = 0
     seen_state = nil
-    ui._dispatch(widgets, nil, "mystate", "{\"id\":3,\"kind\":\"click\"}")
+    ui.dispatch(widgets, nil, "mystate", "{\"id\":3,\"kind\":\"click\"}")
     ut.assert(seen_calls == 1)
     var state_ok = false
     if let v = seen_state {
@@ -244,7 +244,362 @@ func test_dispatch_state_passthrough() {
 @test
 func test_button_on_click_rebind_before_add() {
     let b = ui.Button("x")
-    ut.assert(b._handler == nil)
+    ut.assert(b.handler == nil)
     b.on_click(record)
-    ut.assert(b._handler != nil)
+    ut.assert(b.handler != nil)
+}
+
+// ==================== input widget serialization ====================
+
+@test
+func test_text_input_to_json() {
+    let t = ui.TextInput("type here")
+    let o = json.parse_object(t.to_json().to_json())
+    ut.assert(o.get_int("id") == 0)
+    ut.assert(o.get_str("type") == "input")
+    ut.assert(o.get_str("text") == "")
+    ut.assert(o.get_str("placeholder") == "type here")
+}
+
+@test
+func test_text_input_text_to_json() {
+    let t = ui.TextInput()
+    t.text = "preset"
+    let o = json.parse_object(t.to_json().to_json())
+    ut.assert(o.get_str("text") == "preset")
+    ut.assert(o.get_str("placeholder") == "")
+}
+
+@test
+func test_check_box_to_json() {
+    let c = ui.CheckBox("dark mode")
+    let o = json.parse_object(c.to_json().to_json())
+    ut.assert(o.get_str("type") == "checkbox")
+    ut.assert(o.get_str("text") == "dark mode")
+    ut.assert(o.get_bool("checked") == false)
+}
+
+@test
+func test_check_box_checked_to_json() {
+    let c = ui.CheckBox("x", true)
+    let o = json.parse_object(c.to_json().to_json())
+    ut.assert(o.get_bool("checked") == true)
+}
+
+@test
+func test_slider_to_json() {
+    let s = ui.Slider(0.0, 10.0, 2.5)
+    let o = json.parse_object(s.to_json().to_json())
+    ut.assert(o.get_str("type") == "slider")
+    ut.assert(o.get_float("min") == 0.0)
+    ut.assert(o.get_float("max") == 10.0)
+    ut.assert(o.get_float("value") == 2.5)
+}
+
+@test
+func test_input_widget_id_before_add() {
+    ut.assert(ui.TextInput().wid() == 0)
+    ut.assert(ui.CheckBox("x").wid() == 0)
+    ut.assert(ui.Slider(0.0, 1.0, 0.0).wid() == 0)
+}
+
+// ==================== input setters before add ====================
+
+@should_panic("ui: widget not added to an app")
+func test_text_input_set_text_before_add() {
+    ui.TextInput().set_text("y")
+}
+
+@should_panic("ui: widget not added to an app")
+func test_text_input_set_placeholder_before_add() {
+    ui.TextInput().set_placeholder("y")
+}
+
+@should_panic("ui: widget not added to an app")
+func test_check_box_set_checked_before_add() {
+    ui.CheckBox("x").set_checked(true)
+}
+
+@should_panic("ui: widget not added to an app")
+func test_check_box_set_text_before_add() {
+    ui.CheckBox("x").set_text("y")
+}
+
+@should_panic("ui: widget not added to an app")
+func test_slider_set_value_before_add() {
+    ui.Slider(0.0, 1.0, 0.0).set_value(0.5)
+}
+
+// ==================== input command/value encoding ====================
+
+@test
+func test_encode_set_float_value() {
+    let cmd = ui.encode_set(7, "value", json.Float(2.5))
+    let o = json.parse_object(cmd.to_json())
+    ut.assert(o.get_str("prop") == "value")
+    ut.assert(o.get_float("value") == 2.5)
+}
+
+@test
+func test_decode_change_bool() {
+    let parsed = ui.decode_event("{\"id\":5,\"kind\":\"change\",\"value\":true}")!
+    let (id, kind, value) = parsed
+    ut.assert(id == 5)
+    ut.assert(kind == "change")
+    if let v = value {
+        if let b = v as json.Boolean {
+            ut.assert(b.value == true)
+        } else {
+            ut.assert(false)
+        }
+    } else {
+        ut.assert(false)
+    }
+}
+
+@test
+func test_decode_change_float() {
+    let parsed = ui.decode_event("{\"id\":7,\"kind\":\"change\",\"value\":2.5}")!
+    let (id, kind, value) = parsed
+    ut.assert(id == 7)
+    if let v = value {
+        if let f = v as json.Float {
+            ut.assert(f.value == 2.5)
+        } else {
+            ut.assert(false)
+        }
+    } else {
+        ut.assert(false)
+    }
+}
+
+// ==================== Event bool/float getters ====================
+
+@test
+func test_event_value_bool() {
+    let e = ui.Event("change", nil, nil, nil, json.Boolean(true))
+    ut.assert(e.value_bool() == true)
+}
+
+@should_panic("ui: event value is not bool")
+func test_event_value_bool_missing() {
+    ui.Event("click", nil, nil, nil, nil).value_bool()
+}
+
+@should_panic("ui: event value is not bool")
+func test_event_value_bool_wrong_type() {
+    ui.Event("change", nil, nil, nil, json.String("true")).value_bool()
+}
+
+@test
+func test_event_value_float() {
+    let e = ui.Event("change", nil, nil, nil, json.Float(2.5))
+    ut.assert(e.value_float() == 2.5)
+}
+
+@test
+func test_event_value_float_from_int() {
+    let e = ui.Event("change", nil, nil, nil, json.Integer(3))
+    ut.assert(e.value_float() == 3.0)
+}
+
+@should_panic("ui: event value is not float")
+func test_event_value_float_missing() {
+    ui.Event("click", nil, nil, nil, nil).value_float()
+}
+
+@should_panic("ui: event value is not float")
+func test_event_value_float_wrong_type() {
+    ui.Event("change", nil, nil, nil, json.String("2.5")).value_float()
+}
+
+// ==================== input dispatch ====================
+
+var inp_calls = 0
+var inp_text = ""
+var sub_calls = 0
+var cb_calls = 0
+var cb_state = false
+var sl_calls = 0
+var sl_value = 0.0
+
+func on_inp(e ui.Event) {
+    inp_calls = inp_calls + 1
+    inp_text = e.value_str()
+}
+
+func on_sub(e ui.Event) {
+    sub_calls = sub_calls + 1
+    inp_text = e.value_str()
+}
+
+func on_cb(e ui.Event) {
+    cb_calls = cb_calls + 1
+    cb_state = e.value_bool()
+}
+
+func on_sl(e ui.Event) {
+    sl_calls = sl_calls + 1
+    sl_value = e.value_float()
+}
+
+func input_widgets() dict[int, ui.Widget] {
+    let widgets = dict[int, ui.Widget]()
+    let t = ui.TextInput("ph", on_inp, on_sub)
+    t.id = 5
+    widgets[5] = t
+    let c = ui.CheckBox("dark", false, on_cb)
+    c.id = 6
+    widgets[6] = c
+    let s = ui.Slider(0.0, 10.0, 0.0, on_sl)
+    s.id = 7
+    widgets[7] = s
+    return widgets
+}
+
+@test
+func test_dispatch_input_change() {
+    let widgets = input_widgets()
+    inp_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":5,\"kind\":\"change\",\"value\":\"hi\"}")
+    ut.assert(inp_calls == 1)
+    ut.assert(inp_text == "hi")
+    if let w = widgets.get(5) {
+        if let t = w as ui.TextInput {
+            ut.assert(t.text == "hi")
+        } else {
+            ut.assert(false)
+        }
+    }
+}
+
+@test
+func test_dispatch_input_submit() {
+    let widgets = input_widgets()
+    sub_calls = 0
+    inp_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":5,\"kind\":\"submit\",\"value\":\"done\"}")
+    ut.assert(sub_calls == 1)
+    ut.assert(inp_calls == 0)
+    ut.assert(inp_text == "done")
+    if let w = widgets.get(5) {
+        if let t = w as ui.TextInput {
+            ut.assert(t.text == "done")
+        }
+    }
+}
+
+@test
+func test_dispatch_input_change_without_change_handler() {
+    let widgets = dict[int, ui.Widget]()
+    let t = ui.TextInput("ph", nil, on_sub)
+    t.id = 5
+    widgets[5] = t
+    sub_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":5,\"kind\":\"change\",\"value\":\"x\"}")
+    ut.assert(sub_calls == 0)
+    ut.assert(t.text == "x")
+}
+
+@test
+func test_dispatch_input_ignores_click() {
+    let widgets = input_widgets()
+    inp_calls = 0
+    sub_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":5,\"kind\":\"click\"}")
+    ut.assert(inp_calls == 0)
+    ut.assert(sub_calls == 0)
+}
+
+@test
+func test_dispatch_checkbox_change() {
+    let widgets = input_widgets()
+    cb_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":6,\"kind\":\"change\",\"value\":true}")
+    ut.assert(cb_calls == 1)
+    ut.assert(cb_state == true)
+    if let w = widgets.get(6) {
+        if let c = w as ui.CheckBox {
+            ut.assert(c.checked == true)
+        }
+    }
+}
+
+@test
+func test_dispatch_checkbox_bad_value_keeps_state() {
+    let widgets = dict[int, ui.Widget]()
+    let c = ui.CheckBox("dark", true)
+    c.id = 6
+    widgets[6] = c
+    ui.dispatch(widgets, nil, nil, "{\"id\":6,\"kind\":\"change\",\"value\":\"yes\"}")
+    ut.assert(c.checked == true)
+}
+
+@test
+func test_dispatch_slider_change_float() {
+    let widgets = input_widgets()
+    sl_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":7,\"kind\":\"change\",\"value\":2.5}")
+    ut.assert(sl_calls == 1)
+    ut.assert(sl_value == 2.5)
+    if let w = widgets.get(7) {
+        if let s = w as ui.Slider {
+            ut.assert(s.value == 2.5)
+        }
+    }
+}
+
+@test
+func test_dispatch_slider_change_int() {
+    let widgets = input_widgets()
+    sl_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":7,\"kind\":\"change\",\"value\":3}")
+    ut.assert(sl_calls == 1)
+    ut.assert(sl_value == 3.0)
+    if let w = widgets.get(7) {
+        if let s = w as ui.Slider {
+            ut.assert(s.value == 3.0)
+        }
+    }
+}
+
+@test
+func test_dispatch_input_unbound_noop() {
+    let widgets = dict[int, ui.Widget]()
+    let t = ui.TextInput()
+    t.id = 5
+    widgets[5] = t
+    inp_calls = 0
+    ui.dispatch(widgets, nil, nil, "{\"id\":5,\"kind\":\"change\",\"value\":\"x\"}")
+    ut.assert(inp_calls == 0)
+    ut.assert(t.text == "x")
+}
+
+// ==================== input handler binding ====================
+
+@test
+func test_text_input_rebind_before_add() {
+    let t = ui.TextInput()
+    ut.assert(t.change_handler == nil)
+    ut.assert(t.submit_handler == nil)
+    t.on_change(on_inp)
+    t.on_submit(on_sub)
+    ut.assert(t.change_handler != nil)
+    ut.assert(t.submit_handler != nil)
+}
+
+@test
+func test_check_box_rebind_before_add() {
+    let c = ui.CheckBox("x")
+    ut.assert(c.change_handler == nil)
+    c.on_change(on_cb)
+    ut.assert(c.change_handler != nil)
+}
+
+@test
+func test_slider_rebind_before_add() {
+    let s = ui.Slider(0.0, 1.0, 0.0)
+    ut.assert(s.change_handler == nil)
+    s.on_change(on_sl)
+    ut.assert(s.change_handler != nil)
 }

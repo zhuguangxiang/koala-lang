@@ -49,4 +49,31 @@ pub class Event {
         }
         panic("ui: event value is not str")
     }
+
+    /// The event value as a bool (checkbox events). Panics if the event
+    /// carries no value or it is not a bool.
+    pub func value_bool() bool {
+        if value != nil {
+            if let b = value as json.Boolean {
+                return b.value
+            }
+        }
+        panic("ui: event value is not bool")
+    }
+
+    /// The event value as a float (slider events). JSON integers are
+    /// widened, since a whole slider position serializes without a
+    /// fractional part. Panics if the event carries no value or it is
+    /// neither float nor int.
+    pub func value_float() float {
+        if value != nil {
+            if let f = value as json.Float {
+                return f.value
+            }
+            if let i = value as json.Integer {
+                return float(i.value)
+            }
+        }
+        panic("ui: event value is not float")
+    }
 }
