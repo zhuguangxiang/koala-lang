@@ -1,0 +1,105 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/klex"
+
+func _toks(src str) list[klex.Token] {
+    let toks = klex.tokenize(src)
+    ut.assert_true(toks != nil)
+    return toks!
+}
+
+// Check one literal token: kind name, lexeme and normalized value.
+func _num(src str, kind str, lexeme str, value str) {
+    let ts = _toks(src)
+    ut.assert_eq(ts.len(), 2) // the literal and an inserted semicolon
+    ut.assert_eq(ts[0].kind.name(), kind)
+    ut.assert_eq(ts[0].lexeme, lexeme)
+    ut.assert_eq(ts[0].value!, value)
+}
+
+@test
+func test_decimal() {
+    _num("0", "INT_LITERAL", "0", "0")
+    _num("42", "INT_LITERAL", "42", "42")
+    _num("1_000_000", "INT_LITERAL", "1_000_000", "1000000")
+    _num("-42", "INT_LITERAL", "-42", "-42")
+    _num("+7", "INT_LITERAL", "+7", "+7")
+}
+
+@test
+func test_bases() {
+    _num("0x1F", "INT_LITERAL", "0x1F", "0x1F")
+    _num("0XFF_aa", "INT_LITERAL", "0XFF_aa", "0XFFaa")
+    _num("0b1010", "INT_LITERAL", "0b1010", "1010")
+    _num("0B1_0", "INT_LITERAL", "0B1_0", "10")
+    _num("0o17", "INT_LITERAL", "0o17", "17")
+    _num("0O7_7", "INT_LITERAL", "0O7_7", "77")
+    _num("-0x10", "INT_LITERAL", "-0x10", "-0x10")
+}
+
+@test
+func test_float() {
+    _num("1.5", "FLOAT_LITERAL", "1.5", "1.5")
+    _num("1.5e3", "FLOAT_LITERAL", "1.5e3", "1.5e3")
+    _num("1e3", "FLOAT_LITERAL", "1e3", "1e3")
+    _num("1E-3", "FLOAT_LITERAL", "1E-3", "1E-3")
+    _num("2.5E+10", "FLOAT_LITERAL", "2.5E+10", "2.5E+10")
+    _num("-1.5", "FLOAT_LITERAL", "-1.5", "-1.5")
+}
+
+@test
+func test_greedy_sign() {
+    // a sign glued to a digit is part of the literal, not a binary operator
+    let ts = _toks("a+1")
+    ut.assert_eq(ts.len(), 3)
+    ut.assert_eq(ts[0].kind.name(), "ID")
+    ut.assert_eq(ts[1].kind.name(), "INT_LITERAL")
+    ut.assert_eq(ts[1].lexeme, "+1")
+    let ts2 = _toks("a -1")
+    ut.assert_eq(ts2[1].kind.name(), "INT_LITERAL")
+    ut.assert_eq(ts2[1].lexeme, "-1")
+    // a sign not followed by a digit is an operator
+    let ts3 = _toks("a + b")
+    ut.assert_eq(ts3[1].kind.name(), "PLUS")
+}
+
+@test
+func test_number_edges() {
+    // "1." is an int then a dot; ".5" is a dot then an int
+    let a = _toks("1.")
+    ut.assert_eq(a[0].kind.name(), "INT_LITERAL")
+    ut.assert_eq(a[1].kind.name(), "DOT")
+    let b = _toks(".5")
+    ut.assert_eq(b[0].kind.name(), "DOT")
+    ut.assert_eq(b[1].kind.name(), "INT_LITERAL")
+    // a base prefix needs a base digit right after it
+    let c = _toks("0b_1")
+    ut.assert_eq(c[0].kind.name(), "INT_LITERAL")
+    ut.assert_eq(c[0].lexeme, "0")
+    ut.assert_eq(c[1].kind.name(), "ID")
+    ut.assert_eq(c[1].lexeme, "b_1")
+    // an underscore in the integer part blocks the float tail
+    let d = _toks("1_0.5")
+    ut.assert_eq(d[0].kind.name(), "INT_LITERAL")
+    ut.assert_eq(d[0].lexeme, "1_0")
+    ut.assert_eq(d[1].kind.name(), "DOT")
+    ut.assert_eq(d[2].kind.name(), "INT_LITERAL")
+    // a trailing underscore is not part of the literal
+    let e = _toks("1_")
+    ut.assert_eq(e[0].kind.name(), "INT_LITERAL")
+    ut.assert_eq(e[0].lexeme, "1")
+    ut.assert_eq(e[1].kind.name(), "UNDERSCORE")
+    // an exponent needs digits
+    let f = _toks("1e")
+    ut.assert_eq(f[0].kind.name(), "INT_LITERAL")
+    ut.assert_eq(f[1].kind.name(), "ID")
+    ut.assert_eq(f[1].lexeme, "e")
+    // hex stops at a non-hex digit
+    let g = _toks("0x1G")
+    ut.assert_eq(g[0].lexeme, "0x1")
+    ut.assert_eq(g[1].kind.name(), "ID")
+}

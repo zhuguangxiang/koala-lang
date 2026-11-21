@@ -1,0 +1,222 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A lexer for Koala source, mirroring the compiler's `src/parser/koala.l`.
+///
+///     import "koala/klex"
+///
+///     let tokens = klex.tokenize("let x = 1 + 2")!
+///     for t in tokens { print(t.kind.name(), t.lexeme) }
+///
+/// The token stream is the compiler's: whitespace and comments are dropped,
+/// a semicolon is inserted at a newline that ends a statement (and at the end
+/// of input), and a `-`/`+` written directly before a digit is part of the
+/// numeric literal, not a binary operator. See `Lexer` for the streaming form
+/// and the error and warning reporting.
+
+/// Split `src` into its tokens, up to the end of input. Returns nil on a
+/// lexing error (an unterminated literal or block comment); non-fatal
+/// oddities are skipped and do not stop the scan. Use `Lexer` directly to
+/// read those warnings.
+pub func tokenize(src str) list[Token]? {
+    let lex = Lexer(src)
+    let out = list[Token]()
+    while let token = lex.next_token() {
+        out.append(token)
+    }
+    if lex.error().len() > 0 { return nil }
+    return out
+}
+
+/// Split `src` into a lossless raw token stream: whitespace, newlines and
+/// comments are kept as tokens (WS / NEWLINE / LINE_COMMENT / BLOCK_COMMENT),
+/// no semicolons are inserted, and concatenating every token's lexeme
+/// reproduces `src` byte for byte. An unrecognized byte is kept as UNKNOWN.
+/// Returns nil on a lexing error (an unterminated literal or block comment).
+/// This is the stream a source formatter such as bowerbird builds on.
+pub func tokenize_raw(src str) list[Token]? {
+    let lex = Lexer(src, raw=true)
+    let out = list[Token]()
+    while let token = lex.next_token() {
+        out.append(token)
+    }
+    if lex.error().len() > 0 { return nil }
+    return out
+}
+
+// The keyword spellings and the terminal each maps to. Aliases share the
+// compiler's terminal: uint/int/float fold to the 64-bit kind, str -> STRING,
+// dict -> MAP, hashset -> SET, pub -> PUBLIC, nil -> NONE.
+let _KEYWORDS dict[str, TokenKind] = {
+    "from": TokenKind.FROM,
+    "import": TokenKind.IMPORT,
+    "link": TokenKind.LINK,
+    "const": TokenKind.CONST,
+    "let": TokenKind.LET,
+    "var": TokenKind.VAR,
+    "func": TokenKind.FUNC,
+    "class": TokenKind.CLASS,
+    "trait": TokenKind.TRAIT,
+    "enum": TokenKind.ENUM,
+    "if": TokenKind.IF,
+    "else": TokenKind.ELSE,
+    "while": TokenKind.WHILE,
+    "loop": TokenKind.LOOP,
+    "for": TokenKind.FOR,
+    "with": TokenKind.WITH,
+    "switch": TokenKind.SWITCH,
+    "case": TokenKind.CASE,
+    "break": TokenKind.BREAK,
+    "continue": TokenKind.CONTINUE,
+    "return": TokenKind.RETURN,
+    "in": TokenKind.IN,
+    "as": TokenKind.AS,
+    "is": TokenKind.IS,
+    "pub": TokenKind.PUBLIC,
+    "infer": TokenKind.INFER,
+    "static": TokenKind.STATIC,
+    "self": TokenKind.SELF,
+    "true": TokenKind.TRUE,
+    "false": TokenKind.FALSE,
+    "nil": TokenKind.NONE,
+    "uint8": TokenKind.UINT8,
+    "uint16": TokenKind.UINT16,
+    "uint32": TokenKind.UINT32,
+    "uint64": TokenKind.UINT64,
+    "uint": TokenKind.UINT64,
+    "int8": TokenKind.INT8,
+    "int16": TokenKind.INT16,
+    "int32": TokenKind.INT32,
+    "int64": TokenKind.INT64,
+    "int": TokenKind.INT64,
+    "float16": TokenKind.FLOAT16,
+    "float32": TokenKind.FLOAT32,
+    "float64": TokenKind.FLOAT64,
+    "float": TokenKind.FLOAT64,
+    "bfloat16": TokenKind.BFLOAT16,
+    "bool": TokenKind.BOOL,
+    "str": TokenKind.STRING,
+    "bytes": TokenKind.BYTES,
+    "any": TokenKind.ANY,
+    "list": TokenKind.LIST,
+    "dict": TokenKind.MAP,
+    "hashset": TokenKind.SET,
+    "tuple": TokenKind.TUPLE,
+    "type": TokenKind.TYPE,
+    "range": TokenKind.RANGE,
+    "array": TokenKind.ARRAY,
+}
+
+// Whether a newline after a token of this kind inserts a semicolon, as the
+// `semicolon()` table of koala.l. Note list/dict/hashset/tuple/array do not.
+func _is_ender(kind TokenKind) bool {
+    switch kind {
+        case TokenKind.INT_LITERAL: return true
+        case TokenKind.FLOAT_LITERAL: return true
+        case TokenKind.STRING_LITERAL: return true
+        case TokenKind.CHAR_LITERAL: return true
+        case TokenKind.BYTES_LITERAL: return true
+        case TokenKind.NONE: return true
+        case TokenKind.ID: return true
+        case TokenKind.SELF: return true
+        case TokenKind.TRUE: return true
+        case TokenKind.FALSE: return true
+        case TokenKind.UINT8: return true
+        case TokenKind.UINT16: return true
+        case TokenKind.UINT32: return true
+        case TokenKind.UINT64: return true
+        case TokenKind.INT8: return true
+        case TokenKind.INT16: return true
+        case TokenKind.INT32: return true
+        case TokenKind.INT64: return true
+        case TokenKind.FLOAT16: return true
+        case TokenKind.FLOAT32: return true
+        case TokenKind.FLOAT64: return true
+        case TokenKind.BFLOAT16: return true
+        case TokenKind.STRING: return true
+        case TokenKind.BYTES: return true
+        case TokenKind.BOOL: return true
+        case TokenKind.ANY: return true
+        case TokenKind.TYPE: return true
+        case TokenKind.RANGE: return true
+        case TokenKind.RETURN: return true
+        case TokenKind.BREAK: return true
+        case TokenKind.CONTINUE: return true
+        case TokenKind.RPAREN: return true
+        case TokenKind.RBRACKET: return true
+        case TokenKind.RBRACE: return true
+        case TokenKind.QUESTION: return true
+        case TokenKind.UNDERSCORE: return true
+        case TokenKind.NOT: return true
+        case TokenKind.CONST_PLACEHOLDER: return true
+        case _: return false
+    }
+}
+
+// Whether `c` may start an identifier: a letter, '_' or '$'.
+func _is_ident_start(c uint8) bool {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '$'
+}
+
+// Whether `c` may continue an identifier.
+func _is_ident_char(c uint8) bool {
+    return _is_ident_start(c) || _is_digit(c)
+}
+
+// Whether `c` is an ASCII decimal digit.
+func _is_digit(c uint8) bool {
+    return c >= '0' && c <= '9'
+}
+
+// Whether `c` is a digit of the given base (2, 8 or 16).
+func _is_base_digit(c uint8, base int) bool {
+    if base == 2 { return c == '0' || c == '1' }
+    if base == 8 { return c >= '0' && c <= '7' }
+    return _is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
+// The value of a hex digit, or -1 when `c` is not one.
+func _hex_val(c uint8) int {
+    if c >= '0' && c <= '9' { return int(c) - int('0') }
+    if c >= 'a' && c <= 'f' { return int(c) - int('a') + 10 }
+    if c >= 'A' && c <= 'F' { return int(c) - int('A') + 10 }
+    return -1
+}
+
+// Whether `word` is a `__KOALA_[A-Z_]+__` constant placeholder. The whole
+// word must match, so `__KOALA_X__Y` is an ordinary identifier.
+func _is_placeholder(word str) bool {
+    let n = word.len()
+    if n < 11 { return false }
+    if !word.starts_with("__KOALA_") { return false }
+    if !word.ends_with("__") { return false }
+    var i = 8
+    while i < n - 2 {
+        let ch = word[i]
+        let upper = (ch >= "A" && ch <= "Z") || ch == "_"
+        if !upper { return false }
+        i += 1
+    }
+    return true
+}
+
+// A numeric lexeme normalized as the compiler does before parsing: '_'
+// separators removed, the sign kept, the 0b/0o prefix dropped, 0x kept.
+func _normalize_number(lexeme str, base int) str {
+    var out = ""
+    var i = 0
+    let n = lexeme.len()
+    if n > 0 && (lexeme[0] == "+" || lexeme[0] == "-") {
+        out += lexeme[0]
+        i = 1
+    }
+    if base == 2 || base == 8 { i += 2 }
+    while i < n {
+        let ch = lexeme[i]
+        if ch != "_" { out += ch }
+        i += 1
+    }
+    return out
+}

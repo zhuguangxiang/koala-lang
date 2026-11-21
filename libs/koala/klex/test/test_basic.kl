@@ -1,0 +1,105 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/klex"
+
+// The kind names and lexemes of `src`, in order. An inserted semicolon has
+// the kind name "SEMI" and the lexeme "".
+func _names(src str) list[str] {
+    let toks = klex.tokenize(src)
+    ut.assert_true(toks != nil)
+    let out = list[str]()
+    for t in toks! { out.append(t.kind.name()) }
+    return out
+}
+
+func _lexemes(src str) list[str] {
+    let toks = klex.tokenize(src)
+    ut.assert_true(toks != nil)
+    let out = list[str]()
+    for t in toks! { out.append(t.lexeme) }
+    return out
+}
+
+func _eq_str(got list[str], want list[str]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) { ut.assert_eq(got[i], want[i]) }
+}
+
+@test
+func test_keywords() {
+    let src = "from import link const let var func class trait enum if else while loop for with switch case break continue return in as is pub infer static"
+    _eq_str(_names(src), [
+        "FROM", "IMPORT", "LINK", "CONST", "LET", "VAR", "FUNC", "CLASS", "TRAIT", "ENUM",
+        "IF", "ELSE", "WHILE", "LOOP", "FOR", "WITH", "SWITCH", "CASE", "BREAK", "CONTINUE",
+        "RETURN", "IN", "AS", "IS", "PUBLIC", "INFER", "STATIC",
+    ])
+}
+
+@test
+func test_type_keywords() {
+    let src = "self true false nil uint8 uint16 uint32 uint64 uint int8 int16 int32 int64 int float16 float32 float64 float bfloat16 bool str bytes any list dict hashset tuple type range array"
+    _eq_str(_names(src), [
+        "SELF", "TRUE", "FALSE", "NONE", "UINT8", "UINT16", "UINT32", "UINT64", "UINT64",
+        "INT8", "INT16", "INT32", "INT64", "INT64", "FLOAT16", "FLOAT32", "FLOAT64", "FLOAT64",
+        "BFLOAT16", "BOOL", "STRING", "BYTES", "ANY", "LIST", "MAP", "SET", "TUPLE", "TYPE",
+        "RANGE", "ARRAY",
+    ])
+}
+
+@test
+func test_identifiers() {
+    _eq_str(_names("foo _bar $baz a1 _"), ["ID", "ID", "ID", "ID", "UNDERSCORE", "SEMI"])
+    _eq_str(_lexemes("foo _bar $baz a1 _"), ["foo", "_bar", "$baz", "a1", "_", ""])
+}
+
+@test
+func test_placeholder() {
+    _eq_str(_names("__KOALA_X__ __KOALA_ABC__ __KOALA_X__Y __KOALA_"), [
+        "CONST_PLACEHOLDER", "CONST_PLACEHOLDER", "ID", "ID", "SEMI",
+    ])
+}
+
+@test
+func test_func_lparen() {
+    _eq_str(_names("func(x) func (x)"), ["FUNC_LPAREN", "ID", "RPAREN", "FUNC", "LPAREN", "ID", "RPAREN", "SEMI"])
+    _eq_str(_lexemes("func(x)"), ["func(", "x", ")", ""])
+}
+
+@test
+func test_lambda() {
+    _eq_str(_names("{|x| x}"), ["LAMBDA_START", "ID", "PIPE", "ID", "RBRACE", "SEMI"])
+    _eq_str(_names("{|| x}"), ["LAMBDA_START_OR", "ID", "RBRACE", "SEMI"])
+    _eq_str(_names("{ | x}"), ["LAMBDA_START", "ID", "RBRACE", "SEMI"])
+    _eq_str(_names("{  || x}"), ["LAMBDA_START_OR", "ID", "RBRACE", "SEMI"])
+    _eq_str(_lexemes("{  || x}"), ["{  ||", "x", "}", ""])
+    // a brace not followed by '|' is just a brace
+    _eq_str(_names("{ x }"), ["LBRACE", "ID", "RBRACE", "SEMI"])
+}
+
+@test
+func test_operators() {
+    let src = "&& || ! == != >= <= += -= *= /= %= &= |= ^= <<= >>= ... << >> ?. !. ?? ? @ + - * / % & | ~ ^ : , ; . = ( ) [ ] { } > <"
+    _eq_str(_names(src), [
+        "AND", "OR", "NOT", "EQ", "NE", "GE", "LE", "PLUS_ASSIGN", "MINUS_ASSIGN", "MULT_ASSIGN",
+        "DIV_ASSIGN", "MOD_ASSIGN", "AND_ASSIGN", "OR_ASSIGN", "XOR_ASSIGN", "SHL_ASSIGN", "SHR_ASSIGN",
+        "DOTDOTDOT", "L_SHIFT", "R_SHIFT", "OPT_DOT", "BANG_DOT", "COALESCE", "QUESTION", "AT", "PLUS",
+        "MINUS", "STAR", "SLASH", "PERCENT", "AMP", "PIPE", "TILDE", "CARET", "COLON", "COMMA", "SEMI",
+        "DOT", "ASSIGN", "LPAREN", "RPAREN", "LBRACKET", "RBRACKET", "LBRACE", "RBRACE", "GT", "LT",
+    ])
+}
+
+@test
+func test_positions() {
+    let toks = klex.tokenize("let x = 1")!
+    ut.assert_eq(toks[0].line, 1)
+    ut.assert_eq(toks[0].col, 1)
+    ut.assert_eq(toks[0].offset, 0)
+    ut.assert_eq(toks[1].col, 5)
+    ut.assert_eq(toks[1].offset, 4)
+    ut.assert_eq(toks[3].col, 9)
+    ut.assert_eq(toks[3].offset, 8)
+}

@@ -1,0 +1,661 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A streaming lexer for Koala source, mirroring `src/parser/koala.l`.
+///
+///     let lex = klex.Lexer("let x = 1\nlet y = 2")
+///     while let t = lex.next_token() {
+///         print(t.kind.name(), t.lexeme)
+///     }
+///
+/// `next_token` returns the next token, or nil at the end of input. The
+/// stream is the compiler's: whitespace and comments are dropped, and a
+/// semicolon with an empty `lexeme` is inserted at a newline that ends a
+/// statement and at the end of input. A `}` followed by `else` across a
+/// newline inserts no semicolon, as in the compiler.
+///
+/// Where it differs from the compiler, on purpose:
+///
+/// - An unterminated literal or block comment is a fatal error: `error()`
+///   holds the message and every later `next_token` returns nil. The
+///   compiler's scanner ends silently instead.
+/// - An unrecognized byte is skipped and recorded in `warnings()`, where the
+///   compiler skips it silently. A raw newline inside a `"..."`, `'...'` or
+///   `b"..."` literal is dropped from the decoded value (the compiler echoes
+///   it to stdout and drops it too) and recorded in `warnings()`.
+pub class Lexer : Iterable[Token] {
+    let _b bytes
+    let _n int
+    let _raw bool
+    var _pos int = 0
+    var _line int = 1
+    var _col int = 1
+    var _prev TokenKind? = nil
+    var _done bool = false
+    var _error str = ""
+    let _warnings list[str]
+
+    pub func __init__(src str, raw = false) {
+        _b = src.to_bytes()
+        _n = _b.len()
+        _raw = raw
+        _warnings = list[str]()
+    }
+
+    /// The fatal lexing error, or "" when there is none.
+    pub func error() str {
+        return _error
+    }
+
+    /// The non-fatal oddities met so far, in source order.
+    pub func warnings() list[str] {
+        return _warnings
+    }
+
+    /// The current 1-based line number.
+    pub func line() int {
+        return _line
+    }
+
+    /// The tokens up to the end of input.
+    pub func iter(step = 1) Iterator[Token] = _Tokens(self)
+
+    /// The next token, or nil at the end of input or after a fatal error.
+    pub func next_token() Token? {
+        if _raw { return _next_raw() }
+        if _done { return nil }
+        while _pos < _n {
+            let c = _b[_pos]
+            if c == ' ' || c == '\t' || c == '\r' {
+                _take(1)
+                continue
+            }
+            if c == '\n' {
+                let nl_line = _line
+                let nl_col = _col
+                let nl_off = _pos
+                _pos += 1
+                _line += 1
+                _col = 1
+                if _prev_is_ender() {
+                    var suppress = false
+                    if let pk = _prev {
+                        if pk == TokenKind.RBRACE {
+                            if _ahead_is_else() { suppress = true }
+                        }
+                    }
+                    if suppress { continue }
+                    _prev = TokenKind.SEMI
+                    return Token(TokenKind.SEMI, "", nil, nl_line, nl_col, nl_off)
+                }
+                continue
+            }
+            if c == '#' {
+                _skip_line_comment()
+                continue
+            }
+            if c == '/' && _pos + 1 < _n {
+                let d = _b[_pos + 1]
+                if d == '/' {
+                    _skip_line_comment()
+                    continue
+                }
+                if d == '*' {
+                    _skip_block_comment()
+                    if _done { return nil }
+                    continue
+                }
+            }
+            let token = _scan()
+            if token != nil { return token }
+            if _done { return nil }
+        }
+        _done = true
+        if _prev_is_ender() {
+            _prev = TokenKind.SEMI
+            return Token(TokenKind.SEMI, "", nil, _line, _col, _pos)
+        }
+        return nil
+    }
+
+    func _prev_is_ender() bool {
+        if let kind = _prev { return _is_ender(kind) }
+        return false
+    }
+
+    // Whether, skipping whitespace and comments from the current position,
+    // the next word is `else` followed by a non-identifier byte. Peeks only.
+    func _ahead_is_else() bool {
+        var j = _pos
+        while j < _n {
+            let c = _b[j]
+            if c == ' ' || c == '\t' || c == '\r' || c == '\n' {
+                j += 1
+                continue
+            }
+            if c == '#' {
+                while j < _n && _b[j] != '\n' { j += 1 }
+                continue
+            }
+            if c == '/' && j + 1 < _n && _b[j + 1] == '/' {
+                while j < _n && _b[j] != '\n' { j += 1 }
+                continue
+            }
+            if c == '/' && j + 1 < _n && _b[j + 1] == '*' {
+                j += 2
+                var closed = false
+                while j < _n {
+                    if _b[j] == '*' && j + 1 < _n && _b[j + 1] == '/' {
+                        j += 2
+                        closed = true
+                        break
+                    }
+                    j += 1
+                }
+                if !closed { return false }
+                continue
+            }
+            break
+        }
+        if j + 4 >= _n { return false }
+        if _b[j] != 'e' || _b[j + 1] != 'l' || _b[j + 2] != 's' || _b[j + 3] != 'e' {
+            return false
+        }
+        return !_is_ident_char(_b[j + 4])
+    }
+
+    // Scan one token at the current position. Returns nil after skipping an
+    // unrecognized byte (a warning is recorded); a fatal error sets _done.
+    func _scan() Token? {
+        let c = _b[_pos]
+        if c == '"' {
+            if _pos + 2 < _n && _b[_pos + 1] == '"' && _b[_pos + 2] == '"' {
+                return _scan_text()
+            }
+            return _scan_quoted('"', false)
+        }
+        if c == '\'' { return _scan_quoted('\'', false) }
+        if c == 'b' && _pos + 1 < _n && _b[_pos + 1] == '"' {
+            return _scan_quoted('"', true)
+        }
+        if _is_ident_start(c) { return _scan_word() }
+        if _is_digit(c) { return _scan_number() }
+        if (c == '+' || c == '-') && _pos + 1 < _n && _is_digit(_b[_pos + 1]) {
+            return _scan_number()
+        }
+        if c == '{' { return _scan_brace() }
+        let op = _scan_operator()
+        if op != nil { return op }
+        _warnings.append(format("line {}, col {}: unrecognized byte {} skipped", _line, _col, int(c)))
+        _take(1)
+        return nil
+    }
+
+    // '{' opens a lambda when the next non-space byte is '|', else a brace.
+    func _scan_brace() Token {
+        var j = _pos + 1
+        while j < _n && (_b[j] == ' ' || _b[j] == '\t') { j += 1 }
+        if j < _n && _b[j] == '|' {
+            if j + 1 < _n && _b[j + 1] == '|' {
+                return _finish(TokenKind.LAMBDA_START_OR, j + 2, nil)
+            }
+            return _finish(TokenKind.LAMBDA_START, j + 1, nil)
+        }
+        return _finish(TokenKind.LBRACE, _pos + 1, nil)
+    }
+
+    // Emit a token covering [_pos, end), capturing its start position first.
+    func _finish(kind TokenKind, end int, value str?) Token {
+        let lexeme = _b.view(_pos, end).to_str()
+        let token = Token(kind, lexeme, value, _line, _col, _pos)
+        _advance_walk(end)
+        _prev = kind
+        return token
+    }
+
+    // Advance to `end`, counting any newlines crossed.
+    func _advance_walk(end int) {
+        while _pos < end {
+            if _b[_pos] == '\n' {
+                _line += 1
+                _col = 1
+            } else {
+                _col += 1
+            }
+            _pos += 1
+        }
+    }
+
+    // Advance over `n` newline-free bytes.
+    func _take(n int) {
+        _pos += n
+        _col += n
+    }
+
+    func _skip_line_comment() {
+        while _pos < _n && _b[_pos] != '\n' {
+            _take(1)
+        }
+    }
+
+    func _skip_block_comment() {
+        let start_line = _line
+        let start_col = _col
+        _take(2)
+        while _pos < _n {
+            if _b[_pos] == '*' && _pos + 1 < _n && _b[_pos + 1] == '/' {
+                _take(2)
+                return
+            }
+            if _b[_pos] == '\n' {
+                _pos += 1
+                _line += 1
+                _col = 1
+            } else {
+                _take(1)
+            }
+        }
+        _error = format("line {}, col {}: unterminated block comment", start_line, start_col)
+        _done = true
+    }
+
+    // The raw (lossless) stream: whitespace, newlines and comments are tokens,
+    // no semicolon is inserted, and every byte is covered by one token. The
+    // literal/word/number/operator scanners are shared with the compiler mode.
+    func _next_raw() Token? {
+        if _done { return nil }
+        if _pos >= _n {
+            _done = true
+            return nil
+        }
+        let c = _b[_pos]
+        if c == '\n' {
+            let line = _line
+            let col = _col
+            let off = _pos
+            _pos += 1
+            _line += 1
+            _col = 1
+            return Token(TokenKind.NEWLINE, "\n", nil, line, col, off)
+        }
+        if c == ' ' || c == '\t' || c == '\r' { return _scan_ws() }
+        if c == '#' { return _scan_line_comment() }
+        if c == '/' && _pos + 1 < _n {
+            let d = _b[_pos + 1]
+            if d == '/' { return _scan_line_comment() }
+            if d == '*' { return _scan_block_comment() }
+        }
+        let off = _pos
+        let line = _line
+        let col = _col
+        let token = _scan()
+        if token != nil { return token }
+        if _done { return nil }
+        // _scan skipped one unrecognized byte; keep it verbatim for losslessness
+        let lexeme = _b.view(off, _pos).to_str()
+        return Token(TokenKind.UNKNOWN, lexeme, nil, line, col, off)
+    }
+
+    // A run of space/tab/CR (newlines are separate NEWLINE tokens).
+    func _scan_ws() Token {
+        let line = _line
+        let col = _col
+        let off = _pos
+        var j = _pos
+        while j < _n {
+            let ch = _b[j]
+            if ch == ' ' || ch == '\t' || ch == '\r' {
+                j += 1
+            } else {
+                break
+            }
+        }
+        let lexeme = _b.view(off, j).to_str()
+        _take(j - off)
+        return Token(TokenKind.WS, lexeme, nil, line, col, off)
+    }
+
+    // A // # /// comment up to but not including the newline.
+    func _scan_line_comment() Token {
+        let line = _line
+        let col = _col
+        let off = _pos
+        var j = _pos
+        while j < _n && _b[j] != '\n' { j += 1 }
+        let lexeme = _b.view(off, j).to_str()
+        _take(j - off)
+        return Token(TokenKind.LINE_COMMENT, lexeme, nil, line, col, off)
+    }
+
+    // A /* ... */ comment verbatim, possibly spanning lines. An unterminated
+    // one is preserved to end of input (lossless) and reported as a fatal error.
+    func _scan_block_comment() Token {
+        let line = _line
+        let col = _col
+        let off = _pos
+        _take(2)
+        while _pos < _n {
+            if _b[_pos] == '*' && _pos + 1 < _n && _b[_pos + 1] == '/' {
+                _take(2)
+                let lexeme = _b.view(off, _pos).to_str()
+                return Token(TokenKind.BLOCK_COMMENT, lexeme, nil, line, col, off)
+            }
+            if _b[_pos] == '\n' {
+                _pos += 1
+                _line += 1
+                _col = 1
+            } else {
+                _take(1)
+            }
+        }
+        let lexeme = _b.view(off, _n).to_str()
+        _error = format("line {}, col {}: unterminated block comment", line, col)
+        _done = true
+        return Token(TokenKind.BLOCK_COMMENT, lexeme, nil, line, col, off)
+    }
+
+    func _scan_word() Token {
+        var j = _pos
+        while j < _n && _is_ident_char(_b[j]) { j += 1 }
+        let word = _b.view(_pos, j).to_str()
+        if word == "func" && j < _n && _b[j] == '(' {
+            return _finish(TokenKind.FUNC_LPAREN, j + 1, nil)
+        }
+        if word == "_" { return _finish(TokenKind.UNDERSCORE, j, nil) }
+        if _is_placeholder(word) { return _finish(TokenKind.CONST_PLACEHOLDER, j, nil) }
+        if let kind = _KEYWORDS.get(word) {
+            return _finish(kind, j, nil)
+        }
+        return _finish(TokenKind.ID, j, nil)
+    }
+
+    func _scan_number() Token {
+        var i = _pos
+        if _b[i] == '+' || _b[i] == '-' { i += 1 }
+        // a base-prefixed integer needs a base digit right after the prefix
+        if i + 1 < _n && _b[i] == '0' {
+            let p = _b[i + 1]
+            var base = 0
+            if p == 'b' || p == 'B' { base = 2 }
+            if p == 'o' || p == 'O' { base = 8 }
+            if p == 'x' || p == 'X' { base = 16 }
+            if base != 0 && i + 2 < _n && _is_base_digit(_b[i + 2], base) {
+                var j = i + 2
+                var last = j
+                while j < _n {
+                    let ch = _b[j]
+                    if _is_base_digit(ch, base) {
+                        last = j
+                        j += 1
+                    } else if ch == '_' {
+                        j += 1
+                    } else {
+                        break
+                    }
+                }
+                let end = last + 1
+                let lexeme = _b.view(_pos, end).to_str()
+                let value = _normalize_number(lexeme, base)
+                return _finish(TokenKind.INT_LITERAL, end, value)
+            }
+        }
+        // decimal integer, then an optional float tail (no '_' in a float)
+        var j = i
+        var last = -1
+        var has_under = false
+        while j < _n {
+            let ch = _b[j]
+            if _is_digit(ch) {
+                last = j
+                j += 1
+            } else if ch == '_' {
+                has_under = true
+                j += 1
+            } else {
+                break
+            }
+        }
+        var end = last + 1
+        var is_float = false
+        if !has_under {
+            if end < _n && _b[end] == '.' && end + 1 < _n && _is_digit(_b[end + 1]) {
+                var k = end + 1
+                while k < _n && _is_digit(_b[k]) { k += 1 }
+                end = k
+                is_float = true
+            }
+            if end < _n && (_b[end] == 'e' || _b[end] == 'E') {
+                var k = end + 1
+                if k < _n && (_b[k] == '+' || _b[k] == '-') { k += 1 }
+                if k < _n && _is_digit(_b[k]) {
+                    while k < _n && _is_digit(_b[k]) { k += 1 }
+                    end = k
+                    is_float = true
+                }
+            }
+        }
+        let lexeme = _b.view(_pos, end).to_str()
+        var kind = TokenKind.INT_LITERAL
+        if is_float { kind = TokenKind.FLOAT_LITERAL }
+        let value = _normalize_number(lexeme, 10)
+        return _finish(kind, end, value)
+    }
+
+    // A "..." string, '...' char or b"..." bytes literal. `quote` is the
+    // closing byte; `is_bytes` marks the b"..." form (its lexeme starts at
+    // the 'b'). Escapes resolve as koala.l's; an unknown escape keeps its
+    // backslash and the following byte is taken literally.
+    func _scan_quoted(quote uint8, is_bytes bool) Token? {
+        let start_line = _line
+        let start_col = _col
+        let start_off = _pos
+        _take(1)
+        if is_bytes { _take(1) }
+        let buf = Buffer()
+        while _pos < _n {
+            let ch = _b[_pos]
+            if ch == quote {
+                let end = _pos + 1
+                let lexeme = _b.view(start_off, end).to_str()
+                var kind = TokenKind.STRING_LITERAL
+                if is_bytes { kind = TokenKind.BYTES_LITERAL }
+                if quote == '\'' { kind = TokenKind.CHAR_LITERAL }
+                _take(1)
+                _prev = kind
+                return Token(kind, lexeme, buf.to_str(), start_line, start_col, start_off)
+            }
+            if ch == '\\' {
+                if _pos + 1 >= _n { break }
+                let nx = _b[_pos + 1]
+                if nx == quote {
+                    buf.write_byte(quote)
+                    _take(2)
+                    continue
+                }
+                if nx == 'n' {
+                    buf.write_byte('\n')
+                    _take(2)
+                    continue
+                }
+                if nx == 't' {
+                    buf.write_byte('\t')
+                    _take(2)
+                    continue
+                }
+                if nx == 'r' {
+                    buf.write_byte('\r')
+                    _take(2)
+                    continue
+                }
+                if nx == '\\' {
+                    buf.write_byte('\\')
+                    _take(2)
+                    continue
+                }
+                if nx == 'x' && _pos + 3 < _n {
+                    let hi = _hex_val(_b[_pos + 2])
+                    let lo = _hex_val(_b[_pos + 3])
+                    if hi >= 0 && lo >= 0 {
+                        buf.write_byte(uint8(hi * 16 + lo))
+                        _take(4)
+                        continue
+                    }
+                }
+                buf.write_byte('\\')
+                _take(1)
+                continue
+            }
+            if ch == '\n' {
+                _warnings.append(format("line {}, col {}: newline in a quoted literal dropped from its value", _line, _col))
+                _pos += 1
+                _line += 1
+                _col = 1
+                continue
+            }
+            buf.write_byte(ch)
+            _take(1)
+        }
+        _error = format("line {}, col {}: unterminated literal", start_line, start_col)
+        _done = true
+        return nil
+    }
+
+    // A """...""" text block: raw content, no escapes, newlines kept.
+    func _scan_text() Token? {
+        let start_line = _line
+        let start_col = _col
+        let start_off = _pos
+        _take(3)
+        let buf = Buffer()
+        while _pos < _n {
+            if _b[_pos] == '"' && _pos + 2 < _n && _b[_pos + 1] == '"' && _b[_pos + 2] == '"' {
+                let end = _pos + 3
+                let lexeme = _b.view(start_off, end).to_str()
+                _take(3)
+                _prev = TokenKind.STRING_LITERAL
+                return Token(TokenKind.STRING_LITERAL, lexeme, buf.to_str(), start_line, start_col, start_off)
+            }
+            let ch = _b[_pos]
+            buf.write_byte(ch)
+            if ch == '\n' {
+                _pos += 1
+                _line += 1
+                _col = 1
+            } else {
+                _take(1)
+            }
+        }
+        _error = format("line {}, col {}: unterminated text block", start_line, start_col)
+        _done = true
+        return nil
+    }
+
+    func _next_is(c uint8) bool {
+        return _pos + 1 < _n && _b[_pos + 1] == c
+    }
+
+    func _at(i int, c uint8) bool {
+        return i < _n && _b[i] == c
+    }
+
+    func _op1(kind TokenKind) Token {
+        return _finish(kind, _pos + 1, nil)
+    }
+
+    func _op2(kind TokenKind) Token {
+        return _finish(kind, _pos + 2, nil)
+    }
+
+    func _op3(kind TokenKind) Token {
+        return _finish(kind, _pos + 3, nil)
+    }
+
+    // The operators and punctuation, longest match first. '{' is handled by
+    // _scan_brace before this is reached.
+    func _scan_operator() Token? {
+        let c = _b[_pos]
+        switch c {
+            case '(': return _op1(TokenKind.LPAREN)
+            case ')': return _op1(TokenKind.RPAREN)
+            case '[': return _op1(TokenKind.LBRACKET)
+            case ']': return _op1(TokenKind.RBRACKET)
+            case '}': return _op1(TokenKind.RBRACE)
+            case ',': return _op1(TokenKind.COMMA)
+            case ';': return _op1(TokenKind.SEMI)
+            case ':': return _op1(TokenKind.COLON)
+            case '@': return _op1(TokenKind.AT)
+            case '~': return _op1(TokenKind.TILDE)
+            case '?': {
+                if _next_is('.') { return _op2(TokenKind.OPT_DOT) }
+                if _next_is('?') { return _op2(TokenKind.COALESCE) }
+                return _op1(TokenKind.QUESTION)
+            }
+            case '!': {
+                if _next_is('=') { return _op2(TokenKind.NE) }
+                if _next_is('.') { return _op2(TokenKind.BANG_DOT) }
+                return _op1(TokenKind.NOT)
+            }
+            case '=': {
+                if _next_is('=') { return _op2(TokenKind.EQ) }
+                return _op1(TokenKind.ASSIGN)
+            }
+            case '+': {
+                if _next_is('=') { return _op2(TokenKind.PLUS_ASSIGN) }
+                return _op1(TokenKind.PLUS)
+            }
+            case '-': {
+                if _next_is('=') { return _op2(TokenKind.MINUS_ASSIGN) }
+                return _op1(TokenKind.MINUS)
+            }
+            case '*': {
+                if _next_is('=') { return _op2(TokenKind.MULT_ASSIGN) }
+                return _op1(TokenKind.STAR)
+            }
+            case '/': {
+                if _next_is('=') { return _op2(TokenKind.DIV_ASSIGN) }
+                return _op1(TokenKind.SLASH)
+            }
+            case '%': {
+                if _next_is('=') { return _op2(TokenKind.MOD_ASSIGN) }
+                return _op1(TokenKind.PERCENT)
+            }
+            case '&': {
+                if _next_is('&') { return _op2(TokenKind.AND) }
+                if _next_is('=') { return _op2(TokenKind.AND_ASSIGN) }
+                return _op1(TokenKind.AMP)
+            }
+            case '|': {
+                if _next_is('|') { return _op2(TokenKind.OR) }
+                if _next_is('=') { return _op2(TokenKind.OR_ASSIGN) }
+                return _op1(TokenKind.PIPE)
+            }
+            case '^': {
+                if _next_is('=') { return _op2(TokenKind.XOR_ASSIGN) }
+                return _op1(TokenKind.CARET)
+            }
+            case '<': {
+                if _next_is('<') {
+                    if _at(_pos + 2, '=') { return _op3(TokenKind.SHL_ASSIGN) }
+                    return _op2(TokenKind.L_SHIFT)
+                }
+                if _next_is('=') { return _op2(TokenKind.LE) }
+                return _op1(TokenKind.LT)
+            }
+            case '>': {
+                if _next_is('>') {
+                    if _at(_pos + 2, '=') { return _op3(TokenKind.SHR_ASSIGN) }
+                    return _op2(TokenKind.R_SHIFT)
+                }
+                if _next_is('=') { return _op2(TokenKind.GE) }
+                return _op1(TokenKind.GT)
+            }
+            case '.': {
+                if _next_is('.') && _at(_pos + 2, '.') { return _op3(TokenKind.DOTDOTDOT) }
+                return _op1(TokenKind.DOT)
+            }
+            case _: return nil
+        }
+    }
+}

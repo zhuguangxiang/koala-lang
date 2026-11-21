@@ -1,0 +1,127 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/klex"
+
+func _raw(src str) list[klex.Token] {
+    let toks = klex.tokenize_raw(src)
+    ut.assert_true(toks != nil)
+    return toks!
+}
+
+func _kinds(src str) list[str] {
+    let out = list[str]()
+    for t in _raw(src) { out.append(t.kind.name()) }
+    return out
+}
+
+func _eq(got list[str], want list[str]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) { ut.assert_eq(got[i], want[i]) }
+}
+
+// Concatenating every raw lexeme reproduces the source byte for byte.
+func _roundtrip(src str) {
+    var out = ""
+    for t in _raw(src) { out += t.lexeme }
+    ut.assert_eq(out, src)
+}
+
+@test
+func test_roundtrip() {
+    _roundtrip("let x = 1 + 2\n")
+    _roundtrip("  let x = 1   // note\n  let y = 2\n")
+    _roundtrip("x /* a\nb */ y")
+    _roundtrip("func main() {\n    print(\"hi\")\n}\n")
+    _roundtrip("# header\n/// doc\nlet s = \"a\\nb\"\n")
+    _roundtrip("")
+    _roundtrip("\n\n  \n")
+}
+
+@test
+func test_no_inserted_semi() {
+    for t in _raw("x\ny\n") { ut.assert_true(!t.is_inserted_semi()) }
+    _eq(_kinds("x\ny"), ["ID", "NEWLINE", "ID"])
+    _eq(_kinds("return\n"), ["RETURN", "NEWLINE"])
+}
+
+@test
+func test_trivia_kinds() {
+    _eq(_kinds("x // note\ny"), ["ID", "WS", "LINE_COMMENT", "NEWLINE", "ID"])
+    _eq(_kinds("x /* note */ y"), ["ID", "WS", "BLOCK_COMMENT", "WS", "ID"])
+    _eq(_kinds("  x"), ["WS", "ID"])
+    _eq(_kinds("a\n\nb"), ["ID", "NEWLINE", "NEWLINE", "ID"])
+}
+
+@test
+func test_lexemes_verbatim() {
+    let toks = _raw("x // note\ny")
+    ut.assert_eq(toks[1].lexeme, " ")
+    ut.assert_eq(toks[2].lexeme, "// note")
+    ut.assert_eq(toks[3].lexeme, "\n")
+    let b = _raw("x /* a\nb */ y")
+    ut.assert_eq(b[2].lexeme, "/* a\nb */")
+}
+
+@test
+func test_is_trivia() {
+    let toks = _raw("x // c\ny")
+    ut.assert_true(!toks[0].is_trivia())
+    ut.assert_true(toks[1].is_trivia())
+    ut.assert_true(toks[2].is_trivia())
+    ut.assert_true(toks[3].is_trivia())
+    ut.assert_true(!toks[4].is_trivia())
+}
+
+@test
+func test_positions() {
+    let toks = _raw("x\n  y")
+    ut.assert_eq(toks[0].line, 1)
+    ut.assert_eq(toks[0].offset, 0)
+    ut.assert_eq(toks[1].kind.name(), "NEWLINE")
+    ut.assert_eq(toks[2].kind.name(), "WS")
+    ut.assert_eq(toks[2].line, 2)
+    ut.assert_eq(toks[2].col, 1)
+    ut.assert_eq(toks[3].kind.name(), "ID")
+    ut.assert_eq(toks[3].line, 2)
+    ut.assert_eq(toks[3].col, 3)
+}
+
+@test
+func test_unknown_byte_lossless() {
+    _roundtrip("a\x01b")
+    let toks = _raw("a\x01b")
+    _eq(_kinds("a\x01b"), ["ID", "UNKNOWN", "ID"])
+    ut.assert_eq(toks[1].lexeme, "\x01")
+}
+
+@test
+func test_block_comment_spans_lines() {
+    let toks = _raw("x /* a\nb\nc */ y")
+    ut.assert_eq(toks[2].kind.name(), "BLOCK_COMMENT")
+    ut.assert_eq(toks[2].lexeme, "/* a\nb\nc */")
+    ut.assert_eq(toks[2].line, 1)
+    ut.assert_eq(toks[4].line, 3)
+}
+
+@test
+func test_unterminated_block_comment() {
+    ut.assert_true(klex.tokenize_raw("x /* open") == nil)
+    let lex = klex.Lexer("/* open", raw=true)
+    let t = lex.next_token()
+    ut.assert_true(t != nil)
+    ut.assert_eq(t!.lexeme, "/* open")
+    ut.assert_true(lex.error().len() > 0)
+    ut.assert_true(lex.next_token() == nil)
+}
+
+@test
+func test_default_mode_unchanged() {
+    // the compiler stream still drops trivia and inserts semicolons
+    let names = list[str]()
+    for t in klex.tokenize("x // c\ny")! { names.append(t.kind.name()) }
+    _eq(names, ["ID", "SEMI", "ID", "SEMI"])
+}

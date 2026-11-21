@@ -30,4 +30,5 @@ packages = [
     "readline",
     "openai",
     "sse",
+    "klex",
 ]

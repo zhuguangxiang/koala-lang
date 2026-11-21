@@ -1,0 +1,88 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/klex"
+
+func _names(src str) list[str] {
+    let toks = klex.tokenize(src)
+    ut.assert_true(toks != nil)
+    let out = list[str]()
+    for t in toks! { out.append(t.kind.name()) }
+    return out
+}
+
+func _eq(got list[str], want list[str]) {
+    ut.assert_eq(got.len(), want.len())
+    for i in range(want.len()) { ut.assert_eq(got[i], want[i]) }
+}
+
+@test
+func test_newline_inserts_semi() {
+    _eq(_names("x\ny"), ["ID", "SEMI", "ID", "SEMI"])
+    _eq(_names("return\n"), ["RETURN", "SEMI"])
+    _eq(_names("a)\n"), ["ID", "RPAREN", "SEMI"])
+    _eq(_names("a]\n"), ["ID", "RBRACKET", "SEMI"])
+    _eq(_names("a?\n"), ["ID", "QUESTION", "SEMI"])
+    _eq(_names("!\n"), ["NOT", "SEMI"])
+}
+
+@test
+func test_non_ender_no_semi() {
+    // these kinds do not end a statement, so a newline inserts nothing
+    _eq(_names("let\nx"), ["LET", "ID", "SEMI"])
+    _eq(_names("var\nx"), ["VAR", "ID", "SEMI"])
+    _eq(_names("if\nx"), ["IF", "ID", "SEMI"])
+    _eq(_names("list\nx"), ["LIST", "ID", "SEMI"])
+    _eq(_names("dict\nx"), ["MAP", "ID", "SEMI"])
+    _eq(_names("a +\nb"), ["ID", "PLUS", "ID", "SEMI"])
+    _eq(_names("func\nx"), ["FUNC", "ID", "SEMI"])
+}
+
+@test
+func test_eof_semi() {
+    _eq(_names("x"), ["ID", "SEMI"])
+    _eq(_names("1"), ["INT_LITERAL", "SEMI"])
+    _eq(_names("return"), ["RETURN", "SEMI"])
+    // a non-ender at the end inserts nothing
+    _eq(_names("let"), ["LET"])
+    _eq(_names("+"), ["PLUS"])
+    // a trailing newline already inserted the semi; EOF adds no second one
+    _eq(_names("x\n"), ["ID", "SEMI"])
+}
+
+@test
+func test_brace_else_suppression() {
+    // a } followed by else across a newline inserts no semicolon
+    _eq(_names("if a {\n}\nelse {\n}"), ["IF", "ID", "LBRACE", "RBRACE", "ELSE", "LBRACE", "RBRACE", "SEMI"])
+    // same line, of course, also has none
+    _eq(_names("if a {\n} else {\n}"), ["IF", "ID", "LBRACE", "RBRACE", "ELSE", "LBRACE", "RBRACE", "SEMI"])
+}
+
+@test
+func test_brace_else_with_comments() {
+    // comments and blank lines between } and else do not defeat the suppression
+    _eq(_names("if a {\n}\n// note\nelse {\n}"), ["IF", "ID", "LBRACE", "RBRACE", "ELSE", "LBRACE", "RBRACE", "SEMI"])
+    _eq(_names("if a {\n}\n/* note\nmore */\nelse {\n}"), ["IF", "ID", "LBRACE", "RBRACE", "ELSE", "LBRACE", "RBRACE", "SEMI"])
+    _eq(_names("if a {\n}\n\n  # note\nelse {\n}"), ["IF", "ID", "LBRACE", "RBRACE", "ELSE", "LBRACE", "RBRACE", "SEMI"])
+}
+
+@test
+func test_else_lookalike_inserts_semi() {
+    // "elsewhere" is not the keyword else, so the semicolon is inserted
+    _eq(_names("if a {\n}\nelsewhere"), ["IF", "ID", "LBRACE", "RBRACE", "SEMI", "ID", "SEMI"])
+    // a } not followed by else inserts its semicolon
+    _eq(_names("if a {\n}\nx"), ["IF", "ID", "LBRACE", "RBRACE", "SEMI", "ID", "SEMI"])
+}
+
+@test
+func test_inserted_semi_flag() {
+    let ts = klex.tokenize("x\ny")!
+    ut.assert_true(ts[1].is_inserted_semi())
+    ut.assert_eq(ts[1].lexeme, "")
+    let ts2 = klex.tokenize("x;")!
+    ut.assert_false(ts2[1].is_inserted_semi())
+    ut.assert_eq(ts2[1].lexeme, ";")
+}
