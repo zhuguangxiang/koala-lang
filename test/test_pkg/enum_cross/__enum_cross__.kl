@@ -11,3 +11,27 @@ enum Hidden {
 pub func echo(proto Proto) Proto {
     return proto
 }
+
+// A class whose pub field is an enum, persisted in this package's .klc and
+// re-read by importers. Exercises enum typespec fixup on a class field.
+pub class Holder {
+    pub var proto Proto
+    pub var label str
+
+    pub func __init__(p Proto, l str) {
+        proto = p
+        label = l
+    }
+
+    pub func is_tcp() bool {
+        return proto == Proto.TCP
+    }
+}
+
+pub func make_holder(p Proto) Holder {
+    return Holder(p, "made")
+}
+
+pub func holder_proto(h Holder) Proto {
+    return h.proto
+}

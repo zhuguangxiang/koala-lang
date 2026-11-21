@@ -12,7 +12,17 @@ func main() {
     let max_value = enum_cross.Proto.MAX
     let raw int = max_value
     print(raw)
+
+    // a class field whose type is an enum, persisted in the package .klc
+    let h = enum_cross.Holder(enum_cross.Proto.TCP, "x")
+    print(h.proto.name())
+    print(h.is_tcp())
+    let m = enum_cross.make_holder(enum_cross.Proto.MAX)
+    print(enum_cross.holder_proto(m).name())
 }
 
 // CHECK: cross-package enum
 // CHECK: 9223372036854775807
+// CHECK: TCP
+// CHECK: true
+// CHECK: MAX

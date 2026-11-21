@@ -41,8 +41,11 @@ var clock = ui.Label("--:--:--")
 var counter = ui.Label("0")
 var fs_state = ui.Label("Windowed")
 
+// DateTime.now() 返回 UTC；本地墙钟要走命名时区（datetime 暂无系统本地时区自动检测）。
+let local_zone = datetime.ZoneInfo("Asia/Shanghai")
+
 func clock_text() str {
-    let dt = datetime.DateTime.now()
+    let dt = local_zone.now()
     return format("{:02d}:{:02d}:{:02d}", dt.hour, dt.minute, dt.second)
 }
 

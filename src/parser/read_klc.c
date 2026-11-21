@@ -65,8 +65,12 @@ static inline int ts_need_fixup(TypeSpec *ts)
     }
 
     if (ts->kind == TYPE_ENUM) {
-        ASSERT(ts->sym_id >= 0);
-        return 0;
+        /* An enum typespec read from a .klc always starts with sym_id == -1
+           (see __to_enum_type), whether the enum is local or imported. Register
+           it for fixup like a class type so it is resolved at load time (e.g.
+           bowerbird FTok's `pub let kind klex.TokenKind` field), instead of
+           asserting it is already resolved. */
+        return ts->sym_id < 0;
     }
 
     return ts->kind == TYPE_GENERIC_REF || ts->kind == TYPE_GENERIC_VAR ||

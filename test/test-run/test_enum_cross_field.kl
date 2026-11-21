@@ -1,0 +1,32 @@
+// RUN: koala %s | filecheck %s
+// Cross-package enum as a class field: the class is defined in THIS module
+// (the test source) and its field type is enum_cross.Proto, an enum from an
+// OUTER module. Reuses test_pkg/enum_cross.Proto; no extra package needed.
+// The field is an immutable `let`, mirroring bowerbird FTok's
+// `pub let kind klex.TokenKind`.
+
+import "test_pkg/enum_cross"
+
+class Holder {
+    let proto enum_cross.Proto
+    var label str
+
+    func __init__(p enum_cross.Proto, l str) {
+        proto = p
+        label = l
+    }
+
+    func is_tcp() bool {
+        return proto == enum_cross.Proto.TCP
+    }
+}
+
+func main() {
+    let h = Holder(enum_cross.Proto.TCP, "x")
+    print(h.proto.name())
+    // CHECK: TCP
+    print(h.is_tcp())
+    // CHECK: true
+    print(h.label)
+    // CHECK: x
+}
