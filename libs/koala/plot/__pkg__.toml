@@ -1,0 +1,6 @@
+[package]
+name = "koala/plot"
+version = "0.1.0"
+description = "Matplotlib-style plotting for Koala ML - pure-Koala figure spec with resolved pixel geometry, dumb canvas-2D renderer over the system webview"
+dependencies = ["koala/json", "koala/math", "koala/webview"]
+natives = []

@@ -577,9 +577,11 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                     // non-optional shadow var → unbox
 
                     KlrValue *val;
-                    if (var_sym->scope == VAR_SCOPE_FIELD) {
+                    if (var_sym->scope == VAR_SCOPE_GLOBAL) {
+                        val = klr_build_get_global(&bldr, origin->ir_val);
+                    } else if (var_sym->scope == VAR_SCOPE_FIELD) {
                         KlrValue *self = METHOD_SELF;
-                        val = klr_build_get_field(&bldr, self, origin->ir_val, exp->ts, "");
+                        val = klr_build_get_field(&bldr, self, origin->ir_val, origin->ts, "");
                     } else {
                         val = origin->ir_val;
                     }
@@ -593,8 +595,16 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                         exp->ir_val = val;
                     }
                 } else {
-                    // optional shadow var → no unbox
-                    exp->ir_val = origin->ir_val;
+                    // optional shadow var → no unbox, but a global/field still needs a load
+                    if (var_sym->scope == VAR_SCOPE_GLOBAL) {
+                        exp->ir_val = klr_build_get_global(&bldr, origin->ir_val);
+                    } else if (var_sym->scope == VAR_SCOPE_FIELD) {
+                        KlrValue *self = METHOD_SELF;
+                        exp->ir_val =
+                            klr_build_get_field(&bldr, self, origin->ir_val, origin->ts, "");
+                    } else {
+                        exp->ir_val = origin->ir_val;
+                    }
                 }
             } else {
                 ASSERT(exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE);

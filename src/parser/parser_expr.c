@@ -1859,10 +1859,17 @@ static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp, Vector *tp_arg
 
         /* Case 1: arg is a concrete type → existing logic */
         if (ts->kind != TYPE_GENERIC_VAR) {
-            Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
-            ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
-            compatible = type_spec_compatible(_bound, ts);
-            if (!compatible) compatible = number_base_satisfies_bound(_bound, ts, ps);
+            if (ts->kind == TYPE_ENUM) {
+                /* An enum type argument: its symbol carries a TYPE_ENUM
+                   typespec rather than a TYPE_TYPE metatype, so the class
+                   invariant below does not apply. Check the bound directly. */
+                compatible = type_spec_compatible(_bound, ts);
+            } else {
+                Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+                ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
+                compatible = type_spec_compatible(_bound, ts);
+                if (!compatible) compatible = number_base_satisfies_bound(_bound, ts, ps);
+            }
         } else {
             /*
              * Case 2: 'ts' is a generic variable (e.g., U passed to T).

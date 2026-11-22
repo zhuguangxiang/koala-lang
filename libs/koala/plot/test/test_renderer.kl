@@ -1,0 +1,115 @@
+// RUN: koala --test %s
+
+// Headless tests for the renderer payload (renderer.kl) and the show/savehtml
+// exits (pyplot.kl). No display is needed: figure_html is pure string
+// composition, savehtml writes a file, and the html backend of show() is
+// exercised through KOALA_PLOT_BACKEND. The blocking webview show() is a
+// manual/live check, not part of regression (docs/koala_ml.md §6.5).
+
+import "std/ut"
+import "std/fs"
+import "std/os"
+import "koala/plot" as plt
+
+@test
+func test_html_canvas_default_size() {
+    plt.close()
+    let html = plt.figure_html(plt.figure())
+    let needle = """<canvas id="plot" width="640" height="480">"""
+    ut.assert_true(html.index(needle) >= 0)
+}
+
+@test
+func test_html_canvas_custom_size() {
+    let fig = plt.figure(figsize = (8.0, 6.0), dpi = 100)
+    let html = plt.figure_html(fig)
+    let needle = """<canvas id="plot" width="800" height="600">"""
+    ut.assert_true(html.index(needle) >= 0)
+}
+
+@test
+func test_html_embeds_spec() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("window.__plot_spec") >= 0)
+    ut.assert_true(html.index("""background":"#ffffff""") >= 0)
+}
+
+@test
+func test_html_embeds_painter() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("getContext") >= 0)
+    ut.assert_true(html.index("paintContour") >= 0)
+    ut.assert_true(html.index("createImageData") >= 0)
+}
+
+@test
+func test_html_embeds_line_scatter() {
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.scatter([0.0, 1.0], [1.0, 0.0])
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("""kind":"line""") >= 0)
+    ut.assert_true(html.index("""kind":"scatter""") >= 0)
+}
+
+@test
+func test_html_embeds_contour_image_hist() {
+    plt.figure()
+    plt.contour([[0.0, 1.0], [0.0, 1.0]], [0.5])
+    plt.imshow([[0.0, 1.0], [2.0, 3.0]])
+    plt.hist([0.0, 1.0, 2.0], 2)
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("""kind":"contour""") >= 0)
+    ut.assert_true(html.index("""kind":"image""") >= 0)
+    ut.assert_true(html.index("""kind":"hist""") >= 0)
+}
+
+func read_file(path str) str {
+    let buf = bytes(int(fs.size(path)))
+    let n = fs.read_bytes(path, buf)
+    return buf.view(0, n).to_str()
+}
+
+@test
+func test_savehtml_roundtrip() {
+    let path = fs.temp_dir().to_str() + "/koala_plot_ut.html"
+    fs.remove(path)
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.title("hello plot")
+    plt.savehtml(path)
+    ut.assert_true(fs.exists(path))
+    let content = read_file(path)
+    ut.assert_true(content.index("<canvas") >= 0)
+    ut.assert_true(content.index("hello plot") >= 0)
+    ut.assert_true(content.index("window.__plot_spec") >= 0)
+    ut.assert_true(fs.remove(path))
+}
+
+@test
+func test_show_html_backend() {
+    os.setenv("KOALA_PLOT_BACKEND", "html")
+    fs.remove("plot.html")
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.show()
+    ut.assert_true(fs.exists("plot.html"))
+    ut.assert_true(read_file("plot.html").index("<canvas") >= 0)
+    ut.assert_true(fs.remove("plot.html"))
+    os.unsetenv("KOALA_PLOT_BACKEND")
+}
+
+@should_panic("plot.savehtml: cannot write '/no_such_dir_koala_xyz/plot.html'")
+func test_savehtml_bad_path() {
+    plt.figure()
+    plt.savehtml("/no_such_dir_koala_xyz/plot.html")
+}
+
+@should_panic("plot.show: unknown KOALA_PLOT_BACKEND 'bogus'")
+func test_show_unknown_backend() {
+    os.setenv("KOALA_PLOT_BACKEND", "bogus")
+    plt.figure()
+    plt.show()
+}

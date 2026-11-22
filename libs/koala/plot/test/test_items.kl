@@ -1,0 +1,182 @@
+// RUN: koala --test %s
+
+// Unit tests for the plot data artists + Axes.plot/scatter + autoscale +
+// items/legend spec serialization (items.kl / figure.kl).
+
+import "std/ut"
+import "koala/plot"
+import "koala/json"
+
+func first_axes(fig plot.Figure) json.Object {
+    return fig.to_spec().get_array("axes").get_object(0)
+}
+
+@test
+func test_plot_basic_autoscale() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    let a = first_axes(fig)
+    let items = a.get_array("items")
+    ut.assert_int_eq(items.len(), 1)
+    ut.assert_eq(items.get_object(0).get_str("kind"), "line")
+    ut.assert_int_eq(items.get_object(0).get_array("points").len(), 3)
+    ut.assert_eq(items.get_object(0).get_str("color"), "#1f77b4")
+    // autoscale x [0,2] -> (-0.1, 2.1), y [0,4] -> (-0.2, 4.2)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), -0.1)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.1)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), -0.2)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 4.2)
+}
+
+@test
+func test_plot_single_arg_index_x() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0, 4.0])
+    let a = first_axes(fig)
+    ut.assert_int_eq(a.get_array("items").get_object(0).get_array("points").len(), 3)
+    // x defaults to 0..2 -> autoscale (-0.1, 2.1)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), -0.1)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.1)
+}
+
+@test
+func test_plot_resolved_pixels() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(0.0, 10.0)
+    ax.set_ylim(0.0, 100.0)
+    ax.plot([0.0, 10.0], [0.0, 100.0])
+    let pts = first_axes(fig).get_array("items").get_object(0).get_array("points")
+    ut.assert_float_close(pts.get_object(0).get_float("x"), 70.0)
+    ut.assert_float_close(pts.get_object(0).get_float("y"), 420.0)
+    ut.assert_float_close(pts.get_object(1).get_float("x"), 610.0)
+    ut.assert_float_close(pts.get_object(1).get_float("y"), 50.0)
+}
+
+@test
+func test_plot_color_cycle() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.plot([0.0, 1.0], [1.0, 0.0])
+    let items = first_axes(fig).get_array("items")
+    ut.assert_eq(items.get_object(0).get_str("color"), "#1f77b4")
+    ut.assert_eq(items.get_object(1).get_str("color"), "#ff7f0e")
+}
+
+@test
+func test_plot_explicit_color() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0], color = "r")
+    let it = first_axes(fig).get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("color"), "#ff0000")
+}
+
+@test
+func test_plot_style() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0], linestyle = "--", linewidth = 2.5, marker = "o")
+    let it = first_axes(fig).get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("linestyle"), "--")
+    ut.assert_float_close(it.get_float("linewidth"), 2.5)
+    ut.assert_eq(it.get_str("marker"), "o")
+}
+
+@test
+func test_plot_legend_entries() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0], label = "a")
+    ax.plot([0.0, 1.0], [1.0, 0.0])
+    ax.legend()
+    let leg = first_axes(fig).get_object("legend")
+    ut.assert_true(leg.get_bool("show"))
+    let entries = leg.get_array("entries")
+    ut.assert_int_eq(entries.len(), 1)
+    ut.assert_eq(entries.get_object(0).get_str("label"), "a")
+    ut.assert_eq(entries.get_object(0).get_str("kind"), "line")
+    ut.assert_eq(entries.get_object(0).get_str("color"), "#1f77b4")
+}
+
+@test
+func test_scatter_basic() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.scatter([0.0, 1.0], [1.0, 0.0], s = 50.0, c = "b", marker = "x", label = "pts")
+    let it = first_axes(fig).get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("kind"), "scatter")
+    ut.assert_eq(it.get_str("marker"), "x")
+    ut.assert_float_close(it.get_float("size"), 50.0)
+    ut.assert_eq(it.get_str("color"), "#0000ff")
+    ut.assert_int_eq(it.get_array("points").len(), 2)
+    ax.legend()
+    let e = first_axes(fig).get_object("legend").get_array("entries").get_object(0)
+    ut.assert_eq(e.get_str("kind"), "scatter")
+    ut.assert_eq(e.get_str("label"), "pts")
+}
+
+@test
+func test_scatter_defaults() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.scatter([0.0, 1.0], [1.0, 0.0])
+    let it = first_axes(fig).get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("marker"), "o")
+    ut.assert_float_close(it.get_float("size"), 36.0)
+    ut.assert_eq(it.get_str("color"), "#1f77b4")
+}
+
+@test
+func test_autoscale_union() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.plot([2.0, 3.0], [2.0, 3.0])
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), -0.15)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 3.15)
+}
+
+@test
+func test_explicit_limit_overrides_autoscale() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 10.0])
+    ax.set_xlim(0.0, 5.0)
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 5.0)
+}
+
+@test
+func test_plot_empty() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot(list[float](), list[float]())
+    let a = first_axes(fig)
+    ut.assert_int_eq(a.get_array("items").get_object(0).get_array("points").len(), 0)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 1.0)
+}
+
+@test
+func test_resolve_color() {
+    ut.assert_eq(plot.resolve_color("r"), "#ff0000")
+    ut.assert_eq(plot.resolve_color("k"), "#000000")
+    ut.assert_eq(plot.resolve_color("w"), "#ffffff")
+    ut.assert_eq(plot.resolve_color("#abcdef"), "#abcdef")
+    ut.assert_eq(plot.resolve_color("red"), "red")
+}
+
+@should_panic("plot.Line: x and y must have the same length")
+func test_plot_length_mismatch() {
+    plot.Figure().subplot(1, 1, 1).plot([0.0, 1.0], [0.0])
+}
+
+@should_panic("plot.Scatter: x and y must have the same length")
+func test_scatter_length_mismatch() {
+    plot.Figure().subplot(1, 1, 1).scatter([0.0, 1.0], [0.0])
+}

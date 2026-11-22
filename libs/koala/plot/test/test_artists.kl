@@ -1,0 +1,147 @@
+// RUN: koala --test %s
+
+// Unit tests for the contour / imshow / hist artists via Axes
+// (items.kl / figure.kl), asserting resolved pixel geometry in the spec.
+
+import "std/ut"
+import "koala/plot"
+import "koala/json"
+
+func ax0(fig plot.Figure) json.Object {
+    return fig.to_spec().get_array("axes").get_object(0)
+}
+
+@test
+func test_contour_artist_pixels() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    ax.contour([[0.0, 1.0], [0.0, 1.0]], [0.5])
+    let it = ax0(fig).get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("kind"), "contour")
+    let lvs = it.get_array("levels")
+    ut.assert_int_eq(lvs.len(), 1)
+    ut.assert_float_close(lvs.get_object(0).get_float("level"), 0.5)
+    ut.assert_eq(lvs.get_object(0).get_str("color"), "#21918c")
+    let segs = lvs.get_object(0).get_array("segments")
+    ut.assert_int_eq(segs.len(), 1)
+    ut.assert_float_close(segs.get_object(0).get_float("x0"), 340.0)
+    ut.assert_float_close(segs.get_object(0).get_float("y0"), 420.0)
+    ut.assert_float_close(segs.get_object(0).get_float("x1"), 340.0)
+    ut.assert_float_close(segs.get_object(0).get_float("y1"), 50.0)
+}
+
+@test
+func test_contour_auto_levels() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.contour([[0.0, 1.0], [2.0, 3.0]])
+    let it = ax0(fig).get_array("items").get_object(0)
+    ut.assert_int_eq(it.get_array("levels").len(), 8)
+}
+
+@test
+func test_contour_custom_axes() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let art = ax.contour([[0.0, 1.0], [0.0, 1.0]], [0.5],
+                         xs = [10.0, 20.0], ys = [0.0, 5.0])
+    ut.assert_float_close(art.xlo, 10.0)
+    ut.assert_float_close(art.xhi, 20.0)
+    ut.assert_float_close(art.yhi, 5.0)
+}
+
+@test
+func test_imshow_pixels_gray() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], cmap = "gray")
+    let a = ax0(fig)
+    let it = a.get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("kind"), "image")
+    ut.assert_int_eq(it.get_int("rows"), 2)
+    ut.assert_int_eq(it.get_int("cols"), 2)
+    ut.assert_eq(it.get_str("cmap"), "gray")
+    let px = it.get_array("pixels")
+    ut.assert_int_eq(px.len(), 4)
+    ut.assert_eq(px.get_str(0), "#000000")
+    ut.assert_eq(px.get_str(1), "#555555")
+    ut.assert_eq(px.get_str(2), "#aaaaaa")
+    ut.assert_eq(px.get_str(3), "#ffffff")
+    // imshow sets the extent limits (origin upper).
+    ut.assert_float_close(a.get_array("xlim").get_float(0), -0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 1.5)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 1.5)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), -0.5)
+}
+
+@test
+func test_imshow_constant_grid() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[7.0, 7.0], [7.0, 7.0]], cmap = "gray")
+    let px = ax0(fig).get_array("items").get_object(0).get_array("pixels")
+    // span 0 -> t=0.5 -> mid gray
+    ut.assert_eq(px.get_str(0), "#808080")
+}
+
+@test
+func test_hist_return_triple() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let (n, bins, patches) = ax.hist([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0], 5)
+    ut.assert_int_eq(n.len(), 5)
+    ut.assert_int_eq(n[0], 2)
+    ut.assert_int_eq(bins.len(), 6)
+    ut.assert_eq(patches.kind(), "hist")
+    let it = ax0(fig).get_array("items").get_object(0)
+    ut.assert_int_eq(it.get_array("bars").len(), 5)
+}
+
+@test
+func test_hist_bar_pixels() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(0.0, 9.0)
+    ax.set_ylim(0.0, 2.0)
+    ax.hist([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0], 5)
+    let bars = ax0(fig).get_array("items").get_object(0).get_array("bars")
+    ut.assert_float_close(bars.get_object(0).get_float("x"), 70.0)
+    ut.assert_float_close(bars.get_object(0).get_float("w"), 108.0)
+    ut.assert_float_close(bars.get_object(0).get_float("y"), 50.0)
+    ut.assert_float_close(bars.get_object(0).get_float("h"), 370.0)
+}
+
+@test
+func test_hist_autoscale_counts() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.hist([0.0, 0.0, 1.0], 2)
+    let a = ax0(fig)
+    // counts [2,1] -> y extent (0,2) -> autoscale (-0.1, 2.1)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), -0.1)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 2.1)
+}
+
+@test
+func test_rgb_hex() {
+    ut.assert_eq(plot.rgb_hex(255, 128, 0), "#ff8000")
+    ut.assert_eq(plot.rgb_hex(68, 1, 84), "#440154")
+    ut.assert_eq(plot.rgb_hex(0, 0, 0), "#000000")
+}
+
+@should_panic("plot.imshow: Z must be non-empty")
+func test_imshow_empty() {
+    plot.Figure().subplot(1, 1, 1).imshow(list[list[float]]())
+}
+
+@should_panic("plot.imshow: Z must be rectangular")
+func test_imshow_non_rectangular() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0], [0.0]])
+}
+
+@should_panic("plot.contour: Z needs at least 2 rows")
+func test_contour_one_row() {
+    plot.Figure().subplot(1, 1, 1).contour([[0.0, 1.0]])
+}

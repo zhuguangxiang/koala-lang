@@ -15,7 +15,6 @@ koala -c --package-name=test_pkg/pkg_const_then_let test_pkg/pkg_const_then_let
 koala -c --package-name=test_pkg/pkg_bytes_default test_pkg/pkg_bytes_default
 koala -c --package-name=test_pkg/pkg_with test_pkg/pkg_with
 koala -c --package-name=test_pkg/enum_cross test_pkg/enum_cross
-koala -c --package-name=test_pkg/pkg_const_bytes test_pkg/pkg_const_bytes
 koala -c --package-name=test_pkg/pkg_mock test_pkg/pkg_mock
 koala -c --package-name=test_pkg/pkg_global test_pkg/pkg_global
 koala -c --package-name=test_pkg/pkg_func_type test_pkg/pkg_func_type

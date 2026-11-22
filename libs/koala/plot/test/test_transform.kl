@@ -1,0 +1,101 @@
+// RUN: koala --test %s
+
+// Unit tests for the plot autoscale + Scale geometry (transform.kl).
+
+import "std/ut"
+import "koala/plot"
+
+@test
+func test_autoscale_empty() {
+    let (lo, hi) = plot.autoscale(list[float]())
+    ut.assert_float_close(lo, 0.0)
+    ut.assert_float_close(hi, 1.0)
+}
+
+@test
+func test_autoscale_constant() {
+    let (lo, hi) = plot.autoscale([3.0, 3.0, 3.0])
+    ut.assert_float_close(lo, 2.0)
+    ut.assert_float_close(hi, 4.0)
+}
+
+@test
+func test_autoscale_single() {
+    let (lo, hi) = plot.autoscale([7.0])
+    ut.assert_float_close(lo, 6.0)
+    ut.assert_float_close(hi, 8.0)
+}
+
+@test
+func test_autoscale_margin() {
+    let (lo, hi) = plot.autoscale([0.0, 10.0])
+    ut.assert_float_close(lo, -0.5)
+    ut.assert_float_close(hi, 10.5)
+}
+
+@test
+func test_autoscale_zero_margin() {
+    let (lo, hi) = plot.autoscale([0.0, 10.0], 0.0)
+    ut.assert_float_close(lo, 0.0)
+    ut.assert_float_close(hi, 10.0)
+}
+
+@test
+func test_autoscale_order_independent() {
+    let (lo, hi) = plot.autoscale([10.0, 0.0, 5.0])
+    ut.assert_float_close(lo, -0.5)
+    ut.assert_float_close(hi, 10.5)
+}
+
+@test
+func test_autoscale_negative() {
+    let (lo, hi) = plot.autoscale([-5.0, 5.0])
+    ut.assert_float_close(lo, -5.5)
+    ut.assert_float_close(hi, 5.5)
+}
+
+@test
+func test_scale_pixel() {
+    let s = plot.Scale(0.0, 10.0, 0.0, 100.0)
+    ut.assert_float_close(s.pixel(0.0), 0.0)
+    ut.assert_float_close(s.pixel(5.0), 50.0)
+    ut.assert_float_close(s.pixel(10.0), 100.0)
+    ut.assert_float_close(s.pixel(2.5), 25.0)
+}
+
+@test
+func test_scale_value() {
+    let s = plot.Scale(0.0, 10.0, 0.0, 100.0)
+    ut.assert_float_close(s.value(0.0), 0.0)
+    ut.assert_float_close(s.value(50.0), 5.0)
+    ut.assert_float_close(s.value(100.0), 10.0)
+}
+
+@test
+func test_scale_inverted_y() {
+    // Screen y grows downward: data lo maps to the bottom pixel.
+    let s = plot.Scale(0.0, 10.0, 100.0, 0.0)
+    ut.assert_float_close(s.pixel(0.0), 100.0)
+    ut.assert_float_close(s.pixel(10.0), 0.0)
+    ut.assert_float_close(s.pixel(5.0), 50.0)
+    ut.assert_float_close(s.value(100.0), 0.0)
+    ut.assert_float_close(s.value(0.0), 10.0)
+}
+
+@test
+func test_scale_roundtrip() {
+    let s = plot.Scale(2.0, 8.0, 10.0, 90.0)
+    ut.assert_float_close(s.value(s.pixel(5.0)), 5.0)
+    ut.assert_float_close(s.pixel(s.value(40.0)), 40.0)
+}
+
+@should_panic("plot.Scale: zero data span")
+func test_scale_zero_data_span() {
+    plot.Scale(5.0, 5.0, 0.0, 100.0)
+}
+
+@should_panic("plot.Scale.value: zero pixel span")
+func test_scale_zero_pixel_span() {
+    let s = plot.Scale(0.0, 10.0, 50.0, 50.0)
+    s.value(50.0)
+}

@@ -1,0 +1,169 @@
+// RUN: koala --test %s
+
+// Unit tests for the matplotlib.pyplot-style facade (pyplot.kl), exercised
+// through the real migration idiom `import "koala/plot" as plt`. Each test
+// resets the process-wide pyplot state first.
+
+import "std/ut"
+import "koala/plot" as plt
+
+@test
+func test_figure_default_inches() {
+    plt.close()
+    let fig = plt.figure()
+    ut.assert_float_close(fig.width, 640.0)
+    ut.assert_float_close(fig.height, 480.0)
+    ut.assert_int_eq(fig.axes.len(), 0)
+}
+
+@test
+func test_figure_figsize_dpi() {
+    let fig = plt.figure(figsize = (8.0, 6.0), dpi = 100)
+    ut.assert_float_close(fig.width, 800.0)
+    ut.assert_float_close(fig.height, 600.0)
+    let fig2 = plt.figure(figsize = (2.0, 2.0), dpi = 200)
+    ut.assert_float_close(fig2.width, 400.0)
+    ut.assert_float_close(fig2.height, 400.0)
+}
+
+@test
+func test_gca_creates_subplot() {
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    let ax = plt.gca()
+    ut.assert_int_eq(ax.row, 0)
+    ut.assert_int_eq(ax.col, 0)
+    ut.assert_int_eq(plt.gcf().axes.len(), 1)
+}
+
+@test
+func test_plot_fmt_forwarding() {
+    plt.figure()
+    let line = plt.plot([0.0, 1.0], [0.0, 1.0], "ro--")
+    ut.assert_eq(line.color, "#ff0000")
+    ut.assert_eq(line.linestyle, "--")
+    ut.assert_true(line.marker != nil)
+}
+
+@test
+func test_decorations_forwarding() {
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], label = "a")
+    plt.xlabel("time")
+    plt.ylabel("loss")
+    plt.title("training")
+    plt.xlim(0.0, 10.0)
+    plt.ylim(0.0, 100.0)
+    plt.grid()
+    plt.legend()
+    let ax = plt.gca()
+    ut.assert_eq(ax.xlabel_text, "time")
+    ut.assert_eq(ax.ylabel_text, "loss")
+    ut.assert_eq(ax.title_text, "training")
+    ut.assert_true(ax.grid_on)
+    ut.assert_true(ax.legend_on)
+    if let r = ax.xlim {
+        let (a, b) = r
+        ut.assert_float_close(a, 0.0)
+        ut.assert_float_close(b, 10.0)
+    } else {
+        ut.assert_true(false, "xlim not set")
+    }
+}
+
+@test
+func test_subplot_state_machine() {
+    plt.figure()
+    plt.subplot(2, 2, 1)
+    let a3 = plt.subplot(2, 2, 3)
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    let cur = plt.gca()
+    ut.assert_int_eq(cur.row, a3.row)
+    ut.assert_int_eq(cur.col, a3.col)
+    ut.assert_int_eq(a3.row, 1)
+    ut.assert_int_eq(a3.col, 0)
+    ut.assert_int_eq(plt.gcf().axes.len(), 2)
+}
+
+@test
+func test_subplots_single() {
+    plt.close()
+    let (fig, ax) = plt.subplots()
+    ut.assert_int_eq(fig.axes.len(), 1)
+    ut.assert_int_eq(ax.row, 0)
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    ut.assert_int_eq(plt.gca().artists.len(), 1)
+}
+
+@test
+func test_subplots_grid() {
+    let (fig, ax) = plt.subplots(2, 2)
+    ut.assert_int_eq(fig.rows, 2)
+    ut.assert_int_eq(fig.cols, 2)
+    ut.assert_int_eq(fig.axes.len(), 4)
+    ut.assert_int_eq(ax.row, 0)
+    ut.assert_int_eq(ax.col, 0)
+}
+
+@test
+func test_scatter_forwarding() {
+    plt.figure()
+    let sc = plt.scatter([0.0, 1.0], [0.0, 1.0], s = 50.0, c = "r")
+    ut.assert_float_close(sc.size, 50.0)
+    ut.assert_eq(sc.color, "#ff0000")
+    ut.assert_eq(sc.kind(), "scatter")
+}
+
+@test
+func test_hist_forwarding() {
+    plt.figure()
+    let (n, bins, patches) = plt.hist([0.0, 1.0, 2.0, 3.0], 2)
+    ut.assert_int_eq(n.len(), 2)
+    ut.assert_int_eq(bins.len(), 3)
+    ut.assert_eq(patches.kind(), "hist")
+}
+
+@test
+func test_imshow_forwarding() {
+    plt.figure()
+    let img = plt.imshow([[0.0, 1.0], [2.0, 3.0]])
+    ut.assert_int_eq(img.rows, 2)
+    ut.assert_int_eq(img.cols, 2)
+    ut.assert_eq(img.kind(), "image")
+}
+
+@test
+func test_contour_forwarding() {
+    plt.figure()
+    let c = plt.contour([[0.0, 1.0], [0.0, 1.0]], [0.5])
+    ut.assert_eq(c.kind(), "contour")
+    ut.assert_int_eq(c.levels.len(), 1)
+}
+
+@test
+func test_ticks_forwarding() {
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.xticks([0.0, 0.5, 1.0])
+    plt.yticks([0.0, 1.0])
+    let ax = plt.gca()
+    if let xt = ax.xticks_override {
+        ut.assert_int_eq(xt.len(), 3)
+    } else {
+        ut.assert_true(false, "xticks not set")
+    }
+    if let yt = ax.yticks_override {
+        ut.assert_int_eq(yt.len(), 2)
+    } else {
+        ut.assert_true(false, "yticks not set")
+    }
+}
+
+@test
+func test_close_resets_state() {
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.close()
+    let fig = plt.gcf()
+    ut.assert_int_eq(fig.axes.len(), 0)
+}

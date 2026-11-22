@@ -31,4 +31,7 @@ packages = [
     "openai",
     "sse",
     "klex",
+    "webview",
+    "ui",
+    "plot",
 ]

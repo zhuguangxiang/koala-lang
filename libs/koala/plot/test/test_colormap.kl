@@ -1,0 +1,100 @@
+// RUN: koala --test %s
+
+// Unit tests for the plot colormaps (libs/koala/plot/colormap.kl).
+
+import "std/ut"
+import "koala/plot"
+
+@test
+func test_gray_endpoints() {
+    let (r0, g0, b0) = plot.gray(0.0)
+    ut.assert_int_eq(r0, 0)
+    ut.assert_int_eq(g0, 0)
+    ut.assert_int_eq(b0, 0)
+    let (r1, g1, b1) = plot.gray(1.0)
+    ut.assert_int_eq(r1, 255)
+    ut.assert_int_eq(g1, 255)
+    ut.assert_int_eq(b1, 255)
+}
+
+@test
+func test_gray_mid() {
+    let (r, g, b) = plot.gray(0.2)
+    ut.assert_int_eq(r, 51)
+    ut.assert_int_eq(g, 51)
+    ut.assert_int_eq(b, 51)
+    let (r2, g2, b2) = plot.gray(0.8)
+    ut.assert_int_eq(r2, 204)
+    ut.assert_int_eq(g2, 204)
+    ut.assert_int_eq(b2, 204)
+}
+
+@test
+func test_gray_clamps() {
+    let (r, g, b) = plot.gray(-1.0)
+    ut.assert_int_eq(r, 0)
+    let (r2, g2, b2) = plot.gray(2.0)
+    ut.assert_int_eq(r2, 255)
+    ut.assert_int_eq(g2, 255)
+    ut.assert_int_eq(b2, 255)
+}
+
+@test
+func test_viridis_anchors() {
+    let (r0, g0, b0) = plot.viridis(0.0)
+    ut.assert_int_eq(r0, 68)
+    ut.assert_int_eq(g0, 1)
+    ut.assert_int_eq(b0, 84)
+    let (r1, g1, b1) = plot.viridis(0.25)
+    ut.assert_int_eq(r1, 59)
+    ut.assert_int_eq(g1, 82)
+    ut.assert_int_eq(b1, 139)
+    let (r2, g2, b2) = plot.viridis(0.5)
+    ut.assert_int_eq(r2, 33)
+    ut.assert_int_eq(g2, 145)
+    ut.assert_int_eq(b2, 140)
+    let (r3, g3, b3) = plot.viridis(0.75)
+    ut.assert_int_eq(r3, 94)
+    ut.assert_int_eq(g3, 201)
+    ut.assert_int_eq(b3, 98)
+    let (r4, g4, b4) = plot.viridis(1.0)
+    ut.assert_int_eq(r4, 253)
+    ut.assert_int_eq(g4, 231)
+    ut.assert_int_eq(b4, 37)
+}
+
+@test
+func test_viridis_interpolates() {
+    // t=0.1 lies in the first segment, f=0.4 between anchors 0 and 1.
+    let (r, g, b) = plot.viridis(0.1)
+    ut.assert_int_eq(r, 64)
+    ut.assert_int_eq(g, 33)
+    ut.assert_int_eq(b, 106)
+}
+
+@test
+func test_viridis_clamps() {
+    let (r, g, b) = plot.viridis(-0.5)
+    ut.assert_int_eq(r, 68)
+    ut.assert_int_eq(g, 1)
+    ut.assert_int_eq(b, 84)
+    let (r2, g2, b2) = plot.viridis(1.5)
+    ut.assert_int_eq(r2, 253)
+    ut.assert_int_eq(g2, 231)
+    ut.assert_int_eq(b2, 37)
+}
+
+@test
+func test_colormap_dispatch() {
+    let (r, g, b) = plot.colormap("gray", 0.2)
+    ut.assert_int_eq(r, 51)
+    let (r2, g2, b2) = plot.colormap("viridis", 0.0)
+    ut.assert_int_eq(r2, 68)
+    ut.assert_int_eq(g2, 1)
+    ut.assert_int_eq(b2, 84)
+}
+
+@should_panic("plot.colormap: unknown colormap 'jet'")
+func test_colormap_unknown() {
+    plot.colormap("jet", 0.5)
+}

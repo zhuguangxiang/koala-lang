@@ -1,0 +1,87 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/math"
+
+/// Nice-tick generation for the plot spec layer, computed Koala-side so the
+/// figure spec carries resolved tick values (and the renderer only paints
+/// them). Uses Heckbert's "nice numbers" algorithm: a tick step is always
+/// 1, 2, 5 or 10 times a power of ten, and the axis is expanded to nice
+/// bounds that bracket the data.
+
+/// Round `x` (must be > 0) to a nice number 1/2/5/10 x 10^n. With `nearest`
+/// true pick the closest nice number, otherwise the smallest nice number
+/// >= x. Internal helper of `nice_ticks`.
+func nice_num(x float, nearest bool) float {
+    let expv = floor(math.log10(x))
+    let f = x / math.pow(10.0, expv)
+    var nf = 10.0
+    if nearest {
+        if f < 1.5 {
+            nf = 1.0
+        } else if f < 3.0 {
+            nf = 2.0
+        } else if f < 7.0 {
+            nf = 5.0
+        } else {
+            nf = 10.0
+        }
+    } else {
+        if f <= 1.0 {
+            nf = 1.0
+        } else if f <= 2.0 {
+            nf = 2.0
+        } else if f <= 5.0 {
+            nf = 5.0
+        } else {
+            nf = 10.0
+        }
+    }
+    return nf * math.pow(10.0, expv)
+}
+
+/// Compute nice tick values spanning `[lo, hi]`, aiming for about `target`
+/// ticks. Returns `(ticks, step)` where `ticks` is ascending and brackets
+/// the data (ticks[0] <= lo, ticks[last] >= hi), and `step` is the nice
+/// spacing. Panics if `hi <= lo` or `target < 2`; callers autoscale first
+/// (see `transform.autoscale`) so a zero-span range never reaches here.
+pub func nice_ticks(lo float, hi float, target = 6) (list[float], float) {
+    if hi <= lo {
+        panic("plot.nice_ticks: require hi > lo")
+    }
+    if target < 2 {
+        panic("plot.nice_ticks: require target >= 2")
+    }
+    let span = nice_num(hi - lo, false)
+    let step = nice_num(span / float(target - 1), true)
+    let graph_lo = floor(lo / step) * step
+    let graph_hi = ceil(hi / step) * step
+    var n = int(round((graph_hi - graph_lo) / step))
+    if n < 0 {
+        n = 0
+    }
+    let ticks = list[float]()
+    var i = 0
+    while i <= n {
+        // Accumulate from graph_lo by integer multiples to avoid float drift.
+        ticks.append(graph_lo + float(i) * step)
+        i = i + 1
+    }
+    return (ticks, step)
+}
+
+/// Number of decimal places needed to label ticks spaced by `step` without
+/// losing precision (e.g. step 0.5 -> 1, step 2 -> 0, step 0.05 -> 2).
+/// Panics if `step <= 0`.
+pub func tick_decimals(step float) int {
+    if step <= 0.0 {
+        panic("plot.tick_decimals: require step > 0")
+    }
+    var d = -floor(math.log10(step))
+    if d < 0.0 {
+        d = 0.0
+    }
+    return int(d)
+}

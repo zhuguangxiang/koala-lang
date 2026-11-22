@@ -1,0 +1,82 @@
+// RUN: koala --test %s
+
+// Unit tests for the plot layout geometry (libs/koala/plot/layout.kl).
+
+import "std/ut"
+import "koala/plot"
+
+@test
+func test_rect_helpers() {
+    let r = plot.Rect(10.0, 20.0, 100.0, 50.0)
+    ut.assert_float_close(r.right(), 110.0)
+    ut.assert_float_close(r.bottom(), 70.0)
+    ut.assert_float_close(r.center_x(), 60.0)
+    ut.assert_float_close(r.center_y(), 45.0)
+}
+
+@test
+func test_cell_single() {
+    let cell = plot.cell_rect(800.0, 600.0, 1, 1, 0, 0)
+    ut.assert_float_close(cell.x, 10.0)
+    ut.assert_float_close(cell.y, 10.0)
+    ut.assert_float_close(cell.w, 780.0)
+    ut.assert_float_close(cell.h, 580.0)
+}
+
+@test
+func test_plot_rect_single() {
+    let cell = plot.cell_rect(800.0, 600.0, 1, 1, 0, 0)
+    let p = plot.plot_rect(cell)
+    ut.assert_float_close(p.x, 70.0)
+    ut.assert_float_close(p.y, 50.0)
+    ut.assert_float_close(p.w, 700.0)
+    ut.assert_float_close(p.h, 490.0)
+    ut.assert_float_close(p.right(), 770.0)
+    ut.assert_float_close(p.bottom(), 540.0)
+}
+
+@test
+func test_cell_two_columns() {
+    let c0 = plot.cell_rect(800.0, 600.0, 1, 2, 0, 0)
+    let c1 = plot.cell_rect(800.0, 600.0, 1, 2, 0, 1)
+    ut.assert_float_close(c0.w, 380.0)
+    ut.assert_float_close(c1.w, 380.0)
+    ut.assert_float_close(c0.x, 10.0)
+    ut.assert_float_close(c1.x, 410.0)
+    ut.assert_float_close(c0.y, 10.0)
+    ut.assert_float_close(c1.y, 10.0)
+}
+
+@test
+func test_cell_two_rows() {
+    let r0 = plot.cell_rect(800.0, 600.0, 2, 1, 0, 0)
+    let r1 = plot.cell_rect(800.0, 600.0, 2, 1, 1, 0)
+    ut.assert_float_close(r0.h, 280.0)
+    ut.assert_float_close(r1.h, 280.0)
+    ut.assert_float_close(r0.y, 10.0)
+    ut.assert_float_close(r1.y, 310.0)
+}
+
+@test
+func test_cell_grid_2x2() {
+    let cell = plot.cell_rect(800.0, 600.0, 2, 2, 1, 1)
+    ut.assert_float_close(cell.w, 380.0)
+    ut.assert_float_close(cell.h, 280.0)
+    ut.assert_float_close(cell.x, 410.0)
+    ut.assert_float_close(cell.y, 310.0)
+}
+
+@should_panic("plot.layout: rows and cols must be >= 1")
+func test_cell_zero_rows() {
+    plot.cell_rect(800.0, 600.0, 0, 1, 0, 0)
+}
+
+@should_panic("plot.layout: cell index out of range")
+func test_cell_index_out_of_range() {
+    plot.cell_rect(800.0, 600.0, 1, 1, 1, 0)
+}
+
+@should_panic("plot.layout: figure too small for axes margins")
+func test_plot_rect_too_small() {
+    plot.plot_rect(plot.Rect(0.0, 0.0, 50.0, 50.0))
+}

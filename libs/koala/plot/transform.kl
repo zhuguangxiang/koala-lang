@@ -1,0 +1,68 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Axis autoscaling and the linear data<->pixel transform for the plot spec
+/// layer. Both are resolved Koala-side so the figure spec carries pixel
+/// geometry and the renderer only paints.
+
+/// Expand a data range to cover `values` with a fractional `margin` on each
+/// side (matplotlib-style autoscale). Returns `(lo, hi)` with `hi > lo`:
+/// an empty list yields `(0, 1)`, a constant value `c` yields `(c-1, c+1)`,
+/// otherwise the min/max padded by `margin * span`.
+pub func autoscale(values list[float], margin = 0.05) (float, float) {
+    if values.len() == 0 {
+        return (0.0, 1.0)
+    }
+    var lo = values[0]
+    var hi = values[0]
+    for v in values {
+        if v < lo {
+            lo = v
+        }
+        if v > hi {
+            hi = v
+        }
+    }
+    let span = hi - lo
+    if span == 0.0 {
+        return (lo - 1.0, hi + 1.0)
+    }
+    let pad = margin * span
+    return (lo - pad, hi + pad)
+}
+
+/// A linear map between a data interval `[lo, hi]` and a pixel interval
+/// `[px_lo, px_hi]`. The pixel interval may be inverted (px_hi < px_lo) for
+/// the y axis, where screen coordinates grow downward. Panics on a zero
+/// data span; `value` additionally requires a non-zero pixel span.
+pub class Scale {
+    pub let lo float
+    pub let hi float
+    pub let px_lo float
+    pub let px_hi float
+
+    pub func __init__(lo float, hi float, px_lo float, px_hi float) {
+        if hi == lo {
+            panic("plot.Scale: zero data span")
+        }
+        self.lo = lo
+        self.hi = hi
+        self.px_lo = px_lo
+        self.px_hi = px_hi
+    }
+
+    /// Map a data value to its pixel coordinate.
+    pub func pixel(v float) float {
+        return px_lo + (v - lo) / (hi - lo) * (px_hi - px_lo)
+    }
+
+    /// Map a pixel coordinate back to its data value.
+    pub func value(px float) float {
+        if px_hi == px_lo {
+            panic("plot.Scale.value: zero pixel span")
+        }
+        return lo + (px - px_lo) / (px_hi - px_lo) * (hi - lo)
+    }
+}

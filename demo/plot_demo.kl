@@ -1,0 +1,125 @@
+/*
+ * plot_demo.kl — koala/plot 用法示例：一张 ML 主题的 2x2 图。
+ *
+ * 运行（任意目录均可，需先构建 koala/plot 及其依赖 koala/webview、
+ * koala/json、koala/math）：
+ *
+ *     ./demo/run_plot_demo.sh
+ *
+ * 它打开一个系统 webview 原生窗口（Linux 上是 WebKitGTK），渲染四个子图：
+ *   1. 训练曲线        plot + fmt("C0-"/"C1--") + label/legend/grid
+ *   2. 预测 vs 目标    scatter(s=,c=) + y=x 参考线
+ *   3. 残差分布        hist(bins=)（返回 (n,bins,patches)）
+ *   4. 损失地形        contour(Z, levels, xs=, ys=)（marching squares）
+ * 关窗即退出。
+ *
+ * 接口与 matplotlib.pyplot 一致，matplotlib 脚本近乎零成本迁移：
+ *
+ *     import "koala/plot" as plt        # 对应 import matplotlib.pyplot as plt
+ *     plt.figure(figsize = (10.0, 8.0)) # 英寸，像素 = 英寸 * dpi
+ *     plt.subplot(2, 2, 1)              # 1-based 行优先索引
+ *     plt.plot(x, y, "C0-", label = "train loss")
+ *     plt.xlabel("epoch"); plt.legend(); plt.grid()
+ *     plt.show()                        # v1 默认阻塞，直到关窗
+ *
+ * 无显示环境（headless）退出：
+ *     KOALA_PLOT_BACKEND=html ./demo/run_plot_demo.sh   # 写出 plot.html
+ * 或在代码里用 plt.savehtml("plot.html") 直接存自包含 HTML（Koala 扩展，
+ * savefig 延后，见 docs/koala_ml.md §6.5）。
+ *
+ * 数据约定：v1 用 list[float] 装数据（渲染几何 != ML 数值计算）；builtin
+ * Tensor 入口后续增量加入，几何层不动。下面的随机样本只是演示用的确定性
+ * 伪随机数据（stdlib 暂无 random 包），不是 ML 计算路径。
+ */
+
+import "koala/plot" as plt
+import "koala/math"
+
+// 演示用确定性伪随机源（LCG + Box-Muller 生成标准正态样本）。
+var seed = 12345
+
+func next_uniform() float {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return float(seed) / 2147483648.0
+}
+
+func randn() float {
+    let u1 = next_uniform() + 1e-12
+    let u2 = next_uniform()
+    return math.sqrt(-2.0 * math.log(u1)) * math.cos(math.TAU * u2)
+}
+
+func linspace(a float, b float, n int) list[float] {
+    var xs = list[float]()
+    for i in range(n) {
+        xs.append(a + (b - a) * float(i) / float(n - 1))
+    }
+    return xs
+}
+
+func main() {
+    plt.figure(figsize = (10.0, 8.0))
+
+    // (1) 训练曲线：指数衰减的 train/val loss。
+    plt.subplot(2, 2, 1)
+    let epochs = linspace(0.0, 49.0, 50)
+    var train = list[float]()
+    var val = list[float]()
+    for i in range(50) {
+        let t = float(i)
+        train.append(2.0 * math.exp(-t / 12.0) + 0.08)
+        val.append(2.0 * math.exp(-t / 15.0) + 0.22 + 0.03 * math.sin(t))
+    }
+    plt.plot(epochs, train, "C0-", label = "train loss")
+    plt.plot(epochs, val, "C1--", label = "val loss")
+    plt.title("Training curves")
+    plt.xlabel("epoch")
+    plt.ylabel("loss")
+    plt.legend()
+    plt.grid()
+
+    // (2) 预测 vs 目标：带噪声的散点 + y=x 参考线。
+    plt.subplot(2, 2, 2)
+    let targets = linspace(0.0, 10.0, 40)
+    var preds = list[float]()
+    for t in targets {
+        preds.append(t + 0.6 * randn())
+    }
+    plt.scatter(targets, preds, s = 22.0, c = "C3", label = "samples")
+    plt.plot([0.0, 10.0], [0.0, 10.0], "k--", label = "y = x")
+    plt.title("Predictions vs targets")
+    plt.xlabel("target")
+    plt.ylabel("prediction")
+    plt.legend()
+
+    // (3) 残差分布：标准正态样本的直方图。
+    plt.subplot(2, 2, 3)
+    var residuals = list[float]()
+    for i in range(2000) {
+        residuals.append(randn())
+    }
+    plt.hist(residuals, bins = 24, color = "C2")
+    plt.title("Residual distribution")
+    plt.xlabel("residual")
+    plt.ylabel("count")
+
+    // (4) 损失地形：二次碗 + 正弦涟漪的等高线。
+    plt.subplot(2, 2, 4)
+    let g = linspace(-2.0, 2.0, 40)
+    var z = list[list[float]]()
+    for i in range(40) {
+        var row = list[float]()
+        let y = g[i]
+        for j in range(40) {
+            let x = g[j]
+            row.append(x * x + y * y + 0.4 * math.sin(3.0 * x) * math.cos(3.0 * y))
+        }
+        z.append(row)
+    }
+    plt.contour(z, [0.5, 1.0, 2.0, 4.0, 8.0], xs = g, ys = g)
+    plt.title("Loss landscape")
+    plt.xlabel("w0")
+    plt.ylabel("w1")
+
+    plt.show()
+}

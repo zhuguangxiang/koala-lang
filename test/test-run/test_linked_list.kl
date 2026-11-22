@@ -137,17 +137,17 @@ func main() {
 
 // CHECK-LABEL: %bb4(while-cond):
 // CHECK: %next = local z.ListNode
-// CHECK: %8 = get_field %curr z.ListNode, next(index=1)
-// CHECK: move %next z.ListNode, %8 z.ListNode?
-// CHECK: %9 = cmpne %8 z.ListNode?, nil
-// CHECK: branch %9 bool, label %bb5, label %bb6
+// CHECK: %9 = get_field %curr z.ListNode, next(index=1)
+// CHECK: move %next z.ListNode, %9 z.ListNode?
+// CHECK: %10 = cmpne %9 z.ListNode?, nil
+// CHECK: branch %10 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: %bb5(while-body):
 // CHECK: move %curr z.ListNode, %next z.ListNode
-// CHECK: %10 = get_field %curr z.ListNode, next(index=1)
-// CHECK: move %next z.ListNode, %10 z.ListNode?
-// CHECK: %11 = cmpne %10 z.ListNode?, nil
-// CHECK: branch %11 bool, label %bb5, label %bb6
+// CHECK: %11 = get_field %curr z.ListNode, next(index=1)
+// CHECK: move %next z.ListNode, %11 z.ListNode?
+// CHECK: %12 = cmpne %11 z.ListNode?, nil
+// CHECK: branch %12 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @List:index(%self z.List, %idx int64) int64?

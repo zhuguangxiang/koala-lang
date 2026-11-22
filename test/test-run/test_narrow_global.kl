@@ -1,0 +1,77 @@
+// RUN: koala %s | filecheck %s
+// Narrowing (`is` / `!= nil` / `== nil`) of globals and fields: the shadow read
+// must load the global (`get_global`) or the field (`get_field` with the origin
+// type) before the narrowing cast. Locals and parameters are the baseline.
+
+trait S { func t() str }
+
+class A : S {
+    pub func t() str = "a"
+}
+
+let gs S = A()
+var gi int? = 1
+let gn int? = nil
+let ge int? = 5
+var gw int? = 3
+
+class B {
+    var x int? = nil
+    var y int? = 5
+    var z int? = 8
+    var s S = A()
+
+    pub func f() {
+        if x == nil { print(x) }
+        if y != nil { print(y + 1) }
+        if z == nil { print("z") } else { print(z + 1) }
+        if s is A { print(s.t()) }
+    }
+}
+
+func local(s S, o int?) {
+    if s is A { print(s.t()) }
+    if o != nil { print(o + 1) }
+}
+
+func local_nil(o int?) {
+    if o == nil { print(o) }
+}
+
+func main() {
+    if gs is A { print(gs.t()) }
+    if gi != nil { print(gi + 1) }
+    if gn == nil { print(gn) }
+    B().f()
+    local(A(), 9)
+
+    // the else branch of `== nil` narrows to non-nil; a negated `is` narrows in else
+    if ge == nil { print("ge") } else { print(ge + 1) }
+    if !(gs is A) { print("not a") } else { print(gs.t()) }
+
+    // narrowing in a while condition, with a store to the origin inside the loop
+    while gw != nil {
+        print(gw)
+        gw = nil
+    }
+
+    // no narrowing leaks out of the if block
+    print(gi)
+    local_nil(nil)
+}
+
+// CHECK: a
+// CHECK-NEXT: 2
+// CHECK-NEXT: nil
+// CHECK-NEXT: nil
+// CHECK-NEXT: 6
+// CHECK-NEXT: 9
+// CHECK-NEXT: a
+// CHECK-NEXT: a
+// CHECK-NEXT: 10
+// CHECK-NEXT: 6
+// CHECK-NEXT: a
+// CHECK-NEXT: 3
+// CHECK-NEXT: 1
+// CHECK-NEXT: nil
+// CHECK-NOT: {{.}}

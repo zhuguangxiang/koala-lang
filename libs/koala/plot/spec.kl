@@ -1,0 +1,152 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+/// Figure-spec serialization helpers. The spec carries *resolved pixel
+/// geometry* (docs/koala_ml.md §6.3): every rectangle, tick pixel position,
+/// label anchor and grid line is computed Koala-side, so the renderer is a
+/// dumb painter and the whole frame is headless-testable as JSON.
+
+/// Serialize a pixel rectangle.
+pub func rect_json(r Rect) json.Object {
+    let o = json.Object()
+    o["x"] = json.Float(r.x)
+    o["y"] = json.Float(r.y)
+    o["w"] = json.Float(r.w)
+    o["h"] = json.Float(r.h)
+    return o
+}
+
+/// Format a tick value with `decimals` fixed fractional digits.
+pub func format_tick(value float, decimals int) str {
+    let spec = "{:." + format("{}", decimals) + "f}"
+    return format(spec, value)
+}
+
+/// A two-element float array `[a, b]` (used for limits).
+func pair_json(a float, b float) json.Array {
+    let arr = json.Array()
+    arr.append(json.Float(a))
+    arr.append(json.Float(b))
+    return arr
+}
+
+/// A text label anchored at a resolved pixel position.
+func text_json(text str, x float, y float) json.Object {
+    let o = json.Object()
+    o["text"] = json.String(text)
+    o["x"] = json.Float(x)
+    o["y"] = json.Float(y)
+    return o
+}
+
+/// Tick marks as `{value, px, label}` objects, `px` resolved through `scale`.
+func ticks_json(values list[float], scale Scale, decimals int) json.Array {
+    let arr = json.Array()
+    for v in values {
+        let t = json.Object()
+        t["value"] = json.Float(v)
+        t["px"] = json.Float(scale.pixel(v))
+        t["label"] = json.String(format_tick(v, decimals))
+        arr.append(t)
+    }
+    return arr
+}
+
+/// Grid state plus resolved grid-line pixel positions (vertical lines at
+/// the x ticks, horizontal lines at the y ticks).
+func grid_json(show bool, xvals list[float], xs Scale,
+               yvals list[float], ys Scale) json.Object {
+    let o = json.Object()
+    o["show"] = json.Boolean(show)
+    let xa = json.Array()
+    for v in xvals {
+        xa.append(json.Float(xs.pixel(v)))
+    }
+    o["xlines"] = xa
+    let ya = json.Array()
+    for v in yvals {
+        ya.append(json.Float(ys.pixel(v)))
+    }
+    o["ylines"] = ya
+    return o
+}
+
+/// Resolve every artist into pixel geometry through the axes scales.
+func items_json(artists list[Artist], sx Scale, sy Scale, plot Rect) json.Array {
+    let arr = json.Array()
+    for art in artists {
+        arr.append(art.to_json(sx, sy, plot))
+    }
+    return arr
+}
+
+/// Legend state plus entries collected from labeled artists (matplotlib
+/// `legend()` auto-detects artists carrying a label).
+func legend_json(show bool, artists list[Artist]) json.Object {
+    let o = json.Object()
+    o["show"] = json.Boolean(show)
+    let entries = json.Array()
+    if show {
+        for art in artists {
+            if let l = art.legend_label() {
+                let e = json.Object()
+                e["label"] = json.String(l)
+                var lc = "#1f77b4"
+                if let cc = art.legend_color() {
+                    lc = cc
+                }
+                e["color"] = json.String(lc)
+                e["kind"] = json.String(art.kind())
+                entries.append(e)
+            }
+        }
+    }
+    o["entries"] = entries
+    return o
+}
+
+/// Resolve the tick values and label precision for one axis: explicit
+/// overrides win, otherwise nice ticks across `[lo, hi]`. A degenerate
+/// span yields a single tick at `lo`. Ticks are clipped to the view limits
+/// (matplotlib only draws ticks inside the axes): `nice_ticks` brackets the
+/// data and so can emit ticks beyond `[lo, hi]`, which must not be painted.
+func axis_ticks(lo float, hi float, override list[float]?) (list[float], int) {
+    let a = min(lo, hi)
+    let b = max(lo, hi)
+    let eps = (b - a) * 1e-9 + 1e-12
+    if let t = override {
+        var dec = 0
+        if t.len() >= 2 {
+            let gap = abs(t[1] - t[0])
+            if gap > 0.0 {
+                dec = tick_decimals(gap)
+            }
+        }
+        let kept = list[float]()
+        for v in t {
+            if v >= a - eps && v <= b + eps {
+                kept.append(v)
+            }
+        }
+        return (kept, dec)
+    }
+    if hi == lo {
+        return ([lo], 0)
+    }
+    let (ticks, step) = nice_ticks(a, b)
+    let dec = tick_decimals(step)
+    let kept = list[float]()
+    for v in ticks {
+        if v >= a - eps && v <= b + eps {
+            kept.append(v)
+        }
+    }
+    if kept.len() == 0 {
+        return ([a], dec)
+    }
+    return (kept, dec)
+}

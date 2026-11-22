@@ -1,0 +1,433 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+/// Data artists for the plot spec layer (docs/koala_ml.md §6.2). Each
+/// artist holds its data + style as `list` (v1) and resolves itself into
+/// pixel geometry through the axes scales at spec time, so the renderer
+/// only paints. Classes are final in Koala, so artists are independent
+/// classes conforming to the `Artist` trait (the same shape `koala/ui`
+/// uses for widgets).
+///
+/// A builtin `Tensor` entry will be added later without reworking this
+/// geometry: the artists already operate on resolved numeric lists.
+
+/// The matplotlib tab10 default color cycle. A function rather than a const
+/// because Koala const values must be scalar constant expressions.
+pub func color_cycle() list[str] {
+    return ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+            "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
+            "#bcbd22", "#17becf"]
+}
+
+/// Resolve a matplotlib color spec to something the canvas painter accepts.
+/// Single-character codes map to the matplotlib base colors; hex strings
+/// and CSS color names pass through unchanged.
+pub func resolve_color(c str) str {
+    if c == "b" {
+        return "#0000ff"
+    }
+    if c == "g" {
+        return "#008000"
+    }
+    if c == "r" {
+        return "#ff0000"
+    }
+    if c == "c" {
+        return "#00bfbf"
+    }
+    if c == "m" {
+        return "#bf00bf"
+    }
+    if c == "y" {
+        return "#bfbf00"
+    }
+    if c == "k" {
+        return "#000000"
+    }
+    if c == "w" {
+        return "#ffffff"
+    }
+    if c.len() == 2 && c[0] == "C" && "0123456789".index(c[1]) >= 0 {
+        let cycle = color_cycle()
+        return cycle[c[1].to_int()]
+    }
+    return c
+}
+
+/// Min/max of a non-empty list, or nil when empty. Internal autoscale aid.
+func bounds(v list[float]) (float, float)? {
+    if v.len() == 0 {
+        return nil
+    }
+    var lo = v[0]
+    var hi = v[0]
+    for x in v {
+        if x < lo {
+            lo = x
+        }
+        if x > hi {
+            hi = x
+        }
+    }
+    return (lo, hi)
+}
+
+/// The common interface of all data artists. `to_json` resolves the artist
+/// into pixel geometry through the axes scales; `xbounds`/`ybounds` feed
+/// autoscaling; the legend accessors feed the legend box.
+pub trait Artist {
+    func kind() str
+    func to_json(sx Scale, sy Scale, plot Rect) json.Object
+    func xbounds() (float, float)?
+    func ybounds() (float, float)?
+    func legend_label() str?
+    func legend_color() str?
+}
+
+/// A polyline (matplotlib `Line2D`), the artist behind `plot`.
+pub class Line : Artist {
+    pub let xdata list[float]
+    pub let ydata list[float]
+    pub let label str?
+    pub let color str
+    pub let linestyle str
+    pub let linewidth float
+    pub let marker str?
+
+    pub func __init__(xdata list[float], ydata list[float], label str? = nil,
+                      color str = "#1f77b4", linestyle str = "-",
+                      linewidth float = 1.5, marker str? = nil) {
+        if xdata.len() != ydata.len() {
+            panic("plot.Line: x and y must have the same length")
+        }
+        self.xdata = xdata
+        self.ydata = ydata
+        self.label = label
+        self.color = resolve_color(color)
+        self.linestyle = linestyle
+        self.linewidth = linewidth
+        self.marker = marker
+    }
+
+    pub func kind() str = "line"
+
+    pub func xbounds() (float, float)? = bounds(xdata)
+    pub func ybounds() (float, float)? = bounds(ydata)
+    pub func legend_label() str? = label
+    pub func legend_color() str? = color
+
+    pub func to_json(sx Scale, sy Scale, plot Rect) json.Object {
+        let pts = json.Array()
+        var i = 0
+        while i < xdata.len() {
+            let p = json.Object()
+            p["x"] = json.Float(sx.pixel(xdata[i]))
+            p["y"] = json.Float(sy.pixel(ydata[i]))
+            pts.append(p)
+            i = i + 1
+        }
+        let o = json.Object()
+        o["kind"] = json.String("line")
+        o["points"] = pts
+        o["color"] = json.String(color)
+        o["linestyle"] = json.String(linestyle)
+        o["linewidth"] = json.Float(linewidth)
+        if let m = marker {
+            o["marker"] = json.String(m)
+        }
+        if let l = label {
+            o["label"] = json.String(l)
+        }
+        return o
+    }
+}
+
+/// A point cloud (matplotlib `PathCollection`), the artist behind `scatter`.
+/// v1 takes a single color per call; the two-class decision-boundary
+/// scenario uses two scatter calls with different colors.
+pub class Scatter : Artist {
+    pub let xdata list[float]
+    pub let ydata list[float]
+    pub let label str?
+    pub let color str
+    pub let marker str
+    pub let size float
+
+    pub func __init__(xdata list[float], ydata list[float], label str? = nil,
+                      color str = "#1f77b4", marker str = "o",
+                      size float = 36.0) {
+        if xdata.len() != ydata.len() {
+            panic("plot.Scatter: x and y must have the same length")
+        }
+        self.xdata = xdata
+        self.ydata = ydata
+        self.label = label
+        self.color = resolve_color(color)
+        self.marker = marker
+        self.size = size
+    }
+
+    pub func kind() str = "scatter"
+
+    pub func xbounds() (float, float)? = bounds(xdata)
+    pub func ybounds() (float, float)? = bounds(ydata)
+    pub func legend_label() str? = label
+    pub func legend_color() str? = color
+
+    pub func to_json(sx Scale, sy Scale, plot Rect) json.Object {
+        let pts = json.Array()
+        var i = 0
+        while i < xdata.len() {
+            let p = json.Object()
+            p["x"] = json.Float(sx.pixel(xdata[i]))
+            p["y"] = json.Float(sy.pixel(ydata[i]))
+            pts.append(p)
+            i = i + 1
+        }
+        let o = json.Object()
+        o["kind"] = json.String("scatter")
+        o["points"] = pts
+        o["color"] = json.String(color)
+        o["marker"] = json.String(marker)
+        o["size"] = json.Float(size)
+        if let l = label {
+            o["label"] = json.String(l)
+        }
+        return o
+    }
+}
+
+/// Format an 0..255 RGB triple as a `#rrggbb` hex string.
+pub func rgb_hex(r int, g int, b int) str {
+    return format("#{:02x}{:02x}{:02x}", r, g, b)
+}
+
+/// Contour lines (matplotlib `ContourSet`), the artist behind `contour`.
+/// Marching squares runs Koala-side at construction; the spec carries the
+/// resolved pixel segments per level. `xs`/`ys` default to index ranges.
+pub class Contour : Artist {
+    pub let levels list[ContourLevel]
+    pub let colors list[str]
+    pub let xlo float
+    pub let xhi float
+    pub let ylo float
+    pub let yhi float
+
+    pub func __init__(Z list[list[float]], xs list[float]?, ys list[float]?,
+                      levels list[float]?, cmap str) {
+        let rows = Z.len()
+        if rows < 2 {
+            panic("plot.contour: Z needs at least 2 rows")
+        }
+        let cols = Z[0].len()
+        var xax = list[float]()
+        var yax = list[float]()
+        if let x = xs {
+            xax = x
+        } else {
+            var i = 0
+            while i < cols {
+                xax.append(float(i))
+                i = i + 1
+            }
+        }
+        if let y = ys {
+            yax = y
+        } else {
+            var i = 0
+            while i < rows {
+                yax.append(float(i))
+                i = i + 1
+            }
+        }
+        var lv = list[float]()
+        if let l = levels {
+            lv = l
+        } else {
+            lv = auto_levels(Z)
+        }
+        self.levels = marching_squares(Z, xax, yax, lv)
+        let n = self.levels.len()
+        let cols2 = list[str]()
+        var i = 0
+        while i < n {
+            var t = 0.5
+            if n > 1 {
+                t = float(i) / float(n - 1)
+            }
+            let (r, g, b) = colormap(cmap, t)
+            cols2.append(rgb_hex(r, g, b))
+            i = i + 1
+        }
+        self.colors = cols2
+        xlo = xax[0]
+        xhi = xax[xax.len() - 1]
+        ylo = yax[0]
+        yhi = yax[yax.len() - 1]
+    }
+
+    pub func kind() str = "contour"
+    pub func xbounds() (float, float)? = (xlo, xhi)
+    pub func ybounds() (float, float)? = (ylo, yhi)
+    pub func legend_label() str? = nil
+    pub func legend_color() str? = nil
+
+    pub func to_json(sx Scale, sy Scale, plot Rect) json.Object {
+        let arr = json.Array()
+        var i = 0
+        while i < levels.len() {
+            let cl = levels[i]
+            let segs = json.Array()
+            for s in cl.segments {
+                let so = json.Object()
+                so["x0"] = json.Float(sx.pixel(s.x0))
+                so["y0"] = json.Float(sy.pixel(s.y0))
+                so["x1"] = json.Float(sx.pixel(s.x1))
+                so["y1"] = json.Float(sy.pixel(s.y1))
+                segs.append(so)
+            }
+            let lo = json.Object()
+            lo["level"] = json.Float(cl.level)
+            lo["color"] = json.String(colors[i])
+            lo["segments"] = segs
+            arr.append(lo)
+            i = i + 1
+        }
+        let o = json.Object()
+        o["kind"] = json.String("contour")
+        o["levels"] = arr
+        return o
+    }
+}
+
+/// A raster image (matplotlib `AxesImage`), the artist behind `imshow`.
+/// The RGB grid is resolved Koala-side via the colormap; the renderer fills
+/// it into the data-area rectangle (origin upper: row 0 at top).
+pub class Image : Artist {
+    pub let rows int
+    pub let cols int
+    pub let pixels list[str]
+    pub let cmap str
+
+    pub func __init__(Z list[list[float]], cmap str) {
+        if Z.len() == 0 || Z[0].len() == 0 {
+            panic("plot.imshow: Z must be non-empty")
+        }
+        rows = Z.len()
+        cols = Z[0].len()
+        var lo = Z[0][0]
+        var hi = Z[0][0]
+        for row in Z {
+            if row.len() != cols {
+                panic("plot.imshow: Z must be rectangular")
+            }
+            for v in row {
+                if v < lo {
+                    lo = v
+                }
+                if v > hi {
+                    hi = v
+                }
+            }
+        }
+        let span = hi - lo
+        pixels = list[str]()
+        for row in Z {
+            for v in row {
+                var t = 0.5
+                if span != 0.0 {
+                    t = (v - lo) / span
+                }
+                let (r, g, b) = colormap(cmap, t)
+                pixels.append(rgb_hex(r, g, b))
+            }
+        }
+        self.cmap = cmap
+    }
+
+    pub func kind() str = "image"
+    pub func xbounds() (float, float)? = (-0.5, float(cols) - 0.5)
+    pub func ybounds() (float, float)? = (float(rows) - 0.5, -0.5)
+    pub func legend_label() str? = nil
+    pub func legend_color() str? = nil
+
+    pub func to_json(sx Scale, sy Scale, plot Rect) json.Object {
+        let o = json.Object()
+        o["kind"] = json.String("image")
+        o["rect"] = rect_json(plot)
+        o["rows"] = json.Integer(rows)
+        o["cols"] = json.Integer(cols)
+        o["cmap"] = json.String(cmap)
+        let px = json.Array()
+        for c in pixels {
+            px.append(json.String(c))
+        }
+        o["pixels"] = px
+        return o
+    }
+}
+
+/// Histogram bars (matplotlib `BarContainer`), the artist behind `hist`.
+/// Counts and edges are resolved Koala-side; bars become pixel rectangles.
+pub class Hist : Artist {
+    pub let counts list[int]
+    pub let edges list[float]
+    pub let color str
+    pub let label str?
+
+    pub func __init__(counts list[int], edges list[float], color str, label str?) {
+        self.counts = counts
+        self.edges = edges
+        self.color = resolve_color(color)
+        self.label = label
+    }
+
+    pub func kind() str = "hist"
+    pub func xbounds() (float, float)? = (edges[0], edges[edges.len() - 1])
+
+    pub func ybounds() (float, float)? {
+        var mx = 0
+        for c in counts {
+            if c > mx {
+                mx = c
+            }
+        }
+        if mx == 0 {
+            return (0.0, 1.0)
+        }
+        return (0.0, float(mx))
+    }
+
+    pub func legend_label() str? = label
+    pub func legend_color() str? = color
+
+    pub func to_json(sx Scale, sy Scale, plot Rect) json.Object {
+        let bars = json.Array()
+        let base = sy.pixel(0.0)
+        var i = 0
+        while i < counts.len() {
+            let x0 = sx.pixel(edges[i])
+            let x1 = sx.pixel(edges[i + 1])
+            let ytop = sy.pixel(float(counts[i]))
+            let b = json.Object()
+            b["x"] = json.Float(x0)
+            b["y"] = json.Float(ytop)
+            b["w"] = json.Float(x1 - x0)
+            b["h"] = json.Float(base - ytop)
+            bars.append(b)
+            i = i + 1
+        }
+        let o = json.Object()
+        o["kind"] = json.String("hist")
+        o["bars"] = bars
+        o["color"] = json.String(color)
+        if let l = label {
+            o["label"] = json.String(l)
+        }
+        return o
+    }
+}

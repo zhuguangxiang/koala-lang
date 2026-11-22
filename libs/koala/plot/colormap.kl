@@ -1,0 +1,62 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Colormaps for the plot spec layer (the geometry behind `imshow` and
+/// scalar-colored `scatter`). v1 ships two maps, matching docs/koala_ml.md
+/// §6.3: a viridis approximation and gray. Each maps a normalized scalar
+/// `t` (clamped to [0, 1]) to an `(r, g, b)` triple of 0..255 ints, resolved
+/// Koala-side so the spec carries pixel colors and the renderer only fills.
+
+/// Clamp `t` into [0, 1].
+func clamp01(t float) float {
+    if t < 0.0 {
+        return 0.0
+    }
+    if t > 1.0 {
+        return 1.0
+    }
+    return t
+}
+
+/// Linear interpolation between two 0..255 channel values.
+func lerp_channel(a int, b int, f float) int {
+    return int(round(float(a) + (float(b) - float(a)) * f))
+}
+
+/// Grayscale: t=0 -> black, t=1 -> white.
+pub func gray(t float) (int, int, int) {
+    let c = int(round(clamp01(t) * 255.0))
+    return (c, c, c)
+}
+
+/// Approximate matplotlib viridis, piecewise-linear in RGB through the five
+/// canonical anchor colors at t = 0, 0.25, 0.5, 0.75, 1. This is an
+/// approximation (docs/koala_ml.md §6.3), not the full 256-entry table.
+pub func viridis(t float) (int, int, int) {
+    let seg = clamp01(t) * 4.0
+    var i = int(floor(seg))
+    if i > 3 {
+        i = 3
+    }
+    let f = seg - float(i)
+    let rs = [68, 59, 33, 94, 253]
+    let gs = [1, 82, 145, 201, 231]
+    let bs = [84, 139, 140, 98, 37]
+    return (lerp_channel(rs[i], rs[i + 1], f),
+            lerp_channel(gs[i], gs[i + 1], f),
+            lerp_channel(bs[i], bs[i + 1], f))
+}
+
+/// Resolve a colormap by name ("viridis" or "gray") at normalized `t`.
+/// Panics on an unknown name.
+pub func colormap(name str, t float) (int, int, int) {
+    if name == "viridis" {
+        return viridis(t)
+    }
+    if name == "gray" {
+        return gray(t)
+    }
+    panic(format("plot.colormap: unknown colormap '{}'", name))
+}

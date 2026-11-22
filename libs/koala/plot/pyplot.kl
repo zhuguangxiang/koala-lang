@@ -1,0 +1,196 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/webview"
+import "std/os"
+import "std/fs"
+
+/// The matplotlib.pyplot-style stateful facade. `import "koala/plot" as plt`
+/// gives the familiar `plt.figure / plt.plot / plt.scatter / plt.xlabel /
+/// plt.show` entry points alongside the `Figure`/`Axes` object model, so a
+/// matplotlib script migrates with near-zero learning cost.
+///
+/// These free functions operate on a process-wide "current figure / current
+/// axes" pair (matplotlib's pyplot state machine) and forward to the same
+/// `Figure`/`Axes` objects the OO API uses. Bare pyplot names map to the
+/// matplotlib OO `set_*` methods (e.g. `plt.xlim` -> `Axes.set_xlim`).
+///
+/// Koala-forced deviations from matplotlib, all documented at the call site:
+///   * `figure(figsize = (w, h))` takes inches exactly like matplotlib; the
+///     `Figure` constructor itself uses scalar inch params (no tuple defaults).
+///   * `plot(y, fmt)` is spelled `plot(y, fmt = "...")` (static typing: the
+///     second positional slot is always `y`); `plot(x, y, fmt)` is positional.
+///   * `hist(range = ...)` is `hist(range_ = ...)` (`range` is reserved).
+///   * `subplots()` returns `(fig, ax)` for the dominant single-axes case;
+///     for a grid, reach the rest through `fig.axes` / `subplot`.
+
+/// The current figure and axes of the pyplot state machine.
+var _fig Figure? = nil
+var _ax Axes? = nil
+
+/// Create a new figure and make it current (matplotlib `pyplot.figure`).
+/// `figsize` is `(width, height)` in inches; pixels = inches * dpi. With no
+/// figsize the matplotlib default 6.4 x 4.8 inches is used.
+pub func figure(figsize (float, float)? = nil, dpi int = 100) Figure {
+    var fig = Figure(dpi = dpi)
+    if let fs = figsize {
+        let (w, h) = fs
+        fig = Figure(w, h, dpi)
+    }
+    _fig = fig
+    _ax = nil
+    return fig
+}
+
+/// Return the current figure, creating a default one if none exists
+/// (matplotlib `pyplot.gcf`).
+pub func gcf() Figure {
+    if _fig == nil {
+        _fig = Figure()
+    }
+    return _fig!
+}
+
+/// Return the current axes, creating a 1x1 subplot on the current figure if
+/// none is active (matplotlib `pyplot.gca`).
+pub func gca() Axes {
+    if _ax == nil {
+        _ax = gcf().subplot(1, 1, 1)
+    }
+    return _ax!
+}
+
+/// Activate the subplot at 1-based row-major `index` of a `rows x cols` grid
+/// on the current figure (matplotlib `pyplot.subplot`).
+pub func subplot(rows int, cols int, index int) Axes {
+    _ax = gcf().subplot(rows, cols, index)
+    return _ax!
+}
+
+/// Create a figure with a `nrows x ncols` grid of subplots and return
+/// `(fig, ax)` where `ax` is the first subplot (matplotlib `pyplot.subplots`).
+/// The whole grid is created on `fig.axes`; for a grid, reach the remaining
+/// axes through `fig.axes` or `subplot` (Koala returns a single `Axes`, not
+/// matplotlib's ndarray, so the dominant single-axes idiom stays intact).
+pub func subplots(nrows int = 1, ncols int = 1) (Figure, Axes) {
+    let fig = figure()
+    var first Axes? = nil
+    var i = 1
+    while i <= nrows * ncols {
+        let ax = fig.subplot(nrows, ncols, i)
+        if first == nil {
+            first = ax
+        }
+        i = i + 1
+    }
+    _ax = first
+    return (fig, first!)
+}
+
+/// Draw a polyline on the current axes (matplotlib `pyplot.plot`).
+pub func plot(x list[float], y list[float]? = nil, fmt str? = nil,
+              label str? = nil, color str? = nil, linestyle str? = nil,
+              linewidth float = 1.5, marker str? = nil) Line {
+    return gca().plot(x, y, fmt, label, color, linestyle, linewidth, marker)
+}
+
+/// Draw a point cloud on the current axes (matplotlib `pyplot.scatter`).
+pub func scatter(x list[float], y list[float], s float = 36.0, c str? = nil,
+                 marker str = "o", label str? = nil) Scatter {
+    return gca().scatter(x, y, s, c, marker, label)
+}
+
+/// Draw contour lines on the current axes (matplotlib `pyplot.contour`).
+pub func contour(Z list[list[float]], levels list[float]? = nil,
+                 cmap str = "viridis", xs list[float]? = nil,
+                 ys list[float]? = nil) Contour {
+    return gca().contour(Z, levels, cmap, xs, ys)
+}
+
+/// Display a raster image on the current axes (matplotlib `pyplot.imshow`).
+pub func imshow(Z list[list[float]], cmap str = "viridis") Image {
+    return gca().imshow(Z, cmap)
+}
+
+/// Histogram on the current axes (matplotlib `pyplot.hist`); returns the
+/// matplotlib triple `(n, bins, patches)`. `range_` is matplotlib's `range=`.
+pub func hist(x list[float], bins int = 10, range_ (float, float)? = nil,
+              color str? = nil, label str? = nil) (list[int], list[float], Hist) {
+    return gca().hist(x, bins, range_, color, label)
+}
+
+/// Set the x-axis label of the current axes (matplotlib `pyplot.xlabel`).
+pub func xlabel(text str) { gca().set_xlabel(text) }
+
+/// Set the y-axis label of the current axes (matplotlib `pyplot.ylabel`).
+pub func ylabel(text str) { gca().set_ylabel(text) }
+
+/// Set the title of the current axes (matplotlib `pyplot.title`).
+pub func title(text str) { gca().set_title(text) }
+
+/// Enable the legend on the current axes (matplotlib `pyplot.legend`).
+pub func legend() { gca().legend() }
+
+/// Set the x-axis limits of the current axes (matplotlib `pyplot.xlim`).
+pub func xlim(left float, right float) { gca().set_xlim(left, right) }
+
+/// Set the y-axis limits of the current axes (matplotlib `pyplot.ylim`).
+pub func ylim(bottom float, top float) { gca().set_ylim(bottom, top) }
+
+/// Show or hide the grid on the current axes (matplotlib `pyplot.grid`).
+pub func grid(on bool = true) { gca().grid(on) }
+
+/// Override the x tick positions (matplotlib `pyplot.xticks`).
+pub func xticks(ticks list[float]) { gca().set_xticks(ticks) }
+
+/// Override the y tick positions (matplotlib `pyplot.yticks`).
+pub func yticks(ticks list[float]) { gca().set_yticks(ticks) }
+
+/// Discard the current figure and axes (matplotlib `pyplot.close`). The
+/// window backend, when present, is torn down by `show`/the renderer layer.
+pub func close() {
+    _fig = nil
+    _ax = nil
+}
+
+/// Write the current figure to a self-contained HTML file. A Koala extension
+/// with no matplotlib equivalent (`savefig` is deferred, docs/koala_ml.md
+/// §6.5); it is the headless exit for display-less environments. Panics if
+/// the file cannot be written.
+pub func savehtml(path str) {
+    if !fs.write_str(path, figure_html(gcf())) {
+        panic("plot.savehtml: cannot write '" + path + "'")
+    }
+}
+
+/// Display the current figure (matplotlib `pyplot.show`). Unlike matplotlib's
+/// non-blocking default, v1 blocks until the window is closed (`block=true`).
+/// The backend is selected by `KOALA_PLOT_BACKEND`: `webview` (default) opens
+/// a system-webview window; `html` writes `plot.html` headlessly and returns.
+/// Panics on an unknown backend or when no display is available.
+pub func show(block bool = true) {
+    let fig = gcf()
+    var backend = "webview"
+    if let b = os.getenv("KOALA_PLOT_BACKEND") {
+        backend = b
+    }
+    if backend == "html" {
+        savehtml("plot.html")
+        return
+    }
+    if backend != "webview" {
+        panic("plot.show: unknown KOALA_PLOT_BACKEND '" + backend + "'")
+    }
+    let win = webview.Window()
+    win.set_title("koala/plot")
+    win.set_size(int(fig.width), int(fig.height))
+    win.set_html(figure_html(fig))
+    if block {
+        win.run()
+        win.destroy()
+    } else {
+        win.poll()
+    }
+}

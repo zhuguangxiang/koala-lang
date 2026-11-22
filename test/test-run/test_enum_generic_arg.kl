@@ -1,0 +1,18 @@
+// RUN: koala %s | filecheck %s
+// Regression: an imported enum (test_pkg/enum_cross.Proto) used as a generic
+// type argument compiles and runs. Enum values compare with == (enums are not
+// Equatable-bounded), asserted via ut.assert_true. check_generic_bound used to
+// crash on an enum type argument (parser_expr.c TYPE_TYPE assertion).
+
+import "std/ut"
+import "test_pkg/enum_cross"
+
+func main() {
+    let nested = [[enum_cross.Proto.ICMP, enum_cross.Proto.TCP], [enum_cross.Proto.MAX]]
+    ut.assert_true(nested[0][1] == enum_cross.Proto.TCP)
+    ut.assert_true(nested[1][0] == enum_cross.Proto.MAX)
+    print(nested[0][1].name())
+    // CHECK: TCP
+    print(nested[1][0].name())
+    // CHECK: MAX
+}

@@ -1,0 +1,364 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/json"
+
+/// The two-level Figure/Axes object tree (docs/koala_ml.md §6.2), mirroring
+/// matplotlib's object model. v1 holds decoration state and resolves the
+/// coordinate frame (rect, ticks, labels, grid, legend) into the figure
+/// spec; data artists (plot/scatter/contour/imshow/hist) are added in a
+/// later increment without reworking this frame.
+///
+/// `Figure` dimensions follow matplotlib's inch + dpi convention. Koala
+/// has no tuple default arguments, so the constructor takes `width`/
+/// `height` in inches as scalars; `pyplot.figure(figsize=(w, h), dpi=...)`
+/// provides the exact matplotlib entry point.
+
+/// One subplot: axis limits, labels, title, grid, legend and tick overrides,
+/// plus the resolved coordinate frame. Obtained from `Figure.subplot`.
+pub class Axes {
+    pub var row int
+    pub var col int
+    pub var xlim (float, float)? = nil
+    pub var ylim (float, float)? = nil
+    pub var xlabel_text str = ""
+    pub var ylabel_text str = ""
+    pub var title_text str = ""
+    pub var grid_on bool = false
+    pub var legend_on bool = false
+    pub var xticks_override list[float]? = nil
+    pub var yticks_override list[float]? = nil
+    pub let artists = list[Artist]()
+    var color_index int = 0
+
+    pub func __init__(row int, col int) {
+        self.row = row
+        self.col = col
+    }
+
+    /// Set the x-axis label (matplotlib `Axes.set_xlabel`).
+    pub func set_xlabel(text str) {
+        xlabel_text = text
+    }
+
+    /// Set the y-axis label (matplotlib `Axes.set_ylabel`).
+    pub func set_ylabel(text str) {
+        ylabel_text = text
+    }
+
+    /// Set the axes title (matplotlib `Axes.set_title`).
+    pub func set_title(text str) {
+        title_text = text
+    }
+
+    /// Set the x-axis limits to `[left, right]` (`Axes.set_xlim`).
+    pub func set_xlim(left float, right float) {
+        xlim = (left, right)
+    }
+
+    /// Set the y-axis limits to `[bottom, top]` (`Axes.set_ylim`).
+    pub func set_ylim(bottom float, top float) {
+        ylim = (bottom, top)
+    }
+
+    /// Show or hide the grid (matplotlib `Axes.grid`).
+    pub func grid(on bool = true) {
+        grid_on = on
+    }
+
+    /// Enable the legend; entries come from labeled artists (`Axes.legend`).
+    pub func legend() {
+        legend_on = true
+    }
+
+    /// Override the x tick positions (`Axes.set_xticks`); labels are
+    /// formatted automatically.
+    pub func set_xticks(ticks list[float]) {
+        xticks_override = ticks
+    }
+
+    /// Override the y tick positions (`Axes.set_yticks`).
+    pub func set_yticks(ticks list[float]) {
+        yticks_override = ticks
+    }
+
+    /// Draw a polyline (matplotlib `Axes.plot`). With a single argument the
+    /// values are y and x defaults to `0..N-1`. `fmt` is a matplotlib format
+    /// string (e.g. "ro--"); explicit `color`/`linestyle`/`marker` keywords
+    /// override it. Auto color advances the tab10 cycle. Returns the `Line`.
+    ///
+    /// Koala is statically typed, so matplotlib's `plot(y, fmt)` positional
+    /// form is spelled `plot(y, fmt = "...")` (the second positional slot is
+    /// always `y`); `plot(x, y, fmt)` works positionally as in matplotlib.
+    pub func plot(x list[float], y list[float]? = nil, fmt str? = nil,
+                  label str? = nil, color str? = nil, linestyle str? = nil,
+                  linewidth float = 1.5, marker str? = nil) Line {
+        var xdata = list[float]()
+        var ydata = list[float]()
+        if let yy = y {
+            xdata = x
+            ydata = yy
+        } else {
+            ydata = x
+            var i = 0
+            while i < ydata.len() {
+                xdata.append(float(i))
+                i = i + 1
+            }
+        }
+        var ls = "-"
+        var mk str? = nil
+        var col str? = nil
+        if let f = fmt {
+            let (fc, fls, fmk) = parse_fmt(f)
+            col = fc
+            if let l = fls {
+                ls = l
+            }
+            mk = fmk
+        }
+        if let c = color {
+            col = c
+        }
+        if let l = linestyle {
+            ls = l
+        }
+        if let m = marker {
+            mk = m
+        }
+        let cycle = color_cycle()
+        let cyc = cycle[color_index % cycle.len()]
+        color_index = color_index + 1
+        var final_col = cyc
+        if let c = col {
+            final_col = c
+        }
+        let line = Line(xdata, ydata, label, final_col, ls, linewidth, mk)
+        artists.append(line)
+        return line
+    }
+
+    /// Draw a point cloud (matplotlib `Axes.scatter`). `s` is the marker
+    /// area and `c` the color, matching matplotlib's parameter names.
+    /// Returns the `Scatter` artist.
+    pub func scatter(x list[float], y list[float], s float = 36.0,
+                     c str? = nil, marker str = "o", label str? = nil) Scatter {
+        let cycle = color_cycle()
+        let cyc = cycle[color_index % cycle.len()]
+        color_index = color_index + 1
+        var col = cyc
+        if let cc = c {
+            col = cc
+        }
+        let sc = Scatter(x, y, label, col, marker, s)
+        artists.append(sc)
+        return sc
+    }
+
+    /// Draw contour lines of grid `Z` (matplotlib `Axes.contour`). `levels`
+    /// defaults to automatic spacing over Z; `xs`/`ys` default to index
+    /// ranges. Returns the `Contour` artist.
+    pub func contour(Z list[list[float]], levels list[float]? = nil,
+                     cmap str = "viridis", xs list[float]? = nil,
+                     ys list[float]? = nil) Contour {
+        let art = Contour(Z, xs, ys, levels, cmap)
+        artists.append(art)
+        return art
+    }
+
+    /// Display grid `Z` as a raster image (matplotlib `Axes.imshow`),
+    /// origin upper. Sets the axis limits to the image extent unless
+    /// already fixed. Returns the `Image` artist.
+    pub func imshow(Z list[list[float]], cmap str = "viridis") Image {
+        let art = Image(Z, cmap)
+        artists.append(art)
+        if xlim == nil {
+            xlim = (-0.5, float(art.cols) - 0.5)
+        }
+        if ylim == nil {
+            ylim = (float(art.rows) - 0.5, -0.5)
+        }
+        return art
+    }
+
+    /// Histogram of `x` (matplotlib `Axes.hist`). Returns the matplotlib
+    /// triple `(n, bins, patches)`: counts, bin edges and the `Hist` artist.
+    /// `range_` is matplotlib's `range=` (a Koala reserved word).
+    pub func hist(x list[float], bins int = 10, range_ (float, float)? = nil,
+                  color str? = nil, label str? = nil) (list[int], list[float], Hist) {
+        let (counts, edges) = histogram(x, bins, range_)
+        let cycle = color_cycle()
+        let cyc = cycle[color_index % cycle.len()]
+        color_index = color_index + 1
+        var col = cyc
+        if let c = color {
+            col = c
+        }
+        let art = Hist(counts, edges, col, label)
+        artists.append(art)
+        return (counts, edges, art)
+    }
+
+    /// Resolved x limits: explicit override, else autoscale across artist
+    /// data extents, else the unit interval. A zero-span override is
+    /// expanded so the scale stays non-degenerate.
+    func resolved_xlim() (float, float) {
+        if let r = xlim {
+            let (a, b) = r
+            if a == b {
+                return (a - 0.5, b + 0.5)
+            }
+            return (a, b)
+        }
+        var lo = 0.0
+        var hi = 0.0
+        var found = false
+        for art in artists {
+            if let b = art.xbounds() {
+                let (a, c) = b
+                if !found {
+                    lo = a
+                    hi = c
+                    found = true
+                } else {
+                    if a < lo {
+                        lo = a
+                    }
+                    if c > hi {
+                        hi = c
+                    }
+                }
+            }
+        }
+        if !found {
+            return (0.0, 1.0)
+        }
+        return autoscale([lo, hi])
+    }
+
+    /// Resolved y limits (autoscale across artist data extents).
+    func resolved_ylim() (float, float) {
+        if let r = ylim {
+            let (a, b) = r
+            if a == b {
+                return (a - 0.5, b + 0.5)
+            }
+            return (a, b)
+        }
+        var lo = 0.0
+        var hi = 0.0
+        var found = false
+        for art in artists {
+            if let b = art.ybounds() {
+                let (a, c) = b
+                if !found {
+                    lo = a
+                    hi = c
+                    found = true
+                } else {
+                    if a < lo {
+                        lo = a
+                    }
+                    if c > hi {
+                        hi = c
+                    }
+                }
+            }
+        }
+        if !found {
+            return (0.0, 1.0)
+        }
+        return autoscale([lo, hi])
+    }
+
+    /// Serialize this axes' resolved coordinate frame into the figure spec,
+    /// given its subplot `cell` rectangle. Data artists append to `items`
+    /// in a later increment.
+    pub func to_spec(cell Rect) json.Object {
+        let p = plot_rect(cell)
+        let (xlo, xhi) = resolved_xlim()
+        let (ylo, yhi) = resolved_ylim()
+        let xs = Scale(xlo, xhi, p.x, p.right())
+        let ys = Scale(ylo, yhi, p.bottom(), p.y)
+        let (xvals, xdec) = axis_ticks(xlo, xhi, xticks_override)
+        let (yvals, ydec) = axis_ticks(ylo, yhi, yticks_override)
+
+        let o = json.Object()
+        o["rect"] = rect_json(cell)
+        o["plot"] = rect_json(p)
+        o["xlim"] = pair_json(xlo, xhi)
+        o["ylim"] = pair_json(ylo, yhi)
+        o["xticks"] = ticks_json(xvals, xs, xdec)
+        o["yticks"] = ticks_json(yvals, ys, ydec)
+        o["xlabel"] = text_json(xlabel_text, p.center_x(), p.bottom() + PAD_BOTTOM / 2.0)
+        o["ylabel"] = text_json(ylabel_text, cell.x + PAD_LEFT / 2.0, p.center_y())
+        o["title"] = text_json(title_text, p.center_x(), cell.y + PAD_TOP / 2.0)
+        o["grid"] = grid_json(grid_on, xvals, xs, yvals, ys)
+        o["legend"] = legend_json(legend_on, artists)
+        o["items"] = items_json(artists, xs, ys, p)
+        return o
+    }
+}
+
+/// A figure: pixel canvas plus a grid of axes. Dimensions are given in
+/// inches and dpi (matplotlib convention) and resolved to pixels.
+pub class Figure {
+    pub let width float
+    pub let height float
+    pub var rows int = 1
+    pub var cols int = 1
+    pub let axes = list[Axes]()
+    pub var background str = "#ffffff"
+
+    pub func __init__(width float = 6.4, height float = 4.8, dpi int = 100) {
+        if width <= 0.0 || height <= 0.0 {
+            panic("plot.Figure: width and height must be > 0")
+        }
+        if dpi <= 0 {
+            panic("plot.Figure: dpi must be > 0")
+        }
+        self.width = width * float(dpi)
+        self.height = height * float(dpi)
+    }
+
+    /// Add (or reuse) the subplot at 1-based row-major `index` in a
+    /// `rows x cols` grid (matplotlib `plt.subplot` / `Figure.add_subplot`).
+    pub func subplot(rows int, cols int, index int) Axes {
+        if rows < 1 || cols < 1 {
+            panic("plot.Figure.subplot: rows and cols must be >= 1")
+        }
+        if index < 1 || index > rows * cols {
+            panic("plot.Figure.subplot: index out of range")
+        }
+        self.rows = rows
+        self.cols = cols
+        let r = (index - 1) / cols
+        let c = (index - 1) % cols
+        for ax in axes {
+            if ax.row == r && ax.col == c {
+                return ax
+            }
+        }
+        let ax = Axes(r, c)
+        axes.append(ax)
+        return ax
+    }
+
+    /// Serialize the whole figure (canvas + every axes' resolved frame) to
+    /// the figure-spec JSON object consumed by the renderer.
+    pub func to_spec() json.Object {
+        let o = json.Object()
+        o["width"] = json.Float(width)
+        o["height"] = json.Float(height)
+        o["background"] = json.String(background)
+        let arr = json.Array()
+        for ax in axes {
+            let cell = cell_rect(width, height, rows, cols, ax.row, ax.col)
+            arr.append(ax.to_spec(cell))
+        }
+        o["axes"] = arr
+        return o
+    }
+}

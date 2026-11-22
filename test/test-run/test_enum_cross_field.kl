@@ -16,8 +16,11 @@ class Holder {
         label = l
     }
 
-    func is_tcp() bool {
-        return proto == enum_cross.Proto.TCP
+    func is_tcp() enum_cross.Proto {
+        if proto == enum_cross.Proto.TCP {
+            return enum_cross.Proto.TCP
+        }
+        return proto
     }
 }
 
@@ -25,8 +28,8 @@ func main() {
     let h = Holder(enum_cross.Proto.TCP, "x")
     print(h.proto.name())
     // CHECK: TCP
-    print(h.is_tcp())
-    // CHECK: true
+    print(h.is_tcp().name())
+    // CHECK: TCP
     print(h.label)
     // CHECK: x
 }

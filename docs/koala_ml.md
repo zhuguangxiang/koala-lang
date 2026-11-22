@@ -284,7 +284,9 @@ Tensor = {
 - list 只出现在**边界**：数据输入（`Tensor.array(list)`）、结果输出
   （`tolist()`）、与通用序列生态（itertools/json/csv）的交接。
   进入计算前必须显式转 Tensor，计算完需要时才转回 list。
-- plot 等外围包在入口处把 list 统一转 Tensor（§6.2），内部不留 list 计算。
+- plot 等外围包：**v1 spec/几何层先用 list**（渲染几何 ≠ ML 数值计算，且只在包内私有、
+  不建公开 list-numeric helper）；Tensor 落地后再加 Tensor 入口（additive，几何层零返工）。
+  ML 计算路径仍只走 Tensor，list 只在边界（输入/输出/interop）。
 - v1 提供 `iter` 按首维迭代，够用即可；不做 Tensor 的完整序列协议。
 
 ### 4.16 autograd（v2 展望，v1 不做）
@@ -316,7 +318,7 @@ Koala 侧                          webview 侧（系统 webkit2gtk）
 ─────────                         ─────────────────────────────
 plt.plot/scatter/...              
   → Figure/Axes 对象树            
-    （纯 Koala，数据为 Tensor      
+    （纯 Koala，v1 数据为 list      
       → tolist/JSON）             
 plt.show()                        
   → 序列化为 figure spec JSON     
@@ -340,14 +342,18 @@ plt.show()
 - 装饰：`xlabel/ylabel/title/legend/xlim/ylim/grid/xticks/yticks`。
 - `show()`：阻塞语义（= `Window.run()`，关窗返回），文档写明与
   matplotlib 非阻塞默认的差异；`close()` 对应 terminate/destroy。
-- 输入接受 Tensor 或 list（内部统一转 Tensor 再序列化）。
+- 输入 v1 接受 list（`list[float]` / `list[list[float]]`）；Tensor 落地后加 Tensor 入口
+  （additive，几何层不改）。内部几何与序列化基于 list，不新增公开 list-numeric API
+  （渲染几何 ≠ ML 计算，见 §4.15）。
 - 坐标轴刻度/边距自动计算（nice ticks 算法），渲染质量以课程作业截图为对照标准。
 
 ### 6.3 渲染器（内嵌 JS，自研）
 
-- canvas 2D：折线、散点、坐标轴、刻度、图例、子图网格。
-- **contour：marching squares**（代价曲面作业硬需求），JS 实现，
-  levels 自动取 Z 的等分位或显式传入。
+- canvas 2D：折线、散点、坐标轴、刻度、图例、子图网格。**渲染器是哑画师**：
+  nice-ticks/边距/像素变换/图例与子图布局/marching squares 全在 Koala 侧解算，
+  figure spec 携带已解算的像素几何（headless ut 可测；未来 LVGL/ui 后端廉价复用）。
+- **contour：marching squares**（代价曲面作业硬需求），**Koala 侧实现**，
+  levels 自动取 Z 的等分位或显式传入；spec 携带解算后的等值线像素几何，渲染器只哑画。
 - **imshow：ImageData 像素填充** + colormap（v1：viridis 近似 + gray 两种）。
 - 单文件、无构建链、无网络依赖；随包分发（vendored 注释注明自研与许可）。
 
@@ -1025,6 +1031,7 @@ M0（一维 float64，拟合直线，T0-a→T0→T1→T2[→T3]）
 | 1 | **Tensor 内置于 `std/builtin`，并由编译器内置支持** | §4.1、§7、§10、§13 已按此修订；原"parser/编译器零改动"作废 |
 | 2 | **起点收敛为 M0**（比吴恩达课程更小的一维拟合直线任务） | §8 新增 M0/M0.5；原 M1 拆分为"补齐"角色 |
 | 3 | 绘图以 webview 为后端；不引外部 BLAS/LAPACK；不加 `@` 运算符 | 维持原方案 |
+| 4 | **plot v1 spec/几何层先用 list 装数据，Tensor 入口后置（additive）**；marching squares 与 layout 数学移 Koala 侧、渲染器哑画 | §4.15/§6.1/§6.2/§6.3 已按此修订；Tensor 落地后加 Tensor 入口，几何层不改 |
 
 ### 14.2 待确认（阻塞开工，按优先级）
 
@@ -1043,4 +1050,7 @@ M0（一维 float64，拟合直线，T0-a→T0→T1→T2[→T3]）
 
 - 本轮：新增 §12（评审）、§13（内置决策 + M0）、§14（确认事项）；
   修订 §4.1、§4.7、§7、§8（M0/M0.5/M1/M2、测试命令）、§9（风险与开放问题）、§10（范围）。
-- 本文档仍为**设计方案**，未产生任何实现代码改动。
+- 2026-11-21：用户拍板 plot **spec-first，v1 用 list 装数据**（Tensor 落地后加入口，additive，
+  几何层不改）；marching squares + layout 数学移 Koala 侧、渲染器哑画（§6 两偏差签字）。
+  修订 §4.15/§6.1/§6.2/§6.3/§14.1。plot spec 层开始实现（Tensor 部分仍为设计）。
+- 本文档 Tensor 部分仍为**设计方案**，未产生实现代码改动；plot spec 层除外（已开工）。
