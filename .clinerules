@@ -40,7 +40,17 @@
 
 ## 4. 请用koala来代替python执行任务
 - 用koala -/-e 来代替python -/-c
-- 遇到易用性和bug,记录到koala_usage_issues.md等待讨论
+- 遇到易用性和bug，一律记录到 `issues/` 目录等待讨论
+
+## 4.1 问题记录规范（唯一入口是 `issues/`）
+- 每个问题两处：`issues/issues.summary.md` 索引段 + `issues/issue-<编号>.md` 详情页（全部完成后索引段移到 `issues/issues.done.md`）。
+- 索引段格式：`## <编号>. <标题>`（标题 ≤ 80 字符）+ 紧跟一行 `- [ ]` / `- [x]` 状态摘要 + `→ [详情](issue-<编号>.md)`。
+- 编号规则：`1`–`29` 为历史编号（原 `koala_usage_issues.md`，已删除，原文见 git 历史），不再新增；新编号从 `50` 起顺序分配，**下一个可用编号写在 `issues/issues.summary.md` 页首**，新增后同步 +1。
+- 详情页格式：`# <编号>. <标题>` + 返回索引链接 + 常显 checkbox 清单，固定两个三级小节 `### 详细描述`、`### 修复方案`（各自用 `---` 分隔），每个带标签的块套一个 `<details>`，summary 写「图标 + 原标签名」。
+- `<summary>` 行与 `</details>` 前都必须空一行，否则块内 markdown 不渲染。
+- 全部采用中文记录（代码标识符、报错原文保留英文）。
+- **完成归档**：只有一条 issue 的**全部功能**都完成（详情页无任何 `- [ ]`）时，才把它的索引段整块从 `issues/issues.summary.md` 移到 `issues/issues.done.md`，标题、状态行、`→ [详情](issue-<编号>.md)` 原样保留；部分完成留在 summary，写清剩余项。
+- 不再新建或维护 `*_issues.md`、`docs/Koala_TODO.md` 这类集中式待办文件（两者已于 2026-11-22 全量迁入 `issues/` 并删除）；`docs/` 只放设计与说明文档。
 
 ## 5. 编译和测试
 - 用./build-debug.sh进行全量编译和安装
