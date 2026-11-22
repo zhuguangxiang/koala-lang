@@ -1,0 +1,120 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "koala/readline"
+
+/// The terminal screen of a TUI application: the alternate screen, its
+/// size, the per-frame redraw, and the pinned input row.
+///
+/// On a terminal, construction enters the alternate screen (`smcup`), so
+/// the TUI does not pollute the scrollback; `leave` restores it. When the
+/// program ends by a fatal signal or a panic first, the terminal is still
+/// restored: the native half of `koala/readline` writes the leave sequence
+/// and the original terminal mode at exit. On a pipe
+/// or a file every draw call is a no-op: print your content yourself for
+/// piped runs.
+///
+/// The frame order that works with the readline editor (single-line, column
+/// positioned):
+///
+///     screen.frame_start()            // reset scroll region, clear
+///     screen.write(...)               // the transcript, top to bottom
+///     screen.write_at(row, col, s)    // chrome, e.g. a status row
+///     screen.pin_input(row)           // confine scrolling to 1..row, cursor to (row, 1)
+///     let line = screen.input(prompt) // readline draws at the pinned row
+///
+/// With a multi-row input area (see `readline.set_input_area`), pass the
+/// area's position and the rows the output may scroll:
+///
+///     screen.pin_input(20, 2, 2, 17)  // scroll region 2..17, cursor to (20, 2)
+///     readline.set_input_area(20, 2, cols - 2, 3)
+///     let line = screen.input(prompt)
+pub class Screen {
+    let _tty bool
+    let _rows int
+    let _cols int
+
+    /// Enter the alternate screen (tty only). `rows`/`cols` force the size
+    /// (0 = measure the terminal); forcing it is useful for tests.
+    pub func __init__(rows = 0, cols = 0) {
+        _tty = os.isatty(1)
+        _rows = rows
+        _cols = cols
+        if _tty && (_rows == 0 || _cols == 0) {
+            if let size = os.terminal_size(1) {
+                let (c, r) = size
+                if _cols == 0 && c > 0 { _cols = c }
+                if _rows == 0 && r > 0 { _rows = r }
+            }
+        }
+        if _rows == 0 { _rows = 24 }
+        if _cols == 0 { _cols = 80 }
+        if _tty { printf("\x1b[?1049h") }
+    }
+
+    /// True when stdout is a terminal (the TUI is live); false on a pipe.
+    pub func is_tty() bool { return _tty }
+
+    /// The number of rows of the screen.
+    pub func rows() int { return _rows }
+
+    /// The number of columns of the screen.
+    pub func columns() int { return _cols }
+
+    /// Start a frame: reset the scroll region to the whole screen and clear
+    /// it, leaving the cursor at the top-left corner.
+    pub func frame_start() {
+        if !_tty { return }
+        printf("\x1b[r\x1b[H\x1b[2J")
+    }
+
+    /// Write one line at the cursor, with a newline after it. No-op on a
+    /// pipe: frame drawing is meaningless without a terminal.
+    pub func write(s str) {
+        if !_tty { return }
+        print(s)
+    }
+
+    /// Write `s` at `(row, col)` (1-based), without a newline.
+    pub func write_at(row int, col int, s str) {
+        if !_tty { return }
+        printf("\x1b[{};{}H{}", row, col, s)
+    }
+
+    /// Pin the input to `row`: confine the scroll region to rows
+    /// `region_start`..`region_end` (without them, rows 1..`row`) and place
+    /// the cursor at `(row, col)`. Output printed after this scrolls only
+    /// the region, so rows above stay as a viewport and rows below (e.g. a
+    /// status row) stay fixed.
+    pub func pin_input(row int, col = 1, region_start = 1, region_end = 0) {
+        if !_tty { return }
+        var end = region_end
+        if end == 0 { end = row }
+        printf("\x1b[{};{}r", region_start, end)
+        printf("\x1b[{};{}H", row, col)
+    }
+
+    /// Confine scrolling to rows `top`..`bottom`, leaving the cursor where
+    /// it is. Printed output then scrolls only those rows.
+    pub func scroll_region(top int, bottom int) {
+        if !_tty { return }
+        printf("\x1b[{};{}r", top, bottom)
+    }
+
+    /// Read a line at the row pinned by `pin_input`, with line editing, as
+    /// `readline.input`: the editor draws at the current cursor row.
+    /// Nil at the end of the input (Ctrl-D on an empty line).
+    pub func input(prompt str) str? {
+        return readline.input(prompt)
+    }
+
+    /// Leave the alternate screen and restore the full-screen scroll
+    /// region. The last frame stays in the scrollback.
+    pub func leave() {
+        if !_tty { return }
+        printf("\x1b[r\x1b[?1049l")
+    }
+}

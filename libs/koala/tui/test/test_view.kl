@@ -1,0 +1,134 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/tui"
+
+// View tests use a fixed rect, so they do not depend on the terminal.
+
+func _view(h int) tui.View {
+    return tui.View(tui.Rect(1, 1, h, 80))
+}
+
+@test
+func test_view_tail_window() {
+    let v = _view(3)
+    v.append("a")
+    v.append("b")
+    v.append("c")
+    v.append("d")
+    let r = v.render()
+    ut.assert(r.len() == 3)
+    ut.assert(r[0] == "b" && r[1] == "c" && r[2] == "d")
+}
+
+@test
+func test_view_fewer_than_height() {
+    let v = _view(3)
+    v.append("a")
+    let r = v.render()
+    ut.assert(r.len() == 1 && r[0] == "a")
+}
+
+@test
+func test_view_follow_off() {
+    let v = _view(2)
+    v.append("a")
+    v.append("b")
+    v.append("c")
+    v.follow(false)
+    v.append("d")
+    let r = v.render()
+    ut.assert(r.len() == 2 && r[0] == "b" && r[1] == "c")
+    v.follow(true)
+    let r2 = v.render()
+    ut.assert(r2[0] == "c" && r2[1] == "d")
+}
+
+@test
+func test_view_scroll_clamps() {
+    let v = _view(3)
+    v.append("a")
+    v.append("b")
+    v.append("c")
+    v.scroll_up(10)              // clamps at the top, leaves follow mode
+    ut.assert(!v.is_following())
+    let r = v.render()
+    ut.assert(r.len() == 3 && r[0] == "a")
+    v.scroll_down(10)            // clamps back at the tail
+    let r2 = v.render()
+    ut.assert(r2[0] == "a" && r2[1] == "b" && r2[2] == "c")
+}
+
+@test
+func test_view_clear() {
+    let v = _view(2)
+    v.append("a")
+    v.append("b")
+    v.clear()
+    ut.assert(v.line_count() == 0 && v.render().len() == 0)
+}
+
+@test
+func test_view_append_str_splits() {
+    let v = _view(5)
+    v.append_str("x\ny\nz")
+    ut.assert(v.line_count() == 3)
+    let r = v.render()
+    ut.assert(r[0] == "x" && r[1] == "y" && r[2] == "z")
+}
+
+@test
+func test_view_zero_height() {
+    let v = tui.View(tui.Rect(1, 1, 0, 80))
+    v.append("a")
+    ut.assert(v.line_count() == 1 && v.render().len() == 0)
+}
+
+@test
+func test_view_at_tail() {
+    let v = _view(3)
+    ut.assert(v.at_tail())
+    v.append("a")
+    ut.assert(v.at_tail())
+    v.append("b")
+    v.append("c")
+    v.append("d")                  // more lines than rows: still the tail
+    ut.assert(v.at_tail())
+    v.scroll_up(1)
+    ut.assert(!v.at_tail())
+    v.scroll_down(1)
+    ut.assert(v.at_tail())
+}
+
+@test
+func test_view_set_rect_follow() {
+    let v = _view(3)
+    v.append("a")
+    v.append("b")
+    v.append("c")
+    v.append("d")
+    v.set_rect(tui.Rect(1, 1, 2, 80))        // shrink: follow keeps the tail
+    let r = v.render()
+    ut.assert(r.len() == 2 && r[0] == "c" && r[1] == "d")
+    v.set_rect(tui.Rect(1, 1, 4, 80))        // grow: still the tail
+    let r2 = v.render()
+    ut.assert(r2.len() == 4)
+}
+
+@test
+func test_view_set_rect_manual_clamps() {
+    let v = _view(3)
+    v.append("a")
+    v.append("b")
+    v.append("c")
+    v.scroll_up(1)                           // follow off
+    v.set_rect(tui.Rect(1, 1, 1, 80))        // shrink below the window top
+    let r = v.render()
+    ut.assert(r.len() == 1 && r[0] == "a")
+    v.set_rect(tui.Rect(1, 1, 3, 80))        // grow back: position kept
+    let r2 = v.render()
+    ut.assert(r2.len() == 3 && r2[0] == "a")
+}

@@ -1,0 +1,54 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Terminal TUI on an alternate screen: the row layout of an agent-CLI —
+/// a scrolling transcript on top, the input line pinned, a status row under
+/// it. Immediate-mode rendering: the app re-draws the frame each turn with
+/// `Screen`, the library handles the terminal control sequences.
+///
+///     import "koala/tui"
+///
+///     let screen = tui.Screen()
+///     let layout = tui.Layout(screen)
+///     let transcript = tui.View(layout.elastic())   // rows 1..H-2
+///     let input_row  = layout.fixed_bottom(1)       // H-1
+///     let status_row = layout.fixed_bottom(1)       // H
+///
+///     while true {
+///         screen.frame_start()
+///         for l in transcript.render() { screen.write(l) }
+///         screen.write_at(status_row.row, 1, "[agent] model=auto")
+///         screen.pin_input(input_row.row)
+///         let line = screen.input("[agent] you> ") else { break }
+///         transcript.append(line)
+///     }
+///     screen.leave()
+///
+/// On a terminal, output printed between turns scrolls within the region
+/// above the input row (DECSTBM), so the input line and the status row stay
+/// put while output streams in. On a pipe or a file every draw call is a
+/// no-op — print your content yourself for piped runs, and the same program
+/// runs either way. When the chrome changes (a terminal resize, a new row),
+/// re-cut the layout and re-attach the view with `View.set_rect`; the
+/// transcript, the scroll position and the follow mode all survive.
+///
+/// `Screen.input` is the global `koala/readline` editor: completion,
+/// history and hooks all still apply, and the editor draws at whatever row
+/// `pin_input` placed the cursor on. One editor means one input row per
+/// screen.
+///
+/// For a multi-row input area (e.g. a boxed input), give `pin_input` the
+/// area's position and the rows the output may scroll, and hand the same
+/// position to `readline.set_input_area`:
+///
+///     screen.pin_input(20, 2, 2, 17)            // region 2..17, cursor (20, 2)
+///     readline.set_input_area(20, 2, cols - 2, 3)
+///     let line = screen.input("> ")
+///
+/// The editor then draws its rows inside the area (Ctrl-J starts a new row,
+/// Enter submits). `View.at_tail` tells whether the window shows the tail;
+/// `View.scroll_up` / `scroll_down` page it, and a `readline.KeyHook`
+/// (see `readline.set_key_hook`) can page on Page Up / Page Down: the hook
+/// draws, and the editor re-draws the area afterwards.
