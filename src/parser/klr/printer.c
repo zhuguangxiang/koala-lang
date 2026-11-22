@@ -1212,6 +1212,12 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ir_cast(name, insn, fp);
             break;
 
+        // Same spelling as `cast`; the constant-pool index is deliberately not
+        // printed so the dump does not depend on the pool layout.
+        case OP_DYNAMIC_CAST:
+            print_ir_cast(name, insn, fp);
+            break;
+
         case OP_INT_CAST:
             print_ir_cast(name, insn, fp);
             break;

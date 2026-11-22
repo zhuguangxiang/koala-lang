@@ -2155,6 +2155,48 @@ TARGET(OP_UPCAST_INTF) {
     DISPATCH();
 }
 
+/*
+ * Issue #26: box a bare object into the trait interface named by const_pool[idx].
+ * Emitted on the return path of an erased generic body, where the concrete class is
+ * unknown at compile time, so the itable has to be resolved by name at run time.
+ *
+ * tp->itables lists every trait the class implements, inherited ones included, so a
+ * single scan also covers an upcast to a parent trait. A value that already carries
+ * an itab is handled too: kl_typeof() returns itab->tp (the class), so the lookup
+ * starts from the same table list.
+ */
+TARGET(OP_DYNAMIC_CAST) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    idx = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    Object *sobj = to_obj(CP(idx));
+    ASSERT(IS_STR(sobj));
+    char *name = STR_BUF(sobj);
+    size_t name_len = STR_LEN(sobj);
+
+    TValue v = regs[rs];
+    TypeObject *tp = kl_typeof(&v);
+    ASSERT(tp);
+
+    IntfTable *itab = kl_tp_find_itab(tp, name, name_len);
+
+    if (!itab) {
+        SAVE_PC();
+        raise_exc_fmt("type '%s' does not implement trait '%.*s'", tp->name, (int)name_len,
+                      name);
+        goto error;
+    }
+
+    v.itab = itab;
+    regs[rd] = v;
+
+    DISPATCH();
+}
+
 /* cold instructions */
 
 /* Unsigned Ops */

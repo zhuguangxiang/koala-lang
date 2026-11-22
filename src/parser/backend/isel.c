@@ -986,6 +986,24 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
     return flag;
 }
 
+/*
+ * Issue #26: a `cast T -> trait` whose sole use is `ret` is the return path of an
+ * erased generic body. Only those are converted to OP_DYNAMIC_CAST; a cast with
+ * any other use keeps the old behaviour, so non-return paths are untouched.
+ */
+static int isel_cast_sole_use_is_ret(KlrInsn *insn)
+{
+    if (insn->use_count != 1) return 0;
+
+    KlrUse *use = use_first((KlrValue *)insn);
+    if (!use) return 0;
+    if (use->is_def) return 0;
+
+    KlrInsn *user = use->insn;
+    if (!user) return 0;
+    return user->code == OP_RET;
+}
+
 static void isel_lower_cast(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
@@ -1112,7 +1130,16 @@ static void isel_lower_cast(KlrInsn *insn)
         }
         */
         // T -> trait
-        // DO NOTHING: keep OP_IR_CAST so cgen will handle it.
+        // DO NOTHING: keep OP_IR_CAST so cgen will handle it, except on the return
+        // path (issue #26): cgen lowers that cast to a plain move, which hands the
+        // caller a bare object with no itab. The concrete class is unknown here (one
+        // erased body serves every instantiation), so the itable has to be resolved
+        // at run time by trait name -> OP_DYNAMIC_CAST.
+        // A returned parameter is skipped: the caller already boxed it.
+        if (ts_symbol_is_trait(dst_ts) && !klr_is_param(src) &&
+            isel_cast_sole_use_is_ret(insn)) {
+            insn->code = OP_DYNAMIC_CAST;
+        }
     } else if (type_is_klass(src_ts) && type_is_klass(dst_ts)) {
         ASSERT(ts_symbol_is_trait(src_ts) && ts_symbol_is_klass(dst_ts));
         /*

@@ -60,6 +60,27 @@ TypeObject *kl_typeof(TValue *val)
     return _value_typeof(val->tag);
 }
 
+/*
+ * Find the itable of `tp` that implements the trait `name`. The name is the bare
+ * trait name, exactly as write_meta_intf_entry() stores it (KlcIntfEntry carries no
+ * module). `name` need not be 0-terminated: constant-pool strings are not.
+ *
+ * tp->itables lists every trait the type implements, inherited ones included, so
+ * this also finds a parent trait. Returns NULL when the trait is not implemented.
+ */
+IntfTable *kl_tp_find_itab(TypeObject *tp, char *name, size_t len)
+{
+    IntfTable *item;
+    vector_foreach_ptr(item, &tp->itables) {
+        if (!item) continue;
+        /* itab->name is a 0-terminated atom, `name` may not be */
+        if (strlen(item->name) != len) continue;
+        if (memcmp(item->name, name, len) != 0) continue;
+        return item;
+    }
+    return NULL;
+}
+
 Object *kl_type_find(TypeObject *tp, char *name)
 {
     Object *obj = stbl_find_obj(&tp->members, name);

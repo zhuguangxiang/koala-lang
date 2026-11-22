@@ -2424,6 +2424,25 @@ static int translate_insn(JitCtx *j, uint32_t insn, int pc, ModuleObject *m, Cod
             emit_add_rsp_imm32(b, 8);
             break;
 
+        case OP_DYNAMIC_CAST: {
+            /* the pool string is resolved at translate time, like OP_IS/OP_AS */
+            rd = I_VAL(insn, 16, 8);
+            rs = I_VAL(insn, 8, 8);
+            int kidx = I_VAL(insn, 0, 8);
+            TValue *pool = VECTOR_ITEMS(&m->const_pool, TValue);
+            Object *sobj = to_obj(&pool[kidx]);
+            emit_reg_addr(j, RDI, rd);
+            emit_reg_addr(j, RSI, rs);
+            emit_mov_reg_imm64(b, RDX, (uint64_t)(uintptr_t)sobj);
+            emit_mov_reg_imm32(b, RCX, code->cs.start_pc + pc);
+            emit_sub_rsp_imm32(b, 8);
+            emit_call_abs(j, (void *)kl_jit_dynamic_cast);
+            emit_add_rsp_imm32(b, 8);
+            emit_alu_reg_imm32(b, ALU_CMP, RAX, 0);
+            emit_jump(j, CC_E, JIT_ERR_TARGET);
+            break;
+        }
+
         case OP_UPCAST_INTF:
             /* regs[rd] = { itab->parents[idx], regs[rs].obj } */
             rd = I_VAL(insn, 16, 8);

@@ -415,6 +415,30 @@ static void lower_is_as_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
+/*
+ * OP_DYNAMIC_CAST carries the bare trait name as a constant-pool string: the
+ * concrete class is unknown in an erased generic body, so the VM resolves the
+ * itable by that name at run time (issue #26).
+ */
+static void lower_dynamic_cast_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], src->vreg);
+
+    /* The run-time itable is keyed by the bare trait name: write_meta_intf_entry()
+       stores trait_sym->name and KlcIntfEntry carries no module, so the pool string
+       must be bare too (the IR dump still prints the qualified type). */
+    TypeSpec *ts = insn->ts;
+    ASSERT(ts->kind == TYPE_KLASS);
+    char *name = ts->klass_type.name;
+    KlrConst *kc = (KlrConst *)klr_const_str(name, strlen(name), insn->bb->func->module);
+    KlMachConst *entry = kl_mach_add_const(kc, m);
+    /* the operand is an 8-bit pool index, same convention as 'is'/'as' */
+    ASSERT(entry->index >= 0 && entry->index <= UINT8_MAX);
+    set_raw_const(&insn->raws[2], entry->index);
+}
+
 static void lower_set_field_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -727,6 +751,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 case OP_MAKE_INTF:
                 case OP_UPCAST_INTF: {
                     lower_make_intf_opers(insn);
+                    break;
+                }
+
+                case OP_DYNAMIC_CAST: {
+                    lower_dynamic_cast_opers(insn, m);
                     break;
                 }
 

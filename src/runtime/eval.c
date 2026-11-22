@@ -561,6 +561,34 @@ void kl_jit_make_intf(TValue *dst, TValue *src, int idx)
     *dst = v;
 }
 
+/* OP_DYNAMIC_CAST: box *src into the trait named by the pool string `name_str`.
+ * Mirrors the interpreter's by-name itable lookup. When src's type does not
+ * implement the trait it raises, records cf->pc and traces the JIT frame, then
+ * returns 0 so the native code branches to the error epilogue. 1 on success. */
+int kl_jit_dynamic_cast(TValue *dst, TValue *src, Object *name_str, uint32_t pc)
+{
+    ASSERT(IS_STR(name_str));
+    char *name = STR_BUF(name_str);
+    size_t len = STR_LEN(name_str);
+
+    TypeObject *tp = kl_typeof(src);
+    ASSERT(tp);
+
+    IntfTable *itab = kl_tp_find_itab(tp, name, len);
+    if (!itab) {
+        KoalaState *ks = __ks();
+        ks->cf->pc = pc;
+        raise_exc_fmt("type '%s' does not implement trait '%.*s'", tp->name, (int)len, name);
+        trace_here(ks->cf);
+        return 0;
+    }
+
+    TValue v = *src;
+    v.itab = itab;
+    *dst = v;
+    return 1;
+}
+
 TValue kl_jit_is_as(TValue *src, TypeObject *tp, int is_as)
 {
     TypeObject *src_tp = kl_typeof(src);

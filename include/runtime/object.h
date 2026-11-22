@@ -495,6 +495,11 @@ int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth);
 
 Object *kl_type_find(TypeObject *tp, char *name);
 
+/* Find the itable implementing trait `name` (bare trait name, `len` bytes, not
+ * necessarily 0-terminated) in tp->itables, inherited traits included. NULL when
+ * the type does not implement it. Used by OP_DYNAMIC_CAST (VM and JIT). */
+IntfTable *kl_tp_find_itab(TypeObject *tp, char *name, size_t len);
+
 typedef struct _Formatter {
     OBJECT_HEAD
     Buffer buf;

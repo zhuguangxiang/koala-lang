@@ -1,0 +1,93 @@
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
+
+// Issue #26: a value of a trait-bounded type variable returned from an erased
+// generic body must carry an itab.
+//
+// irgen keeps emitting `cast`, so the no-opt IR is unchanged everywhere. The
+// return path is lowered in isel_lower_cast()'s existing `T -> trait` branch
+// (isel.c:1096, today "DO NOTHING: keep OP_IR_CAST so cgen will handle it", and
+// cgen.c:1370 turns that cast into a plain move -- which is how the bare object
+// escapes). There, a cast becomes `dynamic_cast` (run-time itable lookup by
+// trait name) when: it feeds a `ret`, its source is not a parameter, and the
+// target is T's bound or a parent trait of that bound.
+//
+// A static make_intf index cannot work in an erased body: one body serves every
+// instantiation, and the same trait sits at different itable slots in different
+// classes. A returned parameter is skipped -- the caller already boxed it.
+
+trait M { func a() int }
+trait N : M { func b() int }
+
+class C : N {
+    pub func a() int { return 1 }
+    pub func b() int { return 2 }
+}
+
+// Return type is the bound itself.
+func first[T : N](items list[T]) N { return items[0] }
+
+// Return type is a parent trait of the bound.
+func first_up[T : N](items list[T]) M { return items[0] }
+
+// Returned value is a parameter: the caller already boxed it.
+func passthrough[T : N](x T) N { return x }
+
+// Return type is the type variable itself. No conversion happens at all, so
+// irgen emits no `cast` and isel has nothing to rewrite into `dynamic_cast`.
+func identity[T : N](x T) T { return x }
+
+// Same for a value read out of a container where the declared type is T.
+func identity_elem[T : N](items list[T]) T { return items[0] }
+
+func main() {
+    let xs = list[C](C())
+    print(first(xs).b())
+    print(first_up(xs).a())
+    print(passthrough(C()).b())
+    print(identity(C()).b())
+    print(identity_elem(xs).b())
+}
+
+// no-opt IR: irgen is unchanged, every T -> trait conversion is still `cast`.
+// CHECK: %1 = cast %0 first:T to test_generic_return_cast.N
+// CHECK-NEXT: ret %1 test_generic_return_cast.N
+// CHECK: %1 = cast %0 first_up:T to test_generic_return_cast.M
+// CHECK-NEXT: ret %1 test_generic_return_cast.M
+// CHECK: %0 = cast %x passthrough:T to test_generic_return_cast.N
+// CHECK-NEXT: ret %0 test_generic_return_cast.N
+
+// A return type of T itself needs no conversion: no cast at all, in either dump.
+// CHECK: func @identity(%x identity:T) identity:T {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: ret %x identity:T
+// CHECK: func @identity_elem(%items {{.*}}) identity_elem:T {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = seq.get %items {{.*}}, 0 int64
+// CHECK-NEXT: ret %0 identity_elem:T
+
+// LIR after isel: the two non-parameter return sites become dynamic_cast.
+// CHECK: --- IR Dump After isel [@first] ---
+// CHECK: %1 = dynamic_cast %0 first:T to test_generic_return_cast.N
+// CHECK-NEXT: ret %1 test_generic_return_cast.N
+// CHECK: --- IR Dump After isel [@first_up] ---
+// CHECK: %1 = dynamic_cast %0 first_up:T to test_generic_return_cast.M
+// CHECK-NEXT: ret %1 test_generic_return_cast.M
+// CHECK: --- IR Dump After isel [@passthrough] ---
+// CHECK: %0 = cast %x passthrough:T to test_generic_return_cast.N
+// CHECK-NEXT: ret %0 test_generic_return_cast.N
+
+// No dynamic_cast on either identity path: the target is T, not a trait.
+// CHECK: --- IR Dump After isel [@identity] ---
+// CHECK-NOT: dynamic_cast
+// CHECK: ret %x identity:T
+// CHECK: --- IR Dump After isel [@identity_elem] ---
+// CHECK-NOT: dynamic_cast
+// CHECK: %0 = seq.get_imm %items {{.*}}, 0 int64
+// CHECK-NEXT: ret %0 identity_elem:T
+
+// output
+// CHECK: {{^}}2{{$}}
+// CHECK-NEXT: {{^}}1{{$}}
+// CHECK-NEXT: {{^}}2{{$}}
+// CHECK-NEXT: {{^}}2{{$}}
+// CHECK-NEXT: {{^}}2{{$}}

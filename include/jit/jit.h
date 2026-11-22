@@ -98,6 +98,12 @@ void kl_jit_raise_at(int what, uint32_t pc);
 /* OP_MAKE_INTF: *dst = *src with the itable idx of src's type (no error). */
 void kl_jit_make_intf(TValue *dst, TValue *src, int idx);
 
+/* OP_DYNAMIC_CAST: *dst = *src boxed into the trait named by the pool string
+ * `name_str` (resolved at translate time). Returns 0 after raise + cf->pc + trace
+ * when src's type does not implement the trait, so the native code branches to the
+ * error epilogue; 1 on success. */
+int kl_jit_dynamic_cast(TValue *dst, TValue *src, Object *name_str, uint32_t pc);
+
 /* OP_IS (is_as=0): bool (typeof(src) == tp); OP_AS (is_as=1): src or nil. */
 TValue kl_jit_is_as(TValue *src, TypeObject *tp, int is_as);
 

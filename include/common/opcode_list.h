@@ -2685,6 +2685,30 @@ X(OP_LOAD_FUNC, FORMAT_RIdx2, "load_func")
  */
 X(OP_LOAD_TYPE, FORMAT_RIdx2, "load_type")
 
+/**
+ * OP_DYNAMIC_CAST — box a bare object into a trait interface, resolving the
+ *                   itable at run time by trait name.
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | const_index:8 |
+ *
+ * Details:
+ *     R[rd] = interface(R[rs], trait named by const_pool[const_index]).
+ *
+ *     Emitted by isel on the return path of an erased generic function whose
+ *     return type is a trait bound of the type parameter (e.g. `func f[T:N]() N`).
+ *     The concrete class is unknown at compile time, so the static itable slot
+ *     used by OP_MAKE_INTF cannot be resolved here; the VM looks the trait up by
+ *     name in the object's itables instead.
+ *
+ *     const_index is an 8-bit index into the module constant pool holding the bare
+ *     trait name, matching IntfTable.name (write_meta_intf_entry() stores
+ *     trait_sym->name and KlcIntfEntry carries no module). Must be <= UINT8_MAX.
+ *
+ *     Appended last so existing bytecode opcode numbers stay stable.
+ */
+X(OP_DYNAMIC_CAST, FORMAT_RRImm, "dynamic_cast")
+
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |
  +---------------------------------------------------------------*/
