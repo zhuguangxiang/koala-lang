@@ -65,8 +65,7 @@ static inline int ts_need_fixup(TypeSpec *ts)
     }
 
     if (ts->kind == TYPE_ENUM) {
-        ASSERT(ts->sym_id >= 0);
-        return 0;
+        return ts->sym_id < 0;
     }
 
     return ts->kind == TYPE_GENERIC_REF || ts->kind == TYPE_GENERIC_VAR ||

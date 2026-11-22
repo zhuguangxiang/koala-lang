@@ -1,0 +1,4 @@
+
+import "test_pkg/enum_cross" as zz
+
+pub func fn(k zz.Proto) bool = true

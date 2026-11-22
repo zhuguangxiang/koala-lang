@@ -1,24 +1,28 @@
 // RUN: koala %s | filecheck %s
 
-import "test_pkg/enum_cross"
+import "test_pkg/enum_cross_indirect" as zz
+import "test_pkg/enum_cross" as yy
 
 func main() {
-    let proto enum_cross.Proto = enum_cross.Proto.TCP
-    let echoed enum_cross.Proto = enum_cross.echo(proto)
-    if echoed == enum_cross.Proto.TCP {
+    let proto yy.Proto = yy.Proto.TCP
+    let echoed yy.Proto = yy.echo(proto)
+    if echoed == yy.Proto.TCP {
         print("cross-package enum")
     }
 
-    let max_value = enum_cross.Proto.MAX
+    let max_value = yy.Proto.MAX
     let raw int = max_value
     print(raw)
 
     // a class field whose type is an enum, persisted in the package .klc
-    let h = enum_cross.Holder(enum_cross.Proto.TCP, "x")
+    let h = yy.Holder(yy.Proto.TCP, "x")
     print(h.proto.name())
     print(h.is_tcp())
-    let m = enum_cross.make_holder(enum_cross.Proto.MAX)
-    print(enum_cross.holder_proto(m).name())
+    let m = yy.make_holder(yy.Proto.MAX)
+    print(yy.holder_proto(m).name())
+
+    // enum is indrectly.
+    print(zz.fn(yy.Proto.TCP))
 }
 
 // CHECK: cross-package enum
@@ -26,3 +30,4 @@ func main() {
 // CHECK: TCP
 // CHECK: true
 // CHECK: MAX
+// CHECK: true
