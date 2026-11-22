@@ -72,6 +72,16 @@ func test_config_all_fields() {
     ut.assert_true(cfg.system_prompt == "s")
     ut.assert_eq(cfg.no_access_dirs.len(), 0)
     ut.assert_eq(cfg.stream_delay_ms, 40)
+    ut.assert_eq(cfg.agent_max_steps, 20)
+}
+
+@test
+func test_config_agent_max_steps() {
+    _fresh()
+    // an explicit value overrides the 20-step default
+    let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", \"history_file\": \"/tmp/h\", \"max_code_bytes\": 1000, \"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, \"system_prompt\": \"s\", \"agent_max_steps\": 7}"
+    let cfg = _config_of(CFGBASE + "/steps.json", json)
+    ut.assert_eq(cfg.agent_max_steps, 7)
 }
 
 @test

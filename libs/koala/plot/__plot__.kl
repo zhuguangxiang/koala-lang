@@ -43,13 +43,16 @@
 ///
 /// Koala-forced deviations (static typing / reserved words), documented at
 /// each call site: `plot(y, fmt)` is `plot(y, fmt = "...")`; `hist(range=)`
-/// is `hist(range_=)`; `subplots()` returns `(fig, first_ax)` with the full
-/// grid on `fig.axes`; `show()` blocks by default (matplotlib does not).
+/// is `hist(range_=)`; `subplots()` returns `(fig, ax)` with matplotlib's
+/// squeeze semantics, `ax` typed `any` (no union return type) and narrowed
+/// via `case is`; `show()` blocks by default (matplotlib does not).
 ///
 /// Output backend is chosen by `KOALA_PLOT_BACKEND`: `webview` (default)
 /// opens a system-webview window; `html` writes `plot.html` headlessly.
 /// `savehtml(path)` always writes a self-contained HTML file (the
-/// display-less exit; `savefig` is deferred, docs/koala_ml.md §6.5).
+/// display-less exit); `savefig(path)` renders via a system webview into
+/// png/jpg/jpeg with `dpi`/`transparent`/`bbox_inches`/`pad_inches`/
+/// `format` kwargs (vector formats are deferred, docs/koala_ml.md §6.5).
 ///
 /// The geometry primitives (`nice_ticks`, `Scale`, `autoscale`, ...) are
 /// public so the spec layer can be driven headlessly in unit tests, the

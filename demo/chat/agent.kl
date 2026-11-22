@@ -4,20 +4,24 @@
  * /agent (agent mode) runs the loop: the model emits one action per turn
  * (write a file, run a shell command, or finish), the harness executes it
  * and feeds the result back, until the model emits "done" or the step cap
- * is hit. One Agent persists across tasks so follow-ups keep context.
+ * (config agent_max_steps, default 20) is hit. One Agent persists across
+ * tasks so follow-ups keep context.
  */
 
 import "std/fs"
 import "std/os"
 import "koala/openai" as openai
 
-/// Maximum model->tool rounds per task, to bound a runaway loop.
-const MAX_STEPS = 12
-
 /// The agent system prompt: a fenced-block action protocol. Blocks rather
 /// than JSON because the JSON parser panics on malformed input and Koala
 /// has no try/catch; blocks are parsed with string ops and never panic.
 const AGENT_PROMPT = "You are an autonomous coding agent in a command-line chat. Complete the user's task by writing files and running shell commands, step by step, until it is done.\n\nEmit EXACTLY ONE fenced action block per turn, and nothing else. The info string after the opening ``` names the action:\n\nWrite a file (info 'write <path>', body = the full file content):\n```write hello.c\n#include <stdio.h>\nint main(void) { printf(\"hello\\n\"); return 0; }\n```\n\nRun a shell command (info 'shell', body = the command; compile and run here):\n```shell\ngcc hello.c -o hello && ./hello\n```\n\nFinish (info 'done', body = your final message to the user):\n```done\nCompiled and ran successfully.\n```\n\nRules: one block per turn. After each action you receive its result (exit code, stdout, stderr). For a C program: write the .c file, compile with gcc, run the binary, and confirm BOTH compile and run succeed (exit 0) before 'done'. On failure, read the error, fix it, and retry. For a plain question needing no tools, reply with a single 'done' block containing your answer. The conversation persists across tasks, so use earlier context for follow-ups."
+
+/// The default approver: deny everything. `repl.kl` injects the interactive
+/// one; tests and any other caller stay safe by default.
+pub func deny_action(info str, body str, workdir str) str {
+    return "n"
+}
 
 /// A coding agent. Owns a persistent conversation (seeded with the agent
 /// prompt) and a working directory — the current directory by default,
@@ -28,16 +32,54 @@ pub class Agent {
     let cfg Config
     var workdir str
     let messages list[dict[str, str]]
+    var paused bool
     var _last_tokens int
+    // the last executed action and its full observation, kept for Ctrl-O
+    var _last_tool_action str
+    var _last_tool_result str
+    // ask before a write or shell action; the answer is y/a/n (d is handled
+    // by the callback itself). The default denies, so an Agent built without
+    // a UI cannot make changes by accident.
+    var approver func(str, str, str) str = { |info, body, workdir| "n" }
+    var allow_all bool
 
-    pub func __init__(_client openai.Client, _cfg Config, _workdir str) {
+    pub func __init__(_client openai.Client, _cfg Config, _workdir str, quiet bool = false) {
         client = _client
         cfg = _cfg
         workdir = _workdir
         messages = list[dict[str, str]]()
+        paused = false
         _last_tokens = 0
+        _last_tool_action = ""
+        _last_tool_result = ""
+        allow_all = false
         messages.append({"role": "system", "content": agent_prompt(cfg.no_access_dirs)})
-        emit("(agent work dir: " + workdir + ")")
+        if !quiet { emit(notice("(agent work dir: " + workdir + ")", plain_mode())) }
+    }
+
+    /// Replace the default "deny everything" approver with the terminal
+    /// one; used by Session when it creates or restores an Agent.
+    pub func set_approver(f func(str, str, str) str) {
+        approver = f
+    }
+
+    /// Freeze this agent's automatic compaction (the owning session is
+    /// paused); manual /compact still works.
+    pub func set_paused(b bool) { paused = b }
+
+    /// True while the agent is paused.
+    pub func is_paused() bool { return paused }
+
+    /// The agent's own conversation (for session persistence).
+    pub func conversation() list[dict[str, str]] { return messages }
+
+    /// True once this agent has executed a tool action in this process.
+    pub func has_tool_output() bool { return _last_tool_result != "" }
+
+    /// The last executed action and its full observation (Ctrl-O); call
+    /// only when `has_tool_output()` is true.
+    pub func tool_output() (str, str) {
+        return (_last_tool_action, _last_tool_result)
     }
 
     /// Change the directory the agent writes files in and runs commands
@@ -55,18 +97,24 @@ pub class Agent {
     pub func run(task str, model str) {
         messages.append({"role": "user", "content": task})
         var step = 0
-        while step < MAX_STEPS {
+        while step < cfg.agent_max_steps {
             step += 1
+            show_busy("Thinking")
             let resp = client.chat.completions.create(model, messages, cfg.temperature, cfg.max_tokens)
+            hide_busy()
             if !resp.ok() {
                 messages.pop()
-                emit("Error [" + str(resp.status_code) + "]: " + resp.error_message)
+                emit(http_error(resp.status_code, resp.error_message, plain_mode()))
                 return
             }
             let text = resp.choices[0].message.content
             messages.append({"role": "assistant", "content": text})
             _last_tokens = resp.usage.prompt_tokens
-            maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens)
+            if !paused {
+                if let after = maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens) {
+                    _last_tokens = after
+                }
+            }
 
             let block = parse_block(text)
             if block == nil {
@@ -78,21 +126,86 @@ pub class Agent {
                 emit("bot> " + body.strip())
                 return
             }
+            emit(tool_start(step, info, plain_mode()))
+            for line in action_detail(info, body, plain_mode()) { emit(line) }
+            if _needs_approval(info, body) {
+                if _ask_approval(info, body) != "y" {
+                    emit(tool_end("permission denied by user", 20, plain_mode()))
+                    var what = info
+                    if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
+                        what += ": " + body.strip()
+                    }
+                    messages.append({"role": "user", "content": "The user denied permission for this action:\n" + what + "\nDo not run it. Choose a different approach, or ask the user what to do."})
+                    continue
+                }
+            }
+            if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
+                show_busy("Running " + _command_label(body))
+            }
             let result = run_action(info, body, workdir, cfg.no_access_dirs)
-            emit("[step " + str(step) + "] " + info)
-            emit(result)
+            _last_tool_action = info
+            _last_tool_result = result
+            hide_busy()
+            // the model gets the full observation; the screen gets a tool
+            // block: the action before it runs, then a one-line result (or
+            // the stderr tail when it fails)
+            emit(tool_end(result, 20, plain_mode()))
             messages.append({"role": "user", "content": result})
         }
-        emit("(step limit " + str(MAX_STEPS) + " reached; stopping)")
+        emit(notice("(step limit " + str(cfg.agent_max_steps) + " reached; stopping)", plain_mode()))
+    }
+
+    /// True when this action changes something and is allowed to run: a
+    /// write with a path outside the no-access list, or a non-empty shell
+    /// command. A malformed or blocked action skips the question and lets
+    /// `run_action` report the error.
+    func _needs_approval(info str, body str) bool {
+        if info.starts_with("write") {
+            let target = action_target(info, workdir)
+            if target == nil { return false }
+            if path_blocked(target, workdir, cfg.no_access_dirs) { return false }
+            return true
+        }
+        if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
+            return body.strip() != ""
+        }
+        return false
+    }
+
+    /// Ask the injected approver, remembering `a` for the rest of this
+    /// Agent's life. Anything except `y`/`a` is a denial, so a misbehaving
+    /// or missing UI can never approve an action by accident.
+    func _ask_approval(info str, body str) str {
+        if allow_all { return "y" }
+        let answer = approver(info, body, workdir)
+        if answer == "a" {
+            allow_all = true
+            return "y"
+        }
+        if answer == "y" { return "y" }
+        return "n"
     }
 
     /// Manually compact the agent conversation (/compact).
     pub func compact(model str) {
-        compact_now(client, model, cfg, messages)
+        if let after = compact_now(client, model, cfg, messages, _last_tokens) {
+            _last_tokens = after
+        }
     }
 
     /// Prompt tokens used by the last request (/context).
     pub func last_tokens() int { return _last_tokens }
+}
+
+/// Rebuild an Agent from a persisted conversation: no fresh system prompt,
+/// no work-dir announcement, the paused flag restored. The caller injects
+/// the approver again, so a restored Agent cannot bypass the UI.
+pub func restore_agent(_client openai.Client, _cfg Config, _workdir str, msgs list[dict[str, str]], _paused bool) Agent {
+    let a = Agent(_client, _cfg, _workdir, true)
+    a.messages.clear()
+    for m in msgs { a.messages.append(m) }
+    a.set_paused(_paused)
+    return a
 }
 
 /// The first fenced block in `text` as (info, body), or nil when there is
@@ -134,25 +247,48 @@ pub func agent_prompt(blocked list[str]) str {
     return p
 }
 
+/// The first line of a step result — the compact on-screen form. The full
+/// result still goes back to the model; only the screen is trimmed.
+pub func step_summary(result str) str {
+    return result.split("\n")[0]
+}
+
+/// The first line of a shell command, for the busy status row. The row
+/// itself clips it to the terminal width.
+func _command_label(cmd str) str {
+    return cmd.split("\n")[0].strip()
+}
+
+/// The normalized target of a `write <path>` action, or nil when the info
+/// has no path. Relative paths sit under `workdir`; the result is folded so
+/// the guard and the write see the same location.
+pub func action_target(info str, workdir str) str? {
+    if !info.starts_with("write") { return nil }
+    let path = info.substr(5).strip()
+    if path == "" { return nil }
+    // an absolute path names its target itself; only a relative one
+    // sits under the work dir (plain concat would mangle
+    // "workdir" + "/etc/x" into "workdir//etc/x", which resolves as
+    // /etc/x on disk while the check below saw workdir/etc/x)
+    var target = path
+    if !fs.Path(path).is_absolute() { target = workdir + "/" + path }
+    // normalize so the guard and the write see the same path: the
+    // guard folds backslash separators and ./.., the kernel does not
+    return fs.Path(target).normalize().to_str()
+}
+
 /// Execute a write/shell action in `workdir` and return the observation to
 /// feed back to the model.
 pub func run_action(info str, body str, workdir str, blocked list[str]) str {
     if info.starts_with("write") {
         let path = info.substr(5).strip()
-        if path == "" { return "write: missing path" }
-        // an absolute path names its target itself; only a relative one
-        // sits under the work dir (plain concat would mangle
-        // "workdir" + "/etc/x" into "workdir//etc/x", which resolves as
-        // /etc/x on disk while the check below saw workdir/etc/x)
-        var target = path
-        if !fs.Path(path).is_absolute() { target = workdir + "/" + path }
-        // normalize so the guard and the write see the same path: the
-        // guard folds backslash separators and ./.., the kernel does not
-        target = fs.Path(target).normalize().to_str()
-        if path_blocked(target, workdir, blocked) {
+        let target = action_target(info, workdir)
+        if target == nil { return "write: missing path" }
+        let full = target
+        if path_blocked(full, workdir, blocked) {
             return "write refused: " + path + " is in a no-access directory"
         }
-        if fs.write_str(target, body) {
+        if fs.write_str(full, body) {
             return "write ok: " + path + " (" + str(body.len()) + " bytes)"
         }
         return "write failed: " + path

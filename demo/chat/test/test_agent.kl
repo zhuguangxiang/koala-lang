@@ -285,6 +285,8 @@ func test_agent_set_workdir() {
     let cfg = _cfg(ABASE + "/cfg.json")
     let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w)
     ut.assert_eq(a.last_tokens(), 0)
+    // nothing for Ctrl-O until a tool actually runs
+    ut.assert_false(a.has_tool_output())
     ut.assert_true(a.set_workdir(w))
     ut.assert_false(a.set_workdir(w + "/secret"))
     ut.assert_false(a.set_workdir(w + "/missing"))
@@ -309,4 +311,59 @@ func test_agent_compact_smoke() {
     let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w)
     // a conversation too short to compact: "(nothing to compact)"
     a.compact("auto")
+}
+
+@test
+func test_estimate_tokens() {
+    let msgs = list[dict[str, str]]()
+    ut.assert_eq(chat.estimate_tokens(msgs), 0)
+    // 4 bytes is about one token, plus the per-message overhead
+    msgs.append({"role": "user", "content": "abcd"})
+    ut.assert_eq(chat.estimate_tokens(msgs), 5)
+    // rounding up keeps a short message from counting as zero
+    msgs.append({"role": "assistant", "content": "a"})
+    ut.assert_eq(chat.estimate_tokens(msgs), 10)
+}
+
+// ---- action_target: one path rule for the guard, diff and write ----
+
+@test
+func test_action_target_relative_and_absolute() {
+    let w = "/tmp/w"
+    if let a = chat.action_target("write a.txt", w) {
+        ut.assert_eq(a, w + "/a.txt")
+    } else {
+        ut.assert_true(false)
+    }
+    if let b = chat.action_target("write /etc/hosts", w) {
+        ut.assert_eq(b, "/etc/hosts")
+    } else {
+        ut.assert_true(false)
+    }
+    if let c = chat.action_target("write sub/../x", w) {
+        ut.assert_eq(c, w + "/x")
+    } else {
+        ut.assert_true(false)
+    }
+    ut.assert_true(chat.action_target("write ", w) == nil)
+    ut.assert_true(chat.action_target("shell", w) == nil)
+}
+
+@test
+func test_default_approver_denies() {
+    ut.assert_eq(chat.deny_action("write a.txt", "x", "/tmp"), "n")
+    ut.assert_eq(chat.deny_action("shell", "rm -rf /", "/tmp"), "n")
+}
+
+// ---- step_summary: the compact on-screen form ----
+
+@test
+func test_step_summary_shell_truncated() {
+    // the screen shows just the exit line; stdout/stderr stay with the model
+    ut.assert_true(chat.step_summary("exit 0\nstdout:\nhi\nstderr:\nno") == "exit 0")
+}
+
+@test
+func test_step_summary_single_line() {
+    ut.assert_true(chat.step_summary("write ok: a.txt (5 bytes)") == "write ok: a.txt (5 bytes)")
 }

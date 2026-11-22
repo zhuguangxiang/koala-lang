@@ -1,4 +1,5 @@
-/// demo/chat — a command-line chat REPL on koala/openai (OpenAI-compatible).
+/// demo/chat — Koala Code Agent, a command-line chat REPL on koala/openai
+/// (OpenAI-compatible).
 ///
 /// Usage:
 ///   source env.sh at the repository root, then
@@ -13,6 +14,10 @@
 ///   or is entered at startup when unset.
 ///   context_window sets the model's token budget; when a request reaches
 ///   80% of it, older history is auto-summarized (compaction) to fit.
+///   Compaction prints a dim `↺ context compacted 18.2k → 4.1k tokens`
+///   line: the left value is the last request's actual prompt size, the
+///   right one is an estimate of the new context until the next request
+///   reports exact usage.
 ///   The optional no_access_dirs field lists directories the model must not
 ///   read, relative to the agent's work directory (or absolute): /file,
 ///   @PATH, /workdir and the agent's write action refuse them, and the
@@ -22,35 +27,70 @@
 ///
 /// Modes: starts in chat mode (single-shot Q&A). /agent switches to agent
 ///   mode, where each plain line runs the coding loop (write/compile/run
-///   until done); /chat switches back. The prompt shows [chat] / [agent].
+///   until done); /chat switches back. The input prompt is `> ` and the
+///   status row carries the [chat] / [agent] badge.
 ///   The agent works in the current directory by default; /workdir PATH
-///   switches it (it persists across /reset and across tasks).
-/// Commands (both modes): /quit /exit Ctrl-D leave, /reset clears the
-///   conversation, /clear clears the screen, /compact summarizes old history
-///   now, /context shows window size and usage, /file PATH (or @PATH) loads
-///   a file, /model shows or switches the model (/model NAME), /models lists
-///   the endpoint's models, /workdir shows or sets the agent's working
-///   directory (/workdir PATH). Paths may start with ~ for the home
-///   directory. Tab completes the /commands, model names after /model,
-///   paths after /file, directories after /workdir.
+///   switches it (it persists across /reset and across tasks). Before it
+///   writes a file or runs a shell command, the agent shows the target or
+///   command (a write also gets a coloured line diff) and asks
+///   `Apply [y/a/n/d] (default n)`: y approves once, a approves every later
+///   action in this session, n denies and tells the model why, d expands the
+///   full diff and asks again. Blank input, EOF and anything unrecognised
+///   deny, so a stray Enter never changes a file.
+/// Sessions: conversations are saved as sessions in chat_sessions/ (one
+///   JSON file each), and the most recently modified one resumes at
+///   startup. /new [NAME] starts a new session (auto-named with a
+///   timestamp), /sessions lists them, /switch N|NAME switches, /pause
+///   [N|NAME] freezes a session's automatic compaction (/resume undoes
+///   it; manual /compact still works), /rename NAME renames the current
+///   one. A record with missing or mistyped fields is skipped at startup
+///   with a warning; one with malformed JSON panics like a bad
+///   config.json.
+/// Commands (both modes): /help lists commands and shortcuts; /quit /exit
+///   Ctrl-D leave, /reset clears the conversation, /clear clears the screen,
+///   /compact summarizes old history now, /context shows window size and
+///   usage, /file PATH (or @PATH) loads a file, /model shows or switches the
+///   model (/model NAME), /models lists the endpoint's models, /workdir shows
+///   or sets the agent's working directory (/workdir PATH). Paths may start
+///   with ~ for the home directory. Tab completes the /commands (a fuzzy
+///   filter such as /mdl, with a grouped panel of one-line descriptions),
+///   model names after /model, paths after /file, directories after /workdir,
+///   and file paths after a leading @. A slash line no handler recognizes is
+///   reported locally as unknown (or as a usage error for a known command
+///   with extra arguments) and is never sent to the model.
+///
+/// Startup shows a small welcome card: a koala and a paw-print mark,
+/// the model and the main commands. Colour terminals get emoji and a
+/// rounded box; plain output gets ASCII art, and a narrow terminal drops
+/// the box entirely.
 ///
 /// Layout: on a terminal this is an agent-CLI style alternate-screen TUI —
-///   the transcript scrolls on top, the input sits below it, and in agent
-///   mode a dim status bar with model, work dir and token usage is the last
-///   row. Both the transcript and the input are boxed: one column of border
-///   each side, content inside. The input box is three rows: Ctrl-J starts a
-///   new row, Enter submits all of them, and Ctrl-C drops the line. PgUp /
-///   PgDn page the transcript history; at the tail the window follows new
-///   output again, and sending a line snaps back to the tail. /clear wipes
-///   the transcript. Piped (non-tty) runs print plainly, without the boxes
-///   or the bar. The API key prompt echoes nothing, as `getpass`. The TUI itself
-///   is the koala/tui library: Screen, Layout and View in repl.kl.
+///   the transcript scrolls on top, the input sits below it, and a dim
+///   status row with the mode, model, work dir (and its git branch when
+///   inside a repository) and token usage is the last row in both chat and
+///   agent mode. While a request, shell command or compaction runs, that
+///   row shows `✻ Thinking…` / `✻ Running …` / `✻ Compacting…`. Both the
+///   transcript and the input are boxed: one column of border each side,
+///   content inside. The input box is three rows: Ctrl-J starts a new row,
+///   Enter submits all of them, and Ctrl-C drops the line. A dim hint row
+///   under the box spells out Enter / Ctrl-J / Tab. PgUp / PgDn page the
+///   transcript history; at the tail the window follows new output again,
+///   and sending a line snaps back to the tail. Ctrl-O appends the last tool
+///   action's complete output after the collapsed result. /clear wipes the
+///   transcript. Piped (non-tty) and `TERM=dumb` runs print plainly, with no
+///   boxes or cursor drawing. `NO_COLOR` keeps the layout but uses ASCII
+///   borders and glyphs and emits no ANSI colour. The API key prompt echoes
+///   nothing, as `getpass`. The TUI itself is the koala/tui library: Screen
+///   and WrappedView in repl.kl, with the fixed rows cut by `ChatRows` in
+///   ui.kl.
 ///
 /// Layout:
 ///   config.kl   — Config (from config.json) and resolve_key
 ///   session.kl  — Session: conversation, model selection, model listing
+///   sessions.kl — the session store and manager (chat_sessions/)
 ///   agent.kl    — Agent: the model-driven write/shell/done tool loop
 ///   compact.kl  — context compaction (summarize old history near the limit)
+///   ui.kl       — pure transcript/tool/user/error formatting (no terminal I/O)
 ///   repl.kl     — the input loop, commands, and terminal I/O
 
 import "std/sys"
@@ -59,7 +99,8 @@ import "koala/openai" as openai
 func main() {
     let cfg = Config(_config_flag())
     let key = resolve_key()
-    run_repl(Session(openai.Client(key, cfg.base_url), cfg, key), cfg)
+    let mgr = SessionManager(openai.Client(key, cfg.base_url), cfg, key)
+    run_repl(mgr, cfg)
 }
 
 /// The config file named by `--config PATH` on the command line, or nil.

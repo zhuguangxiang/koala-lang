@@ -3,9 +3,10 @@
  *
  * There are no built-in defaults: config.json (in the working directory,
  * or the file named by $CHAT_CONFIG, or the path given as --config PATH)
- * must exist and provide every field except `no_access_dirs` and
- * `stream_delay_ms`, which are optional: an absent `no_access_dirs` is
- * empty, and an absent `stream_delay_ms` is 40. Precedence: the --config
+ * must exist and provide every field except `no_access_dirs`,
+ * `stream_delay_ms` and `agent_max_steps`, which are optional: an absent
+ * `no_access_dirs` is empty, an absent `stream_delay_ms` is 40, and an
+ * absent `agent_max_steps` is 20. Precedence: the --config
  * path, then $CHAT_CONFIG, then config.json in the working directory.
  * The API key is deliberately NOT config — see resolve_key().
  */
@@ -33,6 +34,9 @@ pub class Config {
     /// line-by-line effect is visible to the eye. Optional; 40 when the
     /// field is absent; 0 disables the pause.
     pub let stream_delay_ms int
+    /// The agent loop's model->tool round cap. Optional; 20 when the
+    /// field is absent.
+    pub let agent_max_steps int
 
     /// Build the configuration. `path` names the config file explicitly
     /// (the --config command-line option); nil (or "") falls back to
@@ -49,6 +53,7 @@ pub class Config {
         system_prompt = _str(obj, "system_prompt")
         no_access_dirs = _strs(obj, "no_access_dirs")
         stream_delay_ms = _opt_int(obj, "stream_delay_ms", 40)
+        agent_max_steps = _opt_int(obj, "agent_max_steps", 20)
     }
 }
 

@@ -247,6 +247,106 @@ func _fit_text(text str, cols int) str {
     return out
 }
 
+// `text` split into lines of at most `cols` display columns each. Breaks
+// prefer the last space on the row; a long word (e.g. a URL) is split at a
+// character-cluster boundary, never inside a cluster. A `\n` forces a line
+// break. ANSI escape sequences are preserved and take no columns;
+// `\x01`..`\x02` markers are ignored. Tabs are expanded to four spaces so
+// they line up in a fixed-width area.
+func _wrap_text(text str, cols int) list[str] {
+    let out = list[str]()
+    var limit = cols
+    if limit < 1 { limit = 1 }
+    let expanded = text.replace("\t", "    ")
+    let all = _chars_of(expanded)
+    var line = ""
+    var width = 0
+    var last_space = -1
+    var i = 0
+    let n = all.len()
+    while i < n {
+        let c = all[i]
+        if c == "\n" {
+            out.append(line)
+            line = ""
+            width = 0
+            last_space = -1
+            i += 1
+            continue
+        }
+        if c == "\x01" {
+            while i < n && all[i] != "\x02" { i += 1 }
+            i += 1
+            continue
+        }
+        if c == "\x1b" && i + 1 < n && all[i + 1] == "[" {
+            let start = i
+            i += 2
+            while i < n && !_is_csi_final(all[i]) { i += 1 }
+            i += 1
+            var j = start
+            while j < i {
+                line += all[j]
+                j += 1
+            }
+            continue
+        }
+        let next = _cluster_end(all, i)
+        let w = _cluster_width(all, i, next)
+        if width + w > limit && width > 0 {
+            if last_space > 0 {
+                let head = line.substr(0, last_space)
+                if head.strip() != "" {
+                    out.append(head)
+                    var tail = line.substr(last_space + 1)
+                    while tail.starts_with(" ") { tail = tail.substr(1) }
+                    line = tail
+                    width = _text_width(line)
+                    last_space = -1
+                } else {
+                    out.append(line)
+                    line = ""
+                    width = 0
+                    last_space = -1
+                }
+            } else {
+                out.append(line)
+                line = ""
+                width = 0
+            }
+            // the space that caused the break is not carried to the next row
+            if c == " " {
+                i = next
+                continue
+            }
+        }
+        if c == " " { last_space = line.len() }
+        var j = i
+        while j < next {
+            line += all[j]
+            j += 1
+        }
+        width += w
+        i = next
+    }
+    out.append(line)
+    return out
+}
+
+// `text` padded with spaces to exactly `cols` display columns, never cut.
+// Used after wrapping, where the line is already known to fit: the final
+// draw must not silently drop content if a terminal is narrower than a
+// single wide character.
+func _pad_text(text str, cols int) str {
+    var out = text
+    var width = _text_width(text)
+    while width < cols {
+        out += " "
+        width += 1
+    }
+    return out
+}
+
 // A C0 control character or DEL, shown as `^X`.
 func _is_control(c str) bool {
     let cp = _codepoint(c)

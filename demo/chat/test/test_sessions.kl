@@ -1,0 +1,444 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Sessions (sessions.kl): the on-disk store (path/exists/list/load/save/
+// rename), valid_name and auto_name, the session manager (/new /switch
+// /pause /resume /rename back end, load order, skip of bad records) and
+// record restore (restore_session / restore_agent). No network is used:
+// every Client points at an unreachable endpoint.
+
+import "std/ut"
+import "std/fs"
+import "std/os"
+import "demo/chat"
+import "koala/openai" as openai
+from "koala/json" import Object, String, Integer, Boolean, Array
+
+const MSBASE = "/tmp/koala_chat_sesstest_mgr"
+
+// A Config built once per test via _setup (all fields required).
+var _gcfg chat.Config
+
+func _fresh() {
+    fs.remove_all(MSBASE)
+    fs.mkdir(MSBASE)
+}
+
+func _write_config(file str) {
+    let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", \"history_file\": \"/tmp/koala_chat_sesstest_mgr/history\", \"max_code_bytes\": 1000, \"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, \"system_prompt\": \"s\"}"
+    fs.write_str(file, json)
+}
+
+func _setup() {
+    _fresh()
+    _write_config(MSBASE + "/cfg.json")
+    os.setenv("CHAT_CONFIG", MSBASE + "/cfg.json")
+    _gcfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+}
+
+func _client() openai.Client {
+    return openai.Client("sk", "http://127.0.0.1:1/v1")
+}
+
+/// A manager on a fresh dir under MSBASE.
+func _mgr(dir str) chat.SessionManager {
+    return chat.SessionManager(_client(), _gcfg, "sk", dir)
+}
+
+/// A minimal JSON record for a session.
+func _rec() Object {
+    let o = Object()
+    o["k"] = String("v")
+    return o
+}
+
+/// A full valid session record.
+func _mkrec() Object {
+    let o = Object()
+    o["name"] = String("n")
+    o["model"] = String("m")
+    o["workdir"] = String("/tmp")
+    o["paused"] = Boolean(false)
+    o["last_tokens"] = Integer(0)
+    o["messages"] = Array()
+    o["agent_messages"] = Array()
+    return o
+}
+
+/// A full record with field `missing` left out.
+func _rec_skip(missing str) Object {
+    let o = Object()
+    if missing != "name" { o["name"] = String("n") }
+    if missing != "model" { o["model"] = String("m") }
+    if missing != "workdir" { o["workdir"] = String("/tmp") }
+    if missing != "paused" { o["paused"] = Boolean(false) }
+    if missing != "last_tokens" { o["last_tokens"] = Integer(0) }
+    if missing != "messages" { o["messages"] = Array() }
+    if missing != "agent_messages" { o["agent_messages"] = Array() }
+    return o
+}
+
+@test
+func test_valid_name_branches() {
+    ut.assert_false(chat.valid_name(""))
+    ut.assert_false(chat.valid_name("."))
+    ut.assert_false(chat.valid_name(".."))
+    ut.assert_false(chat.valid_name("a/b"))
+    ut.assert_true(chat.valid_name("ok"))
+    ut.assert_true(chat.valid_name("a-b_1"))
+}
+
+@test
+func test_store_path_exists_save_load() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s1")
+    ut.assert_true(st.path("x") == MSBASE + "/s1/x.json")
+    ut.assert_false(st.exists("x"))
+    ut.assert_true(st.save("x", _rec()))
+    ut.assert_true(st.exists("x"))
+    let obj = st.load("x")
+    ut.assert_true(obj != nil)
+    ut.assert_true(obj!.get_str("k") == "v")
+}
+
+@test
+func test_store_load_missing_and_non_object_root() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s2")
+    ut.assert_true(st.load("nope") == nil)
+    fs.write_str(st.path("arr"), "[1, 2]")
+    ut.assert_true(st.load("arr") == nil)
+}
+
+@test
+func test_store_list_names_filters() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s3")
+    st.save("b", _rec())
+    st.save("a", _rec())
+    fs.write_str(MSBASE + "/s3/c.txt", "x")
+    let names = st.list_names()
+    ut.assert_true(names.len() == 2)
+    ut.assert_true(names[0] == "a" || names[0] == "b")
+    ut.assert_true(names[1] == "a" || names[1] == "b")
+    ut.assert_true(names[0] != names[1])
+}
+
+@test
+func test_store_rename_branches() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s4")
+    st.save("old", _rec())
+    ut.assert_true(st.rename("old", "new"))
+    ut.assert_false(st.exists("old"))
+    ut.assert_true(st.exists("new"))
+    ut.assert_true(st.load("new")!.get_str("k") == "v")
+    ut.assert_false(st.rename("gone", "x"))
+}
+
+@test
+func test_auto_name_shape_and_dedup() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s5")
+    let n = chat.auto_name(st)
+    ut.assert_true(n.len() == 17)
+    ut.assert_true(n.substr(4, 5) == "-")
+    ut.assert_true(n.substr(7, 8) == "-")
+    ut.assert_true(n.substr(10, 11) == "-")
+    ut.assert_false(st.exists(n))
+    st.save(n, _rec())
+    ut.assert_true(chat.auto_name(st) == n + "-2")
+    st.save(n + "-2", _rec())
+    ut.assert_true(chat.auto_name(st) == n + "-3")
+}
+
+@test
+func test_manager_fresh_empty_store() {
+    _setup()
+    let m = _mgr(MSBASE + "/s6")
+    ut.assert_true(m.count() == 1)
+    ut.assert_true(m.names().len() == 1)
+    ut.assert_true(m.names()[0] == "main")
+    ut.assert_true(m.current_index() == 0)
+    ut.assert_true(m.current_session().name() == "main")
+}
+
+@test
+func test_manager_new_named_auto_and_order() {
+    _setup()
+    let m = _mgr(MSBASE + "/s7")
+    ut.assert_true(m.new("beta"))
+    ut.assert_true(m.new("alpha"))
+    ut.assert_true(m.count() == 3)
+    ut.assert_true(m.names()[0] == "alpha")
+    ut.assert_true(m.names()[1] == "beta")
+    ut.assert_true(m.names()[2] == "main")
+    ut.assert_true(m.current_session().name() == "alpha")
+    ut.assert_true(m.new(nil))
+    let auto = m.current_session().name()
+    ut.assert_true(auto.len() == 17)
+    ut.assert_true(fs.is_file(MSBASE + "/s7/" + auto + ".json"))
+    ut.assert_true(m.new(""))
+    // Same second: the second auto name is the first with a -2 suffix.
+    ut.assert_true(m.current_session().name() == auto + "-2")
+}
+
+@test
+func test_manager_new_invalid_and_duplicate() {
+    _setup()
+    let m = _mgr(MSBASE + "/s8")
+    ut.assert_false(m.new("bad/name"))
+    ut.assert_false(m.new(".."))
+    ut.assert_false(m.new("main"))
+    ut.assert_true(m.count() == 1)
+    ut.assert_true(m.current_session().name() == "main")
+}
+
+@test
+func test_manager_switch_to_branches() {
+    _setup()
+    let m = _mgr(MSBASE + "/s9")
+    m.new("one")
+    m.new("two")
+    // name order: main, one, two (1-based numbers: 1, 2, 3).
+    ut.assert_true(m.switch_to("one"))
+    ut.assert_true(m.current_session().name() == "one")
+    ut.assert_true(m.switch_to("3"))
+    ut.assert_true(m.current_session().name() == "two")
+    ut.assert_true(m.switch_to("1"))
+    ut.assert_true(m.current_session().name() == "main")
+    ut.assert_false(m.switch_to("nope"))
+    ut.assert_false(m.switch_to("0"))
+    ut.assert_false(m.switch_to("99"))
+    ut.assert_false(m.switch_to(""))
+    ut.assert_true(m.current_session().name() == "main")
+}
+
+@test
+func test_manager_pause_resume_branches() {
+    _setup()
+    let m = _mgr(MSBASE + "/s10")
+    m.new("alpha")
+    m.new("beta")
+    // pause the current one (beta) with no target and with "".
+    ut.assert_true(m.set_paused(nil, true)! == "beta")
+    ut.assert_true(m.current_session().is_paused())
+    ut.assert_true(m.set_paused("", false)! == "beta")
+    ut.assert_false(m.current_session().is_paused())
+    // pause another by name and by number (alpha is number 1).
+    ut.assert_true(m.set_paused("alpha", true)! == "alpha")
+    ut.assert_true(m.switch_to("alpha"))
+    ut.assert_true(m.current_session().is_paused())
+    ut.assert_true(m.set_paused("1", false)! == "alpha")
+    ut.assert_false(m.current_session().is_paused())
+    // unknown target
+    ut.assert_true(m.set_paused("nope", true) == nil)
+}
+
+@test
+func test_manager_pause_persists_across_reopen() {
+    _setup()
+    let m = _mgr(MSBASE + "/s11")
+    m.new("alpha")
+    m.set_paused("alpha", true)
+    let m2 = chat.SessionManager(_client(), _gcfg, "sk", MSBASE + "/s11")
+    ut.assert_true(m2.switch_to("alpha"))
+    ut.assert_true(m2.current_session().is_paused())
+}
+
+@test
+func test_manager_rename_branches() {
+    _setup()
+    let m = _mgr(MSBASE + "/s12")
+    m.new("alpha")
+    ut.assert_true(m.rename("gamma"))
+    ut.assert_true(m.current_session().name() == "gamma")
+    ut.assert_false(fs.is_file(MSBASE + "/s12/alpha.json"))
+    ut.assert_true(fs.is_file(MSBASE + "/s12/gamma.json"))
+    ut.assert_true(m.names()[0] == "gamma")
+    ut.assert_false(m.rename("bad/name"))
+    ut.assert_false(m.rename("main"))
+    ut.assert_true(m.current_session().name() == "gamma")
+}
+
+@test
+func test_manager_reopen_picks_most_recent() {
+    _setup()
+    let dir = MSBASE + "/s13"
+    let m = _mgr(dir)
+    m.new("first")
+    m.new("second")
+    // Force distinct mtimes so the most-recent pick is deterministic.
+    fs.set_times(dir + "/first.json", 1000, 1000)
+    fs.set_times(dir + "/second.json", 1000, 2000)
+    let m2 = chat.SessionManager(_client(), _gcfg, "sk", dir)
+    ut.assert_true(m2.current_session().name() == "second")
+}
+
+@test
+func test_manager_skips_bad_records_on_load() {
+    _setup()
+    let dir = MSBASE + "/s14"
+    let m = _mgr(dir)
+    m.new("good")
+    m.new("bad")
+    fs.write_str(dir + "/bad.json", "{\"name\": \"bad\"}")
+    fs.write_str(dir + "/weird.json", "[1, 2]")
+    m.switch_to("main")
+    m.save_current()
+    let m2 = chat.SessionManager(_client(), _gcfg, "sk", dir)
+    ut.assert_true(m2.count() == 2)
+    ut.assert_true(m2.names()[0] == "good")
+    ut.assert_true(m2.names()[1] == "main")
+}
+
+@test
+func test_manager_save_current_writes_record() {
+    _setup()
+    let dir = MSBASE + "/s15"
+    let m = _mgr(dir)
+    m.save_current()
+    let st = chat.SessionStore(dir)
+    ut.assert_true(st.exists("main"))
+    let obj = st.load("main")
+    ut.assert_true(obj != nil)
+    ut.assert_true(obj!.get_str("name") == "main")
+}
+
+@test
+func test_restore_session_full_roundtrip() {
+    _setup()
+    let s = chat.Session(_client(), _gcfg, "sk", "orig")
+    s.set_model("gpt-x")
+    s.set_workdir(MSBASE)
+    s.pause()
+    let r = chat.restore_session(_client(), _gcfg, "sk", s.to_record())
+    ut.assert_true(r != nil)
+    ut.assert_true(r!.name() == "orig")
+    ut.assert_true(r!.current_model() == "gpt-x")
+    ut.assert_true(r!.is_paused())
+    let rec2 = r!.to_record()
+    ut.assert_true(rec2.get_str("name") == "orig")
+    ut.assert_true(rec2.get_str("model") == "gpt-x")
+    ut.assert_true(rec2.get_str("workdir") == MSBASE)
+    let p = rec2.get("paused")!
+    if p is Boolean {
+        ut.assert_true(p.value)
+    } else {
+        ut.assert_false(true)
+    }
+    let t = rec2.get("last_tokens")!
+    if t is Integer {
+        ut.assert_true(t.value == 0)
+    } else {
+        ut.assert_false(true)
+    }
+    ut.assert_true(rec2.get_array("messages").value.len() == 1)
+    ut.assert_true(rec2.get_array("agent_messages").value.len() == 0)
+}
+
+@test
+func test_restore_session_preserves_last_tokens() {
+    _setup()
+    let rec = _mkrec()
+    rec["last_tokens"] = Integer(42)
+    let r = chat.restore_session(_client(), _gcfg, "sk", rec)
+    ut.assert_true(r != nil)
+    let t = r!.to_record().get("last_tokens")!
+    if t is Integer {
+        ut.assert_true(t.value == 42)
+    } else {
+        ut.assert_false(true)
+    }
+}
+
+@test
+func test_restore_session_with_agent_messages() {
+    _setup()
+    let s = chat.Session(_client(), _gcfg, "sk", "orig")
+    s.pause()
+    let rec = s.to_record()
+    let ams = Array()
+    let m1 = Object()
+    m1["role"] = String("assistant")
+    m1["content"] = String("did it")
+    ams.append(m1)
+    rec["agent_messages"] = ams
+    let r = chat.restore_session(_client(), _gcfg, "sk", rec)
+    ut.assert_true(r != nil)
+    ut.assert_true(r!.is_paused())
+    let back = r!.to_record().get_array("agent_messages").value
+    ut.assert_true(back.len() == 1)
+    ut.assert_true(back[0] is Object)
+    let e = back[0] as Object
+    ut.assert_true(e!.get_str("role") == "assistant")
+    ut.assert_true(e!.get_str("content") == "did it")
+}
+
+@test
+func test_restore_session_missing_fields() {
+    _setup()
+    let missing = ["name", "model", "workdir", "paused", "last_tokens", "messages", "agent_messages"]
+    for m in missing {
+        ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", _rec_skip(m)) == nil)
+    }
+}
+
+@test
+func test_restore_session_mistyped_fields() {
+    _setup()
+    // model is an int
+    var rec = _mkrec()
+    rec["model"] = Integer(3)
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+    // paused is a string
+    rec = _mkrec()
+    rec["paused"] = String("yes")
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+    // last_tokens is a bool
+    rec = _mkrec()
+    rec["last_tokens"] = Boolean(true)
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+    // messages is a string
+    rec = _mkrec()
+    rec["messages"] = String("hi")
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+    // messages holds a non-object element
+    rec = _mkrec()
+    let a1 = Array()
+    a1.append(Integer(1))
+    rec["messages"] = a1
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+    // a message missing its content
+    rec = _mkrec()
+    let a2 = Array()
+    let m = Object()
+    m["role"] = String("user")
+    a2.append(m)
+    rec["messages"] = a2
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+    // agent_messages is a string
+    rec = _mkrec()
+    rec["agent_messages"] = String("hi")
+    ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
+}
+
+@test
+func test_restore_agent() {
+    _setup()
+    let msgs = list[dict[str, str]]()
+    let m1 = dict[str, str]()
+    m1["role"] = "assistant"
+    m1["content"] = "hi"
+    msgs.append(m1)
+    let a = chat.restore_agent(_client(), _gcfg, MSBASE, msgs, true)
+    ut.assert_true(a.is_paused())
+    ut.assert_true(a.conversation().len() == 1)
+    ut.assert_true(a.conversation()[0]["role"] == "assistant")
+    ut.assert_true(a.conversation()[0]["content"] == "hi")
+    a.set_paused(false)
+    ut.assert_false(a.is_paused())
+}

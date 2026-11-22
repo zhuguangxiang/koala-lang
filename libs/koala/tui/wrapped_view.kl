@@ -1,0 +1,153 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/readline"
+
+/// A `View` that wraps each line to the rect width and scrolls by display
+/// rows instead of source lines. Use it for a transcript whose lines may be
+/// longer than the screen: a long line becomes several rows, and the tail
+/// is still what follow mode shows.
+///
+/// `append` / `append_str` take logical lines, exactly as `View` does; the
+/// wrapping happens once per width change and is cached until the next
+/// append. `scroll_up` / `scroll_down` move by display rows.
+pub class WrappedView {
+    var rect Rect
+    let lines list[str]
+    let _wrapped list[str]
+    var _dirty bool
+    var _follow bool
+    var _top int
+
+    pub func __init__(_rect Rect) {
+        rect = _rect
+        lines = list[str]()
+        _wrapped = list[str]()
+        _dirty = true
+        _follow = true
+        _top = 0
+    }
+
+    /// Re-attach the view to a new rect. A width change re-wraps the whole
+    /// transcript; follow mode keeps showing the tail, including after a
+    /// height-only resize.
+    pub func set_rect(r Rect) {
+        if r.width != rect.width { _dirty = true }
+        rect = r
+        if _follow {
+            _ensure()
+            _to_tail()
+        }
+    }
+
+    /// Append one logical line. In follow mode the window slides to the tail.
+    pub func append(line str) {
+        lines.append(line)
+        _dirty = true
+    }
+
+    /// Append `s` split into logical lines.
+    pub func append_str(s str) {
+        for l in s.split("\n") { append(l) }
+    }
+
+    /// Remove every line and show the empty window.
+    pub func clear() {
+        lines.clear()
+        _wrapped.clear()
+        _dirty = false
+        _top = 0
+    }
+
+    /// Turn follow mode on or off. Off, the window stays where manual
+    /// scrolling left it; on, it jumps back to the tail.
+    pub func follow(on bool) {
+        _follow = on
+        if _follow { _to_tail() }
+    }
+
+    /// True when the window follows the tail.
+    pub func is_following() bool { return _follow }
+
+    /// True when the window shows the tail: everything appended so far is
+    /// visible (or the view is empty).
+    pub func at_tail() bool {
+        _ensure()
+        return _top == _max_top()
+    }
+
+    /// The number of logical lines in the view.
+    pub func line_count() int { return lines.len() }
+
+    /// Move the window up `n` display rows (towards older lines) and leave
+    /// follow mode. Clamps at the top.
+    pub func scroll_up(n int) {
+        if n <= 0 { return }
+        _ensure()
+        _follow = false
+        _top -= n
+        if _top < 0 { _top = 0 }
+    }
+
+    /// Move the window down `n` display rows (towards the tail) and leave
+    /// follow mode. Clamps at the tail.
+    pub func scroll_down(n int) {
+        if n <= 0 { return }
+        _ensure()
+        _follow = false
+        _top += n
+        let max = _max_top()
+        if _top > max { _top = max }
+    }
+
+    /// The visible display rows of the window, oldest first, at most
+    /// `rect.height` of them.
+    pub func render() list[str] {
+        _ensure()
+        let out = list[str]()
+        let end = _top + rect.height
+        var i = _top
+        while i < _wrapped.len() && i < end {
+            out.append(_wrapped[i])
+            i += 1
+        }
+        return out
+    }
+
+    // Re-wrap the logical lines when the width changed or a line was
+    // appended, then keep the window in bounds.
+    func _ensure() {
+        if _dirty {
+            _rebuild()
+            if _follow { _top = _max_top() }
+        }
+        let max = _max_top()
+        if _top > max { _top = max }
+        if _top < 0 { _top = 0 }
+    }
+
+    // Rebuild the wrapped cache from the logical lines.
+    func _rebuild() {
+        _wrapped.clear()
+        for line in lines {
+            for part in readline.wrap_text(line, rect.width) {
+                _wrapped.append(part)
+            }
+        }
+        _dirty = false
+    }
+
+    // The first visible row when the window shows the tail.
+    func _max_top() int {
+        let m = _wrapped.len() - rect.height
+        if m < 0 { return 0 }
+        return m
+    }
+
+    func _to_tail() {
+        if _dirty { _rebuild() }
+        _top = _max_top()
+    }
+}

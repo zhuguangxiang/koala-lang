@@ -68,6 +68,23 @@ func bprop_float(props dict[str, any], key str) float? {
     return nil
 }
 
+// matplotlib's relative font-size scalings for tick_params(labelsize=...),
+// scaled from the default rcParams font.size of 10 points.
+func labelsize_str_pt(s str) float {
+    switch s {
+        case "xx-small": return 5.79
+        case "x-small": return 6.94
+        case "small": return 8.33
+        case "medium": return 10.0
+        case "large": return 12.0
+        case "x-large": return 14.4
+        case "xx-large": return 17.28
+        case "larger": return 12.0
+        case "smaller": return 8.33
+        case _: panic("'" + s + "' is not a valid value for labelsize. Supported values are 'xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large', 'larger', 'smaller'")
+    }
+}
+
 // Normalize a matplotlib linestyle spelling to the renderer dash key:
 // '-' solid, '--' dashed, '-.' dashdot, ':' dotted, ''/'none' no line.
 func bprop_ls(ls str, which str) str {
@@ -123,8 +140,9 @@ pub class Axes {
     /// (matplotlib `Axes.margins`); must be > -0.5.
     pub var xmargin float = 0.05
     pub var ymargin float = 0.05
-    /// Tick and tick-label appearance (matplotlib `Axes.tick_params`;
-    /// v1 takes float sizes in pixels, matplotlib uses points).
+    /// Tick and tick-label appearance (matplotlib `Axes.tick_params`).
+    /// Sizes are points (matplotlib semantics); `to_spec` converts them to
+    /// pixels via the figure dpi.
     pub var tick_dir str = "out"
     pub var tick_len float = 3.5
     pub var tick_width float = 0.8
@@ -271,12 +289,13 @@ pub class Axes {
     /// `Axes.tick_params`). `axis` selects 'x', 'y' or 'both'; `which`
     /// accepts 'major'/'minor'/'both' but only major ticks exist in v1
     /// ('minor'/'both' are accepted and ignore the minor part). Side
-    /// toggles only apply to the selected axis. Sizes are pixels
-    /// (matplotlib uses points; documented deviation).
+    /// toggles only apply to the selected axis. Sizes are in points like
+    /// matplotlib; `labelsize` also accepts matplotlib's relative-size
+    /// strings ('small', 'large', ...).
     pub func tick_params(axis str? = nil, which str? = nil,
                          direction str? = nil, length float? = nil,
                          width float? = nil, color str? = nil,
-                         pad float? = nil, labelsize float? = nil,
+                         pad float? = nil, labelsize (float | str)? = nil,
                          labelcolor str? = nil, bottom bool? = nil,
                          top bool? = nil, left bool? = nil, right bool? = nil,
                          labelbottom bool? = nil, labeltop bool? = nil,
@@ -314,7 +333,12 @@ pub class Axes {
             tick_pad = v
         }
         if let v = labelsize {
-            label_size = v
+            switch v {
+                case is str:
+                    label_size = labelsize_str_pt(v)
+                case is float:
+                    label_size = v
+            }
         }
         if let v = labelcolor {
             label_color = v
@@ -1391,7 +1415,8 @@ pub class Axes {
             cols_.append(rgb_hex(r, g, b))
             bi = bi + 1
         }
-        let art = FilledContour(xax, yax, cols_, bands, lvs, cmap, alpha, label)
+        let art = FilledContour(xax, yax, cols_, bands, lvs, cmap, alpha, label,
+                                extend ?? "neither")
         add_artist(art)
         if xlim == nil {
             if let b = bounds(xax) {
@@ -2030,15 +2055,18 @@ pub class Axes {
                 pl = Rect(p.x, p.y, (1.0 - f) * p.w, p.h)
                 let hh = cb.shrink * p.h
                 let cy = p.y + (p.h - hh) / 2.0
+                // matplotlib's box-aspect width model: thickness =
+                // length / aspect, hugging the data rect side of the
+                // freed strip.
                 cbs = cb.to_spec(Rect(p.x + (1.0 - cb.fraction) * p.w, cy,
-                                      cb.fraction * p.w, hh))
+                                      hh / cb.aspect, hh))
             } else {
                 let f = cb.fraction + cb.pad
                 pl = Rect(p.x, p.y, p.w, (1.0 - f) * p.h)
                 let ww = cb.shrink * p.w
                 let cx = p.x + (p.w - ww) / 2.0
                 cbs = cb.to_spec(Rect(cx, p.y + (1.0 - cb.fraction) * p.h, ww,
-                                      cb.fraction * p.h))
+                                      ww / cb.aspect))
             }
         }
         let (xlo, xhi) = resolved_xlim()
@@ -2079,11 +2107,14 @@ pub class Axes {
         o["yticks"] = ticks_json(yvals, ylabels, ys)
         let ts = json.Object()
         ts["direction"] = json.String(tick_dir)
-        ts["length"] = json.Float(tick_len)
-        ts["width"] = json.Float(tick_width)
+        // Tick sizes are stored in points (matplotlib semantics); the
+        // renderer works in pixels, converted via the figure dpi.
+        let pt2px = float(self.dpi) / 72.0
+        ts["length"] = json.Float(tick_len * pt2px)
+        ts["width"] = json.Float(tick_width * pt2px)
         ts["color"] = json.String(tick_color)
-        ts["pad"] = json.Float(tick_pad)
-        ts["labelsize"] = json.Float(label_size)
+        ts["pad"] = json.Float(tick_pad * pt2px)
+        ts["labelsize"] = json.Float(label_size * pt2px)
         ts["labelcolor"] = json.String(label_color)
         ts["bottom"] = json.Boolean(bottom_on)
         ts["top"] = json.Boolean(top_on)
@@ -2365,53 +2396,188 @@ pub class Figure {
     }
 
     /// Shrink the figure margins to the minimum needed for the axes
-    /// decorations (matplotlib `Figure.tight_layout`). v1 uses the fixed
-    /// pixel margin constants as the content extents (no text measurement,
-    /// documented deviation); `pad` scales the outer margins and
-    /// `w_pad`/`h_pad` override the horizontal/vertical outer margins in
-    /// pixels.
-    pub func tight_layout(pad float = 1.08, w_pad float? = nil,
-                          h_pad float? = nil) {
+    /// decorations (matplotlib `Figure.tight_layout`). The content extents
+    /// are the per-axes text-aware tight bboxes (text widths estimated,
+    /// docs/koala_ml.md §6.6). `pad`, `w_pad` and `h_pad` are in font-size
+    /// units (matplotlib: pad * 10pt); `w_pad`/`h_pad` are the gaps
+    /// BETWEEN adjacent subplot columns/rows and default to `pad`. Only the
+    /// decorations of the outer columns/rows grow the figure margins
+    /// (matplotlib's per-column/row grouping); a suptitle grows the top
+    /// margin by its height plus one pad.
+    pub func tight_layout(pad float = 1.08, h_pad float? = nil,
+                          w_pad float? = nil) {
         if axes.len() == 0 {
             return
         }
         if pad <= 0.0 {
             panic("plot.Figure.tight_layout: pad must be > 0")
         }
-        var ol = PAD_LEFT
-        var or_ = PAD_RIGHT
-        var ot = PAD_TOP
-        var ob = PAD_BOTTOM
+        let font_px = 10.0 * float(dpi) / 72.0
+        let pad_px = pad * font_px
+        var wpad_px = pad_px
         if let v = w_pad {
-            ol = v
-            or_ = v
+            wpad_px = v * font_px
         }
+        var hpad_px = pad_px
         if let v = h_pad {
-            ot = v
-            ob = v
+            hpad_px = v * font_px
         }
-        ol = ol * pad
-        or_ = or_ * pad
-        ot = ot * pad
-        ob = ob * pad
-        let x0 = ol
-        let x1 = width - or_
-        let y0 = ot
-        let y1 = height - ob
-        var colw = x1 - x0
+        let arr = to_spec().get_array("axes")
+        // Decoration overhang beyond each axes' data rect, clamped at 0
+        // and maxed per grid cell (a host and its twins share one cell).
+        var cl = dict[int, float]()
+        var cr = dict[int, float]()
+        var ct = dict[int, float]()
+        var cb = dict[int, float]()
+        var ml = 0.0
+        var mr = 0.0
+        var mt = 0.0
+        var mb = 0.0
+        var i = 0
+        while i < axes.len() {
+            let ax = axes[i]
+            let obj = arr.get_object(i)
+            let b = axes_tight_bbox(obj, true)
+            let p = obj.get_object("plot")
+            let px = p.get_float("x")
+            let py = p.get_float("y")
+            let pw = p.get_float("w")
+            let ph = p.get_float("h")
+            var l = px - b.x
+            if l < 0.0 {
+                l = 0.0
+            }
+            var r = b.right() - (px + pw)
+            if r < 0.0 {
+                r = 0.0
+            }
+            var t = py - b.y
+            if t < 0.0 {
+                t = 0.0
+            }
+            var btm = b.bottom() - (py + ph)
+            if btm < 0.0 {
+                btm = 0.0
+            }
+            let key = ax.row * cols + ax.col
+            if key in cl {
+                if l > cl[key] {
+                    cl[key] = l
+                }
+                if r > cr[key] {
+                    cr[key] = r
+                }
+                if t > ct[key] {
+                    ct[key] = t
+                }
+                if btm > cb[key] {
+                    cb[key] = btm
+                }
+            } else {
+                cl[key] = l
+                cr[key] = r
+                ct[key] = t
+                cb[key] = btm
+            }
+            if ax.col == 0 && l > ml {
+                ml = l
+            }
+            if ax.col == cols - 1 && r > mr {
+                mr = r
+            }
+            if ax.row == 0 && t > mt {
+                mt = t
+            }
+            if ax.row == rows - 1 && btm > mb {
+                mb = btm
+            }
+            i = i + 1
+        }
+        ml = ml + pad_px
+        mr = mr + pad_px
+        mt = mt + pad_px
+        mb = mb + pad_px
+        if let s = suptitle_text {
+            if s != "" {
+                // The suptitle sits above the top-row axes, so grow the
+                // top margin by its height plus one pad (matplotlib adds
+                // rel_height + pad_inch the same way).
+                mt = mt + 16.0 + pad_px
+            }
+        }
+        // Required gap between adjacent subplot columns/rows: the right
+        // plus left (bottom plus top) decoration overhangs of the two
+        // neighbours, maxed over the grid, plus w_pad/h_pad.
+        var gapx = 0.0
         if cols > 1 {
-            colw = (x1 - x0 - float(cols - 1) * CELL_GAP) / float(cols)
+            var s = 1
+            while s < cols {
+                var r = 0
+                while r < rows {
+                    let kl = r * cols + (s - 1)
+                    let kr = r * cols + s
+                    var need = 0.0
+                    if kl in cr {
+                        need = need + cr[kl]
+                    }
+                    if kr in cl {
+                        need = need + cl[kr]
+                    }
+                    if need > gapx {
+                        gapx = need
+                    }
+                    r = r + 1
+                }
+                s = s + 1
+            }
+            gapx = gapx + wpad_px
         }
-        var rowh = y1 - y0
+        var gapy = 0.0
         if rows > 1 {
-            rowh = (y1 - y0 - float(rows - 1) * CELL_GAP) / float(rows)
+            var s = 1
+            while s < rows {
+                var c = 0
+                while c < cols {
+                    let kt = (s - 1) * cols + c
+                    let kb = s * cols + c
+                    var need = 0.0
+                    if kt in cb {
+                        need = need + cb[kt]
+                    }
+                    if kb in ct {
+                        need = need + ct[kb]
+                    }
+                    if need > gapy {
+                        gapy = need
+                    }
+                    c = c + 1
+                }
+                s = s + 1
+            }
+            gapy = gapy + hpad_px
         }
-        if colw <= 0.0 || rowh <= 0.0 {
+        let x0 = ml
+        let x1 = width - mr
+        let y0 = mt
+        let y1 = height - mb
+        if x1 - x0 <= 0.0 || y1 - y0 <= 0.0 {
             panic("plot.Figure.tight_layout: figure too small")
         }
-        frac_adj = (x0 / width, ob / height, x1 / width, 1.0 - ot / height)
-        frac_wspace = CELL_GAP / colw
-        frac_hspace = CELL_GAP / rowh
+        frac_adj = (x0 / width, mb / height, x1 / width, 1.0 - mt / height)
+        if cols > 1 {
+            let colw = ((x1 - x0) - float(cols - 1) * gapx) / float(cols)
+            if colw <= 0.0 {
+                panic("plot.Figure.tight_layout: figure too small")
+            }
+            frac_wspace = gapx / colw
+        }
+        if rows > 1 {
+            let rowh = ((y1 - y0) - float(rows - 1) * gapy) / float(rows)
+            if rowh <= 0.0 {
+                panic("plot.Figure.tight_layout: figure too small")
+            }
+            frac_hspace = gapy / rowh
+        }
     }
 
     /// Add a centered figure-level title (matplotlib `Figure.suptitle`).
@@ -2437,16 +2603,32 @@ pub class Figure {
     /// With `mappable` omitted, the last color-mapped artist on the target
     /// axes is used (matplotlib's current-image registry approximation).
     /// The data rect of the owning axes shrinks by `fraction + pad` and
-    /// the bar fills the freed strip (`pad` defaults to 0.05 vertical /
+    /// the bar occupies the freed strip (`pad` defaults to 0.05 vertical /
     /// 0.15 horizontal, like matplotlib); `shrink` scales the bar around
-    /// its center. A second call replaces the previous bar.
+    /// its center and `aspect` sets its thickness to `length / aspect`
+    /// (matplotlib's box-aspect width model, default 20). `extend`
+    /// "min"/"max"/"both" draws out-of-range triangles at the bar ends
+    /// (each `extendfrac`, default 0.05, of the gradient bar length) in
+    /// the colormap's under/over colors; a contourf mappable's own extend
+    /// wins over an explicit argument like matplotlib. A second call
+    /// replaces the previous bar.
     pub func colorbar(mappable Artist? = nil, ax Axes? = nil,
                       orientation str? = nil, fraction float = 0.15,
                       pad float? = nil, shrink float = 1.0,
-                      label str? = nil, ticks list[float]? = nil) Colorbar {
+                      aspect float = 20.0, extend str? = nil,
+                      extendfrac float? = nil, label str? = nil,
+                      ticks list[float]? = nil) Colorbar {
         if let ori = orientation {
             if ori != "vertical" && ori != "horizontal" {
                 panic("'" + ori + "' is not a valid value for orientation. Supported values are None, 'vertical', 'horizontal'")
+            }
+        }
+        if aspect <= 0.0 {
+            panic("plot.colorbar: aspect must be positive")
+        }
+        if let e = extend {
+            if e != "neither" && e != "both" && e != "min" && e != "max" {
+                panic("'" + e + "' is not a valid value for extend. Supported values are 'neither', 'both', 'min', 'max'")
             }
         }
         let ori = orientation ?? "vertical"
@@ -2480,6 +2662,7 @@ pub class Figure {
         var rvmax float? = nil
         var rcmap str? = nil
         var def_ticks list[float]? = nil
+        var used Artist? = nil
         if let m = mappable {
             if let r = m.cmap_range() {
                 let (lo, hi, cm, dt) = r
@@ -2487,6 +2670,7 @@ pub class Figure {
                 rvmax = hi
                 rcmap = cm
                 def_ticks = dt
+                used = m
             } else {
                 panic("plot.colorbar: mappable of kind '" + m.kind() + "' has no colormap")
             }
@@ -2500,6 +2684,7 @@ pub class Figure {
                         rvmax = hi
                         rcmap = cm
                         def_ticks = dt
+                        used = tg.artists[i]
                         break
                     }
                     i = i - 1
@@ -2507,6 +2692,17 @@ pub class Figure {
             }
             if rvmin == nil {
                 panic("No mappable was found to use for colorbar creation. First define a mappable such as an image (with imshow) or a contour set (with contourf).")
+            }
+        }
+        var ext = extend ?? "neither"
+        // matplotlib: a ContourSet mappable's extend always wins over the
+        // colorbar argument (line contours are forced to 'neither').
+        if let u = used {
+            switch u {
+                case is Contour:
+                    ext = "neither"
+                case is FilledContour:
+                    ext = u.extend
             }
         }
         var tk = ticks
@@ -2520,8 +2716,9 @@ pub class Figure {
         if let v = pad {
             pd = v
         }
-        let cb = Colorbar(ori, fraction, pd, shrink, label, tk, rvmin!,
-                          rvmax!, rcmap!)
+        let cb = Colorbar(ori, fraction, pd, shrink, aspect, ext,
+                          extendfrac ?? 0.05, label, tk, rvmin!, rvmax!,
+                          rcmap!)
         if let tg = target {
             tg.cbar = cb
         }

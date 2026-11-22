@@ -25,8 +25,9 @@ import "std/time"
 ///   * `plot(y, fmt)` is spelled `plot(y, fmt = "...")` (static typing: the
 ///     second positional slot is always `y`); `plot(x, y, fmt)` is positional.
 ///   * `hist(range = ...)` is `hist(range_ = ...)` (`range` is reserved).
-///   * `subplots()` returns `(fig, ax)` for the dominant single-axes case;
-///     for a grid, reach the rest through `fig.axes` / `subplot`.
+///   * `subplots()` returns `(fig, ax)` with matplotlib's squeeze semantics;
+///     `ax` is typed `any` (Koala has no union return type) and is narrowed
+///     with `case is Axes / list[Axes] / list[list[Axes]]`.
 
 /// The current figure and axes of the pyplot state machine.
 var _fig Figure? = nil
@@ -83,24 +84,60 @@ pub func twiny() Axes {
     return gca().twiny()
 }
 
-/// Create a figure with a `nrows x ncols` grid of subplots and return
-/// `(fig, ax)` where `ax` is the first subplot (matplotlib `pyplot.subplots`).
-/// The whole grid is created on `fig.axes`; for a grid, reach the remaining
-/// axes through `fig.axes` or `subplot` (Koala returns a single `Axes`, not
-/// matplotlib's ndarray, so the dominant single-axes idiom stays intact).
-pub func subplots(nrows int = 1, ncols int = 1) (Figure, Axes) {
+/// Create a figure with a `nrows x ncols` grid of subplots (matplotlib
+/// `pyplot.subplots`) and return `(fig, ax)`. `ax` follows matplotlib's
+/// squeeze semantics: with `squeeze=true` (default) a 1x1 grid yields the
+/// single `Axes`, a 1xN / Nx1 grid a flat `list[Axes]`, and an MxN grid a
+/// `list[list[Axes]]`; `squeeze=false` always yields the 2D
+/// `list[list[Axes]]`. Koala has no union return type, so `ax` is typed `any`;
+/// narrow it with the single `case is` arm matching the shape you created
+/// (`case is plt.Axes` for 1x1, `case is list[plt.Axes]` for 1xN/Nx1,
+/// `case is list[list[plt.Axes]]` for MxN). Runtime `is` erases list element
+/// types, so competing list arms do NOT dispatch by nesting — use the one arm
+/// for your known nrows/ncols. The first subplot stays the current axes
+/// (`gca`). Panics on non-positive nrows/ncols like matplotlib.
+pub func subplots(nrows int = 1, ncols int = 1,
+                  squeeze bool = true) (Figure, any) {
+    if nrows < 1 {
+        panic("Number of rows must be a positive integer, not " + nrows.to_str())
+    }
+    if ncols < 1 {
+        panic("Number of columns must be a positive integer, not " + ncols.to_str())
+    }
     let fig = figure()
+    let grid = list[list[Axes]]()
     var first Axes? = nil
-    var i = 1
-    while i <= nrows * ncols {
-        let ax = fig.subplot(nrows, ncols, i)
-        if first == nil {
-            first = ax
+    var r = 0
+    while r < nrows {
+        let row = list[Axes]()
+        var c = 0
+        while c < ncols {
+            let ax = fig.subplot(nrows, ncols, r * ncols + c + 1)
+            if first == nil {
+                first = ax
+            }
+            row.append(ax)
+            c = c + 1
         }
-        i = i + 1
+        grid.append(row)
+        r = r + 1
     }
     _ax = first
-    return (fig, first!)
+    var ret any = grid
+    if squeeze {
+        if nrows == 1 && ncols == 1 {
+            ret = grid[0][0]
+        } else if nrows == 1 || ncols == 1 {
+            let flat = list[Axes]()
+            for row in grid {
+                for ax in row {
+                    flat.append(ax)
+                }
+            }
+            ret = flat
+        }
+    }
+    return (fig, ret)
 }
 
 /// Adjust the data-area margins of the current figure as figure fractions
@@ -114,9 +151,9 @@ pub func subplots_adjust(left float? = nil, bottom float? = nil,
 
 /// Shrink the margins of the current figure to the axes decorations
 /// (matplotlib `pyplot.tight_layout`).
-pub func tight_layout(pad float = 1.08, w_pad float? = nil,
-                      h_pad float? = nil) {
-    gcf().tight_layout(pad, w_pad, h_pad)
+pub func tight_layout(pad float = 1.08, h_pad float? = nil,
+                      w_pad float? = nil) {
+    gcf().tight_layout(pad, h_pad, w_pad)
 }
 
 /// Add a centered figure-level title (matplotlib `pyplot.suptitle`).
@@ -136,7 +173,7 @@ pub func margins(x float? = nil, y float? = nil) (float, float) {
 pub func tick_params(axis str? = nil, which str? = nil,
                      direction str? = nil, length float? = nil,
                      width float? = nil, color str? = nil,
-                     pad float? = nil, labelsize float? = nil,
+                     pad float? = nil, labelsize (float | str)? = nil,
                      labelcolor str? = nil, bottom bool? = nil,
                      top bool? = nil, left bool? = nil, right bool? = nil,
                      labelbottom bool? = nil, labeltop bool? = nil,
@@ -150,10 +187,11 @@ pub func tick_params(axis str? = nil, which str? = nil,
 /// `pyplot.colorbar`).
 pub func colorbar(mappable Artist? = nil, orientation str? = nil,
                   fraction float = 0.15, pad float? = nil,
-                  shrink float = 1.0, label str? = nil,
-                  ticks list[float]? = nil) Colorbar {
+                  shrink float = 1.0, aspect float = 20.0,
+                  extend str? = nil, extendfrac float? = nil,
+                  label str? = nil, ticks list[float]? = nil) Colorbar {
     return gcf().colorbar(mappable, nil, orientation, fraction, pad, shrink,
-                          label, ticks)
+                          aspect, extend, extendfrac, label, ticks)
 }
 
 /// Set the x-axis scale of the current axes (matplotlib `pyplot.xscale`).
@@ -464,9 +502,8 @@ pub func close() {
 }
 
 /// Write the current figure to a self-contained HTML file. A Koala extension
-/// with no matplotlib equivalent (`savefig` is deferred, docs/koala_ml.md
-/// §6.5); it is the headless exit for display-less environments. Panics if
-/// the file cannot be written.
+/// with no matplotlib equivalent; it is the headless exit for display-less
+/// environments. Panics if the file cannot be written.
 pub func savehtml(path str) {
     if !fs.write_str(path, figure_html(gcf())) {
         panic("plot.savehtml: cannot write '" + path + "'")
@@ -482,28 +519,81 @@ pub func png_from_data_url(url str) bytes {
     return base64.standard_decode(url.substr(22))
 }
 
-/// Save the current figure as a PNG file (matplotlib `pyplot.savefig`).
+/// Decode a canvas `toDataURL("image/<mime>")` data URL to raw bytes.
+func decode_data_url(url str, mime str) bytes {
+    let prefix = "data:image/" + mime + ";base64,"
+    if url.index(prefix) != 0 {
+        panic("plot.savefig: unexpected data URL")
+    }
+    return base64.standard_decode(url.substr(prefix.len(), url.len()))
+}
+
+/// Save the current figure to a file (matplotlib `pyplot.savefig`).
 ///
-/// Renders the figure in a system-webview window, grabs the canvas as PNG
-/// via `toDataURL`, decodes and writes it. The window is shown briefly (it
-/// may flash), so a display is required. Unlike matplotlib there is no
-/// `dpi`/`bbox_inches`/`transparent` kwarg: the pixel size is fixed by
-/// `figure(figsize, dpi)`. Headless environments can use `savehtml` (HTML,
-/// no PNG). Panics if the render times out or the file cannot be written.
-pub func savefig(path str) {
+/// Parameters mirror matplotlib: `dpi` (nil = "figure", the figure's dpi),
+/// `transparent` (PNG only — JPEG has no alpha), `bbox_inches` ("tight"
+/// crops to the drawn content; matplotlib also accepts a Bbox object,
+/// which static typing forbids here), `pad_inches` (inches added around
+/// the tight bbox, converted at the figure dpi), and `format` (explicit
+/// format wins over the path extension; supported: png, jpg, jpeg).
+///
+/// Renders the figure in a system-webview window and grabs the canvas via
+/// `toDataURL`, so a display is required (the window may flash briefly);
+/// headless environments can use `savehtml` (HTML, no PNG/JPG). Panics if
+/// the render times out or the file cannot be written.
+pub func savefig(path str, dpi int? = nil, transparent bool = false,
+                 bbox_inches str? = nil, pad_inches float = 0.1,
+                 format str? = nil) {
     let fig = gcf()
+    var fmt = ""
+    if let f = format {
+        fmt = f
+    } else {
+        let i = path.rindex(".")
+        if i >= 0 {
+            fmt = path.substr(i + 1, path.len())
+        }
+    }
+    if fmt != "png" && fmt != "jpg" && fmt != "jpeg" {
+        panic("Format '" + fmt + "' is not supported (supported formats: png, jpg, jpeg)")
+    }
+    let save_dpi = dpi ?? fig.dpi
+    if save_dpi <= 0 {
+        panic("dpi must be positive")
+    }
+    let scale = float(save_dpi) / float(fig.dpi)
+    var crop (float, float, float, float)? = nil
+    if let b = bbox_inches {
+        if b == "tight" {
+            if let r = tight_bbox(fig.to_spec()) {
+                let pad = pad_inches * float(fig.dpi)
+                crop = (r.x - pad, r.y - pad, r.w + 2.0 * pad, r.h + 2.0 * pad)
+            }
+        } else {
+            panic("plot.savefig: bbox_inches must be 'tight'")
+        }
+    }
+    let t = transparent && fmt == "png"
     let win = webview.Window()
     win.set_title("koala/plot")
-    win.set_size(int(fig.width), int(fig.height))
-    win.set_html(figure_html(fig))
+    var w = int(fig.width)
+    var h = int(fig.height)
+    if let c = crop {
+        let (_, _, cw, ch) = c
+        w = int(ceil(cw))
+        h = int(ceil(ch))
+    }
+    win.set_size(w, h)
+    win.set_html(figure_html(fig, scale, t, crop))
     win.poll()
+    let mime = if fmt == "png" { "png" } else { "jpeg" }
     var url = ""
     var waited = 0
     while url == "" {
         let probe = win.eval_sync("document.getElementById('plot') !== null")
         if probe == "true" {
             url = win.eval_sync(
-                "document.getElementById('plot').toDataURL('image/png')")
+                "document.getElementById('plot').toDataURL('image/" + mime + "')")
         } else {
             win.poll()
             time.sleep(time.Duration(10000000))
@@ -515,7 +605,7 @@ pub func savefig(path str) {
         }
     }
     win.destroy()
-    if !fs.write_bytes(path, png_from_data_url(url)) {
+    if !fs.write_bytes(path, decode_data_url(url, mime)) {
         panic("plot.savefig: cannot write '" + path + "'")
     }
 }

@@ -43,8 +43,9 @@ func test_cbar_contourf_vertical_default() {
     fig.colorbar(cf)
     // Data rect: w = (1 - 0.15 - 0.05) * 540 = 432.
     check_plot(fig, 0, 70.0, 50.0, 432.0, 370.0)
-    // Bar: x = 70 + 0.85 * 540 = 529, w = 0.15 * 540 = 81, full height.
-    check_cbar(fig, 0, 529.0, 50.0, 81.0, 370.0)
+    // Bar thickness = length / aspect = 370 / 20 = 18.5, at the data-rect
+    // side of the strip (x = 70 + 0.85 * 540 = 529), full height.
+    check_cbar(fig, 0, 529.0, 50.0, 18.5, 370.0)
     let cb = cbar_of(fig, 0)
     ut.assert_eq(cb.get_str("orientation"), "vertical")
     let stops = cb.get_array("stops")
@@ -59,7 +60,7 @@ func test_cbar_contourf_vertical_default() {
     ut.assert_float_close(ticks.get_object(0).get_float("v"), 0.0)
     ut.assert_eq(ticks.get_object(0).get_str("label"), "0")
     ut.assert_eq(ticks.get_object(3).get_str("label"), "3")
-    // Low value at the bottom (px measured from the bar bottom).
+    // Low value at the bottom (px measured from the bar top).
     ut.assert_float_close(ticks.get_object(0).get_float("px"), 370.0)
     ut.assert_float_close(ticks.get_object(3).get_float("px"), 0.0)
 }
@@ -106,8 +107,8 @@ func test_cbar_horizontal_default_pad() {
     fig.colorbar(sc, orientation = "horizontal")
     // Horizontal pad default 0.15: h = (1 - 0.15 - 0.15) * 370 = 259.
     check_plot(fig, 0, 70.0, 50.0, 540.0, 259.0)
-    // Bar below: y = 50 + 0.85 * 370 = 364.5, h = 0.15 * 370 = 55.5.
-    check_cbar(fig, 0, 70.0, 364.5, 540.0, 55.5)
+    // Bar below: y = 50 + 0.85 * 370 = 364.5, thickness 540 / 20 = 27.
+    check_cbar(fig, 0, 70.0, 364.5, 540.0, 27.0)
     let ticks = cbar_of(fig, 0).get_array("ticks")
     // Horizontal: low value at the left.
     ut.assert_float_close(ticks.get_object(0).get_float("px"), 0.0)
@@ -123,9 +124,9 @@ func test_cbar_fraction_pad_shrink() {
     fig.colorbar(sc, fraction = 0.2, pad = 0.1, shrink = 0.5)
     // Data rect: w = (1 - 0.3) * 540 = 378.
     check_plot(fig, 0, 70.0, 50.0, 378.0, 370.0)
-    // Bar: x = 70 + 0.8 * 540 = 502, w = 0.2 * 540 = 108, centered half
-    // height: y = 50 + 92.5 = 142.5, h = 185.
-    check_cbar(fig, 0, 502.0, 142.5, 108.0, 185.0)
+    // Bar: x = 70 + 0.8 * 540 = 502, centered half height
+    // (y = 50 + 92.5 = 142.5, h = 185), thickness 185 / 20 = 9.25.
+    check_cbar(fig, 0, 502.0, 142.5, 9.25, 185.0)
 }
 
 @test
@@ -188,9 +189,10 @@ func test_cbar_second_call_replaces() {
     fig.colorbar(sc, fraction = 0.1)
     // The second call's geometry wins (replace semantics, like suptitle).
     fig.colorbar(sc, fraction = 0.3, pad = 0.1)
-    // w = (1 - 0.4) * 540 = 324; bar x = 70 + 0.7 * 540 = 448, w = 162.
+    // w = (1 - 0.4) * 540 = 324; bar x = 70 + 0.7 * 540 = 448,
+    // thickness 370 / 20 = 18.5.
     check_plot(fig, 0, 70.0, 50.0, 324.0, 370.0)
-    check_cbar(fig, 0, 448.0, 50.0, 162.0, 370.0)
+    check_cbar(fig, 0, 448.0, 50.0, 18.5, 370.0)
 }
 
 @test
@@ -202,6 +204,183 @@ func test_cbar_contourf_ticks_param() {
     let ticks = cbar_of(fig, 0).get_array("ticks")
     ut.assert_eq(ticks.len(), 2)
     ut.assert_eq(ticks.get_object(1).get_str("label"), "3")
+}
+
+@test
+func test_cbar_aspect_thickness_model() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    // Thickness = length / aspect: 370 / 10 = 37.
+    fig.colorbar(sc, aspect = 10.0)
+    check_cbar(fig, 0, 529.0, 50.0, 37.0, 370.0)
+    // 370 / 40 = 9.25.
+    fig.colorbar(sc, aspect = 40.0)
+    check_cbar(fig, 0, 529.0, 50.0, 9.25, 370.0)
+    // The data rect shrink depends only on fraction + pad.
+    check_plot(fig, 0, 70.0, 50.0, 432.0, 370.0)
+}
+
+@test
+func test_cbar_extend_both_inner_and_colors() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc, extend = "both")
+    let cb = cbar_of(fig, 0)
+    let ex = cb.get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), true)
+    ut.assert_eq(ex.get_bool("max"), true)
+    ut.assert_float_close(ex.get_float("frac"), 0.05)
+    // Triangles use the colormap end colors.
+    ut.assert_eq(ex.get_str("under"), "#440154")
+    ut.assert_eq(ex.get_str("over"), "#fde725")
+    // Inner gradient shrinks by 1 / (1 + 0.05 + 0.05) from the bar ends.
+    let inner = cb.get_object("inner")
+    ut.assert_float_close(inner.get_float("x"), 529.0)
+    ut.assert_float_close(inner.get_float("w"), 18.5)
+    ut.assert_float_close(inner.get_float("h"), 370.0 / 1.1, 1e-6)
+    ut.assert_float_close(inner.get_float("y"),
+                          50.0 + 0.05 * 370.0 / 1.1, 1e-6)
+    // Ticks map onto the inner bar: min at its bottom, max at its top.
+    let ticks = cb.get_array("ticks")
+    ut.assert_float_close(ticks.get_object(0).get_float("px"),
+                          370.0 / 1.1, 1e-6)
+    ut.assert_float_close(ticks.get_object(5).get_float("px"), 0.0)
+}
+
+@test
+func test_cbar_extend_min_only() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc, extend = "min")
+    let cb = cbar_of(fig, 0)
+    let ex = cb.get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), true)
+    ut.assert_eq(ex.get_bool("max"), false)
+    // Only the min triangle: inner = 370 / 1.05, offset from the bottom.
+    let inner = cb.get_object("inner")
+    ut.assert_float_close(inner.get_float("h"), 370.0 / 1.05, 1e-6)
+    ut.assert_float_close(inner.get_float("y"),
+                          50.0 + 0.05 * 370.0 / 1.05, 1e-6)
+}
+
+@test
+func test_cbar_extendfrac_custom() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    fig.colorbar(sc, extend = "both", extendfrac = 0.2)
+    let cb = cbar_of(fig, 0)
+    ut.assert_float_close(cb.get_object("extend").get_float("frac"), 0.2)
+    let inner = cb.get_object("inner")
+    ut.assert_float_close(inner.get_float("h"), 370.0 / 1.4, 1e-6)
+    ut.assert_float_close(inner.get_float("y"),
+                          50.0 + 0.2 * 370.0 / 1.4, 1e-6)
+}
+
+@test
+func test_cbar_extend_horizontal() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc, orientation = "horizontal", extend = "both")
+    let cb = cbar_of(fig, 0)
+    let ex = cb.get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), true)
+    ut.assert_eq(ex.get_bool("max"), true)
+    // Inner gradient occupies the middle 1 / 1.1 of the 540-wide strip.
+    let inner = cb.get_object("inner")
+    ut.assert_float_close(inner.get_float("w"), 540.0 / 1.1, 1e-6)
+    ut.assert_float_close(inner.get_float("x"),
+                          70.0 + 0.05 * 540.0 / 1.1, 1e-6)
+    let ticks = cb.get_array("ticks")
+    ut.assert_float_close(ticks.get_object(0).get_float("px"), 0.0)
+    ut.assert_float_close(ticks.get_object(5).get_float("px"),
+                          540.0 / 1.1, 1e-6)
+}
+
+@test
+func test_cbar_contourf_extend_autodetect() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let cf = ax.contourf([[0.0, 1.0], [2.0, 3.0]], [0.0, 1.0, 2.0, 3.0],
+                         extend = "both")
+    fig.colorbar(cf)
+    let ex = cbar_of(fig, 0).get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), true)
+    ut.assert_eq(ex.get_bool("max"), true)
+}
+
+@test
+func test_cbar_contourf_extend_wins_over_arg() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let cf = ax.contourf([[0.0, 1.0], [2.0, 3.0]], [0.0, 1.0, 2.0, 3.0],
+                         extend = "min")
+    // matplotlib: the mappable's own extend beats a colorbar argument.
+    fig.colorbar(cf, extend = "both")
+    let ex = cbar_of(fig, 0).get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), true)
+    ut.assert_eq(ex.get_bool("max"), false)
+}
+
+@test
+func test_cbar_contour_lines_mappable() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let cs = ax.contour([[0.0, 1.0], [2.0, 3.0]], [1.0, 5.0, 9.0])
+    fig.colorbar(cs)
+    let cb = cbar_of(fig, 0)
+    // Ticks are the contour levels (matplotlib's FixedLocator).
+    let ticks = cb.get_array("ticks")
+    ut.assert_eq(ticks.len(), 3)
+    ut.assert_float_close(ticks.get_object(0).get_float("v"), 1.0)
+    ut.assert_float_close(ticks.get_object(2).get_float("v"), 9.0)
+    ut.assert_eq(ticks.get_object(1).get_str("label"), "5")
+    // Line contours force extend to neither even when asked.
+    fig.colorbar(cs, extend = "both")
+    let ex = cbar_of(fig, 0).get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), false)
+    ut.assert_eq(ex.get_bool("max"), false)
+}
+
+@test
+func test_cbar_scatter_extend_explicit_wins() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    // Non-ContourSet mappable: the explicit argument wins.
+    fig.colorbar(sc, extend = "max")
+    let ex = cbar_of(fig, 0).get_object("extend")
+    ut.assert_eq(ex.get_bool("min"), false)
+    ut.assert_eq(ex.get_bool("max"), true)
+}
+
+@test
+func test_cbar_imshow_mappable() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[1.0, 2.0], [3.0, 4.0]])
+    fig.colorbar()
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    ut.assert_float_close(ticks.get_object(0).get_float("v"), 1.0)
+    ut.assert_float_close(ticks.get_object(ticks.len() - 1).get_float("v"),
+                          4.0)
+}
+
+@test
+func test_cbar_pyplot_contour_autodetect() {
+    let fig = plt.figure()
+    plt.contour([[0.0, 1.0], [2.0, 3.0]], [1.0, 5.0, 9.0])
+    plt.colorbar()
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    ut.assert_eq(ticks.len(), 3)
+    ut.assert_float_close(ticks.get_object(1).get_float("v"), 5.0)
 }
 
 @test
@@ -241,4 +420,28 @@ func test_cbar_non_mappable() {
 func test_cbar_no_axes() {
     let fig = plot.Figure()
     fig.colorbar()
+}
+
+@should_panic("'sideways' is not a valid value for extend. Supported values are 'neither', 'both', 'min', 'max'")
+func test_cbar_bad_extend() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    fig.colorbar(sc, extend = "sideways")
+}
+
+@should_panic("plot.colorbar: aspect must be positive")
+func test_cbar_aspect_zero() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    fig.colorbar(sc, aspect = 0.0)
+}
+
+@should_panic("plot.colorbar: mappable of kind 'contour' has no colormap")
+func test_cbar_contour_single_level() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let cs = ax.contour([[0.0, 1.0], [2.0, 3.0]], [5.0])
+    fig.colorbar(cs)
 }

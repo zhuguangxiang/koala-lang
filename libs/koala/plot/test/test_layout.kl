@@ -5,9 +5,11 @@
 // derived from the pixel constants in layout.kl (FIG_MARGIN=10, CELL_GAP=20,
 // PAD_LEFT=60, PAD_RIGHT=20, PAD_TOP=40, PAD_BOTTOM=50) on the default
 // 640x480 (dpi 100) figure: default cell (10, 10, 620, 460), data rect
-// (70, 50, 540, 370). tight_layout v1 uses those pads as the content
-// extents (documented deviation - no text measurement), so the default
-// 1x1 tight data rect is (60*1.08, 40*1.08, 640-80*1.08, 480-90*1.08).
+// (70, 50, 540, 370). tight_layout derives its margins from the text-aware
+// per-axes tight bboxes (text estimates, docs/koala_ml.md §6.6) with
+// pad/w_pad/h_pad in 10pt font-size units: the plain 1x1 axes overhangs
+// its data rect by tickpad+ylabels on the left and tickpad+labelsize below
+// (for_layout excludes the tick length).
 
 import "std/ut"
 import "koala/plot"
@@ -28,6 +30,32 @@ func check_plot(fig plot.Figure, i int, x float, y float, w float, h float) {
     ut.assert_float_close(p.get_float("y"), y)
     ut.assert_float_close(p.get_float("w"), w)
     ut.assert_float_close(p.get_float("h"), h)
+}
+
+// Tight-layout primitives at 100 dpi: 10pt labelsize = 10*100/72 px, tick
+// pad 3.5pt, y tick labels "0.0".."1.0" are 0.6*ls*3 px wide. A plain
+// 1x1 axes overhangs its data rect by tpad+ylw on the left and tpad+ls
+// below (for_layout tick off = pad only); right/top overhang is 0.
+func ls_px() float = 10.0 * 100.0 / 72.0
+func tpad_px() float = 3.5 * 100.0 / 72.0
+func ylw() float = 0.6 * ls_px() * 3.0
+func tight_ml(pad float) float = tpad_px() + ylw() + pad * ls_px()
+func tight_mb(pad float) float = tpad_px() + ls_px() + pad * ls_px()
+
+// 2x2 default grid: cell (10, 10, 300, 220), data rect (70, 50, 220, 130).
+func cell_pw() float = 300.0 - 60.0 - 20.0
+func cell_ph() float = 220.0 - 40.0 - 50.0
+
+// The edge x tick labels (autoscale 0.05/1.1 = 1/22 inset) stick out
+// halfwidth - pw/22 on each side; the top/bottom y tick labels stick out
+// ls/2 - ph/22. Both are 0 on the roomier 1x1 data rect.
+func xo() float {
+    let o = 0.6 * ls_px() * 3.0 / 2.0 - cell_pw() / 22.0
+    return if o < 0.0 { 0.0 } else { o }
+}
+func yo() float {
+    let o = ls_px() / 2.0 - cell_ph() / 22.0
+    return if o < 0.0 { 0.0 } else { o }
 }
 
 @test
@@ -127,8 +155,11 @@ func test_tight_default_1x1() {
     let fig = plot.Figure()
     fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
     fig.tight_layout()
-    // ol=60*1.08=64.8, or_=20*1.08=21.6, ot=40*1.08=43.2, ob=50*1.08=54.
-    check_plot(fig, 0, 64.8, 43.2, 553.6, 382.8)
+    // Left/bottom margins = text overhangs + pad; right/top = pad alone
+    // (pad = 1.08 * 10pt = 15 px @100dpi).
+    let p = 1.08 * ls_px()
+    check_plot(fig, 0, tight_ml(1.08), p, 640.0 - tight_ml(1.08) - p,
+               480.0 - p - tight_mb(1.08))
 }
 
 @test
@@ -136,17 +167,44 @@ func test_tight_pad2() {
     let fig = plot.Figure()
     fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
     fig.tight_layout(2.0)
-    check_plot(fig, 0, 120.0, 80.0, 480.0, 300.0)
+    let p = 2.0 * ls_px()
+    check_plot(fig, 0, tight_ml(2.0), p, 640.0 - tight_ml(2.0) - p,
+               480.0 - p - tight_mb(2.0))
 }
 
 @test
-func test_tight_wpad_hpad_overrides() {
+func test_tight_wpad_hpad_between_grid() {
     let fig = plot.Figure()
-    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
-    fig.tight_layout(1.0, 100.0, 50.0)
-    // w_pad replaces both horizontal outer margins, h_pad the vertical
-    // ones (both scaled by pad=1.0).
-    check_plot(fig, 0, 100.0, 50.0, 440.0, 380.0)
+    var i = 1
+    while i <= 4 {
+        fig.subplot(2, 2, i).plot([0.0, 1.0], [0.0, 1.0])
+        i = i + 1
+    }
+    fig.tight_layout(1.0, 5.0, 3.0)
+    // w_pad/h_pad are the BETWEEN-axes gaps in font-size units (mpl), not
+    // outer margins: the margins equal the plain pad=1.0 case, the gaps
+    // grow by 3/5 font units beyond the label overhangs.
+    let pad = 1.0
+    let p = pad * ls_px()
+    let ml = tight_ml(pad)
+    let mr = xo() + p
+    let mt = yo() + p
+    let mb = tight_mb(pad)
+    let gapx = xo() + tpad_px() + ylw() + 3.0 * ls_px()
+    let gapy = tpad_px() + ls_px() + yo() + 5.0 * ls_px()
+    let x0 = ml
+    let x1 = 640.0 - mr
+    let y0 = mt
+    let y1 = 480.0 - mb
+    let colw = ((x1 - x0) - gapx) / 2.0
+    let rowh = ((y1 - y0) - gapy) / 2.0
+    let ws = gapx / colw
+    let hs = gapy / rowh
+    check_plot(fig, 0, x0, y0, colw, rowh)
+    check_plot(fig, 1, x0 + colw + colw * ws, y0, colw, rowh)
+    check_plot(fig, 2, x0, y0 + rowh + rowh * hs, colw, rowh)
+    check_plot(fig, 3, x0 + colw + colw * ws, y0 + rowh + rowh * hs,
+               colw, rowh)
 }
 
 @test
@@ -158,12 +216,78 @@ func test_tight_grid_2x2() {
         i = i + 1
     }
     fig.tight_layout()
-    // colw=(640-64.8-21.6-20)/2=266.8, rowh=(480-43.2-54-20)/2=181.4,
-    // pixel gaps 20: second col x=351.6, second row y=244.6.
-    check_plot(fig, 0, 64.8, 43.2, 266.8, 181.4)
-    check_plot(fig, 1, 351.6, 43.2, 266.8, 181.4)
-    check_plot(fig, 2, 64.8, 244.6, 266.8, 181.4)
-    check_plot(fig, 3, 351.6, 244.6, 266.8, 181.4)
+    // Col gap = right overhang (xo) + left overhang (tpad+ylw) + pad; row
+    // gap = bottom overhang (tpad+ls, the off+ls band beats the y tick
+    // label extents) + top overhang (yo) + pad.
+    let pad = 1.08
+    let p = pad * ls_px()
+    let ml = tight_ml(pad)
+    let mr = xo() + p
+    let mt = yo() + p
+    let mb = tight_mb(pad)
+    let gapx = xo() + tpad_px() + ylw() + p
+    let gapy = tpad_px() + ls_px() + yo() + p
+    let x0 = ml
+    let x1 = 640.0 - mr
+    let y0 = mt
+    let y1 = 480.0 - mb
+    let colw = ((x1 - x0) - gapx) / 2.0
+    let rowh = ((y1 - y0) - gapy) / 2.0
+    let ws = gapx / colw
+    let hs = gapy / rowh
+    check_plot(fig, 0, x0, y0, colw, rowh)
+    check_plot(fig, 1, x0 + colw + colw * ws, y0, colw, rowh)
+    check_plot(fig, 2, x0, y0 + rowh + rowh * hs, colw, rowh)
+    check_plot(fig, 3, x0 + colw + colw * ws, y0 + rowh + rowh * hs,
+               colw, rowh)
+}
+
+@test
+func test_tight_labeled_margins() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlabel("xlabel")
+    ax.set_ylabel("ylabel")
+    ax.set_title("title")
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    fig.tight_layout()
+    // Decoration extents: ylabel x edge at cell_x+PAD_LEFT/2-6.5 = 33.5
+    // (left overhang 70-33.5 = 36.5, beats the y tick labels), xlabel
+    // bottom edge at 420+PAD_BOTTOM/2+6.5 = 451.5 (bottom 31.5, beats the
+    // x tick labels), title top edge at cell_y+PAD_TOP/2-7 = 23 (top 27);
+    // right = pad alone.
+    let p = 1.08 * ls_px()
+    check_plot(fig, 0, 36.5 + p, 27.0 + p, 625.0 - (36.5 + p),
+               480.0 - (27.0 + p) - (31.5 + p))
+}
+
+@test
+func test_tight_suptitle_grows_top() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.suptitle("hello")
+    fig.tight_layout()
+    // The suptitle adds its 16 px height plus one extra pad to the top
+    // margin (matplotlib adds rel_height + pad_inch the same way).
+    let p = 1.08 * ls_px()
+    check_plot(fig, 0, tight_ml(1.08), p + 16.0 + p,
+               640.0 - tight_ml(1.08) - p,
+               480.0 - (p + 16.0 + p) - tight_mb(1.08))
+}
+
+@test
+func test_tight_twinx_right_labels() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.twinx().plot([0.0, 1.0], [0.0, 2.0])
+    fig.tight_layout()
+    // The twin's right y labels ("0".."2", single chars: tpad + 0.6*ls
+    // wide) grow the right margin; left/bottom as the plain 1x1 case.
+    let p = 1.08 * ls_px()
+    let mr = tpad_px() + 0.6 * ls_px() + p
+    check_plot(fig, 0, tight_ml(1.08), p,
+               640.0 - tight_ml(1.08) - mr, 480.0 - p - tight_mb(1.08))
 }
 
 @test
@@ -181,6 +305,16 @@ func test_tight_pad_nonpositive() {
     fig.tight_layout(0.0)
 }
 
+@should_panic("plot.Figure.tight_layout: figure too small")
+func test_tight_figure_too_small() {
+    // 105x120 px figure: left margin 103.2 + right 15 > 105 px.
+    let fig = plot.Figure(1.05, 1.2, 100)
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_yticks([0.0, 1.0], ["0000000000", "1"])
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    fig.tight_layout()
+}
+
 @test
 func test_tight_then_partial_adjust() {
     let fig = plot.Figure()
@@ -188,10 +322,12 @@ func test_tight_then_partial_adjust() {
     fig.tight_layout()
     // No-arg adjust after tight is a no-op.
     fig.subplots_adjust()
-    check_plot(fig, 0, 64.8, 43.2, 553.6, 382.8)
+    let p = 1.08 * ls_px()
+    check_plot(fig, 0, tight_ml(1.08), p, 640.0 - tight_ml(1.08) - p,
+               480.0 - p - tight_mb(1.08))
     // A real partial adjust seeds from the tight fractions.
     fig.subplots_adjust(0.05)
-    check_plot(fig, 0, 32.0, 43.2, 586.4, 382.8)
+    check_plot(fig, 0, 32.0, p, 593.0, 480.0 - p - tight_mb(1.08))
 }
 
 @test
@@ -202,5 +338,7 @@ func test_pyplot_adjust_and_tight() {
     plt.subplots_adjust(0.1, 0.2, 0.9, 0.8)
     check_plot(plt.gcf(), 0, 64.0, 96.0, 512.0, 288.0)
     plt.tight_layout()
-    check_plot(plt.gcf(), 0, 64.8, 43.2, 553.6, 382.8)
+    let p = 1.08 * ls_px()
+    check_plot(plt.gcf(), 0, tight_ml(1.08), p, 640.0 - tight_ml(1.08) - p,
+               480.0 - p - tight_mb(1.08))
 }

@@ -11,6 +11,7 @@ import "std/ut"
 import "std/fs"
 import "std/os"
 import "demo/chat"
+import "koala/readline"
 import "koala/openai" as openai
 
 const SBASE = "/tmp/koala_chat_sesstest"
@@ -54,6 +55,32 @@ func test_status_line_shape() {
     ut.assert_true("dir=" in line)
     ut.assert_true("tokens 0/" in line)
     ut.assert_true("(0.0%)" in line)
+}
+
+@test
+func test_status_line_fits_and_keeps_tail() {
+    let s = _session()
+    let line = s.status_line(60)
+    ut.assert_true(readline.width(line) <= 60)
+    ut.assert_true("model=auto" in line)
+    ut.assert_true("dir=" in line)
+    ut.assert_true("tokens 0/4096" in line)
+    ut.assert_true(line.ends_with("(0.0%)"))
+    // a branch, when the test runs inside git, is shown in the full form
+    let b = s.branch()
+    ut.assert_eq(b, s.branch())
+    if b != "" { ut.assert_true("(" + b + ")" in s.status_line()) }
+    // a long work dir is elided from the left, keeping the tail
+    ut.assert_true(s.set_workdir(SBASE + "/wd"))
+    let elided = s.status_line(60)
+    var has_mark = "..." in elided
+    if !has_mark { has_mark = "…" in elided }
+    ut.assert_true(has_mark)
+    ut.assert_true(elided.ends_with("(0.0%)"))
+    // too narrow for model + dir + tokens: keep the tail, drop the head
+    let narrow = s.status_line(40)
+    ut.assert_true(readline.width(narrow) <= 40)
+    ut.assert_true(narrow.ends_with("(0.0%)"))
 }
 
 @test
@@ -114,6 +141,8 @@ func test_reset_smoke() {
     s.reset()
     ut.assert_true(s.current_model() == "gpt-42")
     ut.assert_true("tokens 0/" in s.status_line())
+    // Ctrl-O has nothing to show before an agent tool runs
+    ut.assert_true(s.tool_output() == nil)
 }
 
 @test

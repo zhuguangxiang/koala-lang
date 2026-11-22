@@ -561,6 +561,7 @@ pub class Contour : Artist {
     pub let ylo float
     pub let yhi float
     pub let alpha float
+    pub let cmap str
 
     pub func __init__(Z list[list[float]], xs list[float]?, ys list[float]?,
                       levels list[float]?, cmap str, alpha float = 1.0) {
@@ -613,6 +614,7 @@ pub class Contour : Artist {
             i = i + 1
         }
         self.colors = cols2
+        self.cmap = cmap
         xlo = xax[0]
         xhi = xax[xax.len() - 1]
         ylo = yax[0]
@@ -624,7 +626,19 @@ pub class Contour : Artist {
     pub func ybounds() (float, float)? = (ylo, yhi)
     pub func legend_label() str? = nil
     pub func legend_color() str? = nil
-    func cmap_range() (float, float, str, list[float]?)? { return nil }
+    func cmap_range() (float, float, str, list[float]?)? {
+        // The colorbar spans the requested levels with the levels as its
+        // ticks (matplotlib's FixedLocator for ContourSet mappables).
+        if levels.len() >= 2 {
+            let lv = list[float]()
+            for cl in levels {
+                lv.append(cl.level)
+            }
+            return (levels[0].level, levels[levels.len() - 1].level, cmap,
+                    lv)
+        }
+        return nil
+    }
     func xstickies() list[float] { return list[float]() }
     func ystickies() list[float] { return list[float]() }
 
@@ -666,6 +680,8 @@ pub class Image : Artist {
     pub let pixels list[str]
     pub let cmap str
     pub let alpha float
+    pub let vmin float
+    pub let vmax float
 
     pub func __init__(Z list[list[float]], cmap str, alpha float = 1.0) {
         if Z.len() == 0 || Z[0].len() == 0 {
@@ -692,6 +708,8 @@ pub class Image : Artist {
                 }
             }
         }
+        self.vmin = lo
+        self.vmax = hi
         let span = hi - lo
         pixels = list[str]()
         for row in Z {
@@ -712,7 +730,9 @@ pub class Image : Artist {
     pub func ybounds() (float, float)? = (float(rows) - 0.5, -0.5)
     pub func legend_label() str? = nil
     pub func legend_color() str? = nil
-    func cmap_range() (float, float, str, list[float]?)? { return nil }
+    func cmap_range() (float, float, str, list[float]?)? {
+        return (vmin, vmax, cmap, nil)
+    }
     func xstickies() list[float] { return list[float]() }
     func ystickies() list[float] { return list[float]() }
 
@@ -1765,10 +1785,12 @@ pub class FilledContour : Artist {
     pub let cmap str
     pub let alpha float?
     pub let label str?
+    pub let extend str
 
     pub func __init__(xs list[float], ys list[float], colors list[str],
                       bands list[list[list[float]]], levels list[float],
-                      cmap str, alpha float? = nil, label str? = nil) {
+                      cmap str, alpha float? = nil, label str? = nil,
+                      extend str = "neither") {
         if let a = alpha {
             if a < 0.0 || a > 1.0 {
                 panic("plot.FilledContour: alpha must be in [0, 1]")
@@ -1782,6 +1804,7 @@ pub class FilledContour : Artist {
         self.cmap = cmap
         self.alpha = alpha
         self.label = label
+        self.extend = extend
     }
 
     pub func kind() str = "contourf"
@@ -2246,17 +2269,23 @@ pub class Boxplot : Artist {
 /// geometry contract follows matplotlib's `make_axes`: the data rect of
 /// the owning axes shrinks by `(fraction + pad)` of its width (vertical)
 /// or height (horizontal), and the bar occupies the freed strip with a
-/// `pad` gap, scaled around its center by `shrink`. Tick values resolve
-/// Koala-side at spec time; `set_label`/`set_ticks` mirror matplotlib's
-/// `Colorbar` methods. v1 deviations: fraction/pad are fractions of the
-/// *data rect* (matplotlib uses the full axes box including labels), the
-/// `aspect`-constrained width model is not replicated, and bar ticks use
-/// fixed defaults rather than the axes' `tick_params`.
+/// `pad` gap, scaled around its center by `shrink`; the bar's thickness
+/// is `length / aspect` (matplotlib's box-aspect width model). With
+/// `extend` "min"/"max"/"both", the gradient bar shrinks toward the
+/// middle and triangles in the colormap's under/over colors fill the
+/// ends. Tick values resolve Koala-side at spec time;
+/// `set_label`/`set_ticks` mirror matplotlib's `Colorbar` methods. v1
+/// deviations: fraction/pad are fractions of the *data rect* (matplotlib
+/// uses the full axes box including labels), and bar ticks use fixed
+/// defaults rather than the axes' `tick_params`.
 pub class Colorbar {
     pub let orientation str
     pub let fraction float
     pub let pad float
     pub let shrink float
+    pub let aspect float
+    pub let extend str
+    pub let extendfrac float
     pub var label str? = nil
     pub var ticks list[float]? = nil
     pub let vmin float
@@ -2264,12 +2293,16 @@ pub class Colorbar {
     pub let cmap str
 
     pub func __init__(orientation str, fraction float, pad float,
-                      shrink float, label str?, ticks list[float]?,
+                      shrink float, aspect float, extend str,
+                      extendfrac float, label str?, ticks list[float]?,
                       vmin float, vmax float, cmap str) {
         self.orientation = orientation
         self.fraction = fraction
         self.pad = pad
         self.shrink = shrink
+        self.aspect = aspect
+        self.extend = extend
+        self.extendfrac = extendfrac
         self.label = label
         self.ticks = ticks
         self.vmin = vmin
@@ -2287,8 +2320,12 @@ pub class Colorbar {
         ticks = t
     }
 
-    /// Serialize the resolved bar: gradient stops, pixel tick positions
-    /// and labels, within the pixel rect computed by the owning axes.
+    /// Serialize the resolved bar: the gradient `inner` rect, pixel tick
+    /// positions and labels, and the `extend` triangles. The passed `rect`
+    /// is the outer bar allocation; with extend active, the inner gradient
+    /// bar shrinks toward the middle and triangles with the colormap end
+    /// colors fill the freed ends (matplotlib's extendfrac model: each
+    /// triangle is `extendfrac` of the inner bar length).
     pub func to_spec(rect Rect) json.Object {
         let o = json.Object()
         o["kind"] = json.String("colorbar")
@@ -2297,6 +2334,33 @@ pub class Colorbar {
         o["y"] = json.Float(rect.y)
         o["w"] = json.Float(rect.w)
         o["h"] = json.Float(rect.h)
+        var lo = 0.0
+        var hi = 0.0
+        if extend == "min" || extend == "both" {
+            lo = extendfrac
+        }
+        if extend == "max" || extend == "both" {
+            hi = extendfrac
+        }
+        let s = 1.0 + lo + hi
+        var inner = rect
+        if orientation == "vertical" {
+            let il = rect.h / s
+            inner = Rect(rect.x, rect.y + lo * il, rect.w, il)
+        } else {
+            let il = rect.w / s
+            inner = Rect(rect.x + lo * il, rect.y, il, rect.h)
+        }
+        o["inner"] = rect_json(inner)
+        let (ur, ug, ub) = colormap(cmap, 0.0)
+        let (or_, og, ob) = colormap(cmap, 1.0)
+        let ex = json.Object()
+        ex["min"] = json.Boolean(extend == "min" || extend == "both")
+        ex["max"] = json.Boolean(extend == "max" || extend == "both")
+        ex["frac"] = json.Float(extendfrac)
+        ex["under"] = json.String(rgb_hex(ur, ug, ub))
+        ex["over"] = json.String(rgb_hex(or_, og, ob))
+        o["extend"] = ex
         let stops = json.Array()
         var i = 0
         while i < 16 {
@@ -2347,9 +2411,9 @@ pub class Colorbar {
             let to = json.Object()
             to["v"] = json.Float(vals[j])
             if orientation == "vertical" {
-                to["px"] = json.Float(rect.h * (1.0 - t))
+                to["px"] = json.Float(inner.h * (1.0 - t))
             } else {
-                to["px"] = json.Float(rect.w * t)
+                to["px"] = json.Float(inner.w * t)
             }
             to["label"] = json.String(labels[j])
             tks.append(to)

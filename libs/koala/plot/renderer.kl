@@ -4,6 +4,7 @@
  */
 
 import "koala/webview"
+import "koala/json"
 
 /// The dumb canvas-2D renderer (docs/koala_ml.md §6.3), self-written and
 /// embedded as string constants because wombat distributes only .klc/.so
@@ -17,7 +18,8 @@ import "koala/webview"
 /// LVGL/ui backend reuse the same resolved geometry.
 
 /// The page template. {{spec}} is the resolved figure-spec JSON, {{js}} the
-/// painter, {{width}}/{{height}} the canvas pixel size.
+/// painter, {{width}}/{{height}} the canvas pixel size, {{opts}} the render
+/// options (scale/transparent/crop) injected as `window.__plot_opts`.
 const PLOT_HTML = """<!doctype html>
 <html>
 <head>
@@ -31,6 +33,7 @@ canvas { display: block; }
 <canvas id="plot" width="{{width}}" height="{{height}}"></canvas>
 <script>
 window.__plot_spec = {{spec}};
+window.__plot_opts = {{opts}};
 {{js}}
 </script>
 </body>
@@ -44,8 +47,21 @@ const RENDERER_JS = """
   var spec = window.__plot_spec;
   var cv = document.getElementById("plot");
   var ctx = cv.getContext("2d");
-  ctx.fillStyle = spec.background || "#ffffff";
-  ctx.fillRect(0, 0, spec.width, spec.height);
+  var opts = window.__plot_opts || null;
+  var scale = opts && opts.scale ? opts.scale : 1;
+  var transparent = opts ? !!opts.transparent : false;
+  var crop = opts ? opts.crop : null;
+  if (scale !== 1) {
+    cv.width = Math.round((crop ? crop[2] : spec.width) * scale);
+    cv.height = Math.round((crop ? crop[3] : spec.height) * scale);
+    ctx.scale(scale, scale);
+  }
+  if (crop) { ctx.translate(-crop[0], -crop[1]); }
+  if (!transparent) {
+    ctx.fillStyle = spec.background || "#ffffff";
+    ctx.fillRect(crop ? crop[0] : 0, crop ? crop[1] : 0,
+                 crop ? crop[2] : spec.width, crop ? crop[3] : spec.height);
+  }
   ctx.textBaseline = "middle";
   ctx.font = "12px system-ui, sans-serif";
   var TAU = 6.283185307179586;
@@ -716,54 +732,107 @@ const RENDERER_JS = """
   }
 
   function paintColorbar(cb) {
+    var inn = cb.inner;
     var g;
     if (cb.orientation === "vertical") {
-      g = ctx.createLinearGradient(0, cb.y + cb.h, 0, cb.y);
+      g = ctx.createLinearGradient(0, inn.y + inn.h, 0, inn.y);
     } else {
-      g = ctx.createLinearGradient(cb.x, 0, cb.x + cb.w, 0);
+      g = ctx.createLinearGradient(inn.x, 0, inn.x + inn.w, 0);
     }
     for (var s = 0; s < cb.stops.length; s++) {
       g.addColorStop(cb.stops[s].t, cb.stops[s].c);
     }
     ctx.fillStyle = g;
-    ctx.fillRect(cb.x, cb.y, cb.w, cb.h);
+    ctx.fillRect(inn.x, inn.y, inn.w, inn.h);
+    var ex = cb.extend;
+    if (ex.min) {
+      ctx.fillStyle = ex.under;
+      ctx.beginPath();
+      if (cb.orientation === "vertical") {
+        ctx.moveTo(inn.x, inn.y);
+        ctx.lineTo(inn.x + inn.w / 2, cb.y);
+        ctx.lineTo(inn.x + inn.w, inn.y);
+      } else {
+        ctx.moveTo(inn.x, inn.y);
+        ctx.lineTo(cb.x, inn.y + inn.h / 2);
+        ctx.lineTo(inn.x, inn.y + inn.h);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (ex.max) {
+      ctx.fillStyle = ex.over;
+      ctx.beginPath();
+      if (cb.orientation === "vertical") {
+        ctx.moveTo(inn.x, inn.y + inn.h);
+        ctx.lineTo(inn.x + inn.w / 2, cb.y + cb.h);
+        ctx.lineTo(inn.x + inn.w, inn.y + inn.h);
+      } else {
+        ctx.moveTo(inn.x + inn.w, inn.y);
+        ctx.lineTo(cb.x + cb.w, inn.y + inn.h / 2);
+        ctx.lineTo(inn.x + inn.w, inn.y + inn.h);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.strokeStyle = "#000000";
     ctx.fillStyle = "#000000";
     ctx.lineWidth = 0.8;
     ctx.setLineDash([]);
-    ctx.strokeRect(cb.x, cb.y, cb.w, cb.h);
+    // Outline around the whole assembly (matplotlib's colorbar spine
+    // follows the triangle edges when extend is active).
+    ctx.beginPath();
+    if (cb.orientation === "vertical") {
+      ctx.moveTo(inn.x, inn.y);
+      if (ex.min) { ctx.lineTo(inn.x + inn.w / 2, cb.y); }
+      ctx.lineTo(inn.x + inn.w, inn.y);
+      ctx.lineTo(inn.x + inn.w, inn.y + inn.h);
+      if (ex.max) { ctx.lineTo(inn.x + inn.w / 2, cb.y + cb.h); }
+      ctx.lineTo(inn.x, inn.y + inn.h);
+    } else {
+      ctx.moveTo(inn.x, inn.y);
+      if (ex.min) { ctx.lineTo(cb.x, inn.y + inn.h / 2); }
+      ctx.lineTo(inn.x, inn.y + inn.h);
+      ctx.lineTo(inn.x + inn.w, inn.y + inn.h);
+      if (ex.max) { ctx.lineTo(cb.x + cb.w, inn.y + inn.h / 2); }
+      ctx.lineTo(inn.x + inn.w, inn.y);
+    }
+    ctx.closePath();
+    ctx.stroke();
     ctx.font = "10px system-ui, sans-serif";
     var tk = cb.ticks;
     for (var i = 0; i < tk.length; i++) {
       if (cb.orientation === "vertical") {
-        var ty = cb.y + cb.h - tk[i].px;
+        // Spec px is the distance from the bar top: min value at the
+        // bottom, max at the top (matplotlib orientation).
+        var ty = inn.y + tk[i].px;
         ctx.beginPath();
-        ctx.moveTo(cb.x + cb.w, ty);
-        ctx.lineTo(cb.x + cb.w + 3.5, ty);
+        ctx.moveTo(inn.x + inn.w, ty);
+        ctx.lineTo(inn.x + inn.w + 3.5, ty);
         ctx.stroke();
         ctx.textAlign = "left";
-        ctx.fillText(tk[i].label, cb.x + cb.w + 3.5 + 3.5, ty);
+        ctx.fillText(tk[i].label, inn.x + inn.w + 3.5 + 3.5, ty);
       } else {
-        var tx = cb.x + tk[i].px;
+        var tx = inn.x + tk[i].px;
         ctx.beginPath();
-        ctx.moveTo(tx, cb.y + cb.h);
-        ctx.lineTo(tx, cb.y + cb.h + 3.5);
+        ctx.moveTo(tx, inn.y + inn.h);
+        ctx.lineTo(tx, inn.y + inn.h + 3.5);
         ctx.stroke();
         ctx.textAlign = "center";
-        ctx.fillText(tk[i].label, tx, cb.y + cb.h + 3.5 + 3.5 + 5);
+        ctx.fillText(tk[i].label, tx, inn.y + inn.h + 3.5 + 3.5 + 5);
       }
     }
     if (cb.label) {
       if (cb.orientation === "vertical") {
         ctx.save();
-        ctx.translate(cb.x + cb.w + 3.5 + 3.5 + 12, cb.y + cb.h / 2);
+        ctx.translate(inn.x + inn.w + 3.5 + 3.5 + 12, inn.y + inn.h / 2);
         ctx.rotate(Math.PI / 2);
         ctx.textAlign = "center";
         ctx.fillText(cb.label, 0, 0);
         ctx.restore();
       } else {
         ctx.textAlign = "center";
-        ctx.fillText(cb.label, cb.x + cb.w / 2, cb.y + cb.h + 3.5 + 3.5 + 5 + 14);
+        ctx.fillText(cb.label, inn.x + inn.w / 2, inn.y + inn.h + 3.5 + 3.5 + 5 + 14);
       }
     }
   }
@@ -860,12 +929,35 @@ const RENDERER_JS = """
 /// Render a figure to a self-contained HTML document (resolved spec JSON +
 /// embedded painter). Pure string composition — no window, no display — so
 /// it is the headless exit (`savehtml`) and the webview payload alike.
-pub func figure_html(fig Figure) str {
+///
+/// `scale`/`transparent`/`crop` are `savefig` render options (device-pixel
+/// scale for `dpi`, skip the background fill, and a spec-pixel crop window
+/// for `bbox_inches="tight"`); the painter applies them via
+/// `window.__plot_opts`.
+pub func figure_html(fig Figure, scale float = 1.0, transparent bool = false,
+                     crop (float, float, float, float)? = nil) str {
+    let opts = json.Object()
+    opts["scale"] = json.Float(scale)
+    opts["transparent"] = json.Boolean(transparent)
+    var w = int(fig.width)
+    var h = int(fig.height)
+    if let c = crop {
+        let (cx, cy, cw, ch) = c
+        let arr = json.Array()
+        arr.append(json.Float(cx))
+        arr.append(json.Float(cy))
+        arr.append(json.Float(cw))
+        arr.append(json.Float(ch))
+        opts["crop"] = arr
+        w = int(ceil(cw))
+        h = int(ceil(ch))
+    }
     let vars dict[str, any] = {
         "spec": fig.to_spec().to_json(),
         "js": RENDERER_JS,
-        "width": format("{}", int(fig.width)),
-        "height": format("{}", int(fig.height))
+        "opts": opts.to_json(),
+        "width": format("{}", w),
+        "height": format("{}", h)
     }
     return webview.render_template(PLOT_HTML, vars)
 }

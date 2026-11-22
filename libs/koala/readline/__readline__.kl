@@ -59,6 +59,22 @@ pub func set_key_hook(function KeyHook? = nil) {
 /// and take no columns.
 pub func fit_text(text str, cols int) str = _fit_text(text, cols)
 
+/// The number of display columns `text` takes: ANSI escape sequences and
+/// `\x01`..`\x02` text take none, CJK and emoji take two.
+pub func width(text str) int = _text_width(text)
+
+/// `text` split into lines of at most `cols` display columns each, at
+/// character-cluster boundaries. Breaks prefer spaces; a long word is
+/// split. A `\n` forces a break; tabs expand to four spaces; ANSI escapes
+/// are preserved and take no columns, and `\x01`..`\x02` markers are
+/// ignored.
+pub func wrap_text(text str, cols int) list[str] = _wrap_text(text, cols)
+
+/// `text` padded with spaces to exactly `cols` display columns, never cut.
+/// Use it after `wrap_text`, where a line already fits: the final draw then
+/// cannot drop content.
+pub func pad_text(text str, cols int) str = _pad_text(text, cols)
+
 // The path of a history file, `~/.history` by default, as readline's.
 func _history_path(filename str?) str {
     if let name = filename { return name }

@@ -13,9 +13,9 @@ import "koala/readline"
 /// the TUI does not pollute the scrollback; `leave` restores it. When the
 /// program ends by a fatal signal or a panic first, the terminal is still
 /// restored: the native half of `koala/readline` writes the leave sequence
-/// and the original terminal mode at exit. On a pipe
-/// or a file every draw call is a no-op: print your content yourself for
-/// piped runs.
+/// and the original terminal mode at exit. On a pipe, a file, or a
+/// `TERM=dumb` terminal every draw call is a no-op: print your content
+/// yourself for piped runs.
 ///
 /// The frame order that works with the readline editor (single-line, column
 /// positioned):
@@ -34,13 +34,24 @@ import "koala/readline"
 ///     let line = screen.input(prompt)
 pub class Screen {
     let _tty bool
-    let _rows int
-    let _cols int
+    // a forced size (tests) is not re-read from the terminal
+    let _fixed bool
+    var _rows int
+    var _cols int
 
     /// Enter the alternate screen (tty only). `rows`/`cols` force the size
     /// (0 = measure the terminal); forcing it is useful for tests.
     pub func __init__(rows = 0, cols = 0) {
-        _tty = os.isatty(1)
+        var tty = os.isatty(1)
+        // TERM=dumb cannot position the cursor or clear the screen; treat it
+        // like a pipe so callers fall back to plain output.
+        if tty {
+            if let term = os.getenv("TERM") {
+                if term == "dumb" { tty = false }
+            }
+        }
+        _tty = tty
+        _fixed = rows != 0 || cols != 0
         _rows = rows
         _cols = cols
         if _tty && (_rows == 0 || _cols == 0) {
@@ -64,11 +75,39 @@ pub class Screen {
     /// The number of columns of the screen.
     pub func columns() int { return _cols }
 
-    /// Start a frame: reset the scroll region to the whole screen and clear
-    /// it, leaving the cursor at the top-left corner.
-    pub func frame_start() {
+    /// Re-read the terminal size; true when it changed. A pipe or a forced
+    /// size (tests) never changes. Call it before a frame so a resized
+    /// terminal is re-laid-out instead of drawn into stale rows/columns.
+    pub func refresh_size() bool {
+        if !_tty || _fixed { return false }
+        if let size = os.terminal_size(1) {
+            let (c, r) = size
+            var changed = false
+            if c > 0 && c != _cols { _cols = c; changed = true }
+            if r > 0 && r != _rows { _rows = r; changed = true }
+            return changed
+        }
+        return false
+    }
+
+    /// Start a frame: reset the scroll region to the whole screen and home
+    /// the cursor. With `clear` (the default) the screen is cleared too; a
+    /// full-redraw frame can pass `false` and overwrite its own rows without
+    /// the flicker of a clear on every turn.
+    pub func frame_start(clear = true) {
         if !_tty { return }
-        printf("\x1b[r\x1b[H\x1b[2J")
+        if clear {
+            printf("\x1b[r\x1b[H\x1b[2J")
+        } else {
+            printf("\x1b[r\x1b[H")
+        }
+    }
+
+    /// Clear the whole screen and home the cursor (an explicit redraw, e.g.
+    /// on resize). No-op on a pipe.
+    pub func clear() {
+        if !_tty { return }
+        printf("\x1b[2J\x1b[H")
     }
 
     /// Write one line at the cursor, with a newline after it. No-op on a

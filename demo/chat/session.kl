@@ -5,9 +5,10 @@
 import "std/fs"
 import "std/os"
 import "std/time"
+import "koala/readline"
 import "koala/openai" as openai
 from "koala/http" import Url, Request, Client
-from "koala/json" import parse_str, Object
+from "koala/json" import parse_str, Object, String, Integer, Boolean, Array
 
 /// An ordered conversation of OpenAI-format messages, starting with a
 /// system prompt. Session owns the message list, the turn-taking with the
@@ -17,22 +18,68 @@ pub class Session {
     let client openai.Client
     let cfg Config
     let key str
+    var _name str
+    var paused bool
     var model str
     var workdir str
     let messages list[dict[str, str]]
     var _agent Agent?
     var _last_tokens int
+    // the git branch under `workdir`, queried once per work dir
+    var _branch_dir str
+    var _branch_name str
 
-    pub func __init__(_client openai.Client, _cfg Config, _key str) {
+    pub func __init__(_client openai.Client, _cfg Config, _key str, name str = "main") {
         client = _client
         cfg = _cfg
         key = _key
+        _name = name
+        paused = false
         model = _cfg.model
         workdir = os.getcwd()
         messages = list[dict[str, str]]()
         _agent = nil
         _last_tokens = 0
+        _branch_dir = ""
+        _branch_name = ""
         reset()
+    }
+
+    /// The session's name in the session list.
+    pub func name() str { return _name }
+
+    /// Rename the session (used by /rename).
+    pub func set_name(n str) { _name = n }
+
+    /// Freeze automatic compaction for this session; manual /compact still
+    /// works. The live agent, if any, is paused with it.
+    pub func pause() {
+        paused = true
+        if let a = _agent { a.set_paused(true) }
+    }
+
+    /// Undo pause().
+    pub func resume() {
+        paused = false
+        if let a = _agent { a.set_paused(false) }
+    }
+
+    /// True while the session is paused.
+    pub func is_paused() bool { return paused }
+
+    /// The persisted record of this session.
+    pub func to_record() Object {
+        let o = Object()
+        o["name"] = String(_name)
+        o["model"] = String(model)
+        o["workdir"] = String(workdir)
+        o["paused"] = Boolean(paused)
+        o["last_tokens"] = Integer(_last_tokens)
+        o["messages"] = _msgs(messages)
+        var am = list[dict[str, str]]()
+        if let a = _agent { am = a.conversation() }
+        o["agent_messages"] = _msgs(am)
+        return o
     }
 
     /// Clear the conversation back to the single system message, and drop
@@ -71,10 +118,12 @@ pub class Session {
     /// Return false on failure.
     pub func ask(text str) bool {
         messages.append({"role": "user", "content": text})
+        show_busy("Thinking")
         let stream = client.chat.completions.stream(model, messages, cfg.temperature, cfg.max_tokens)
+        hide_busy()
         if !stream.ok() {
             messages.pop()
-            emit("Error [" + str(stream.status_code()) + "]: " + stream.error_message())
+            emit(http_error(stream.status_code(), stream.error_message(), plain_mode()))
             stream.close()
             return false
         }
@@ -82,6 +131,9 @@ pub class Session {
         var pending = ""
         var started = false
         for chunk in stream {
+            // a resize may arrive between two streamed chunks; re-lay out
+            // before the next line is printed
+            poll_resize()
             if chunk.delta.len() == 0 { continue }
             content += chunk.delta
             pending += chunk.delta
@@ -113,7 +165,11 @@ pub class Session {
         messages.append({"role": "assistant", "content": content})
         _last_tokens = usage.prompt_tokens
         if usage.total_tokens > 0 { emit(format("({} tokens)", usage.total_tokens)) }
-        maybe_compact(client, model, cfg, messages, usage.prompt_tokens)
+        if !paused {
+            if let after = maybe_compact(client, model, cfg, messages, usage.prompt_tokens) {
+                _last_tokens = after
+            }
+        }
         return true
     }
 
@@ -125,9 +181,21 @@ pub class Session {
             a.run(task, model)
         } else {
             let a = Agent(client, cfg, workdir)
+            a.set_approver(request_approval)
+            a.set_paused(paused)
             _agent = a
             a.run(task, model)
         }
+    }
+
+    /// The last executed tool action and its full observation, for Ctrl-O.
+    /// Nil when no tool has run in this process (a restored session's agent
+    /// has the conversation but not the per-action screen state).
+    pub func tool_output() (str, str)? {
+        if let a = _agent {
+            if a.has_tool_output() { return a.tool_output() }
+        }
+        return nil
     }
 
     /// Manually compact the active conversation (/compact): the agent's in
@@ -140,7 +208,9 @@ pub class Session {
                 emit("(no agent conversation yet)")
             }
         } else {
-            compact_now(client, model, cfg, messages)
+            if let after = compact_now(client, model, cfg, messages, _last_tokens) {
+                _last_tokens = after
+            }
         }
     }
 
@@ -181,15 +251,47 @@ pub class Session {
         emit("[agent] work dir: " + workdir)
     }
 
-    /// One line for the agent-mode status bar: model, work dir, and token
-    /// usage (last agent request against the window).
-    pub func status_line() str {
+    /// The git branch checked out under the work dir, or "" when it is not
+    /// a repository (or git is unavailable). The answer is cached per work
+    /// dir, so a status row redraw does not spawn a process every frame.
+    pub func branch() str {
+        if _branch_dir == workdir { return _branch_name }
+        _branch_dir = workdir
+        _branch_name = ""
+        if let r = os.output("git", ["rev-parse", "--abbrev-ref", "HEAD"], workdir) {
+            let (code, out, _) = r
+            if code == 0 {
+                let name = out.strip()
+                if name != "" && name != "HEAD" { _branch_name = name }
+            }
+        }
+        return _branch_name
+    }
+
+    /// One line for the status row: model, work dir (with its git branch),
+    /// and token usage. With `cols > 0` the work dir is elided from the
+    /// left to fit, so the useful tail survives in a narrow terminal.
+    pub func status_line(cols = 0) str {
         var used = 0
         if let a = _agent { used = a.last_tokens() }
         let window = cfg.context_window
         let tenths = used * 1000 / window
         let pct = str(tenths / 10) + "." + str(tenths % 10) + "%"
-        return "model=" + model + " | dir=" + workdir + " | tokens " + str(used) + "/" + str(window) + " (" + pct + ")"
+        let branch_name = branch()
+        let tail = " | tokens " + str(used) + "/" + str(window) + " (" + pct + ")"
+        var suffix = ""
+        if branch_name != "" { suffix = " (" + branch_name + ")" }
+        let full = "model=" + model + " | dir=" + workdir + suffix + tail
+        if cols <= 0 { return full }
+        if readline.width(full) <= cols { return full }
+        let prefix = "model=" + model + " | dir="
+        var room = cols - readline.width(prefix) - readline.width(tail)
+        // drop the branch before squeezing the path further; keep a few
+        // columns for a recognisable tail
+        if room < readline.width(suffix) + 4 { suffix = "" }
+        room -= readline.width(suffix)
+        if room < 1 { return elide_left(full, cols, plain_mode()) }
+        return prefix + elide_left(workdir, room, plain_mode()) + suffix + tail
     }
 
     /// The model ids the endpoint offers (GET {base_url}/models), or nil
@@ -228,4 +330,97 @@ pub class Session {
 /// follow the line-by-line print effect; no-op for 0.
 func _pace(ms int) {
     if ms > 0 { time.sleep(time.Duration.from_millis(ms)) }
+}
+
+/// Rebuild a Session from a persisted record; nil when a field is missing
+/// or mistyped. The agent is restored with its own conversation when one
+/// was saved; paused sessions come back paused.
+pub func restore_session(client openai.Client, cfg Config, key str, obj Object) Session? {
+    let name = _field_str(obj, "name")
+    let model = _field_str(obj, "model")
+    let workdir = _field_str(obj, "workdir")
+    let paused = _field_bool(obj, "paused")
+    let tokens = _field_int(obj, "last_tokens")
+    let msgs = _field_msgs(obj, "messages")
+    let amsgs = _field_msgs(obj, "agent_messages")
+    if name == nil || model == nil || workdir == nil || paused == nil || tokens == nil || msgs == nil || amsgs == nil {
+        return nil
+    }
+    let s = Session(client, cfg, key, name!)
+    s.model = model!
+    s.workdir = workdir!
+    s.paused = paused!
+    s._last_tokens = tokens!
+    s.messages.clear()
+    for m in msgs! { s.messages.append(m) }
+    if amsgs!.len() > 0 {
+        s._agent = restore_agent(client, cfg, workdir!, amsgs!, paused!)
+        if let a = s._agent { a.set_approver(request_approval) }
+    }
+    return s
+}
+
+/// The string field `key`, or nil when absent or not a string.
+func _field_str(obj Object, key str) str? {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is String { return v.value }
+    }
+    return nil
+}
+
+/// The bool field `key`, or nil when absent or not a bool.
+func _field_bool(obj Object, key str) bool? {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is Boolean { return v.value }
+    }
+    return nil
+}
+
+/// The int field `key`, or nil when absent or not an int.
+func _field_int(obj Object, key str) int? {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is Integer { return v.value }
+    }
+    return nil
+}
+
+/// The message-list field `key`, or nil when absent, not an array, or
+/// holding anything but {role, content} string pairs.
+func _field_msgs(obj Object, key str) list[dict[str, str]]? {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is Array {
+            let out = list[dict[str, str]]()
+            for e in v.value {
+                if e is Object {
+                    let role = _field_str(e, "role")
+                    let content = _field_str(e, "content")
+                    if role == nil || content == nil { return nil }
+                    let m = dict[str, str]()
+                    m["role"] = role!
+                    m["content"] = content!
+                    out.append(m)
+                } else {
+                    return nil
+                }
+            }
+            return out
+        }
+    }
+    return nil
+}
+
+/// The JSON array form of a message list.
+func _msgs(msgs list[dict[str, str]]) Array {
+    let a = Array()
+    for m in msgs {
+        let o = Object()
+        o["role"] = String(m["role"])
+        o["content"] = String(m["content"])
+        a.append(o)
+    }
+    return a
 }

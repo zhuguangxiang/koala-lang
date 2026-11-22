@@ -1,0 +1,629 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The pure UI layer (ui.kl): transcript wrapping/windowing, tool blocks,
+// user turns, the /sessions table and structured errors. No terminal I/O is
+// involved.
+
+import "std/ut"
+import "demo/chat"
+import "koala/readline"
+
+@test
+func test_wrap_lines_preserves_content() {
+    var text = ""
+    var i = 0
+    while i < 200 {
+        text += "x"
+        i += 1
+    }
+    let parts = chat.wrap_lines([text], 40)
+    ut.assert_eq(parts.len(), 5)
+    var back = ""
+    for p in parts { back += p }
+    ut.assert_eq(back, text)
+}
+
+@test
+func test_strip_ansi() {
+    ut.assert_eq(chat.strip_ansi("\x1b[31mred\x1b[0m"), "red")
+    ut.assert_eq(chat.strip_ansi("\x1b[1;36m> \x1b[0m"), "> ")
+    ut.assert_eq(chat.strip_ansi("plain"), "plain")
+    ut.assert_eq(chat.strip_ansi("a\x1b[2mb\x1b[0mc"), "abc")
+}
+
+@test
+func test_wrap_lines_cjk_and_ansi() {
+    let cjk = "你好世界你好世界"
+    let parts = chat.wrap_lines([cjk], 4)
+    ut.assert_eq(parts.len(), 4)
+    for p in parts { ut.assert_true(readline.width(p) <= 4) }
+    var back = ""
+    for p in parts { back += p }
+    ut.assert_eq(back, cjk)
+
+    let ansi = "\x1b[31mabcdef\x1b[0m"
+    let ap = chat.wrap_lines([ansi], 4)
+    ut.assert_eq(ap.len(), 2)
+    ut.assert_eq(ap[0] + ap[1], ansi)
+}
+
+@test
+func test_wrap_emoji_combining_tab_path() {
+    // A ZWJ family emoji is one two-column cluster.
+    let family = "👨‍👩‍👧"
+    ut.assert_eq(readline.width(family), 2)
+    let fp = chat.wrap_lines([family + family], 2)
+    ut.assert_eq(fp.len(), 2)
+    ut.assert_eq(fp[0], family)
+    ut.assert_eq(fp[1], family)
+    ut.assert_eq(fp[0] + fp[1], family + family)
+
+    // A base letter and its combining acute stay in one cluster.
+    let acute = "e\xcc\x81"
+    ut.assert_eq(readline.width(acute), 1)
+    let cp = chat.wrap_lines([acute + "xyz"], 2)
+    ut.assert_eq(cp.len(), 2)
+    ut.assert_eq(cp[0], acute + "x")
+    ut.assert_eq(cp[1], "yz")
+
+    // Tabs expand to four spaces before wrapping.
+    let tp = chat.wrap_lines(["a\tb"], 80)
+    ut.assert_eq(tp.len(), 1)
+    ut.assert_eq(tp[0], "a    b")
+
+    // A long path with no spaces is hard-broken, never dropped.
+    var path = ""
+    var i = 0
+    while i < 12 {
+        path += "/segment" + str(i)
+        i += 1
+    }
+    let pp = chat.wrap_lines([path], 20)
+    var back = ""
+    for p in pp {
+        ut.assert_true(readline.width(p) <= 20)
+        back += p
+    }
+    ut.assert_eq(back, path)
+}
+
+@test
+func test_render_pads_and_windows() {
+    let frame = chat.render(["abcdef"], 4, 3, -1)
+    ut.assert_eq(frame.len(), 2)
+    ut.assert_eq(frame[0], "abcd")
+    ut.assert_eq(frame[1], "ef  ")
+
+    let tail = chat.render(["a", "b", "c", "d"], 10, 2, -1)
+    ut.assert_eq(tail.len(), 2)
+    ut.assert_eq(tail[0], "c         ")
+    ut.assert_eq(tail[1], "d         ")
+
+    let top = chat.render(["a", "b", "c"], 4, 1, 0)
+    ut.assert_eq(top.len(), 1)
+    ut.assert_eq(top[0], "a   ")
+}
+
+@test
+func test_render_no_content_loss() {
+    var text = ""
+    var i = 0
+    while i < 200 {
+        text += "x"
+        i += 1
+    }
+    for cols in [40, 80, 120] {
+        let frame = chat.render([text], cols, 100, -1)
+        var back = ""
+        for line in frame {
+            ut.assert_eq(readline.width(line), cols)
+            back += line.strip()
+        }
+        ut.assert_eq(back, text)
+    }
+    // CJK clusters and ANSI escapes survive the render, too.
+    let cjk = "你好世界"
+    let cf = chat.render([cjk], 4, 100, -1)
+    ut.assert_eq(cf.len(), 2)
+    ut.assert_eq(cf[0].strip() + cf[1].strip(), cjk)
+    let ansi = "\x1b[31mabcdef\x1b[0m"
+    let af = chat.render([ansi], 4, 100, -1)
+    ut.assert_eq(af[0].strip() + af[1].strip(), ansi)
+}
+
+@test
+func test_startup_lines_are_friendly_and_fit() {
+    let wide = chat.startup_lines("auto", 78)
+    ut.assert_true(wide.len() >= 5)
+    var joined = ""
+    for line in wide {
+        ut.assert_true(readline.width(line) <= 78)
+        joined += line + "\n"
+    }
+    ut.assert_true("🐨" in joined)
+    ut.assert_true("Koala Code Agent" in joined)
+    ut.assert_true("🐾" in joined)
+    ut.assert_true("Chat with auto." in joined)
+    ut.assert_true("/help" in joined)
+    // narrow terminals drop the card instead of wrapping its border
+    let narrow = chat.startup_lines("auto", 20)
+    for line in narrow { ut.assert_true(readline.width(line) <= 20) }
+    // plain output keeps the pty marker and uses ASCII art
+    let plain = chat.startup_lines("auto", 78, true)
+    var plain_joined = ""
+    for line in plain {
+        ut.assert_false("\x1b" in line)
+        ut.assert_true(readline.width(line) <= 78)
+        plain_joined += line + "\n"
+    }
+    ut.assert_true("^._.^" in plain_joined)
+    ut.assert_true("Chat with auto. |" in plain_joined)
+}
+
+@test
+func test_menu_rows_show_tail() {
+    let lines = ["Conversation", "  /help  show this help", "  /quit  leave"]
+    // A panel shorter than the transcript keeps every row.
+    let all = chat.menu_rows(lines, 10)
+    ut.assert_eq(all.len(), 3)
+    ut.assert_eq(all[0], lines[0])
+    // A panel taller than the transcript shows its tail, like the transcript.
+    let tail = chat.menu_rows(lines, 2)
+    ut.assert_eq(tail.len(), 2)
+    ut.assert_eq(tail[0], "  /help  show this help")
+    ut.assert_eq(tail[1], "  /quit  leave")
+    // No rows when there is no room.
+    ut.assert_eq(chat.menu_rows(lines, 0).len(), 0)
+    ut.assert_eq(chat.menu_rows(lines, -1).len(), 0)
+}
+
+@test
+func test_tool_start_glyph() {
+    ut.assert_eq(chat.tool_start(1, "write a.txt"), "⏺ write a.txt")
+    ut.assert_eq(chat.tool_start(2, "shell"), "⏺ shell")
+}
+
+@test
+func test_tool_result_success() {
+    ut.assert_eq(chat.tool_result("write ok: a.txt (5 bytes)"), "  ⎿ ✓ write ok: a.txt (5 bytes)")
+    ut.assert_eq(chat.tool_result("exit 0\nstdout:\nhi"), "  ⎿ ✓ exit 0")
+}
+
+@test
+func test_tool_result_failure_keeps_stderr_tail() {
+    let r = "exit 1\nstdout:\nout\nstderr:\ne0\ne1\ne2\ne3"
+    let got = chat.tool_result(r, 2)
+    ut.assert_eq(got, "  ⎿ ✗ exit 1\n    … 2 lines omitted\n    e2\n    e3")
+}
+
+@test
+func test_tool_result_falls_back_to_stdout() {
+    ut.assert_eq(chat.tool_result("exit 3\nstdout:\noops"), "  ⎿ ✗ exit 3\n    oops")
+}
+
+@test
+func test_tool_result_without_body() {
+    ut.assert_eq(chat.tool_result("write failed: nope/x"), "  ⎿ ✗ write failed: nope/x")
+}
+
+@test
+func test_event_formatters() {
+    // turn_start is the recorded user turn, with the `> ` prefix
+    ut.assert_eq(chat.turn_start("a\nb", true), chat.user_lines("a\nb", true))
+    ut.assert_eq(chat.turn_start("hi"), "> hi")
+    // tool_end is the result block after a tool action
+    ut.assert_eq(chat.tool_end("exit 0"), "  ⎿ ✓ exit 0")
+    ut.assert_eq(chat.tool_end("exit 1\nstderr:\nboom", 20, true),
+                 "  - exit 1\n    boom")
+    // status: the mode badge plus optional detail
+    ut.assert_eq(chat.status_event("chat", ""), "[chat]")
+    ut.assert_eq(chat.status_event("agent", "model=auto"), "[agent] model=auto")
+    // error and notice have plain and colour forms; notice is dim only
+    ut.assert_eq(chat.error_event("boom"), "✗ boom")
+    ut.assert_eq(chat.error_event("boom", true), "- boom")
+    ut.assert_eq(chat.error_event(""), "✗")
+    ut.assert_eq(chat.notice("(hi)"), "\x1b[2m(hi)\x1b[0m")
+    ut.assert_eq(chat.notice("(hi)", true), "(hi)")
+    ut.assert_eq(readline.width(chat.notice("(hi)")), 4)
+}
+
+@test
+func test_tool_expand_keeps_full_output() {
+    let r = "exit 1\nstdout:\nout\nstderr:\ne0\ne1\ne2"
+    let got = chat.tool_expand_lines("shell", r)
+    ut.assert_eq(got.len(), 8)
+    ut.assert_eq(got[0], "⏺ shell (full output, 7 lines)")
+    ut.assert_eq(got[1], "  exit 1")
+    ut.assert_eq(got[7], "  e2")
+    // the collapsed result drops the middle; Ctrl-O keeps every row
+    ut.assert_true("lines omitted" in chat.tool_result(r, 2))
+    ut.assert_true("out" in "\n".join(got))
+}
+
+@test
+func test_tool_expand_does_not_truncate_long_output() {
+    let lines = ["exit 1", "stdout:"]
+    var i = 0
+    while i < 120 {
+        lines.append("out " + str(i))
+        i += 1
+    }
+    let got = chat.tool_expand_lines("shell", "\n".join(lines))
+    ut.assert_eq(got.len(), 123)
+    ut.assert_eq(got[0], "⏺ shell (full output, 122 lines)")
+    ut.assert_eq(got[122], "  out 119")
+}
+
+@test
+func test_tool_expand_plain() {
+    let got = chat.tool_expand_lines("write a.txt", "write ok: a.txt", true)
+    ut.assert_eq(got.len(), 2)
+    ut.assert_eq(got[0], "* write a.txt (full output, 1 line)")
+    ut.assert_eq(got[1], "  write ok: a.txt")
+    // plain mode stays free of ANSI escapes and box glyphs
+    ut.assert_false("\x1b" in "\n".join(got))
+}
+
+@test
+func test_user_lines_prefixes_only_first_row() {
+    ut.assert_eq(chat.user_lines("hello"), "> hello")
+    ut.assert_eq(chat.user_lines("a\nb\nc"), "> a\n  b\n  c")
+}
+
+@test
+func test_elide_right() {
+    ut.assert_eq(chat.elide_right("abcdefgh", 8, true), "abcdefgh")
+    ut.assert_eq(chat.elide_right("abcdefgh", 5, true), "ab...")
+    ut.assert_eq(chat.elide_right("abcdefgh", 5), "abcd…")
+    ut.assert_eq(readline.width(chat.elide_right("abcdefgh", 5)), 5)
+    // too narrow for the marker: cut without one, never exceed the width
+    ut.assert_true(readline.width(chat.elide_right("abcdefgh", 2, true)) <= 2)
+}
+
+@test
+func test_session_lines_golden() {
+    let rows = [
+        chat.SessionRow(1, "main", "auto", 12, false, true),
+        chat.SessionRow(2, "beta", "gpt4", 3, false, false),
+    ]
+    let lines = chat.session_lines(rows, 40, true)
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "* 1 main  auto  12 msgs")
+    ut.assert_eq(lines[1], "  2 beta  gpt4   3 msgs")
+}
+
+@test
+func test_session_lines_elides_long_name() {
+    let rows = [chat.SessionRow(1, "abcdefghijklmnopqrstuvwxyz", "auto", 1, false, false)]
+    let lines = chat.session_lines(rows, 40, true)
+    ut.assert_eq(lines.len(), 1)
+    ut.assert_eq(lines[0], "  1 abcdefghijklmnopqrs...  auto  1 msgs")
+    ut.assert_eq(readline.width(lines[0]), 40)
+    // a wide CJK name still fits the content width
+    let cjk = [chat.SessionRow(1, "这是一个非常非常长的会话名称", "auto", 1, false, false)]
+    for line in chat.session_lines(cjk, 40, true) {
+        ut.assert_true(readline.width(line) <= 40)
+    }
+}
+
+@test
+func test_session_lines_highlight_pause_and_narrow() {
+    let rows = [
+        chat.SessionRow(1, "main", "auto", 12, false, true),
+        chat.SessionRow(2, "beta", "gpt4", 3, true, false),
+    ]
+    let color = chat.session_lines(rows, 40, false)
+    ut.assert_true(color[0].starts_with("\x1b[1;36m● 1 main"))
+    ut.assert_true(color[0].ends_with("\x1b[0m"))
+    ut.assert_eq(readline.width(color[0]), 23)
+    ut.assert_true(color[1].starts_with("⏸ 2 beta"))
+    ut.assert_false("\x1b" in color[1])
+    // the model column is dropped before the message count, then only
+    // marker + number + name remain; every row still fits.
+    for cols in [20, 12, 8] {
+        for line in chat.session_lines(rows, cols, true) {
+            ut.assert_true(readline.width(line) <= cols)
+        }
+    }
+    ut.assert_eq(chat.session_lines(list[chat.SessionRow](), 40, true).len(), 0)
+}
+
+@test
+func test_http_error_structured() {
+    ut.assert_eq(chat.http_error(401, "bad key"), "✗ HTTP 401: API key rejected — check $OPENAI_COMPAT_API_KEY")
+    ut.assert_eq(chat.http_error(429, "slow down"), "✗ HTTP 429: rate limited — retry later")
+    ut.assert_eq(chat.http_error(500, "boom"), "✗ HTTP 500: boom")
+}
+
+@test
+func test_golden_idle() {
+    // an empty transcript is one blank row, padded to the frame width
+    let frame = chat.render([""], 20, 3, -1)
+    ut.assert_eq(frame.len(), 1)
+    ut.assert_eq(frame[0], "                    ")
+}
+
+@test
+func test_golden_streaming() {
+    let frame = chat.render(["bot> hello world"], 12, 3, -1)
+    ut.assert_eq(frame.len(), 2)
+    ut.assert_eq(frame[0], "bot> hello  ")
+    ut.assert_eq(frame[1], "world       ")
+}
+
+@test
+func test_golden_tool_success() {
+    let lines = [chat.tool_start(1, "write a.txt"), chat.tool_result("write ok: a.txt (5 bytes)")]
+    let frame = chat.render(lines, 40, 3, -1)
+    ut.assert_eq(frame.len(), 2)
+    ut.assert_eq(frame[0], readline.pad_text("⏺ write a.txt", 40))
+    ut.assert_eq(frame[1], readline.pad_text("  ⎿ ✓ write ok: a.txt (5 bytes)", 40))
+}
+
+@test
+func test_golden_tool_failure() {
+    let r = "exit 1\nstderr:\nerror: undefined reference\nline two"
+    let lines = [chat.tool_start(1, "shell"), chat.tool_result(r)]
+    let frame = chat.render(lines, 40, 4, -1)
+    ut.assert_eq(frame.len(), 4)
+    ut.assert_eq(frame[0], readline.pad_text("⏺ shell", 40))
+    ut.assert_eq(frame[1], readline.pad_text("  ⎿ ✗ exit 1", 40))
+    ut.assert_eq(frame[2], readline.pad_text("    error: undefined reference", 40))
+    ut.assert_eq(frame[3], readline.pad_text("    line two", 40))
+}
+
+@test
+func test_chat_rows_resize() {
+    // 24 rows: the transcript keeps the middle, the input box is 3 rows,
+    // then the hint and status rows.
+    let a = chat.ChatRows(24, true)
+    ut.assert_eq(a.status, 24)
+    ut.assert_eq(a.hint, 23)
+    ut.assert_eq(a.input_bottom, 22)
+    ut.assert_eq(a.input_row, 19)
+    ut.assert_eq(a.input_height, 3)
+    ut.assert_eq(a.input_top, 18)
+    ut.assert_eq(a.trans_bottom, 17)
+    ut.assert_eq(a.trans_row, 2)
+    ut.assert_eq(a.trans_height, 15)
+
+    // a shorter terminal shrinks only the transcript
+    let b = chat.ChatRows(12, true)
+    ut.assert_eq(b.input_row, 7)
+    ut.assert_eq(b.trans_bottom, 5)
+    ut.assert_eq(b.trans_height, 3)
+    // 10 rows is the first size with one transcript content row; below
+    // that the transcript collapses to its two border rows (or less).
+    let c = chat.ChatRows(10, true)
+    ut.assert_eq(c.trans_height, 1)
+    let d = chat.ChatRows(9, true)
+    ut.assert_eq(d.trans_height, 0)
+    let e = chat.ChatRows(8, true)
+    ut.assert_eq(e.trans_height, 0)
+    // without the bar the rows below the input are free
+    let f = chat.ChatRows(24, false)
+    ut.assert_eq(f.status, 0)
+    ut.assert_eq(f.input_bottom, 24)
+}
+
+@test
+func test_golden_80_120() {
+    let f80 = chat.render(["bot> hello"], 80, 2, -1)
+    ut.assert_eq(f80.len(), 1)
+    ut.assert_eq(f80[0], readline.pad_text("bot> hello", 80))
+
+    let lines = ["⏺ write a.txt", "  ⎿ ✓ write ok: a.txt (5 bytes)"]
+    let f120 = chat.render(lines, 120, 3, -1)
+    ut.assert_eq(f120.len(), 2)
+    ut.assert_eq(f120[0], readline.pad_text(lines[0], 120))
+    ut.assert_eq(f120[1], readline.pad_text(lines[1], 120))
+}
+
+@test
+func test_golden_cjk_40() {
+    let frame = chat.render(["你好世界"], 4, 2, -1)
+    ut.assert_eq(frame.len(), 2)
+    ut.assert_eq(frame[0], "你好")
+    ut.assert_eq(frame[1], "世界")
+}
+
+@test
+func test_golden_long_url() {
+    let url = "https://example.com/really/long/path"
+    let frame = chat.render([url], 12, 4, -1)
+    var back = ""
+    for line in frame {
+        ut.assert_eq(readline.width(line), 12)
+        back += line.strip()
+    }
+    ut.assert_eq(back, url)
+}
+
+@test
+func test_elide_left_keeps_tail() {
+    ut.assert_eq(chat.elide_left("abcdef", 10), "abcdef")
+    ut.assert_eq(chat.elide_left("abcdef", 4), "…def")
+    ut.assert_eq(chat.elide_left("abcdef", 4, true), "...f")
+    ut.assert_eq(chat.elide_left("你好世界", 5), "…世界")
+    ut.assert_eq(readline.width(chat.elide_left("你好世界", 5)), 5)
+    ut.assert_eq(chat.elide_left("abcdef", 0), "")
+}
+
+@test
+func test_busy_line() {
+    ut.assert_eq(chat.busy("Thinking"), "✻ Thinking…")
+    ut.assert_eq(chat.busy("Running make"), "✻ Running make…")
+}
+
+@test
+func test_tokens_short() {
+    ut.assert_eq(chat.tokens_short(-1), "0")
+    ut.assert_eq(chat.tokens_short(0), "0")
+    ut.assert_eq(chat.tokens_short(950), "950")
+    ut.assert_eq(chat.tokens_short(1000), "1k")
+    ut.assert_eq(chat.tokens_short(4100), "4.1k")
+    ut.assert_eq(chat.tokens_short(18200), "18.2k")
+    ut.assert_eq(chat.tokens_short(10000), "10k")
+    ut.assert_eq(chat.tokens_short(131000), "131k")
+}
+
+@test
+func test_compact_note() {
+    ut.assert_eq(chat.compact_note(18200, 4100, true),
+                 "* context compacted 18.2k -> 4.1k tokens")
+    ut.assert_eq(chat.compact_note(18200, 4100),
+                 "\x1b[2m↺ context compacted 18.2k → 4.1k tokens\x1b[0m")
+    // dim escapes take no columns, so the note wraps by its visible text
+    ut.assert_eq(readline.width(chat.compact_note(18200, 4100)), 39)
+}
+
+@test
+func test_hint_line() {
+    ut.assert_eq(chat.hint_line(true),
+                 "Enter send | Ctrl-J newline | Tab complete")
+    ut.assert_eq(chat.hint_line(false),
+                 "Enter send · Ctrl-J newline · Tab complete")
+    ut.assert_false("\x1b" in chat.hint_line(false))
+    // the hint fits an 80-column terminal inside the box
+    ut.assert_eq(readline.width(chat.hint_line(false)), 42)
+}
+
+@test
+func test_plain_for_matrix() {
+    // pipes and redirections are always plain
+    ut.assert_true(chat.plain_for(false, false, nil))
+    ut.assert_true(chat.plain_for(false, false, "xterm-256color"))
+    // NO_COLOR only suppresses colour, but the ASCII fallback covers glyphs
+    ut.assert_true(chat.plain_for(true, true, "xterm-256color"))
+    // a dumb terminal cannot position the cursor
+    ut.assert_true(chat.plain_for(true, false, "dumb"))
+    // a normal colour terminal keeps Unicode and ANSI
+    ut.assert_false(chat.plain_for(true, false, "xterm-256color"))
+    ut.assert_false(chat.plain_for(true, false, nil))
+}
+
+@test
+func test_plain_glyphs() {
+    // pipes, NO_COLOR and TERM=dumb use ASCII, never box-drawing glyphs
+    ut.assert_eq(chat.tool_start(1, "write a.txt", true), "* write a.txt")
+    ut.assert_eq(chat.tool_result("write ok: a.txt", 20, true), "  + write ok: a.txt")
+    ut.assert_eq(chat.tool_result("exit 1\nstderr:\nboom", 20, true), "  - exit 1\n    boom")
+    let omitted = chat.tool_result("exit 1\nstderr:\na\nb\nc", 1, true)
+    ut.assert_eq(omitted, "  - exit 1\n    ... 2 lines omitted\n    c")
+    ut.assert_eq(chat.http_error(429, "slow", true), "- HTTP 429: rate limited - retry later")
+    ut.assert_eq(chat.busy("Thinking", true), "* Thinking...")
+}
+
+@test
+func test_user_lines_dim_each_row() {
+    ut.assert_eq(chat.user_lines("a\nb", true),
+                 "\x1b[2m> a\x1b[0m\n\x1b[2m  b\x1b[0m")
+    // dim escapes take no columns, so wrapping still sees the visible text
+    let part = chat.user_lines("hello", true)
+    ut.assert_eq(readline.width(part), 7)
+}
+
+// ---- approval and diff ----
+
+@test
+func test_diff_lines_create_and_update() {
+    let created = chat.diff_lines("", "hi")
+    ut.assert_eq(created.len(), 1)
+    ut.assert_eq(created[0], "+ hi")
+    // an empty file has no rows at all
+    ut.assert_eq(chat.diff_lines("", "").len(), 0)
+    let updated = chat.diff_lines("a\nb\nc", "a\nB\nc")
+    ut.assert_eq(updated.len(), 4)
+    ut.assert_eq(updated[0], "  a")
+    ut.assert_eq(updated[1], "- b")
+    ut.assert_eq(updated[2], "+ B")
+    ut.assert_eq(updated[3], "  c")
+    // an identical write needs no rows
+    ut.assert_eq(chat.diff_lines("same\n", "same\n").len(), 0)
+}
+
+@test
+func test_diff_lines_truncates() {
+    let old = "a\nb\nc\nd"
+    let new = "a\nB\nC\nD"
+    let rows = chat.diff_lines(old, new, 3)
+    ut.assert_true(rows.len() > 3)
+    ut.assert_eq(rows[rows.len() - 1], "… diff truncated")
+}
+
+@test
+func test_diff_event_plain_and_coloured() {
+    let plain = chat.diff_event("a\nb", "a\nB", 20, true)
+    ut.assert_eq(plain.len(), 3)
+    ut.assert_eq(plain[0], "      a")
+    ut.assert_eq(plain[1], "    - b")
+    ut.assert_eq(plain[2], "    + B")
+    let created = chat.diff_event("", "hi", 20, true)
+    ut.assert_eq(created.len(), 1)
+    ut.assert_eq(created[0], "    + hi")
+    ut.assert_eq(chat.diff_event("", "", 20, true).len(), 0)
+    let colored = chat.diff_event("a", "b")
+    ut.assert_eq(colored.len(), 2)
+    ut.assert_true("\x1b[31m" in colored[0])
+    ut.assert_true("\x1b[32m" in colored[1])
+    let cut = chat.diff_event("a\nb\nc\nd", "a\nB\nC\nD", 3, true)
+    ut.assert_eq(cut[cut.len() - 1], "    ... diff truncated")
+}
+
+@test
+func test_approval_lines_write() {
+    let create = chat.approval_lines("write a.txt", "hi", "", false, true, 20, true)
+    ut.assert_eq(create[0], "  create a.txt (+1)")
+    ut.assert_eq(create[1], "    + hi")
+    ut.assert_true("[y] once" in create[create.len() - 1])
+    ut.assert_true("[d] full diff" in create[create.len() - 1])
+
+    let update = chat.approval_lines("write a.txt", "a\nc", "a\nb", true, true, 20, true)
+    ut.assert_eq(update[0], "  update a.txt (+1 -1)")
+    ut.assert_true("    - b" in update)
+    ut.assert_true("    + c" in update)
+
+    let big = chat.approval_lines("write big.bin", "x", "old", true, false, 20, true)
+    ut.assert_true("diff unavailable" in big[0])
+    ut.assert_true(" | diff unavailable" in big[0])
+    ut.assert_false("…" in big[0])
+}
+
+@test
+func test_approval_lines_plain_has_no_unicode_or_ansi() {
+    let old = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj"
+    let new = "A\nb\nc\nd\ne\nf\ng\nh\ni\nJ"
+    let rows = chat.approval_lines("write a.txt", new, old, true, true, 120, true)
+    var joined = ""
+    for row in rows {
+        joined += row + "\n"
+        ut.assert_false("\x1b" in row)
+        ut.assert_false("…" in row)
+    }
+    ut.assert_true("    ... 4 unchanged" in joined)
+    ut.assert_true("[y] once | [a] all this session | [n] deny | [d] full diff" in joined)
+}
+
+@test
+func test_approval_action_detail_and_choice() {
+    let cmd = chat.action_detail("shell", "echo hi\necho bye", true)
+    ut.assert_eq(cmd.len(), 2)
+    ut.assert_eq(cmd[0], "    $ echo hi")
+    ut.assert_eq(cmd[1], "    $ echo bye")
+    // a write's target is already on the tool-start row
+    ut.assert_eq(chat.action_detail("write a.txt", "body", true).len(), 0)
+
+    ut.assert_eq(chat.approval_choice(""), "n")
+    ut.assert_eq(chat.approval_choice("   "), "n")
+    ut.assert_eq(chat.approval_choice("x"), "n")
+    ut.assert_eq(chat.approval_choice("Y"), "y")
+    ut.assert_eq(chat.approval_choice("yes"), "y")
+    ut.assert_eq(chat.approval_choice("a"), "a")
+    ut.assert_eq(chat.approval_choice("all"), "a")
+    ut.assert_eq(chat.approval_choice("d"), "d")
+    ut.assert_eq(chat.approval_choice("diff"), "d")
+    ut.assert_true("default n" in chat.approval_prompt())
+}

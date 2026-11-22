@@ -208,3 +208,25 @@ func test_html_embeds_scatter_colors() {
     let html = plt.figure_html(plt.gcf())
     ut.assert_true(html.index("it.colors ? it.colors[i] : it.color") >= 0)
 }
+
+@test
+func test_html_opts_default() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("window.__plot_opts") >= 0)
+    ut.assert_true(html.index(""""scale":1.0""") >= 0)
+    ut.assert_true(html.index(""""transparent":false""") >= 0)
+    ut.assert_true(html.index("""<canvas id="plot" width="640" height="480">""") >= 0)
+}
+
+@test
+func test_html_opts_scale_transparent_crop() {
+    plt.close()
+    plt.figure()
+    let html = plt.figure_html(plt.gcf(), 2.0, true, (10.0, 20.0, 300.5, 200.5))
+    ut.assert_true(html.index(""""scale":2.0""") >= 0)
+    ut.assert_true(html.index(""""transparent":true""") >= 0)
+    ut.assert_true(html.index(""""crop":[10.0,20.0,300.5,200.5]""") >= 0)
+    // Crop window becomes the canvas size (ceil of 300.5/200.5).
+    ut.assert_true(html.index("""<canvas id="plot" width="301" height="201">""") >= 0)
+}

@@ -21,26 +21,53 @@ const KEEP_RECENT = 4
 const SUMMARIZE_PROMPT = "You summarize conversations. Produce a concise summary that preserves key facts, decisions, the current task, code state, file paths, and any important results. Output only the summary, no preamble."
 
 /// Auto-compaction: if the last request used at least COMPACT_PERCENT of
-/// the context window, summarize the older history. Mutates `messages`.
-pub func maybe_compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]], prompt_tokens int) {
+/// the context window, summarize the older history. Mutates `messages` and
+/// returns the estimated prompt size after compaction, or nil when nothing
+/// was compacted.
+pub func maybe_compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]], prompt_tokens int) int? {
     let limit = cfg.context_window * COMPACT_PERCENT / 100
-    if prompt_tokens < limit { return }
-    if _compact(client, model, cfg, messages) {
-        emit("(context compacted: " + str(prompt_tokens) + " tokens reached " + str(COMPACT_PERCENT) + "% of " + str(cfg.context_window) + "; older history summarized)")
-    }
+    if prompt_tokens < limit { return nil }
+    show_busy("Compacting")
+    let compacted = _compact(client, model, cfg, messages)
+    hide_busy()
+    if !compacted { return nil }
+    let after = estimate_tokens(messages)
+    emit(compact_note(prompt_tokens, after, plain_mode()))
+    return after
 }
 
 /// Manual compaction (the /compact command), regardless of token usage.
-pub func compact_now(client openai.Client, model str, cfg Config, messages list[dict[str, str]]) {
+/// `before_tokens` is the last request's actual prompt size when known; zero
+/// falls back to an estimate. Returns the estimated size after compaction,
+/// or nil when nothing was compacted or the summary failed.
+pub func compact_now(client openai.Client, model str, cfg Config, messages list[dict[str, str]], before_tokens = 0) int? {
     if messages.len() <= KEEP_RECENT + 2 {
-        emit("(nothing to compact)")
-        return
+        emit(notice("(nothing to compact)", plain_mode()))
+        return nil
     }
-    if _compact(client, model, cfg, messages) {
-        emit("(context compacted)")
-    } else {
-        emit("(compaction failed: summary request error)")
+    var before = before_tokens
+    if before <= 0 { before = estimate_tokens(messages) }
+    show_busy("Compacting")
+    let compacted = _compact(client, model, cfg, messages)
+    hide_busy()
+    if !compacted {
+        emit(error_event("compaction failed: summary request error", plain_mode()))
+        return nil
     }
+    let after = estimate_tokens(messages)
+    emit(compact_note(before, after, plain_mode()))
+    return after
+}
+
+/// Approximate the prompt tokens for `messages`: about four UTF-8 bytes per
+/// token plus a few tokens of per-message overhead. The compaction note uses
+/// it (the next model request replaces it with actual usage).
+pub func estimate_tokens(messages list[dict[str, str]]) int {
+    var total = 0
+    for m in messages {
+        total += (m["content"].len() + 3) / 4 + 4
+    }
+    return total
 }
 
 /// Summarize the older messages and replace them with the summary, keeping

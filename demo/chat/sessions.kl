@@ -1,0 +1,258 @@
+/*
+ * demo/chat — the multi-session store and manager.
+ *
+ * One JSON file per session in chat_sessions/ (the working directory):
+ * name, model, workdir, paused, last_tokens, the chat messages and the
+ * agent's messages (present once an agent has run). SessionManager is the
+ * live view: it loads every session at startup (the most recently modified
+ * becomes current) and keeps them in name order. The current session is
+ * saved at the top of every REPL turn, so quitting never loses a reply.
+ *
+ * A record with missing or mistyped fields is skipped at load with a
+ * warning; a file with malformed JSON panics like a bad config.json does
+ * (the language has no try/catch, and the parser is the only validator).
+ */
+
+import "std/fs"
+import "koala/datetime"
+import "koala/json" as json
+from "koala/json" import Object
+from "koala/openai" import Client
+
+const SESSION_DIR = "chat_sessions"
+
+/// A session name must be a plain file name: not empty, no "/", and not
+/// "." or "..".
+pub func valid_name(name str) bool {
+    if name.len() == 0 { return false }
+    if name == "." || name == ".." { return false }
+    if "/" in name { return false }
+    return true
+}
+
+/// The on-disk store: one JSON object per session, `<dir>/<name>.json`.
+pub class SessionStore {
+    let dir str
+
+    pub func __init__(dir str = SESSION_DIR) {
+        self.dir = fs.Path(dir).absolute().to_str()
+        if !fs.is_dir(self.dir) { fs.mkdir(self.dir) }
+    }
+
+    /// The path of the session file for `name`.
+    pub func path(name str) str { return dir + "/" + name + ".json" }
+
+    /// True when a session file for `name` exists.
+    pub func exists(name str) bool { return fs.is_file(path(name)) }
+
+    /// All session names (every *.json file), unordered.
+    pub func list_names() list[str] {
+        let out = list[str]()
+        if !fs.is_dir(dir) { return out }
+        for p in fs.list_dir(dir) {
+            let n = p.name()
+            if n.ends_with(".json") { out.append(n.substr(0, n.len() - 5)) }
+        }
+        return out
+    }
+
+    /// The record for `name` as a JSON object; nil when the file is gone
+    /// or the root is not an object.
+    pub func load(name str) Object? {
+        if !exists(name) { return nil }
+        let root = json.parse_file(path(name))
+        if root is Object { return root }
+        return nil
+    }
+
+    /// Write the record; false when the write fails.
+    pub func save(name str, obj Object) bool {
+        return fs.write_str(path(name), json.dumps(obj))
+    }
+
+    /// Rename the session file; false when the move fails.
+    pub func rename(old str, new str) bool {
+        return fs.rename(path(old), path(new))
+    }
+}
+
+/// A fresh automatic name: the UTC timestamp ("2026-11-22-153045"), with a
+/// -2, -3... suffix while the name is taken.
+pub func auto_name(store SessionStore) str {
+    // to_str() carries nanoseconds; keep just the seconds for a short name.
+    let base = datetime.DateTime.now().to_str().substr(0, 19).replace("T", "-").replace(":", "")
+    if !store.exists(base) { return base }
+    var n = 2
+    while store.exists(base + "-" + str(n)) { n += 1 }
+    return base + "-" + str(n)
+}
+
+/// The live session list: every stored session in name order plus the
+/// current index. `new` / `switch_to` / `set_paused` / `rename` move the
+/// cursor and persist; `save_current` writes the current session's record.
+pub class SessionManager {
+    let store SessionStore
+    let client Client
+    let cfg Config
+    let key str
+    var sessions list[Session]
+    var current int
+
+    pub func __init__(_client Client, _cfg Config, _key str, dir str = SESSION_DIR) {
+        client = _client
+        cfg = _cfg
+        key = _key
+        store = SessionStore(dir)
+        sessions = list[Session]()
+        current = 0
+        _load_all()
+    }
+
+    /// Load every stored session; the most recently modified becomes
+    /// current. An empty store starts a fresh "main".
+    func _load_all() {
+        var most = ""
+        var best = -1
+        for n in store.list_names() {
+            let obj = store.load(n)
+            if obj == nil {
+                emit("(skipping session " + n + ": not a JSON object)")
+                continue
+            }
+            let s = restore_session(client, cfg, key, obj)
+            if s == nil {
+                emit("(skipping session " + n + ": malformed record)")
+                continue
+            }
+            _insert(s)
+            if let st = fs.stat(store.path(n)) {
+                // '>=' so equal mtimes (same-tick writes) pick the last
+                // listed file, not the first.
+                if st.mtime_ns >= best {
+                    best = st.mtime_ns
+                    most = n
+                }
+            }
+        }
+        if sessions.len() == 0 {
+            let s = Session(client, cfg, key, "main")
+            _insert(s)
+            current = 0
+            return
+        }
+        current = _index(most)
+        if current < 0 { current = 0 }
+    }
+
+    /// The session list size.
+    pub func count() int { return sessions.len() }
+
+    /// The current index (for the * marker in /sessions).
+    pub func current_index() int { return current }
+
+    /// The session at position `i` (for /sessions).
+    pub func at(i int) Session { return sessions[i] }
+
+    /// The session the REPL talks to.
+    pub func current_session() Session { return sessions[current] }
+
+    /// All session names in list order (for Tab completion).
+    pub func names() list[str] {
+        let out = list[str]()
+        for s in sessions { out.append(s.name()) }
+        return out
+    }
+
+    /// Create a session named `name` (auto-named when nil or "") and switch
+    /// to it. False when the name is invalid or already taken.
+    pub func new(name str?) bool {
+        var n = name
+        if n == nil || n! == "" { n = auto_name(store) }
+        if !valid_name(n!) { return false }
+        if _index(n!) >= 0 { return false }
+        let s = Session(client, cfg, key, n!)
+        _insert(s)
+        current = _index(n!)
+        save_current()
+        return true
+    }
+
+    /// Switch to the session named `target` — a name or a 1-based
+    /// /sessions number. False when there is no such session.
+    pub func switch_to(target str) bool {
+        let i = _resolve(target)
+        if i < 0 { return false }
+        current = i
+        return true
+    }
+
+    /// Pause (`on` true) or resume (`on` false) the session named `target`
+    /// — a name, a 1-based number, or nil for the current one. Returns the
+    /// affected session's name, or nil when there is no such session.
+    pub func set_paused(target str?, on bool) str? {
+        var i = current
+        if target != nil && target! != "" { i = _resolve(target!) }
+        if i < 0 || i >= sessions.len() { return nil }
+        if on {
+            sessions[i].pause()
+        } else {
+            sessions[i].resume()
+        }
+        let n = sessions[i].name()
+        if i == current {
+            save_current()
+        } else {
+            store.save(n, sessions[i].to_record())
+        }
+        return n
+    }
+
+    /// Rename the current session. False when the name is invalid or taken.
+    pub func rename(new_name str) bool {
+        let s = current_session()
+        if !valid_name(new_name) { return false }
+        if _index(new_name) >= 0 { return false }
+        let old = s.name()
+        store.save(old, s.to_record())
+        if !store.rename(old, new_name) { return false }
+        s.set_name(new_name)
+        sessions.pop(current)
+        _insert(s)
+        current = _index(new_name)
+        save_current()
+        return true
+    }
+
+    /// Write the current session's record to disk.
+    pub func save_current() {
+        let s = current_session()
+        store.save(s.name(), s.to_record())
+    }
+
+    /// The list position of `name`, or -1.
+    func _index(name str) int {
+        var i = 0
+        while i < sessions.len() {
+            if sessions[i].name() == name { return i }
+            i += 1
+        }
+        return -1
+    }
+
+    /// The list position for a /sessions number or a name, or -1.
+    func _resolve(target str) int {
+        let n = target.to_int_or(0)
+        if n >= 1 && n <= sessions.len() { return n - 1 }
+        return _index(target)
+    }
+
+    /// Insert keeping the list in name order.
+    func _insert(s Session) {
+        var i = 0
+        while i < sessions.len() {
+            if s.name() < sessions[i].name() { break }
+            i += 1
+        }
+        sessions.insert(i, s)
+    }
+}

@@ -3,28 +3,50 @@
  */
 
 import "std/fs"
-import "std/os"
 import "koala/readline"
 import "koala/tui"
 
-// ---- the transcript: a tui.View, shared by all files of the package ----
+// ---- the transcript: a tui.WrappedView, shared by all files of the package ----
 // They call `emit` instead of `print`; the view re-renders the lines above
 // the pinned input row, and `print` streams them live as usual.
 
 var _chrome _Chrome? = nil
+// true after the terminal proved too small for the chrome: no drawing or
+// scroll regions until the process exits
+var _plain_fallback = false
+// the transcript needs one content row plus its two borders, the input box,
+// the hint row and the status row
+const TUI_MIN_ROWS = 10
+// the status row follows the live loop, so `show_busy` can repaint it
+// while a request is in flight
+var _status_mode str = "chat"
+var _status_session Session? = nil
 
 /// Print `s` and record its lines for the TUI redraw. When the window has
 /// been paged away from the tail, the lines are only recorded; they show
-/// up once the window follows the tail again.
+/// up once the window follows the tail again. Long lines are wrapped to the
+/// transcript width, so nothing is cut off.
 func emit(s str) {
+    if _plain_fallback {
+        print(s)
+        return
+    }
     if let c = _chrome {
         c.view.append_str(s)
-        if c.view.is_following() || !os.isatty(1) {
+        if !c.screen.is_tty() {
+            // piped / dumb-terminal runs have no boxes or pinned rows:
+            // print the line as-is
+            print(s)
+            return
+        }
+        if c.view.is_following() {
             // the cursor to the bottom row of the transcript region, at the
             // left content column: the prints below scroll only the region
             let trans = c.trans_elastic
-            c.screen.write_at(trans.row + trans.height - 1, 2, "")
-            print(s)
+            for part in readline.wrap_text(s, c.content_width()) {
+                c.screen.write_at(trans.row + trans.height - 1, 2, "")
+                print(part)
+            }
         }
         return
     }
@@ -36,10 +58,13 @@ func emit(s str) {
 /// to the tail, so the sent line and its reply always show. A multi-line
 /// input becomes one transcript line per row.
 func record_input(line str) {
-    if os.isatty(1) {
-        if let c = _chrome {
+    if _plain_fallback { return }
+    if let c = _chrome {
+        if c.screen.is_tty() {
             c.view.follow(true)
-            c.view.append_str(line)
+            // dim only when colours are allowed; the editor already showed
+            // the line while it was being typed
+            c.view.append_str(turn_start(line, !plain_mode()))
         }
     }
 }
@@ -52,24 +77,40 @@ pub func is_blank(line str) bool {
     return true
 }
 
-/// The prompt, tagged with the current mode ([chat] / [agent]); bold cyan
-/// on a terminal, plain on a pipe.
-pub func prompt(mode str) str {
-    if os.isatty(1) {
-        return "\x01\x1b[1;36m\x02[" + mode + "] you>\x01\x1b[0m\x02 "
+/// The input prompt: a narrow `> `; the mode lives in the status row.
+/// Bold cyan when colours are allowed, plain on a pipe, with `NO_COLOR`,
+/// or on a dumb terminal.
+pub func prompt() str {
+    if !plain_mode() {
+        return "\x01\x1b[1;36m\x02> \x01\x1b[0m\x02"
     }
-    return "[" + mode + "] you> "
+    return "> "
+}
+
+/// The /sessions table: the 1-based switch number, the name, the model and
+/// the message count, aligned into columns. The current session is marked
+/// and highlighted; a paused one gets `⏸`. Long names are elided so the
+/// table fits the transcript width.
+func _show_sessions(mgr SessionManager) {
+    let rows = list[SessionRow]()
+    for i in range(mgr.count()) {
+        let s = mgr.at(i)
+        rows.append(SessionRow(i + 1, s.name(), s.current_model(), s.messages.len(), s.is_paused(), i == mgr.current_index()))
+    }
+    var cols = 78
+    if let c = _chrome { cols = c.content_width() }
+    for line in session_lines(rows, cols, plain_mode()) { emit(line) }
 }
 
 // ---- the agent-CLI layout: a boxed transcript, a boxed input area, and ----
-// ---- in agent mode a status row. PgUp / PgDn page the transcript. ----
+// ---- a status row. PgUp / PgDn page the transcript. ----
 
-/// The TUI chrome around the shared transcript view: the boxed input area
-/// and, in agent mode, the status row under it. The rows are re-cut when
-/// the mode changes, and the view follows its new rect.
+/// The TUI chrome around the shared transcript view: the boxed input area,
+/// the hint row and the status row under it. The rows are re-cut on resize,
+/// and the view follows its new rect.
 class _Chrome {
     let screen tui.Screen
-    let view tui.View
+    let view tui.WrappedView
     // the input box: rows input_top..input_bottom, its content at col 2
     var input_rect tui.Rect
     var input_top int
@@ -80,8 +121,13 @@ class _Chrome {
     var trans_top int
     var trans_bottom int
     var status tui.Rect?
+    var hint tui.Rect?
+    // A transient completion panel drawn over the bottom of the transcript.
+    // It is never appended to the view, so submitting a line removes it.
+    var menu_lines list[str]
+    var menu_visible bool
 
-    func __init__(_screen tui.Screen, _view tui.View) {
+    func __init__(_screen tui.Screen, _view tui.WrappedView) {
         screen = _screen
         view = _view
         input_rect = tui.Rect(1, 2, 3, 1)
@@ -91,38 +137,67 @@ class _Chrome {
         trans_top = 1
         trans_bottom = 1
         status = nil
-        set_bar(false)
+        hint = nil
+        menu_lines = list[str]()
+        menu_visible = false
+        // the status row is part of the normal chrome now: both chat and
+        // agent mode show model, work dir and token usage there
+        set_bar(true)
+    }
+
+    /// The columns available to transcript text, inside the box borders.
+    func content_width() int {
+        let w = screen.columns() - 2
+        if w < 1 { return 1 }
+        return w
     }
 
     /// Re-cut the rows: the transcript box on top, the input box under it
     /// and, with `bar`, the status row under that. Borders take one row
     /// each; the content sits one column in from the edges.
     func set_bar(bar bool) {
-        let layout = tui.Layout(screen)
+        let rows = ChatRows(screen.rows(), bar)
         status = nil
-        if bar { status = layout.fixed_bottom(1) }
-        input_bottom = layout.fixed_bottom(1).row
-        let content = layout.fixed_bottom(3)
-        input_rect = tui.Rect(content.row, 2, content.height, screen.columns() - 2)
-        input_top = layout.fixed_bottom(1).row
-        trans_bottom = layout.fixed_bottom(1).row
-        trans_elastic = layout.elastic()
-        view.set_rect(trans_elastic)
-        trans_top = layout.fixed(1).row
+        hint = nil
+        if rows.status > 0 {
+            status = tui.Rect(rows.status, 1, 1, screen.columns())
+            hint = tui.Rect(rows.hint, 1, 1, screen.columns())
+        }
+        input_bottom = rows.input_bottom
+        input_rect = tui.Rect(rows.input_row, 2, rows.input_height, screen.columns() - 2)
+        input_top = rows.input_top
+        trans_bottom = rows.trans_bottom
+        trans_elastic = tui.Rect(rows.trans_row, 1, rows.trans_height, screen.columns())
+        // the view wraps at the content width, not the full box width
+        view.set_rect(tui.Rect(rows.trans_row, 2, rows.trans_height, content_width()))
+        trans_top = rows.trans_top
     }
 
     /// Draw the transcript box: its borders and the visible lines of the
     /// window, each cut and padded to the content width.
     func draw_transcript() {
         let cols = screen.columns()
+        if cols < 3 { return }
         let w = cols - 2
-        screen.write_at(trans_top, 1, "┌" + "─" * (cols - 2) + "┐")
-        screen.write_at(trans_bottom, 1, "└" + "─" * (cols - 2) + "┘")
+        var tl = "┌"
+        var tr = "┐"
+        var bl = "└"
+        var br = "┘"
+        var h = "─"
+        if plain_mode() {
+            tl = "+"
+            tr = "+"
+            bl = "+"
+            br = "+"
+            h = "-"
+        }
+        screen.write_at(trans_top, 1, tl + h * w + tr)
+        screen.write_at(trans_bottom, 1, bl + h * w + br)
         let lines = view.render()
         var i = 0
         while i < trans_elastic.height {
             var text = " " * w
-            if i < lines.len() { text = readline.fit_text(lines[i], w) }
+            if i < lines.len() { text = readline.pad_text(lines[i], w) }
             screen.write_at(trans_elastic.row + i, 2, text)
             i += 1
         }
@@ -132,37 +207,263 @@ class _Chrome {
     /// rows.
     func draw_input_box() {
         let cols = screen.columns()
-        screen.write_at(input_top, 1, "┌" + "─" * (cols - 2) + "┐")
-        screen.write_at(input_bottom, 1, "└" + "─" * (cols - 2) + "┘")
+        if cols < 3 { return }
+        var tl = "╭"
+        var tr = "╮"
+        var bl = "╰"
+        var br = "╯"
+        var h = "─"
+        var v = "│"
+        if plain_mode() {
+            tl = "+"
+            tr = "+"
+            bl = "+"
+            br = "+"
+            h = "-"
+            v = "|"
+        }
+        screen.write_at(input_top, 1, tl + h * (cols - 2) + tr)
+        screen.write_at(input_bottom, 1, bl + h * (cols - 2) + br)
+        // the editor owns columns 2..cols-1; these are the side borders
+        var r = 0
+        while r < input_rect.height {
+            screen.write_at(input_rect.row + r, 1, v)
+            screen.write_at(input_rect.row + r, cols, v)
+            r += 1
+        }
+    }
+
+    /// Show a transient completion panel, replacing any previous one. The
+    /// panel is drawn over the bottom transcript rows instead of being
+    /// appended to the view, so it disappears on the next input submission.
+    func show_menu(lines list[str]) {
+        if _plain_fallback { return }
+        menu_lines = lines
+        menu_visible = lines.len() > 0
+        draw_transcript()
+        draw_menu()
+    }
+
+    /// Remove the transient completion panel and restore the transcript
+    /// rows it covered. Safe to call when no panel is visible.
+    func hide_menu() {
+        if _plain_fallback || !menu_visible { return }
+        menu_visible = false
+        menu_lines.clear()
+        draw_transcript()
+    }
+
+    /// Draw the visible tail of the completion panel over the transcript's
+    /// bottom rows. The panel never scrolls the transcript itself.
+    func draw_menu() {
+        if _plain_fallback || !menu_visible { return }
+        let area = trans_elastic
+        if area.height <= 0 { return }
+        let rows = menu_rows(menu_lines, area.height)
+        if rows.len() == 0 { return }
+        let first = area.row + area.height - rows.len()
+        let width = content_width()
+        var i = 0
+        while i < rows.len() {
+            screen.write_at(first + i, 2, readline.pad_text(rows[i], width))
+            i += 1
+        }
+    }
+
+    /// Draw the key hint row: plain text, dim when colours are allowed,
+    /// cut and padded to the screen width.
+    func draw_hint() {
+        if let h = hint {
+            let cols = screen.columns()
+            let plain = plain_mode()
+            var shown = readline.fit_text(hint_line(plain), cols)
+            if !plain { shown = "\x1b[2m" + shown + "\x1b[0m" }
+            screen.write_at(h.row, 1, readline.pad_text(shown, cols))
+        }
     }
 }
 
-/// PgUp / PgDn page the transcript window; every other key is the editor's.
+/// Leave the alternate-screen chrome and continue in plain mode. The whole
+/// transcript is replayed without ANSI, so nothing already shown is lost;
+/// later output goes straight to stdout and no scroll region is set.
+func _fallback_plain(c _Chrome) {
+    if _plain_fallback { return }
+    c.view.follow(true)
+    // a tall rect makes render() return every wrapped row
+    c.view.set_rect(tui.Rect(1, 1, 100000, c.content_width()))
+    let lines = c.view.render()
+    _plain_fallback = true
+    force_plain(true)
+    readline.set_input_area(0, 1, 0, 0)
+    c.screen.leave()
+    for line in lines { print(strip_ansi(line)) }
+}
+
+/// Draw one status row, dim when colours are allowed, cut/padded to the
+/// screen width. This is the only writer of the status row, so a busy line
+/// and the idle line cannot drift apart.
+func _write_status(raw str) {
+    if _plain_fallback { return }
+    if let c = _chrome {
+        if let st = c.status {
+            let cols = c.screen.columns()
+            var shown = readline.fit_text(raw, cols)
+            if !plain_mode() { shown = "\x1b[2m" + shown + "\x1b[0m" }
+            c.screen.write_at(st.row, 1, readline.pad_text(shown, cols))
+        }
+    }
+}
+
+/// Redraw the idle status row for the current mode and session.
+func _draw_status() {
+    var detail = ""
+    if let s = _status_session {
+        var left = 80
+        if let c = _chrome {
+            left = c.screen.columns() - readline.width(status_event(_status_mode, "")) - 1
+        }
+        if left < 1 { left = 1 }
+        detail = s.status_line(left)
+    }
+    _write_status(status_event(_status_mode, detail))
+}
+
+/// Replace the status row with a busy line while a request, a shell command
+/// or compaction is in flight. `hide_busy` redraws the idle line (with the
+/// updated token count).
+pub func show_busy(what str) {
+    _write_status(status_event(_status_mode, busy(what, plain_mode())))
+}
+
+/// Undo `show_busy` with the current session state.
+pub func hide_busy() {
+    _draw_status()
+}
+
+/// Poll the terminal size. Called by the streaming loop between chunks, so
+/// a resize during a long reply is picked up before the next text arrives.
+pub func poll_resize() {
+    if _plain_fallback { return }
+    if let c = _chrome {
+        if c.screen.refresh_size() {
+            c.set_bar(true)
+            _repaint(c)
+        }
+    }
+}
+
+/// Clear and redraw the whole chrome after a resize. The cursor is pinned
+/// back into the input box so subsequent `emit` output still scrolls only
+/// the transcript region.
+func _repaint(c _Chrome) {
+    c.screen.frame_start(true)
+    c.draw_transcript()
+    c.draw_menu()
+    c.draw_input_box()
+    c.draw_hint()
+    _draw_status()
+    let trans = c.trans_elastic
+    if trans.height > 0 {
+        c.screen.pin_input(c.input_rect.row, 2, trans.row, trans.row + trans.height - 1)
+    }
+}
+
+/// Show completion rows as a transient overlay when the TUI is active.
+/// Plain fallback has no overlay to remove, so it suppresses the panel
+/// instead of leaving stale rows in the transcript; non-tty output keeps
+/// the rows as ordinary plain output.
+func _show_transient(lines list[str]) {
+    if _plain_fallback { return }
+    if let c = _chrome {
+        if c.screen.is_tty() {
+            c.show_menu(lines)
+            return
+        }
+    }
+    for line in lines { emit(line) }
+}
+
+/// PgUp / PgDn page the transcript window, and Ctrl-O appends the last
+/// tool's full output. Typing `/` on an empty line opens the command panel,
+/// and Tab on a bare `/` re-opens it instead of running readline's column
+/// listing; every other key is the editor's. The panel is a transient
+/// overlay: submitting any line hides it before the command runs.
 /// The editor draws its area again after the hook, absolutely positioned,
 /// so the cursor lands back in the input box.
 class _Pager : readline.KeyHook {
     let chrome _Chrome
+    let mgr SessionManager
 
-    func __init__(_chrome _Chrome) {
+    func __init__(_chrome _Chrome, _mgr SessionManager) {
         chrome = _chrome
+        mgr = _mgr
     }
 
     func call(name str, seq str) bool {
+        // A leading slash opens the grouped command panel without waiting
+        // for a second Tab. Returning false lets the editor insert it.
+        if name == "char" && seq == "/" && readline.get_line_buffer() == "" {
+            _show_commands("/")
+            return false
+        }
+        // On a bare "/", Tab is the panel, not readline's beep-then-list.
+        if name == "tab" && readline.get_line_buffer() == "/" {
+            _show_commands("/")
+            return true
+        }
+        if name == "ctrl-o" {
+            _expand_tool_output()
+            return true
+        }
         if name != "unknown" { return false }
         if seq == "\x1b[5~" {
             // Page Up: one page towards the older lines
+            if _plain_fallback { return true }
             chrome.view.scroll_up(_page())
             chrome.draw_transcript()
             return true
         }
         if seq == "\x1b[6~" {
             // Page Down: towards the tail; there, follow again
+            if _plain_fallback { return true }
             chrome.view.scroll_down(_page())
             if chrome.view.at_tail() { chrome.view.follow(true) }
             chrome.draw_transcript()
             return true
         }
         return false
+    }
+
+    /// Ctrl-O: snap back to the tail and append the most recent tool
+    /// action's complete observation. The screen normally shows only the
+    /// collapsed `tool_result`, so this is where stdout / stderr come back.
+    func _expand_tool_output() {
+        let got = mgr.current_session().tool_output()
+        if _plain_fallback {
+            if got == nil {
+                emit(notice("(no tool output to expand)", plain_mode()))
+                return
+            }
+            let (action, result) = got
+            for line in tool_expand_lines(action, result, plain_mode()) { emit(line) }
+            return
+        }
+        chrome.view.follow(true)
+        chrome.draw_transcript()
+        if got == nil {
+            emit(notice("(no tool output to expand)", plain_mode()))
+            return
+        }
+        let (action, result) = got
+        for line in tool_expand_lines(action, result, plain_mode()) {
+            emit(line)
+        }
+    }
+
+    /// Show the grouped command panel for `query` as a transient overlay.
+    func _show_commands(query str) {
+        let cols = chrome.screen.columns() - 2
+        _show_transient(command_panel_lines(command_matches(query), cols, plain_mode()))
     }
 
     // A page: the window minus its last row, so a line of context survives.
@@ -173,20 +474,31 @@ class _Pager : readline.KeyHook {
     }
 }
 
-/// Shows the completion candidates in the transcript: the boxed input area
-/// has no rows under it for readline's column listing, so the candidates
-/// are emitted as the rows readline would draw — columns filled down then
-/// across, each name padded to the longest one.
+/// Shows the completion candidates as a transient overlay above the input:
+/// the boxed input area has no rows under it for readline's column listing,
+/// so the candidates are drawn as the rows readline would show — columns
+/// filled down then across, each name padded to the longest one.
 class _ChatDisplay : readline.DisplayMatchesHook {
     func display(substitution str, matches list[str], longest_match_length int) {
         if let c = _chrome {
             // the transcript content sits one column in from each border
             let cols = c.screen.columns() - 2
+            // Slash-command completion gets the grouped panel with one-line
+            // descriptions; a path or model list keeps readline's columns.
+            var all_commands = matches.len() > 0
+            for m in matches {
+                if !is_known_command(m) { all_commands = false; break }
+            }
+            if all_commands {
+                _show_transient(command_panel_lines(matches, cols, plain_mode()))
+                return
+            }
             let width = longest_match_length + 2
             var limit = cols / width
             if limit != 1 && limit * width == cols { limit -= 1 }
             if limit == 0 { limit = 1 }
             let count = (matches.len() + limit - 1) / limit
+            let lines = list[str]()
             for row in range(count) {
                 var out = ""
                 for col in range(limit) {
@@ -195,69 +507,168 @@ class _ChatDisplay : readline.DisplayMatchesHook {
                     out += matches[i]
                     if col < limit - 1 { out += " " * (width - matches[i].len()) }
                 }
-                emit(out)
+                lines.append(out)
             }
+            _show_transient(lines)
         }
     }
 }
 
-/// Run the loop against `session` until /quit, /exit or Ctrl-D. Starts in
-/// chat mode (single-shot Q&A); /agent switches to agent mode (each plain
-/// line runs the coding loop), /chat switches back. Commands work in both.
-func run_repl(session Session, cfg Config) {
+/// Ask the terminal user to approve one write/shell action. The callback is
+/// injected into `Agent`; it draws the command or diff, then reads one of
+/// y/a/n/d from the input box. Blank input and EOF deny. `d` expands the
+/// diff and asks again; `a` is handled by `Agent` as "all this session".
+pub func request_approval(info str, body str, workdir str) str {
+    let target = action_target(info, workdir)
+    var old = ""
+    var old_exists = false
+    var show_diff = true
+    if let t = target {
+        if fs.is_file(t) {
+            old_exists = true
+            if let st = fs.stat(t) {
+                // read_str panics above its limit; keep the diff bounded
+                if st.size <= 65_536 {
+                    old = fs.read_str(t, 65_536)
+                } else {
+                    show_diff = false
+                }
+            } else {
+                show_diff = false
+            }
+        }
+    }
+    if let c = _chrome { c.view.follow(true) }
+    var full = false
+    while true {
+        var rows = 12
+        if full { rows = 400 }
+        for line in approval_lines(info, body, old, old_exists, show_diff, rows, plain_mode()) {
+            emit(line)
+        }
+        let choice = approval_choice(_approval_input())
+        if choice != "d" { return choice }
+        if !show_diff { emit("  (diff unavailable: the file is larger than 64 KiB)") }
+        full = true
+    }
+}
+
+/// Read one approval answer in the pinned input box. The typed row is
+/// cleared afterwards so the transcript can keep scrolling into its usual
+/// bottom row.
+func _approval_input() str {
+    let p = approval_prompt()
+    if let c = _chrome {
+        if c.screen.is_tty() {
+            let trans = c.trans_elastic
+            c.screen.pin_input(c.input_rect.row, 2, trans.row, trans.row + trans.height - 1)
+            let line = c.screen.input(p)
+            c.screen.write_at(c.input_rect.row, 2, " " * c.input_rect.width)
+            c.draw_input_box()
+            c.screen.pin_input(c.input_rect.row, 2, trans.row, trans.row + trans.height - 1)
+            if line == nil { return "" }
+            return line
+        }
+    }
+    if let line = readline.input(p) { return line }
+    return ""
+}
+
+/// Run the loop against the session manager until /quit, /exit or Ctrl-D.
+/// Starts in chat mode (single-shot Q&A); /agent switches to agent mode
+/// (each plain line runs the coding loop), /chat switches back. Commands
+/// work in both. The current session is persisted at the top of every
+/// turn, so each line's effects (and the last one before quitting) reach
+/// disk.
+func run_repl(mgr SessionManager, cfg Config) {
     // False on the first run, when there is no history file yet.
     readline.read_history_file(cfg.history_file)
     readline.set_history_length(200)
 
-    // Tab completes the /commands and their arguments (model names, paths).
+    // Tab completes the /commands and their arguments (model names, paths,
+    // session names).
     readline.parse_and_bind("tab: complete")
-    readline.set_completer(_ChatCompleter(session))
+    readline.set_completer(_ChatCompleter(mgr))
     readline.set_completer_delims(" \t\n")
     readline.set_completion_display_matches_hook(_ChatDisplay())
 
     let screen = tui.Screen()
-    let view = tui.View(tui.Rect(1, 1, 0, 80))
+    let view = tui.WrappedView(tui.Rect(1, 1, 0, 80))
     let chrome = _Chrome(screen, view)
     _chrome = chrome
-    readline.set_key_hook(_Pager(chrome))
+    readline.set_key_hook(_Pager(chrome, mgr))
+    // below this the transcript has no content row and the scroll region
+    // would be invalid: continue without the chrome
+    if screen.is_tty() && screen.rows() < TUI_MIN_ROWS {
+        _fallback_plain(chrome)
+    }
 
     var mode = "chat"
-    emit("Chat with " + cfg.model + ". /agent = coding loop, /chat = Q&A, /quit or Ctrl-D to leave, /reset to clear, /file PATH to load, /model to switch models.")
+    // A full frame clears the screen. It is only needed on the first frame
+    // and after /clear; the ordinary turn only overwrites its own rows.
+    var full = true
+    // A small welcome card: emoji and a rounded box on a colour terminal,
+    // ASCII art in plain mode, and no box on a very narrow terminal.
+    for line in startup_lines(cfg.model, chrome.content_width(), plain_mode()) {
+        emit(line)
+    }
     while true {
-        screen.frame_start()
-        chrome.draw_transcript()
-        chrome.draw_input_box()
-        if let st = chrome.status {
-            let cols = screen.columns()
-            screen.write_at(st.row, 1,
-                            readline.fit_text("\x1b[2m[agent] " + session.status_line() + "\x1b[0m", cols))
+        mgr.save_current()
+        let session = mgr.current_session()
+        _status_mode = mode
+        _status_session = session
+        if !_plain_fallback && screen.refresh_size() {
+            // rows/columns changed: re-cut the chrome and repaint once
+            if screen.rows() < TUI_MIN_ROWS {
+                _fallback_plain(chrome)
+            } else {
+                chrome.set_bar(true)
+                full = true
+            }
         }
-        // only the transcript region scrolls; the cursor sits in the box
-        let trans = chrome.trans_elastic
-        screen.pin_input(chrome.input_rect.row, 2, trans.row, trans.row + trans.height - 1)
-        readline.set_input_area(chrome.input_rect.row, 2, chrome.input_rect.width,
-                                chrome.input_rect.height)
-        let line = screen.input(prompt(mode))
+        if !_plain_fallback {
+            screen.frame_start(full)
+            chrome.draw_transcript()
+            chrome.draw_menu()
+            chrome.draw_input_box()
+            chrome.draw_hint()
+            _draw_status()
+            full = false
+            // only the transcript region scrolls; the cursor sits in the box
+            let trans = chrome.trans_elastic
+            screen.pin_input(chrome.input_rect.row, 2, trans.row, trans.row + trans.height - 1)
+            readline.set_input_area(chrome.input_rect.row, 2, chrome.input_rect.width,
+                                    chrome.input_rect.height)
+        }
+        let line = screen.input(prompt())
+        // The completion panel is only for the line being typed; hide it
+        // before the command runs or the next prompt starts.
+        chrome.hide_menu()
         if line == nil { break }
         // blank lines (and the "" Ctrl-C returns) are not sent
         if is_blank(line) { continue }
         record_input(line)
         if line == "/quit" || line == "/exit" { break }
+        if command_name(line) == "/help" {
+            for h in help_lines() { emit(h) }
+            continue
+        }
         if line == "/chat" {
             mode = "chat"
-            chrome.set_bar(false)
+            _status_mode = mode
             emit("(chat mode)")
             continue
         }
         if line == "/agent" {
             mode = "agent"
-            chrome.set_bar(true)
-            emit("(agent mode — type a task directly; /chat to return)")
+            _status_mode = mode
+            if plain_mode() { emit("(agent mode - type a task directly; /chat to return)") }
+            else { emit("(agent mode — type a task directly; /chat to return)") }
             continue
         }
         if line.starts_with("/agent ") {
             mode = "agent"
-            chrome.set_bar(true)
+            _status_mode = mode
             let task = line.substr(7, line.len()).strip()
             if task != "" { session.agent(task) }
             continue
@@ -267,8 +678,68 @@ func run_repl(session Session, cfg Config) {
             emit("(the history is cleared)")
             continue
         }
+        if line == "/sessions" {
+            _show_sessions(mgr)
+            continue
+        }
+        if line == "/new" || line.starts_with("/new ") {
+            var name = ""
+            if line.starts_with("/new ") { name = line.substr(4, line.len()).strip() }
+            if mgr.new(name) {
+                emit("(new session: " + mgr.current_session().name() + ")")
+            } else {
+                emit("session name taken or invalid: " + name)
+            }
+            continue
+        }
+        if line == "/switch" || line.starts_with("/switch ") {
+            let target = line.substr(7, line.len()).strip()
+            if target == "" {
+                emit("(usage: /switch N or /switch NAME)")
+            } else if mgr.switch_to(target) {
+                emit("(switched to " + mgr.current_session().name() + ")")
+            } else {
+                emit("no such session: " + target)
+            }
+            continue
+        }
+        if line == "/pause" || line.starts_with("/pause ") {
+            let target = line.substr(6, line.len()).strip()
+            var t str? = nil
+            if target != "" { t = target }
+            if let n = mgr.set_paused(t, true) {
+                emit("(paused " + n + ")")
+            } else {
+                emit("no such session: " + target)
+            }
+            continue
+        }
+        if line == "/resume" || line.starts_with("/resume ") {
+            let target = line.substr(7, line.len()).strip()
+            var t str? = nil
+            if target != "" { t = target }
+            if let n = mgr.set_paused(t, false) {
+                emit("(resumed " + n + ")")
+            } else {
+                emit("no such session: " + target)
+            }
+            continue
+        }
+        if line == "/rename" || line.starts_with("/rename ") {
+            let name = line.substr(7, line.len()).strip()
+            if name == "" {
+                emit("(usage: /rename NAME)")
+            } else if mgr.rename(name) {
+                emit("(renamed to " + name + ")")
+            } else {
+                emit("rename failed (name taken or invalid): " + name)
+            }
+            continue
+        }
         if line == "/clear" {
             chrome.view.clear()
+            // an explicit clear is the one place a full redraw is wanted
+            full = true
             continue
         }
         if line == "/compact" {
@@ -338,6 +809,12 @@ func run_repl(session Session, cfg Config) {
             }
             continue
         }
+        // A slash line that no handler above consumed never reaches the
+        // model: report it locally, with /help as the way out.
+        if line.starts_with("/") {
+            emit(unknown_command(line))
+            continue
+        }
 
         // A plain line: a task in agent mode, a question in chat mode.
         if mode == "agent" {
@@ -351,14 +828,210 @@ func run_repl(session Session, cfg Config) {
     readline.write_history_file(cfg.history_file)
 }
 
+/// One slash command: its name, argument hint, one-line description and
+/// the group it is shown under in the command panel and `/help`.
+pub class CommandInfo {
+    pub let name str
+    pub let args str
+    pub let desc str
+    pub let group str
+
+    pub func __init__(_name str, _args str, _desc str, _group str) {
+        name = _name
+        args = _args
+        desc = _desc
+        group = _group
+    }
+}
+
+/// Every slash command, in the order Tab completes them. This is the single
+/// source of truth for `command_names`, `/help`, the command panel and
+/// `is_known_command`, so a new command is never half-added.
+pub func command_infos() list[CommandInfo] {
+    return [
+        CommandInfo("/help", "", "show this help", "Conversation"),
+        CommandInfo("/quit", "", "leave (Ctrl-D also leaves)", "Conversation"),
+        CommandInfo("/exit", "", "leave (same as /quit)", "Conversation"),
+        CommandInfo("/reset", "", "clear the conversation", "Conversation"),
+        CommandInfo("/clear", "", "clear the screen", "Conversation"),
+        CommandInfo("/compact", "", "summarize older history now", "Context"),
+        CommandInfo("/context", "", "show context window and usage", "Context"),
+        CommandInfo("/file", "PATH", "load a file (or type @PATH)", "Files"),
+        CommandInfo("/agent", "[TASK]", "enter agent mode, or run TASK now", "Agent"),
+        CommandInfo("/chat", "", "return to Q&A mode", "Agent"),
+        CommandInfo("/workdir", "[PATH]", "show or set the agent work dir", "Agent"),
+        CommandInfo("/model", "[NAME]", "show or switch the model", "Model"),
+        CommandInfo("/models", "", "list the endpoint's models", "Model"),
+        CommandInfo("/new", "[NAME]", "start a new session", "Sessions"),
+        CommandInfo("/sessions", "", "list sessions", "Sessions"),
+        CommandInfo("/switch", "N|NAME", "switch to another session", "Sessions"),
+        CommandInfo("/pause", "[N|NAME]", "pause automatic compaction", "Sessions"),
+        CommandInfo("/resume", "[N|NAME]", "resume automatic compaction", "Sessions"),
+        CommandInfo("/rename", "NAME", "rename the current session", "Sessions"),
+    ]
+}
+
+/// Every command name, in completion and panel order.
+pub func command_names() list[str] {
+    let out = list[str]()
+    for info in command_infos() { out.append(info.name) }
+    return out
+}
+
+/// The metadata for `name`, or nil when it is not a slash command.
+pub func command_info(name str) CommandInfo? {
+    for info in command_infos() {
+        if info.name == name { return info }
+    }
+    return nil
+}
+
+/// The command groups in first-seen order.
+pub func command_groups() list[str] {
+    let out = list[str]()
+    for info in command_infos() {
+        if !(info.group in out) { out.append(info.group) }
+    }
+    return out
+}
+
+/// Subsequence match, case-insensitive: `mdl` matches `model`, `ses` matches
+/// `sessions`. An empty query matches everything.
+pub func fuzzy_match(text str, query str) bool {
+    let hay = text.lower()
+    let needle = query.lower()
+    var j = 0
+    for ch in hay {
+        if j < needle.len() && ch == needle[j] { j += 1 }
+    }
+    return j == needle.len()
+}
+
+/// The commands matching a first-word query such as `/ses` or `/mdl`, in
+/// completion order. A query that does not start with `/` matches nothing,
+/// so ordinary words never open the command panel.
+pub func command_matches(query str) list[str] {
+    let q = query.strip()
+    let out = list[str]()
+    if !q.starts_with("/") { return out }
+    let needle = q.substr(1)
+    for info in command_infos() {
+        if fuzzy_match(info.name.substr(1), needle) { out.append(info.name) }
+    }
+    return out
+}
+
+/// The group headers and one line per command for the completion panel:
+/// `  /model [NAME]  show or switch the model`. `cols` is the transcript
+/// content width; each row is cut to it. With `plain`, the truncation marker
+/// is `...` instead of `…`.
+pub func command_panel_lines(matches list[str], cols int, plain = false) list[str] {
+    let out = list[str]()
+    if matches.len() == 0 || cols < 8 { return out }
+    var label_width = 0
+    for name in matches {
+        if let info = command_info(name) {
+            let label = info.name + " " + info.args
+            let w = readline.width(label)
+            if w > label_width { label_width = w }
+        }
+    }
+    var cap = cols - 12
+    if cap < 8 { cap = 8 }
+    if label_width > cap { label_width = cap }
+    var mark = "…"
+    if plain { mark = "..." }
+    for grp in command_groups() {
+        var has_group = false
+        for name in matches {
+            if let info = command_info(name) {
+                if info.group == grp { has_group = true; break }
+            }
+        }
+        if !has_group { continue }
+        var header = grp
+        if readline.width(header) > cols { header = readline.fit_text(header, cols) }
+        out.append(header)
+        for name in matches {
+            if let info = command_info(name) {
+                if info.group != grp { continue }
+                var label = info.name + " " + info.args
+                if readline.width(label) > label_width {
+                    label = readline.fit_text(label, label_width)
+                }
+                let room = cols - 2 - label_width - 2
+                if room <= 0 {
+                    out.append("  " + readline.fit_text(label, cols - 2))
+                    continue
+                }
+                var desc = info.desc
+                if readline.width(mark) + 1 > room {
+                    desc = readline.fit_text(desc, room)
+                } else if readline.width(desc) > room {
+                    let mark_width = readline.width(mark)
+                    var keep = room - mark_width
+                    if keep < 1 { keep = 1 }
+                    desc = readline.fit_text(desc, keep) + mark
+                }
+                out.append("  " + readline.pad_text(label, label_width) + "  " + desc)
+            }
+        }
+    }
+    return out
+}
+
+/// The first word of a slash command line: "/model gpt" -> "/model".
+/// Leading/trailing spaces are ignored; arguments are after a space or tab.
+pub func command_name(line str) str {
+    let text = line.strip()
+    var cut = text.index(" ")
+    let tab = text.index("\t")
+    if tab >= 0 && (cut < 0 || tab < cut) { cut = tab }
+    if cut < 0 { return text }
+    return text.substr(0, cut)
+}
+
+/// True when the first word of `line` is a known slash command.
+pub func is_known_command(line str) bool {
+    let name = command_name(line)
+    for c in command_names() {
+        if c == name { return true }
+    }
+    return false
+}
+
+/// The local response for a slash line that no handler consumed. A known
+/// command with bad arguments gets a usage hint; anything else is called
+/// out as unknown. Neither is sent to the model.
+pub func unknown_command(line str) str {
+    let name = command_name(line)
+    if is_known_command(name) {
+        return "(usage error: " + name + "; /help lists usage)"
+    }
+    return "(unknown command: " + name + "; /help lists commands)"
+}
+
+/// The grouped `/help` text: commands first, then keyboard shortcuts. It
+/// stays ASCII so pipes and dumb terminals need no fallback, and every row
+/// fits an 80-column terminal.
+pub func help_lines() list[str] {
+    let out = ["Commands"]
+    for line in command_panel_lines(command_names(), 78) { out.append(line) }
+    out.append("Shortcuts")
+    out.append("  Enter send, Ctrl-J newline, Ctrl-C drops the line")
+    out.append("  PgUp/PgDn page, Ctrl-O last tool output, Tab completes")
+    out.append("  Ctrl-R searches history")
+    return out
+}
+
 /// Tab completion: the /commands for the first word, model names after
-/// "/model ", file paths after "/file ", and directories after "/workdir ".
+/// "/model ", file paths after "/file " or a leading "@", directories after
+/// "/workdir ", and session names after "/switch ", "/pause " and "/resume ".
 /// No trailing space is added — commands are matched exactly and arguments
 /// are parsed as-is, so a stray space would break "/quit" or end up inside
 /// a model name or path.
 class _ChatCompleter : readline.Completer {
-    let session Session
-    let commands list[str]
+    let mgr SessionManager
     var models list[str]?
     // nil until the first completion, so completing an empty word (right
     // after "/file " or "/workdir ") does not hit an empty stale cache
@@ -367,9 +1040,8 @@ class _ChatCompleter : readline.Completer {
     var dir_text str?
     var dir_cache list[str]
 
-    func __init__(_session Session) {
-        session = _session
-        commands = ["/quit", "/exit", "/reset", "/clear", "/compact", "/context", "/workdir", "/model", "/models", "/file", "/agent", "/chat"]
+    func __init__(_mgr SessionManager) {
+        mgr = _mgr
         models = nil
         file_text = nil
         file_cache = list[str]()
@@ -380,14 +1052,24 @@ class _ChatCompleter : readline.Completer {
     func complete(text str, state int) str? {
         let before = readline.get_line_buffer().substr(0, readline.get_begidx())
         if before == "" {
-            if !text.starts_with("/") { return nil }
-            return _nth(commands, text, state)
+            if text.starts_with("/") { return _pick(command_matches(text), state) }
+            // `@PATH` is the shorthand for /file; keep the `@` in the
+            // candidate, because readline replaces the whole word.
+            if text.starts_with("@") { return _nth(at_matches(text), text, state) }
+            return nil
         }
         let cmd = before.split(" ")[0]
         if cmd == "/model" { return _nth(_model_list(), text, state) }
         if cmd == "/file" { return _nth(_files(text), text, state) }
         if cmd == "/workdir" { return _nth(_dirs(text), text, state) }
+        if cmd == "/switch" || cmd == "/pause" || cmd == "/resume" { return _nth(mgr.names(), text, state) }
         return nil
+    }
+
+    /// The state-th already-filtered candidate, else nil.
+    func _pick(candidates list[str], state int) str? {
+        if state < 0 || state >= candidates.len() { return nil }
+        return candidates[state]
     }
 
     /// The state-th candidate starting with `text`, else nil.
@@ -405,7 +1087,7 @@ class _ChatCompleter : readline.Completer {
     /// The endpoint's model ids, fetched once on first use and cached.
     func _model_list() list[str] {
         if let m = models { return m }
-        let fetched = session.list_models()
+        let fetched = mgr.current_session().list_models()
         models = fetched
         if let m = fetched { return m }
         return list[str]()
@@ -457,6 +1139,17 @@ pub func file_matches(text str) list[str] {
         let name = path.name()
         if name.starts_with(prefix) { out.append(dir + name) }
     }
+    return out
+}
+
+/// File candidates for the `@PATH` shorthand: `text` is the word being
+/// completed, with or without its leading `@`; every candidate carries the
+/// `@`, so readline can replace the whole word.
+pub func at_matches(text str) list[str] {
+    var prefix = text
+    if prefix.starts_with("@") { prefix = prefix.substr(1, prefix.len()) }
+    let out = list[str]()
+    for m in file_matches(prefix) { out.append("@" + m) }
     return out
 }
 

@@ -90,7 +90,14 @@ func test_subplots_single() {
     plt.close()
     let (fig, ax) = plt.subplots()
     ut.assert_int_eq(fig.axes.len(), 1)
-    ut.assert_int_eq(ax.row, 0)
+    switch ax {
+        case is plt.Axes: {
+            ut.assert_int_eq(ax.row, 0)
+        }
+        case _: {
+            panic("subplots() should squeeze to a single Axes")
+        }
+    }
     plt.plot([0.0, 1.0], [0.0, 1.0])
     ut.assert_int_eq(plt.gca().artists.len(), 1)
 }
@@ -101,8 +108,139 @@ func test_subplots_grid() {
     ut.assert_int_eq(fig.rows, 2)
     ut.assert_int_eq(fig.cols, 2)
     ut.assert_int_eq(fig.axes.len(), 4)
-    ut.assert_int_eq(ax.row, 0)
-    ut.assert_int_eq(ax.col, 0)
+    switch ax {
+        case is list[list[plt.Axes]]: {
+            ut.assert_int_eq(ax[0][0].row, 0)
+            ut.assert_int_eq(ax[0][0].col, 0)
+            ut.assert_int_eq(ax[1][1].row, 1)
+            ut.assert_int_eq(ax[1][1].col, 1)
+        }
+        case _: {
+            panic("subplots(2,2) should be a 2D grid")
+        }
+    }
+}
+
+@test
+func test_subplots_squeeze_row_vector() {
+    let (fig, ax) = plt.subplots(1, 3)
+    ut.assert_int_eq(fig.axes.len(), 3)
+    switch ax {
+        case is list[plt.Axes]: {
+            ut.assert_int_eq(ax.len(), 3)
+            ut.assert_int_eq(ax[0].row, 0)
+            ut.assert_int_eq(ax[0].col, 0)
+            ut.assert_int_eq(ax[2].col, 2)
+        }
+        case _: {
+            panic("subplots(1,3) should squeeze to a 1D list")
+        }
+    }
+}
+
+@test
+func test_subplots_squeeze_col_vector() {
+    let (fig, ax) = plt.subplots(3, 1)
+    ut.assert_int_eq(fig.axes.len(), 3)
+    switch ax {
+        case is list[plt.Axes]: {
+            ut.assert_int_eq(ax.len(), 3)
+            ut.assert_int_eq(ax[0].col, 0)
+            ut.assert_int_eq(ax[0].row, 0)
+            ut.assert_int_eq(ax[2].row, 2)
+        }
+        case _: {
+            panic("subplots(3,1) should squeeze to a 1D list")
+        }
+    }
+}
+
+@test
+func test_subplots_squeeze_2d() {
+    let (fig, ax) = plt.subplots(2, 3)
+    switch ax {
+        case is list[list[plt.Axes]]: {
+            ut.assert_int_eq(ax.len(), 2)
+            ut.assert_int_eq(ax[0].len(), 3)
+            ut.assert_int_eq(ax[1][2].row, 1)
+            ut.assert_int_eq(ax[1][2].col, 2)
+            // Row-major identity with fig.axes.
+            ut.assert_int_eq(ax[1][2].row, fig.axes[5].row)
+            ut.assert_int_eq(ax[1][2].col, fig.axes[5].col)
+        }
+        case _: {
+            panic("subplots(2,3) should be a 2D grid")
+        }
+    }
+}
+
+@test
+func test_subplots_no_squeeze_single() {
+    let (fig, ax) = plt.subplots(1, 1, squeeze = false)
+    switch ax {
+        case is list[list[plt.Axes]]: {
+            ut.assert_int_eq(ax.len(), 1)
+            ut.assert_int_eq(ax[0].len(), 1)
+            ut.assert_int_eq(ax[0][0].row, 0)
+        }
+        case _: {
+            panic("squeeze=false should always be 2D")
+        }
+    }
+}
+
+@test
+func test_subplots_no_squeeze_row_vector() {
+    let (fig, ax) = plt.subplots(1, 3, squeeze = false)
+    switch ax {
+        case is list[list[plt.Axes]]: {
+            ut.assert_int_eq(ax.len(), 1)
+            ut.assert_int_eq(ax[0].len(), 3)
+            ut.assert_int_eq(ax[0][2].col, 2)
+        }
+        case _: {
+            panic("squeeze=false should keep the 2D shape")
+        }
+    }
+}
+
+@test
+func test_subplots_no_squeeze_grid() {
+    let (fig, ax) = plt.subplots(2, 3, squeeze = false)
+    switch ax {
+        case is list[list[plt.Axes]]: {
+            ut.assert_int_eq(ax.len(), 2)
+            ut.assert_int_eq(ax[1].len(), 3)
+            ut.assert_int_eq(ax[1][2].row, 1)
+        }
+        case _: {
+            panic("squeeze=false should be 2D")
+        }
+    }
+}
+
+@test
+func test_subplots_gca_is_first() {
+    plt.close()
+    let (fig, ax) = plt.subplots(2, 3)
+    ut.assert_int_eq(plt.gca().row, 0)
+    ut.assert_int_eq(plt.gca().col, 0)
+    ut.assert_int_eq(plt.gcf().axes.len(), 6)
+}
+
+@should_panic("Number of rows must be a positive integer, not 0")
+func test_subplots_zero_rows() {
+    plt.subplots(0, 1)
+}
+
+@should_panic("Number of columns must be a positive integer, not 0")
+func test_subplots_zero_cols() {
+    plt.subplots(1, 0)
+}
+
+@should_panic("Number of rows must be a positive integer, not -1")
+func test_subplots_negative_rows() {
+    plt.subplots(-1, 2)
 }
 
 @test
@@ -341,4 +479,42 @@ func test_scatter_cvals_forwarding() {
     } else {
         ut.assert_true(false, "colors not set")
     }
+}
+
+// savefig parameter validation happens before any window is created, so
+// these panics are display-free (the render itself is a live check).
+
+@should_panic("Format 'foo' is not supported (supported formats: png, jpg, jpeg)")
+func test_savefig_bad_extension() {
+    plt.close()
+    plt.figure()
+    plt.savefig("/tmp/koala_plot_ut.foo")
+}
+
+@should_panic("Format '' is not supported (supported formats: png, jpg, jpeg)")
+func test_savefig_no_extension() {
+    plt.close()
+    plt.figure()
+    plt.savefig("/tmp/koala_plot_ut_noext")
+}
+
+@should_panic("Format 'foo' is not supported (supported formats: png, jpg, jpeg)")
+func test_savefig_bad_format_param_wins() {
+    plt.close()
+    plt.figure()
+    plt.savefig("/tmp/koala_plot_ut.png", format = "foo")
+}
+
+@should_panic("dpi must be positive")
+func test_savefig_zero_dpi() {
+    plt.close()
+    plt.figure()
+    plt.savefig("/tmp/koala_plot_ut.png", dpi = 0)
+}
+
+@should_panic("plot.savefig: bbox_inches must be 'tight'")
+func test_savefig_bad_bbox_inches() {
+    plt.close()
+    plt.figure()
+    plt.savefig("/tmp/koala_plot_ut.png", bbox_inches = "loose")
 }

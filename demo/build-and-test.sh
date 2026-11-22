@@ -41,3 +41,13 @@ echo "=============================================="
 
 # Run tests with JIT disabled
 KOALA_PATH="$DIST/:$KOALA_PATH" KOALA_JIT=0 wombat test
+
+# The pty smoke needs the chat artifact built above. It is skipped when
+# script(1) is unavailable; all of its state lives in a temporary directory.
+if [[ -f "$SCRIPT_DIR/chat/test/test_pty.sh" ]] && command -v script >/dev/null 2>&1; then
+    echo ""
+    echo "=============================================="
+    echo " workspace: chat pty smoke"
+    echo "=============================================="
+    bash "$SCRIPT_DIR/chat/test/test_pty.sh"
+fi

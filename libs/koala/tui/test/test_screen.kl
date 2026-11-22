@@ -38,6 +38,14 @@ func test_screen_default_surface() {
 }
 
 @test
+func test_screen_forced_size_does_not_refresh() {
+    let s = tui.Screen(24, 80)
+    ut.assert_false(s.refresh_size())
+    ut.assert(s.rows() == 24)
+    ut.assert(s.columns() == 80)
+}
+
+@test
 func test_screen_owns_a_layout() {
     let s = tui.Screen(24, 80)
     let l = tui.Layout(s)

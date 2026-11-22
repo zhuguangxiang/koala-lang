@@ -163,6 +163,99 @@ func test_fit_text() {
 }
 
 @test
+func test_width() {
+    ut.assert_eq(readline.width("abc"), 3)
+    ut.assert_eq(readline.width("你好"), 4)
+    ut.assert_eq(readline.width("\x1b[31mred\x1b[0m"), 3)
+    ut.assert_eq(readline.width("a\x01\x1b[31m\x02b"), 2)
+}
+
+@test
+func test_wrap_text_ascii() {
+    let lines = readline.wrap_text("abcdef", 4)
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "abcd")
+    ut.assert_eq(lines[1], "ef")
+}
+
+@test
+func test_wrap_text_cjk() {
+    let lines = readline.wrap_text("你好ab", 4)
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "你好")
+    ut.assert_eq(lines[1], "ab")
+    // never split a wide character across rows
+    let lines2 = readline.wrap_text("你好", 1)
+    ut.assert_eq(lines2.len(), 2)
+    ut.assert_eq(lines2[0], "你")
+    ut.assert_eq(lines2[1], "好")
+}
+
+@test
+func test_wrap_text_newline_and_empty() {
+    let lines = readline.wrap_text("a\nb", 80)
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "a")
+    ut.assert_eq(lines[1], "b")
+    let empty = readline.wrap_text("", 10)
+    ut.assert_eq(empty.len(), 1)
+    ut.assert_eq(empty[0], "")
+}
+
+@test
+func test_wrap_text_keeps_ansi() {
+    let lines = readline.wrap_text("\x1b[31mabcdef\x1b[0m", 4)
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "\x1b[31mabcd")
+    ut.assert_eq(lines[1], "ef\x1b[0m")
+    // every visible character survives the wrap
+    ut.assert_eq(readline.width(lines[0]) + readline.width(lines[1]), 6)
+}
+
+@test
+func test_wrap_text_expands_tabs() {
+    let lines = readline.wrap_text("a\tb", 80)
+    ut.assert_eq(lines.len(), 1)
+    ut.assert_eq(lines[0], "a    b")
+}
+
+@test
+func test_wrap_text_hard_breaks_long_words() {
+    let lines = readline.wrap_text("abcdefghij", 3)
+    ut.assert_eq(lines.len(), 4)
+    ut.assert_eq(lines[0], "abc")
+    ut.assert_eq(lines[1], "def")
+    ut.assert_eq(lines[2], "ghi")
+    ut.assert_eq(lines[3], "j")
+}
+
+@test
+func test_wrap_text_prefers_spaces() {
+    let lines = readline.wrap_text("hello world", 6)
+    ut.assert_eq(lines.len(), 2)
+    ut.assert_eq(lines[0], "hello")
+    ut.assert_eq(lines[1], "world")
+    // a URL has no spaces, so it is hard-broken
+    let url = "https://example.com/a/very/long/path"
+    let parts = readline.wrap_text(url, 10)
+    var back = ""
+    for part in parts {
+        ut.assert_true(readline.width(part) <= 10)
+        back += part
+    }
+    ut.assert_eq(back, url)
+}
+
+@test
+func test_pad_text_never_cuts() {
+    ut.assert_eq(readline.pad_text("ab", 4), "ab  ")
+    ut.assert_eq(readline.pad_text("abcdef", 4), "abcdef")
+    ut.assert_eq(readline.pad_text("你好", 4), "你好")
+    // a wide character in a one-column area cannot be cut: it overflows
+    ut.assert_eq(readline.pad_text("你", 1), "你")
+}
+
+@test
 func test_shrunk_text_blanks_area_rows() {
     // "ab\ncd" fills two rows; deleting "cd" and the newline leaves the
     // second row blank, not stale

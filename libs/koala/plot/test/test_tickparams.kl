@@ -4,7 +4,8 @@
 // plt.tick_params). Defaults are matplotlib 3.11.2: direction "out",
 // length 3.5, width 0.8, color black, pad 3.5, labelsize 10, labelcolor
 // black; ticks on all four sides, labels on bottom/left only. Sizes are
-// pixels in Koala (matplotlib uses points; documented deviation).
+// points like matplotlib and the spec emits pixels (pt * dpi / 72); the
+// default dpi is 100, so the factor is 100/72.
 
 import "std/ut"
 import "koala/plot"
@@ -21,11 +22,11 @@ func test_tickparams_defaults() {
     fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
     let ts = ts_of(fig)
     ut.assert_eq(ts.get_str("direction"), "out")
-    ut.assert_float_close(ts.get_float("length"), 3.5)
-    ut.assert_float_close(ts.get_float("width"), 0.8)
+    ut.assert_float_close(ts.get_float("length"), 3.5 * 100.0 / 72.0)
+    ut.assert_float_close(ts.get_float("width"), 0.8 * 100.0 / 72.0)
     ut.assert_eq(ts.get_str("color"), "#000000")
-    ut.assert_float_close(ts.get_float("pad"), 3.5)
-    ut.assert_float_close(ts.get_float("labelsize"), 10.0)
+    ut.assert_float_close(ts.get_float("pad"), 3.5 * 100.0 / 72.0)
+    ut.assert_float_close(ts.get_float("labelsize"), 10.0 * 100.0 / 72.0)
     ut.assert_eq(ts.get_str("labelcolor"), "#000000")
     ut.assert_eq(ts.get_bool("bottom"), true)
     ut.assert_eq(ts.get_bool("top"), true)
@@ -46,12 +47,56 @@ func test_tickparams_shared_appearance() {
                    "#00ff00")
     let ts = ts_of(fig)
     ut.assert_eq(ts.get_str("direction"), "in")
-    ut.assert_float_close(ts.get_float("length"), 6.0)
-    ut.assert_float_close(ts.get_float("width"), 2.0)
+    ut.assert_float_close(ts.get_float("length"), 6.0 * 100.0 / 72.0)
+    ut.assert_float_close(ts.get_float("width"), 2.0 * 100.0 / 72.0)
     ut.assert_eq(ts.get_str("color"), "#ff0000")
-    ut.assert_float_close(ts.get_float("pad"), 5.0)
-    ut.assert_float_close(ts.get_float("labelsize"), 14.0)
+    ut.assert_float_close(ts.get_float("pad"), 5.0 * 100.0 / 72.0)
+    ut.assert_float_close(ts.get_float("labelsize"), 14.0 * 100.0 / 72.0)
     ut.assert_eq(ts.get_str("labelcolor"), "#00ff00")
+}
+
+@test
+func test_tickparams_pt_to_px_uses_figure_dpi() {
+    // dpi=144 → exactly 2 px per point.
+    let fig = plot.Figure(6.4, 4.8, 144)
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.tick_params(length=3.5, width=0.8, pad=3.5, labelsize=10.0)
+    let ts = ts_of(fig)
+    ut.assert_float_close(ts.get_float("length"), 7.0)
+    ut.assert_float_close(ts.get_float("width"), 1.6)
+    ut.assert_float_close(ts.get_float("pad"), 7.0)
+    ut.assert_float_close(ts.get_float("labelsize"), 20.0)
+}
+
+@test
+func test_tickparams_labelsize_strings() {
+    // matplotlib's relative sizes × font.size 10pt, then pt→px at dpi=100.
+    let cases = [("xx-small", 5.79 * 100.0 / 72.0),
+                 ("x-small", 6.94 * 100.0 / 72.0),
+                 ("small", 8.33 * 100.0 / 72.0),
+                 ("medium", 10.0 * 100.0 / 72.0),
+                 ("large", 12.0 * 100.0 / 72.0),
+                 ("x-large", 14.4 * 100.0 / 72.0),
+                 ("xx-large", 17.28 * 100.0 / 72.0),
+                 ("larger", 12.0 * 100.0 / 72.0),
+                 ("smaller", 8.33 * 100.0 / 72.0)]
+    for (s, want) in cases {
+        let fig = plot.Figure()
+        let ax = fig.subplot(1, 1, 1)
+        ax.plot([0.0, 1.0], [0.0, 1.0])
+        ax.tick_params(labelsize=s)
+        ut.assert_float_close(ts_of(fig).get_float("labelsize"), want)
+    }
+}
+
+@test
+func test_tickparams_labelsize_float() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.tick_params(labelsize=12.5)
+    ut.assert_float_close(ts_of(fig).get_float("labelsize"), 12.5 * 100.0 / 72.0)
 }
 
 @test
@@ -113,6 +158,11 @@ func test_tickparams_bad_direction() {
     plot.Figure().subplot(1, 1, 1).tick_params("both", "major", "sideways")
 }
 
+@should_panic("'huge' is not a valid value for labelsize. Supported values are 'xx-small', 'x-small', 'small', 'medium', 'large', 'x-large', 'xx-large', 'larger', 'smaller'")
+func test_tickparams_bad_labelsize() {
+    plot.Figure().subplot(1, 1, 1).tick_params(labelsize="huge")
+}
+
 @test
 func test_pyplot_tick_params() {
     plt.close()
@@ -121,5 +171,8 @@ func test_pyplot_tick_params() {
     plt.tick_params("both", "major", "inout", 8.0)
     let ts = ts_of(plt.gcf())
     ut.assert_eq(ts.get_str("direction"), "inout")
-    ut.assert_float_close(ts.get_float("length"), 8.0)
+    ut.assert_float_close(ts.get_float("length"), 8.0 * 100.0 / 72.0)
+    plt.tick_params(labelsize="large")
+    ut.assert_float_close(ts_of(plt.gcf()).get_float("labelsize"),
+                          12.0 * 100.0 / 72.0)
 }

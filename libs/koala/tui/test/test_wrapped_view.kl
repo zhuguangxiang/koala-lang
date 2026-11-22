@@ -1,0 +1,94 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/tui"
+
+// WrappedView wraps logical lines to the rect width and scrolls by display
+// rows. The rect is fixed, so no terminal is needed.
+
+func _wview(h int, w int) tui.WrappedView {
+    return tui.WrappedView(tui.Rect(1, 1, h, w))
+}
+
+@test
+func test_wrapped_view_tail() {
+    let v = _wview(3, 4)
+    v.append("abcdef")
+    v.append("gh")
+    // abcdef -> abcd + ef, then gh; three rows, all visible
+    let r = v.render()
+    ut.assert_eq(r.len(), 3)
+    ut.assert_eq(r[0], "abcd")
+    ut.assert_eq(r[1], "ef")
+    ut.assert_eq(r[2], "gh")
+}
+
+@test
+func test_wrapped_view_follow_tail() {
+    let v = _wview(2, 4)
+    v.append("abcdef")
+    v.append("ghi")
+    // three display rows, but the window shows only the last two
+    let r = v.render()
+    ut.assert_eq(r.len(), 2)
+    ut.assert_eq(r[0], "ef")
+    ut.assert_eq(r[1], "ghi")
+    ut.assert_true(v.at_tail())
+}
+
+@test
+func test_wrapped_view_scrolls_display_rows() {
+    let v = _wview(2, 4)
+    v.append("abcdef")
+    v.append("ghi")
+    v.scroll_up(1)
+    ut.assert_false(v.is_following())
+    let r = v.render()
+    ut.assert_eq(r.len(), 2)
+    ut.assert_eq(r[0], "abcd")
+    ut.assert_eq(r[1], "ef")
+    v.scroll_down(1)
+    ut.assert_true(v.at_tail())
+    let r2 = v.render()
+    ut.assert_eq(r2[0], "ef")
+    ut.assert_eq(r2[1], "ghi")
+}
+
+@test
+func test_wrapped_view_rewraps_on_width_change() {
+    let v = _wview(4, 80)
+    v.append("abcdef")
+    let wide = v.render()
+    ut.assert_eq(wide.len(), 1)
+    ut.assert_eq(wide[0], "abcdef")
+    v.set_rect(tui.Rect(1, 1, 4, 4))
+    let narrow = v.render()
+    ut.assert_eq(narrow.len(), 2)
+    ut.assert_eq(narrow[0], "abcd")
+    ut.assert_eq(narrow[1], "ef")
+}
+
+@test
+func test_wrapped_view_height_resize_keeps_tail() {
+    let v = _wview(4, 4)
+    v.append("a")
+    v.append("b")
+    v.append("c")
+    v.set_rect(tui.Rect(1, 1, 2, 4))
+    let r = v.render()
+    ut.assert_eq(r.len(), 2)
+    ut.assert_eq(r[0], "b")
+    ut.assert_eq(r[1], "c")
+}
+
+@test
+func test_wrapped_view_clear() {
+    let v = _wview(2, 4)
+    v.append("abcdef")
+    v.clear()
+    ut.assert_eq(v.line_count(), 0)
+    ut.assert_eq(v.render().len(), 0)
+}
