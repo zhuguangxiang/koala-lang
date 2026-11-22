@@ -1,0 +1,1510 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/klex"
+
+/// The deepest nesting of statements, expressions and types the parser
+/// accepts before it reports an error instead of growing the stack.
+let MAX_DEPTH = 64
+
+/// Binding power of a prefix operator's operand: tighter than `*`, looser
+/// than a postfix `.`, `()`, `[]`, `!`, `?`.
+let UNARY_BP = 28
+
+/// Binding power of postfix operators, tighter than any infix operator.
+let POSTFIX_BP = 30
+
+/// A recursive-descent parser for Koala, with Pratt expression parsing.
+///
+/// The token stream comes from [`build_stream`](#build_stream), so automatic
+/// semicolons are already in place and every token carries its trivia. The
+/// parser never throws: on a syntax error it records a [`Diagnostic`](#diagnostic),
+/// puts a missing token or an error node in the tree, and resynchronizes at
+/// the next `;`, `}` or statement keyword. The tree therefore always covers
+/// the whole input, and `text()` always reproduces it.
+pub class Parser {
+    let cx Cursor
+    let diags list[Diagnostic]
+    var depth int = 0
+
+    pub func __init__(toks list[SyntaxToken], diags list[Diagnostic]) {
+        self.cx = Cursor(toks)
+        self.diags = diags
+    }
+
+    /// Record an error at the current token. Repeated errors at the same
+    /// spot are dropped, so one bad token yields one diagnostic.
+    func error(msg str) {
+        let t = self.cx.cur()
+        let n = self.diags.len()
+        if n > 0 {
+            let last = self.diags[n - 1]
+            if last.offset() == t.offset() {
+                return
+            }
+        }
+        self.diags.append(Diagnostic(msg, t.span()))
+    }
+
+    /// A token the parser expected but did not find. It has no source text,
+    /// so the tree stays lossless.
+    func missing(k klex.TokenKind) SyntaxToken {
+        let t = self.cx.cur()
+        let tok = klex.Token(k, "", nil, t.line(), t.col(), t.offset())
+        return SyntaxToken(tok, list[klex.Token](), list[klex.Token](), true)
+    }
+
+    /// Consume a token of kind `k`, or report `msg` and return a missing one.
+    func expect(k klex.TokenKind, msg str) SyntaxToken {
+        let t = self.cx.eat(k)
+        if let v = t {
+            return v
+        }
+        self.error(msg)
+        return self.missing(k)
+    }
+
+    /// True when the current token can begin a type.
+    func at_type_start() bool {
+        switch self.cx.kind() {
+            case klex.TokenKind.ID, klex.TokenKind.LPAREN, klex.TokenKind.LBRACKET,
+                 klex.TokenKind.FUNC_LPAREN, klex.TokenKind.LIST, klex.TokenKind.MAP,
+                 klex.TokenKind.SET, klex.TokenKind.TUPLE, klex.TokenKind.ARRAY,
+                 klex.TokenKind.UINT8, klex.TokenKind.UINT16, klex.TokenKind.UINT32,
+                 klex.TokenKind.UINT64, klex.TokenKind.INT8, klex.TokenKind.INT16,
+                 klex.TokenKind.INT32, klex.TokenKind.INT64, klex.TokenKind.FLOAT16,
+                 klex.TokenKind.FLOAT32, klex.TokenKind.FLOAT64, klex.TokenKind.BFLOAT16,
+                 klex.TokenKind.BOOL, klex.TokenKind.STRING, klex.TokenKind.BYTES,
+                 klex.TokenKind.ANY, klex.TokenKind.TYPE, klex.TokenKind.RANGE:
+                return true
+            case _:
+                return false
+        }
+    }
+
+    /// True when the current token can begin a statement. Used as a
+    /// resynchronization point after an error.
+    func at_stmt_start() bool {
+        switch self.cx.kind() {
+            case klex.TokenKind.LET, klex.TokenKind.VAR, klex.TokenKind.CONST,
+                 klex.TokenKind.FUNC, klex.TokenKind.CLASS, klex.TokenKind.TRAIT,
+                 klex.TokenKind.ENUM, klex.TokenKind.TYPE, klex.TokenKind.IF,
+                 klex.TokenKind.WHILE, klex.TokenKind.LOOP, klex.TokenKind.FOR,
+                 klex.TokenKind.WITH, klex.TokenKind.SWITCH, klex.TokenKind.RETURN,
+                 klex.TokenKind.BREAK, klex.TokenKind.CONTINUE, klex.TokenKind.IMPORT,
+                 klex.TokenKind.FROM, klex.TokenKind.LINK, klex.TokenKind.AT,
+                 klex.TokenKind.PUBLIC, klex.TokenKind.STATIC, klex.TokenKind.LBRACE:
+                return true
+            case _:
+                return false
+        }
+    }
+
+    /// True for `=` and the compound assignment operators.
+    func at_assign_op() bool {
+        switch self.cx.kind() {
+            case klex.TokenKind.ASSIGN, klex.TokenKind.PLUS_ASSIGN, klex.TokenKind.MINUS_ASSIGN,
+                 klex.TokenKind.MULT_ASSIGN, klex.TokenKind.DIV_ASSIGN, klex.TokenKind.MOD_ASSIGN,
+                 klex.TokenKind.AND_ASSIGN, klex.TokenKind.OR_ASSIGN, klex.TokenKind.XOR_ASSIGN,
+                 klex.TokenKind.SHL_ASSIGN, klex.TokenKind.SHR_ASSIGN:
+                return true
+            case _:
+                return false
+        }
+    }
+
+    /// Skip tokens up to the next `;` (consumed), `}` or statement keyword
+    /// (left in place). Always consumes at least one token unless already at
+    /// a stopping point, so recovery cannot loop.
+    func sync_tokens() list[SyntaxToken] {
+        let junk = list[SyntaxToken]()
+        while !self.cx.at_end() {
+            let k = self.cx.kind()
+            if k == klex.TokenKind.SEMI {
+                junk.append(self.cx.bump())
+                return junk
+            }
+            if k == klex.TokenKind.RBRACE {
+                return junk
+            }
+            if junk.len() > 0 && self.at_stmt_start() {
+                return junk
+            }
+            junk.append(self.cx.bump())
+        }
+        return junk
+    }
+
+    /// Parse the whole token stream into a module.
+    pub func parse_module() Module {
+        let items = list[Stmt]()
+        while !self.cx.at_end() {
+            let before = self.cx.pos()
+            items.append(self.parse_stmt())
+            if self.cx.pos() == before {
+                let junk = self.sync_tokens()
+                if junk.len() == 0 {
+                    break
+                }
+                items.append(ErrorStmt(junk))
+            }
+        }
+        return Module(items, self.cx.bump())
+    }
+
+    func parse_stmt() Stmt {
+        if self.depth >= MAX_DEPTH {
+            self.error("statement nested too deeply")
+            let junk = list[SyntaxToken]()
+            if !self.cx.at_end() {
+                junk.append(self.cx.bump())
+            }
+            return ErrorStmt(junk)
+        }
+        self.depth += 1
+        let s = self.parse_stmt_inner()
+        self.depth -= 1
+        return s
+    }
+
+    func parse_stmt_inner() Stmt {
+        switch self.cx.kind() {
+            case klex.TokenKind.SEMI: return EmptyStmt(self.cx.bump())
+            case klex.TokenKind.LBRACE: {
+                if self.brace_is_map() {
+                    return self.parse_expr_stmt()
+                }
+                return self.parse_block()
+            }
+            case klex.TokenKind.LET, klex.TokenKind.VAR, klex.TokenKind.CONST:
+                return self.parse_var_decl(nil)
+            case klex.TokenKind.IMPORT: return self.parse_import()
+            case klex.TokenKind.FROM: return self.parse_from()
+            case klex.TokenKind.LINK: return self.parse_link()
+            case klex.TokenKind.FUNC: return self.parse_func(nil)
+            case klex.TokenKind.CLASS, klex.TokenKind.TRAIT: return self.parse_type_decl(nil)
+            case klex.TokenKind.ENUM: return self.parse_enum(nil)
+            case klex.TokenKind.TYPE: return self.parse_type_alias(nil)
+            case klex.TokenKind.IF: return self.parse_if_stmt()
+            case klex.TokenKind.WHILE: return self.parse_while()
+            case klex.TokenKind.LOOP: return self.parse_loop()
+            case klex.TokenKind.FOR: return self.parse_for()
+            case klex.TokenKind.WITH: return self.parse_with()
+            case klex.TokenKind.SWITCH: return self.parse_switch()
+            case klex.TokenKind.RETURN: return self.parse_return()
+            case klex.TokenKind.BREAK, klex.TokenKind.CONTINUE: return self.parse_jump()
+            case klex.TokenKind.AT, klex.TokenKind.PUBLIC, klex.TokenKind.STATIC:
+                return self.parse_after_prefix(self.parse_modifiers())
+            case _: return self.parse_expr_stmt()
+        }
+    }
+
+    /// Parse `{ ... }`. A missing closing brace is reported and replaced by
+    /// a missing token, so the block still covers everything it swallowed.
+    func parse_block() Block {
+        let lb = self.expect(klex.TokenKind.LBRACE, "expected '{'")
+        let items = list[Stmt]()
+        while !self.cx.check(klex.TokenKind.RBRACE) && !self.cx.at_end() {
+            let before = self.cx.pos()
+            items.append(self.parse_stmt())
+            if self.cx.pos() == before {
+                let junk = self.sync_tokens()
+                if junk.len() == 0 {
+                    break
+                }
+                items.append(ErrorStmt(junk))
+            }
+        }
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        return Block(lb, items, rb)
+    }
+
+    /// An expression, an assignment, or a tuple assignment.
+    func parse_expr_stmt() Stmt {
+        let e = self.parse_expr(0)
+        if self.at_assign_op() {
+            let op = self.cx.bump()
+            let v = self.parse_expr(0)
+            let semi = self.eat_stmt_semi()
+            if e is TupleExpr {
+                return TupleAssignStmt(e.lparen, e.items, e.seps, e.rparen, op, v, semi)
+            }
+            self.check_lvalue(e)
+            return AssignStmt(e, op, v, semi)
+        }
+        let semi = self.eat_stmt_semi()
+        return ExprStmt(e, semi)
+    }
+
+    /// Eat the statement's `;`. ASI has usually inserted one already; when
+    /// it is absent, only `}`, `case`, `,` or the end of input may follow.
+    func eat_stmt_semi() SyntaxToken? {
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        if semi == nil && !self.cx.at_end() && !self.cx.check(klex.TokenKind.RBRACE) &&
+           !self.cx.check(klex.TokenKind.CASE) && !self.cx.check(klex.TokenKind.COMMA) {
+            self.error("expected ';'")
+        }
+        return semi
+    }
+
+    /// Report an assignment target the compiler would reject: only a name,
+    /// a member, or a subscript may be assigned to.
+    func check_lvalue(e Expr) {
+        if e is AtomExpr {
+            if e.kind() == NodeKind.IDENT {
+                return
+            }
+        }
+        if e is IndexExpr {
+            return
+        }
+        if e is DotExpr {
+            let k = e.op.token_kind()
+            if k == klex.TokenKind.DOT || k == klex.TokenKind.BANG_DOT {
+                return
+            }
+        }
+        self.diags.append(Diagnostic("invalid assignment target", e.span()))
+    }
+
+    func parse_return() Stmt {
+        let kw = self.cx.bump()
+        var value Expr? = nil
+        if !self.cx.check(klex.TokenKind.SEMI) && !self.cx.check(klex.TokenKind.RBRACE) && !self.cx.at_end() {
+            value = self.parse_expr(0)
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return ReturnStmt(kw, value, semi)
+    }
+
+    func parse_jump() Stmt {
+        let kw = self.cx.bump()
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return JumpStmt(kw, semi)
+    }
+
+    /// `let`/`var`/`const`, with an optional type, initializer and `else`
+    /// branch. Also used for class fields, which may have no initializer.
+    func parse_var_decl(prefix Prefix?) Stmt {
+        let kw = self.cx.bump()
+        if self.cx.check(klex.TokenKind.LPAREN) {
+            return self.parse_tuple_decl(kw)
+        }
+        let name = self.expect(klex.TokenKind.ID, "expected a name")
+        var ty TypeNode? = nil
+        if self.at_type_start() {
+            ty = self.parse_base_type()
+        }
+        var eq SyntaxToken? = nil
+        var value Expr? = nil
+        if self.cx.check(klex.TokenKind.ASSIGN) {
+            eq = self.cx.bump()
+            value = self.parse_expr(0)
+        }
+        var else_kw SyntaxToken? = nil
+        var else_block Block? = nil
+        if self.cx.check(klex.TokenKind.ELSE) {
+            else_kw = self.cx.bump()
+            else_block = self.parse_block()
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return VarDecl(prefix, kw, name, ty, eq, value, else_kw, else_block, semi)
+    }
+
+    /// `let (a, b int, _) = e`, optionally followed by `else { ... }`.
+    func parse_tuple_decl(kw SyntaxToken) Stmt {
+        let lp = self.cx.bump()
+        let targets = list[TupleTarget]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RPAREN) {
+            targets.append(self.parse_tuple_target())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RPAREN) {
+                    break
+                }
+                targets.append(self.parse_tuple_target())
+            }
+        }
+        let rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        let eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        let value = self.parse_expr(0)
+        var else_kw SyntaxToken? = nil
+        var else_block Block? = nil
+        if self.cx.check(klex.TokenKind.ELSE) {
+            else_kw = self.cx.bump()
+            else_block = self.parse_block()
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return TupleDeclStmt(kw, lp, targets, seps, rp, eq, value, else_kw, else_block, semi)
+    }
+
+    func parse_tuple_target() TupleTarget {
+        var name = self.cx.eat(klex.TokenKind.UNDERSCORE)
+        if name == nil {
+            name = self.expect(klex.TokenKind.ID, "expected a name or '_'")
+        }
+        var ty TypeNode? = nil
+        if self.at_type_start() {
+            ty = self.parse_base_type()
+        }
+        return TupleTarget(name!, ty)
+    }
+
+    /// `if`, `if let x = e`, `if (let x = e)`, with `else` / `else if`.
+    func parse_if_stmt() Stmt {
+        let kw = self.cx.bump()
+        var lp SyntaxToken? = nil
+        var let_kw SyntaxToken? = nil
+        var name SyntaxToken? = nil
+        var eq SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.LET) {
+            let_kw = self.cx.bump()
+            name = self.expect(klex.TokenKind.ID, "expected a name")
+            eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        } else if self.cx.check2(klex.TokenKind.LPAREN, klex.TokenKind.LET) {
+            lp = self.cx.bump()
+            let_kw = self.cx.bump()
+            name = self.expect(klex.TokenKind.ID, "expected a name")
+            eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        }
+        let cond = self.parse_expr(0)
+        var rp SyntaxToken? = nil
+        if lp != nil {
+            rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        }
+        let body = self.parse_block()
+        var else_kw SyntaxToken? = nil
+        var else_body Node? = nil
+        if self.cx.check(klex.TokenKind.ELSE) {
+            else_kw = self.cx.bump()
+            if self.cx.check(klex.TokenKind.IF) {
+                else_body = self.parse_if_stmt()
+            } else {
+                else_body = self.parse_block()
+            }
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return IfStmt(kw, lp, let_kw, name, eq, cond, rp, body, else_kw, else_body, semi)
+    }
+
+    /// `while`, `while let x = e`, `while (let x = e)`.
+    func parse_while() Stmt {
+        let kw = self.cx.bump()
+        var lp SyntaxToken? = nil
+        var let_kw SyntaxToken? = nil
+        var name SyntaxToken? = nil
+        var eq SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.LET) {
+            let_kw = self.cx.bump()
+            name = self.expect(klex.TokenKind.ID, "expected a name")
+            eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        } else if self.cx.check2(klex.TokenKind.LPAREN, klex.TokenKind.LET) {
+            lp = self.cx.bump()
+            let_kw = self.cx.bump()
+            name = self.expect(klex.TokenKind.ID, "expected a name")
+            eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        }
+        let cond = self.parse_expr(0)
+        var rp SyntaxToken? = nil
+        if lp != nil {
+            rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        }
+        let body = self.parse_block()
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return WhileStmt(kw, lp, let_kw, name, eq, cond, rp, body, semi)
+    }
+
+    func parse_loop() Stmt {
+        let kw = self.cx.bump()
+        let body = self.parse_block()
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return LoopStmt(kw, body, semi)
+    }
+
+    /// `for x in e`, `for (k, v) in e`, `for _ in e`.
+    func parse_for() Stmt {
+        let kw = self.cx.bump()
+        let lp = self.cx.eat(klex.TokenKind.LPAREN)
+        let vars = list[SyntaxToken]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RPAREN) && !self.cx.check(klex.TokenKind.IN) {
+            vars.append(self.parse_loop_var())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RPAREN) || self.cx.check(klex.TokenKind.IN) {
+                    break
+                }
+                vars.append(self.parse_loop_var())
+            }
+        }
+        var rp SyntaxToken? = nil
+        if lp != nil {
+            rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        }
+        let in_kw = self.expect(klex.TokenKind.IN, "expected 'in'")
+        let iter = self.parse_expr(0)
+        let body = self.parse_block()
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return ForStmt(kw, lp, vars, seps, rp, in_kw, iter, body, semi)
+    }
+
+    func parse_loop_var() SyntaxToken {
+        let t = self.cx.eat(klex.TokenKind.UNDERSCORE)
+        if let v = t {
+            return v
+        }
+        return self.expect(klex.TokenKind.ID, "expected a name or '_'")
+    }
+
+    /// `with r`, `with v = e`, `with let v = e ... else { ... }`.
+    func parse_with() Stmt {
+        let kw = self.cx.bump()
+        var let_kw SyntaxToken? = nil
+        var name SyntaxToken? = nil
+        var eq SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.LET) {
+            let_kw = self.cx.bump()
+            name = self.expect(klex.TokenKind.ID, "expected a name")
+            eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        } else if self.cx.check2(klex.TokenKind.ID, klex.TokenKind.ASSIGN) {
+            name = self.cx.bump()
+            eq = self.cx.bump()
+        }
+        let value = self.parse_expr(0)
+        let body = self.parse_block()
+        var else_kw SyntaxToken? = nil
+        var else_block Block? = nil
+        if self.cx.check(klex.TokenKind.ELSE) {
+            else_kw = self.cx.bump()
+            else_block = self.parse_block()
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return WithStmt(kw, let_kw, name, eq, value, body, else_kw, else_block, semi)
+    }
+
+    func parse_switch() Stmt {
+        let kw = self.cx.bump()
+        let subject = self.parse_expr(0)
+        let lb = self.expect(klex.TokenKind.LBRACE, "expected '{'")
+        let cases = list[Node]()
+        while !self.cx.check(klex.TokenKind.RBRACE) && !self.cx.at_end() {
+            if self.cx.check(klex.TokenKind.CASE) {
+                cases.append(self.parse_case())
+                continue
+            }
+            self.error("expected 'case'")
+            let junk = self.sync_tokens()
+            if junk.len() == 0 {
+                break
+            }
+            cases.append(ErrorStmt(junk))
+        }
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return SwitchStmt(kw, subject, lb, cases, rb, semi)
+    }
+
+    func parse_case() CaseClause {
+        let kw = self.cx.bump()
+        let patterns = list[CasePattern]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.COLON) {
+            patterns.append(self.parse_case_pattern())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.COLON) {
+                    break
+                }
+                patterns.append(self.parse_case_pattern())
+            }
+        }
+        let colon = self.expect(klex.TokenKind.COLON, "expected ':'")
+        let body = self.parse_case_body()
+        var tail SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.SEMI) || self.cx.check(klex.TokenKind.COMMA) {
+            tail = self.cx.bump()
+        }
+        return CaseClause(kw, patterns, seps, colon, body, tail)
+    }
+
+    func parse_case_pattern() CasePattern {
+        if self.cx.check(klex.TokenKind.IN) {
+            let kw = self.cx.bump()
+            let v = self.parse_expr(0)
+            return CasePattern(kw, nil, v, nil)
+        }
+        if self.cx.check(klex.TokenKind.IS) {
+            let kw = self.cx.bump()
+            let ty = self.parse_type_atom()
+            return CasePattern(nil, kw, nil, ty)
+        }
+        let v = self.parse_expr(0)
+        return CasePattern(nil, nil, v, nil)
+    }
+
+    /// A case body: a block, or a single expression, assignment, `return`,
+    /// `break` or `continue`.
+    func parse_case_body() Stmt {
+        switch self.cx.kind() {
+            case klex.TokenKind.LBRACE: {
+                if self.brace_is_map() {
+                    return self.parse_expr_stmt()
+                }
+                return self.parse_block()
+            }
+            case klex.TokenKind.RETURN: return self.parse_return()
+            case klex.TokenKind.BREAK, klex.TokenKind.CONTINUE: return self.parse_jump()
+            case _: return self.parse_expr_stmt()
+        }
+    }
+
+    func parse_import() Stmt {
+        let kw = self.cx.bump()
+        let path = self.expect(klex.TokenKind.STRING_LITERAL, "expected a module path")
+        let as_kw = self.cx.eat(klex.TokenKind.AS)
+        var alias SyntaxToken? = nil
+        if as_kw != nil {
+            alias = self.expect(klex.TokenKind.ID, "expected an alias")
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return ImportStmt(kw, path, as_kw, alias, semi)
+    }
+
+    func parse_from() Stmt {
+        let kw = self.cx.bump()
+        let path = self.expect(klex.TokenKind.STRING_LITERAL, "expected a module path")
+        let import_kw = self.expect(klex.TokenKind.IMPORT, "expected 'import'")
+        let items = list[ImportItem]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.SEMI) && !self.cx.at_end() {
+            items.append(self.parse_import_item())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.SEMI) || self.cx.at_end() {
+                    break
+                }
+                items.append(self.parse_import_item())
+            }
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return FromStmt(kw, path, import_kw, items, seps, semi)
+    }
+
+    func parse_import_item() ImportItem {
+        let name = self.expect(klex.TokenKind.ID, "expected a name")
+        let as_kw = self.cx.eat(klex.TokenKind.AS)
+        var alias SyntaxToken? = nil
+        if as_kw != nil {
+            alias = self.expect(klex.TokenKind.ID, "expected an alias")
+        }
+        return ImportItem(name, as_kw, alias)
+    }
+
+    func parse_link() Stmt {
+        let kw = self.cx.bump()
+        let path = self.expect(klex.TokenKind.STRING_LITERAL, "expected a library path")
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return LinkStmt(kw, path, semi)
+    }
+
+    /// Annotations, then `pub`, then `static`, in that order.
+    func parse_modifiers() Prefix {
+        let anns = list[Annotation]()
+        while self.cx.check(klex.TokenKind.AT) {
+            anns.append(self.parse_annotation())
+        }
+        let pub_kw = self.cx.eat(klex.TokenKind.PUBLIC)
+        let static_kw = self.cx.eat(klex.TokenKind.STATIC)
+        return Prefix(anns, pub_kw, static_kw)
+    }
+
+    func parse_annotation() Annotation {
+        let at = self.cx.bump()
+        let name = self.expect(klex.TokenKind.ID, "expected an annotation name")
+        var lp SyntaxToken? = nil
+        let args = list[Node]()
+        let seps = list[SyntaxToken]()
+        var rp SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.LPAREN) {
+            lp = self.cx.bump()
+            if !self.cx.check(klex.TokenKind.RPAREN) {
+                args.append(self.parse_annot_arg())
+                while self.cx.check(klex.TokenKind.COMMA) {
+                    seps.append(self.cx.bump())
+                    if self.cx.check(klex.TokenKind.RPAREN) {
+                        break
+                    }
+                    args.append(self.parse_annot_arg())
+                }
+            }
+            rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        }
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return Annotation(at, name, lp, args, seps, rp, semi)
+    }
+
+    /// An annotation argument: a type, a bracketed type list, a string, or
+    /// `name = value`.
+    func parse_annot_arg() Node {
+        if self.cx.check2(klex.TokenKind.ID, klex.TokenKind.ASSIGN) {
+            let name = self.cx.bump()
+            let eq = self.cx.bump()
+            let v = self.parse_expr(0)
+            return AnnotParam(name, eq, v)
+        }
+        if self.cx.check(klex.TokenKind.STRING_LITERAL) {
+            return AtomExpr(self.cx.bump())
+        }
+        if self.cx.check(klex.TokenKind.LBRACKET) {
+            return self.parse_type_args()
+        }
+        return self.parse_base_type()
+    }
+
+    /// Dispatch on the declaration keyword that follows a modifier.
+    func parse_after_prefix(p Prefix) Stmt {
+        switch self.cx.kind() {
+            case klex.TokenKind.LET, klex.TokenKind.VAR, klex.TokenKind.CONST:
+                return self.parse_var_decl(p)
+            case klex.TokenKind.FUNC: return self.parse_func(p)
+            case klex.TokenKind.CLASS, klex.TokenKind.TRAIT: return self.parse_type_decl(p)
+            case klex.TokenKind.ENUM: return self.parse_enum(p)
+            case klex.TokenKind.TYPE: return self.parse_type_alias(p)
+            case _: {
+                self.error("expected a declaration after the modifier")
+                let junk = list[SyntaxToken]()
+                tokens_of(p, junk)
+                for t in self.sync_tokens() {
+                    junk.append(t)
+                }
+                return ErrorStmt(junk)
+            }
+        }
+    }
+
+    /// A function or method: with a block body, a `= expr` body, or no body
+    /// at all (a trait signature).
+    func parse_func(prefix Prefix?) Stmt {
+        let kw = self.cx.bump()
+        let name = self.expect(klex.TokenKind.ID, "expected a function name")
+        var tparams TypeParamList? = nil
+        if self.cx.check(klex.TokenKind.LBRACKET) {
+            tparams = self.parse_type_params()
+        }
+        let lp = self.expect(klex.TokenKind.LPAREN, "expected '('")
+        let params = list[Param]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RPAREN) {
+            params.append(self.parse_param())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RPAREN) {
+                    break
+                }
+                params.append(self.parse_param())
+            }
+        }
+        let rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        var ret TypeNode? = nil
+        if self.at_type_start() {
+            ret = self.parse_base_type()
+            if self.cx.check(klex.TokenKind.PIPE) {
+                self.error("a union type is not allowed as a return type")
+                ret = self.parse_union_rest(ret!)
+            }
+        }
+        var eq SyntaxToken? = nil
+        var body Node? = nil
+        var semi SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.ASSIGN) {
+            eq = self.cx.bump()
+            body = self.parse_expr(0)
+            semi = self.cx.eat(klex.TokenKind.SEMI)
+        } else if self.cx.check(klex.TokenKind.LBRACE) {
+            body = self.parse_block()
+            semi = self.cx.eat(klex.TokenKind.SEMI)
+        } else {
+            semi = self.cx.eat(klex.TokenKind.SEMI)
+        }
+        return FuncDecl(prefix, kw, name, tparams, lp, params, seps, rp, ret, eq, body, semi)
+    }
+
+    func parse_param() Param {
+        let name = self.expect(klex.TokenKind.ID, "expected a parameter name")
+        let vararg = self.cx.eat(klex.TokenKind.DOTDOTDOT)
+        var ty TypeNode? = nil
+        if self.at_type_start() {
+            ty = self.parse_type()
+        }
+        var eq SyntaxToken? = nil
+        var default Expr? = nil
+        if self.cx.check(klex.TokenKind.ASSIGN) {
+            eq = self.cx.bump()
+            default = self.parse_expr(0)
+        }
+        return Param(name, vararg, ty, eq, default)
+    }
+
+    /// `[T, U : Bound, const N int]`.
+    func parse_type_params() TypeParamList {
+        let lb = self.expect(klex.TokenKind.LBRACKET, "expected '['")
+        let items = list[TypeParam]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RBRACKET) {
+            items.append(self.parse_type_param())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RBRACKET) {
+                    break
+                }
+                items.append(self.parse_type_param())
+            }
+        }
+        let rb = self.expect(klex.TokenKind.RBRACKET, "expected ']'")
+        return TypeParamList(lb, items, seps, rb)
+    }
+
+    func parse_type_param() TypeParam {
+        let const_kw = self.cx.eat(klex.TokenKind.CONST)
+        let infer_kw = self.cx.eat(klex.TokenKind.INFER)
+        let name = self.expect(klex.TokenKind.ID, "expected a type parameter name")
+        var colon SyntaxToken? = nil
+        let bounds = list[TypeNode]()
+        let bseps = list[SyntaxToken]()
+        if const_kw != nil {
+            if self.at_type_start() {
+                bounds.append(self.parse_base_type())
+            }
+        } else if self.cx.check(klex.TokenKind.COLON) {
+            colon = self.cx.bump()
+            bounds.append(self.parse_klass_type())
+            while self.cx.check(klex.TokenKind.AMP) {
+                bseps.append(self.cx.bump())
+                bounds.append(self.parse_klass_type())
+            }
+        }
+        return TypeParam(const_kw, infer_kw, name, colon, bounds, bseps)
+    }
+
+    /// A declared name: an identifier, or a builtin type keyword when a
+    /// builtin class is reopened (`class str { ... }`).
+    func parse_decl_name() SyntaxToken {
+        if self.cx.check(klex.TokenKind.ID) {
+            return self.cx.bump()
+        }
+        if self.at_type_start() {
+            return self.cx.bump()
+        }
+        self.error("expected a name")
+        return self.missing(klex.TokenKind.ID)
+    }
+
+    /// `class` or `trait`, with type parameters, base types and members.
+    func parse_type_decl(prefix Prefix?) Stmt {
+        let kw = self.cx.bump()
+        let name = self.parse_decl_name()
+        var tparams TypeParamList? = nil
+        if self.cx.check(klex.TokenKind.LBRACKET) {
+            tparams = self.parse_type_params()
+        }
+        let colon = self.cx.eat(klex.TokenKind.COLON)
+        let bases = list[TypeNode]()
+        let bseps = list[SyntaxToken]()
+        if colon != nil {
+            bases.append(self.parse_klass_type())
+            while self.cx.check(klex.TokenKind.AMP) {
+                bseps.append(self.cx.bump())
+                bases.append(self.parse_klass_type())
+            }
+        }
+        let lb = self.expect(klex.TokenKind.LBRACE, "expected '{'")
+        let members = list[Stmt]()
+        while !self.cx.check(klex.TokenKind.RBRACE) && !self.cx.at_end() {
+            let before = self.cx.pos()
+            members.append(self.parse_stmt())
+            if self.cx.pos() == before {
+                let junk = self.sync_tokens()
+                if junk.len() == 0 {
+                    break
+                }
+                members.append(ErrorStmt(junk))
+            }
+        }
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return TypeDecl(prefix, kw, name, tparams, colon, bases, bseps, lb, members, rb, semi)
+    }
+
+    func parse_enum(prefix Prefix?) Stmt {
+        let kw = self.cx.bump()
+        let name = self.expect(klex.TokenKind.ID, "expected an enum name")
+        let lb = self.expect(klex.TokenKind.LBRACE, "expected '{'")
+        let members = list[EnumMember]()
+        let seps = list[SyntaxToken]()
+        while !self.cx.check(klex.TokenKind.RBRACE) && !self.cx.at_end() {
+            members.append(self.parse_enum_member())
+            if self.cx.check(klex.TokenKind.COMMA) || self.cx.check(klex.TokenKind.SEMI) {
+                seps.append(self.cx.bump())
+            } else {
+                break
+            }
+        }
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return EnumDecl(prefix, kw, name, lb, members, seps, rb, semi)
+    }
+
+    func parse_enum_member() EnumMember {
+        let name = self.expect(klex.TokenKind.ID, "expected an enum member name")
+        var eq SyntaxToken? = nil
+        var value SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.ASSIGN) {
+            eq = self.cx.bump()
+            value = self.expect(klex.TokenKind.INT_LITERAL, "expected an integer value")
+        }
+        return EnumMember(name, eq, value)
+    }
+
+    func parse_type_alias(prefix Prefix?) Stmt {
+        let kw = self.cx.bump()
+        let name = self.expect(klex.TokenKind.ID, "expected a type name")
+        let eq = self.expect(klex.TokenKind.ASSIGN, "expected '='")
+        let ty = self.parse_base_type()
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        return TypeAliasStmt(prefix, kw, name, eq, ty, semi)
+    }
+
+    /// A type: a `base_type` plus a `|` union. Only parameter types and
+    /// typed assignments allow unions; most contexts use `parse_base_type`.
+    func parse_type() TypeNode {
+        if self.depth >= MAX_DEPTH {
+            self.error("type nested too deeply")
+            return AtomType(self.missing(klex.TokenKind.ID))
+        }
+        self.depth += 1
+        var t = self.parse_base_type()
+        if self.cx.check(klex.TokenKind.PIPE) {
+            t = self.parse_union_rest(t)
+        }
+        self.depth -= 1
+        return t
+    }
+
+    /// `base_type`: a type shape with an optional `?`, but no union. This is
+    /// what `let`/`var`, return types, lambda parameters and type arguments
+    /// use, so a `|` after them is left for the enclosing syntax (a lambda's
+    /// closing bar, a bitwise-or, ...).
+    func parse_base_type() TypeNode {
+        var t = self.parse_type_atom()
+        if self.cx.check(klex.TokenKind.QUESTION) {
+            t = OptionalType(t, self.cx.bump())
+        }
+        return t
+    }
+
+    /// The `| B | C` rest of a union whose first member is already parsed.
+    func parse_union_rest(first TypeNode) TypeNode {
+        let items = list[TypeNode]()
+        let seps = list[SyntaxToken]()
+        items.append(first)
+        while self.cx.check(klex.TokenKind.PIPE) {
+            seps.append(self.cx.bump())
+            var u = self.parse_type_atom()
+            if self.cx.check(klex.TokenKind.QUESTION) {
+                u = OptionalType(u, self.cx.bump())
+            }
+            items.append(u)
+        }
+        return UnionType(items, seps)
+    }
+
+    /// A class or trait name in an `extends` or bound list: `Foo`,
+    /// `pkg.Foo`, `Foo[int]`. No `?`, no union.
+    func parse_klass_type() TypeNode {
+        var name = self.expect(klex.TokenKind.ID, "expected a type name")
+        var prefix SyntaxToken? = nil
+        var dot SyntaxToken? = nil
+        if self.cx.check(klex.TokenKind.DOT) {
+            dot = self.cx.bump()
+            prefix = name
+            name = self.expect(klex.TokenKind.ID, "expected a type name")
+        }
+        var args TypeArgList? = nil
+        if self.cx.check(klex.TokenKind.LBRACKET) {
+            args = self.parse_type_args()
+        }
+        return NamedType(prefix, dot, name, args)
+    }
+
+    /// Like `at_type_start`, but a lambda parameter's `base_type` cannot be
+    /// a function type.
+    func at_base_type_start() bool {
+        if self.cx.check(klex.TokenKind.FUNC_LPAREN) {
+            return false
+        }
+        return self.at_type_start()
+    }
+
+    /// `[T1, T2, ...]`, the argument list of a parameterized type.
+    func parse_type_args() TypeArgList {
+        let lb = self.expect(klex.TokenKind.LBRACKET, "expected '['")
+        let items = list[TypeNode]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RBRACKET) {
+            items.append(self.parse_type())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RBRACKET) {
+                    break
+                }
+                items.append(self.parse_type())
+            }
+        }
+        let rb = self.expect(klex.TokenKind.RBRACKET, "expected ']'")
+        return TypeArgList(lb, items, seps, rb)
+    }
+
+    /// Array extents: integer literals or `_`, separated by commas, with an
+    /// optional trailing comma. Results are appended to the given lists.
+    func parse_dims(dims list[SyntaxToken], dseps list[SyntaxToken]) {
+        if !self.cx.check(klex.TokenKind.RBRACKET) {
+            dims.append(self.parse_dim())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                dseps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RBRACKET) {
+                    break
+                }
+                dims.append(self.parse_dim())
+            }
+        }
+    }
+
+    func parse_dim() SyntaxToken {
+        let t = self.cx.eat(klex.TokenKind.UNDERSCORE)
+        if let v = t {
+            return v
+        }
+        return self.expect(klex.TokenKind.INT_LITERAL, "expected an array extent")
+    }
+
+    func parse_type_atom() TypeNode {
+        switch self.cx.kind() {
+            case klex.TokenKind.ID: {
+                var name = self.cx.bump()
+                var prefix SyntaxToken? = nil
+                var dot SyntaxToken? = nil
+                if self.cx.check(klex.TokenKind.DOT) {
+                    dot = self.cx.bump()
+                    prefix = name
+                    name = self.expect(klex.TokenKind.ID, "expected a type name")
+                }
+                var args TypeArgList? = nil
+                if self.cx.check(klex.TokenKind.LBRACKET) {
+                    args = self.parse_type_args()
+                }
+                return NamedType(prefix, dot, name, args)
+            }
+            case klex.TokenKind.LIST, klex.TokenKind.MAP, klex.TokenKind.SET, klex.TokenKind.TUPLE: {
+                let kw = self.cx.bump()
+                let args = self.parse_type_args()
+                return AppliedType(kw, args)
+            }
+            case klex.TokenKind.ARRAY: {
+                let kw = self.cx.bump()
+                let lb = self.expect(klex.TokenKind.LBRACKET, "expected '['")
+                let elem = self.parse_type()
+                let comma = self.cx.eat(klex.TokenKind.COMMA)
+                let dims = list[SyntaxToken]()
+                let dseps = list[SyntaxToken]()
+                self.parse_dims(dims, dseps)
+                let rb = self.expect(klex.TokenKind.RBRACKET, "expected ']'")
+                return ArrayType(kw, lb, elem, comma, dims, dseps, rb, false)
+            }
+            case klex.TokenKind.LBRACKET: {
+                let lb = self.cx.bump()
+                let dims = list[SyntaxToken]()
+                let dseps = list[SyntaxToken]()
+                self.parse_dims(dims, dseps)
+                let rb = self.expect(klex.TokenKind.RBRACKET, "expected ']'")
+                let elem = self.parse_type()
+                return ArrayType(nil, lb, elem, nil, dims, dseps, rb, true)
+            }
+            case klex.TokenKind.FUNC_LPAREN: {
+                let kw = self.cx.bump()
+                let params = list[TypeNode]()
+                let seps = list[SyntaxToken]()
+                if !self.cx.check(klex.TokenKind.RPAREN) {
+                    params.append(self.parse_type())
+                    while self.cx.check(klex.TokenKind.COMMA) {
+                        seps.append(self.cx.bump())
+                        if self.cx.check(klex.TokenKind.RPAREN) {
+                            break
+                        }
+                        params.append(self.parse_type())
+                    }
+                }
+                let rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+                var ret TypeNode? = nil
+                if self.at_type_start() {
+                    ret = self.parse_type()
+                }
+                return FuncType(kw, params, seps, rp, ret)
+            }
+            case klex.TokenKind.LPAREN: {
+                let lp = self.cx.bump()
+                let items = list[TypeNode]()
+                let seps = list[SyntaxToken]()
+                if !self.cx.check(klex.TokenKind.RPAREN) {
+                    items.append(self.parse_type())
+                    while self.cx.check(klex.TokenKind.COMMA) {
+                        seps.append(self.cx.bump())
+                        if self.cx.check(klex.TokenKind.RPAREN) {
+                            break
+                        }
+                        items.append(self.parse_type())
+                    }
+                }
+                let rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+                return ParenTupleType(lp, items, seps, rp)
+            }
+            case _: {
+                if self.at_type_start() {
+                    return AtomType(self.cx.bump())
+                }
+                self.error("expected a type")
+                return AtomType(self.missing(klex.TokenKind.ID))
+            }
+        }
+    }
+
+    /// Left binding power of an infix operator, 0 when `k` is not one.
+    /// The order matches `koala.y`, lowest first; `is`/`as` bind loosest,
+    /// postfix operators bind tightest (see `POSTFIX_BP`).
+    func infix_bp(k klex.TokenKind) int {
+        switch k {
+            case klex.TokenKind.IS, klex.TokenKind.AS: return 2
+            case klex.TokenKind.COALESCE: return 4
+            case klex.TokenKind.IN: return 6
+            case klex.TokenKind.OR: return 8
+            case klex.TokenKind.AND: return 10
+            case klex.TokenKind.PIPE: return 12
+            case klex.TokenKind.CARET: return 14
+            case klex.TokenKind.AMP: return 16
+            case klex.TokenKind.EQ, klex.TokenKind.NE: return 18
+            case klex.TokenKind.LT, klex.TokenKind.GT, klex.TokenKind.LE, klex.TokenKind.GE: return 20
+            case klex.TokenKind.L_SHIFT, klex.TokenKind.R_SHIFT: return 22
+            case klex.TokenKind.PLUS, klex.TokenKind.MINUS: return 24
+            case klex.TokenKind.STAR, klex.TokenKind.SLASH, klex.TokenKind.PERCENT: return 26
+            case _: return 0
+        }
+    }
+
+    /// Whether the `{` under the cursor opens a map literal rather than a
+    /// block. A map needs a `:` at brace depth zero before any `;`, and
+    /// `{}` and `{ case ... }` are never maps. This is what lets
+    /// `for v in {1:2} { ... }` and `if x { ... }` both parse.
+    func brace_is_map() bool {
+        let k0 = self.cx.kind_at(1)
+        if k0 == klex.TokenKind.RBRACE || k0 == klex.TokenKind.CASE {
+            return false
+        }
+        if k0 == klex.TokenKind.COLON {
+            return true
+        }
+        var j = self.cx.pos() + 1
+        let n = self.cx.len()
+        var depth = 0
+        while j < n {
+            let k = self.cx.at(j).token_kind()
+            if k == klex.TokenKind.LPAREN || k == klex.TokenKind.LBRACKET ||
+               k == klex.TokenKind.LBRACE || k == klex.TokenKind.LAMBDA_START ||
+               k == klex.TokenKind.LAMBDA_START_OR {
+                depth += 1
+            } else if k == klex.TokenKind.RPAREN || k == klex.TokenKind.RBRACKET {
+                depth -= 1
+            } else if k == klex.TokenKind.RBRACE {
+                if depth == 0 {
+                    return false
+                }
+                depth -= 1
+            } else if depth == 0 {
+                if k == klex.TokenKind.COLON {
+                    return true
+                }
+                if k == klex.TokenKind.SEMI || k == klex.TokenKind.EOF {
+                    return false
+                }
+            }
+            j += 1
+        }
+        return false
+    }
+
+    /// True when a signed number is glued to the operand just parsed, as in
+    /// `a-1`: `koala.l` folds the sign into the literal, so the compiler sees
+    /// two operands in a row. See `koala_usage_issues.md` #14.
+    func at_glued_number() bool {
+        let k = self.cx.kind()
+        if k != klex.TokenKind.INT_LITERAL && k != klex.TokenKind.FLOAT_LITERAL {
+            return false
+        }
+        let s = self.cx.cur().lexeme()
+        if s.len() == 0 {
+            return false
+        }
+        return s[0] == "+" || s[0] == "-"
+    }
+
+    /// Read a glued signed number as a binary `+`/`-`. The operator token is
+    /// missing (it has no source text of its own), and the literal keeps its
+    /// sign, so the tree still reproduces the input exactly.
+    func parse_glued_number(lhs Expr) Expr {
+        let t = self.cx.cur()
+        var k = klex.TokenKind.PLUS
+        if t.lexeme()[0] == "-" {
+            k = klex.TokenKind.MINUS
+        }
+        let op = self.missing(k)
+        let rhs = AtomExpr(self.cx.bump())
+        return BinaryExpr(lhs, op, rhs)
+    }
+
+    /// Parse an expression, taking every operator whose left binding power
+    /// is at least `min_bp`.
+    func parse_expr(min_bp int) Expr {
+        if self.depth >= MAX_DEPTH {
+            self.error("expression nested too deeply")
+            let junk = list[SyntaxToken]()
+            if !self.cx.at_end() {
+                junk.append(self.cx.bump())
+            }
+            return ErrorExpr(junk)
+        }
+        self.depth += 1
+        let e = self.parse_expr_inner(min_bp)
+        self.depth -= 1
+        return e
+    }
+
+    func parse_expr_inner(min_bp int) Expr {
+        var lhs = self.parse_prefix_expr()
+        loop {
+            if self.cx.at_end() {
+                break
+            }
+            let k = self.cx.kind()
+            if k == klex.TokenKind.DOT || k == klex.TokenKind.OPT_DOT || k == klex.TokenKind.BANG_DOT {
+                if POSTFIX_BP < min_bp {
+                    break
+                }
+                let op = self.cx.bump()
+                let name = self.expect(klex.TokenKind.ID, "expected a member name")
+                lhs = DotExpr(lhs, op, name)
+                continue
+            }
+            if k == klex.TokenKind.LPAREN {
+                if POSTFIX_BP < min_bp {
+                    break
+                }
+                lhs = self.parse_call(lhs)
+                continue
+            }
+            if k == klex.TokenKind.LBRACKET {
+                if POSTFIX_BP < min_bp {
+                    break
+                }
+                lhs = self.parse_index(lhs)
+                continue
+            }
+            if k == klex.TokenKind.NOT || k == klex.TokenKind.QUESTION {
+                if POSTFIX_BP < min_bp {
+                    break
+                }
+                lhs = PostfixExpr(lhs, self.cx.bump())
+                continue
+            }
+            if self.at_glued_number() {
+                if 24 < min_bp {
+                    break
+                }
+                lhs = self.parse_glued_number(lhs)
+                continue
+            }
+            let bp = self.infix_bp(k)
+            if bp == 0 || bp < min_bp {
+                break
+            }
+            let op = self.cx.bump()
+            if k == klex.TokenKind.IS || k == klex.TokenKind.AS {
+                let ty = self.parse_type()
+                lhs = CastExpr(lhs, op, ty)
+                continue
+            }
+            let rhs = self.parse_expr(bp + 1)
+            lhs = BinaryExpr(lhs, op, rhs)
+        }
+        return lhs
+    }
+
+    /// The operand at the start of an expression: a prefix operator, an
+    /// atom, or one of the bracketed forms.
+    func parse_prefix_expr() Expr {
+        switch self.cx.kind() {
+            case klex.TokenKind.PLUS, klex.TokenKind.MINUS, klex.TokenKind.TILDE, klex.TokenKind.NOT: {
+                let op = self.cx.bump()
+                let operand = self.parse_expr(UNARY_BP)
+                return UnaryExpr(op, operand)
+            }
+            case klex.TokenKind.ID, klex.TokenKind.SELF, klex.TokenKind.UNDERSCORE,
+                 klex.TokenKind.INT_LITERAL, klex.TokenKind.FLOAT_LITERAL,
+                 klex.TokenKind.STRING_LITERAL, klex.TokenKind.CHAR_LITERAL,
+                 klex.TokenKind.BYTES_LITERAL, klex.TokenKind.TRUE, klex.TokenKind.FALSE,
+                 klex.TokenKind.NONE, klex.TokenKind.CONST_PLACEHOLDER:
+                return AtomExpr(self.cx.bump())
+            case klex.TokenKind.LPAREN: return self.parse_paren()
+            case klex.TokenKind.LBRACKET: return self.parse_list()
+            case klex.TokenKind.LBRACE: {
+                if self.brace_is_map() {
+                    return self.parse_map()
+                }
+                self.error("expected an expression")
+                return ErrorExpr(list[SyntaxToken]())
+            }
+            case klex.TokenKind.LAMBDA_START, klex.TokenKind.LAMBDA_START_OR:
+                return self.parse_lambda()
+            case klex.TokenKind.IF: return self.parse_if_expr()
+            case _: {
+                if self.at_type_start() {
+                    return TypeExpr(AtomType(self.cx.bump()))
+                }
+                self.error("expected an expression")
+                let junk = list[SyntaxToken]()
+                if !self.cx.at_end() && !self.at_expr_stop() {
+                    junk.append(self.cx.bump())
+                }
+                return ErrorExpr(junk)
+            }
+        }
+    }
+
+    /// Tokens that close a construct; error recovery leaves them in place so
+    /// the enclosing parser can finish its own node.
+    func at_expr_stop() bool {
+        switch self.cx.kind() {
+            case klex.TokenKind.SEMI, klex.TokenKind.RBRACE, klex.TokenKind.RPAREN,
+                 klex.TokenKind.RBRACKET, klex.TokenKind.COMMA, klex.TokenKind.COLON,
+                 klex.TokenKind.ELSE, klex.TokenKind.CASE:
+                return true
+            case _:
+                return false
+        }
+    }
+
+    /// `(e)`, `(a, b)`, `(a,)` or `()`.
+    func parse_paren() Expr {
+        let lp = self.cx.bump()
+        let items = list[Expr]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RPAREN) {
+            items.append(self.parse_expr(0))
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RPAREN) {
+                    break
+                }
+                items.append(self.parse_expr(0))
+            }
+        }
+        let rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        if items.len() == 1 && seps.len() == 0 {
+            return ParenExpr(lp, items[0], rp)
+        }
+        return TupleExpr(lp, items, seps, rp)
+    }
+
+    func parse_list() Expr {
+        let lb = self.cx.bump()
+        let items = list[Expr]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RBRACKET) {
+            items.append(self.parse_expr(0))
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RBRACKET) || self.cx.check(klex.TokenKind.SEMI) {
+                    break
+                }
+                items.append(self.parse_expr(0))
+            }
+        }
+        let tail = self.cx.eat(klex.TokenKind.SEMI)
+        let rb = self.expect(klex.TokenKind.RBRACKET, "expected ']'")
+        return ListExpr(lb, items, seps, tail, rb)
+    }
+
+    func parse_map() Expr {
+        let lb = self.cx.bump()
+        let colon = self.cx.eat(klex.TokenKind.COLON)
+        let entries = list[MapEntry]()
+        let seps = list[SyntaxToken]()
+        if colon == nil && !self.cx.check(klex.TokenKind.RBRACE) {
+            loop {
+                let key = self.parse_expr(0)
+                let cl = self.expect(klex.TokenKind.COLON, "expected ':'")
+                let val = self.parse_expr(0)
+                entries.append(MapEntry(key, cl, val))
+                if !self.cx.check(klex.TokenKind.COMMA) {
+                    break
+                }
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RBRACE) || self.cx.check(klex.TokenKind.SEMI) {
+                    break
+                }
+            }
+        }
+        let tail = self.cx.eat(klex.TokenKind.SEMI)
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        return MapExpr(lb, colon, entries, seps, tail, rb)
+    }
+
+    func parse_call(callee Expr) Expr {
+        let lp = self.cx.bump()
+        let args = list[Expr]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RPAREN) {
+            args.append(self.parse_arg())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RPAREN) {
+                    break
+                }
+                args.append(self.parse_arg())
+            }
+        }
+        let rp = self.expect(klex.TokenKind.RPAREN, "expected ')'")
+        return CallExpr(callee, lp, args, seps, rp)
+    }
+
+    func parse_arg() Expr {
+        if self.cx.check2(klex.TokenKind.ID, klex.TokenKind.ASSIGN) {
+            let name = self.cx.bump()
+            let eq = self.cx.bump()
+            let v = self.parse_expr(0)
+            return KwArgExpr(name, eq, v)
+        }
+        return self.parse_expr(0)
+    }
+
+    func parse_index(value Expr) Expr {
+        let lb = self.cx.bump()
+        let items = list[Expr]()
+        let seps = list[SyntaxToken]()
+        if !self.cx.check(klex.TokenKind.RBRACKET) {
+            items.append(self.parse_index_item())
+            while self.cx.check(klex.TokenKind.COMMA) {
+                seps.append(self.cx.bump())
+                if self.cx.check(klex.TokenKind.RBRACKET) {
+                    break
+                }
+                items.append(self.parse_index_item())
+            }
+        }
+        let rb = self.expect(klex.TokenKind.RBRACKET, "expected ']'")
+        return IndexExpr(value, lb, items, seps, rb)
+    }
+
+    func parse_index_item() Expr {
+        if self.cx.check(klex.TokenKind.COLON) {
+            return self.parse_slice(nil)
+        }
+        let e = self.parse_expr(0)
+        if self.cx.check(klex.TokenKind.COLON) {
+            return self.parse_slice(e)
+        }
+        return e
+    }
+
+    /// The rest of a slice after its first `:`. Every spelling of `a:b:c`
+    /// with parts left out is covered.
+    func parse_slice(start Expr?) Expr {
+        let c1 = self.cx.bump()
+        var stop Expr? = nil
+        var c2 SyntaxToken? = nil
+        var step Expr? = nil
+        if !self.cx.check(klex.TokenKind.COLON) && !self.at_expr_stop() {
+            stop = self.parse_expr(0)
+        }
+        if self.cx.check(klex.TokenKind.COLON) {
+            c2 = self.cx.bump()
+            if !self.at_expr_stop() {
+                step = self.parse_expr(0)
+            }
+        }
+        return SliceExpr(start, c1, stop, c2, step)
+    }
+
+    /// `{|a, b| body}` or `{| body}`.
+    func parse_lambda() Expr {
+        let start = self.cx.bump()
+        let params = list[LambdaParam]()
+        let seps = list[SyntaxToken]()
+        var bar SyntaxToken? = nil
+        if start.token_kind() == klex.TokenKind.LAMBDA_START {
+            if !self.cx.check(klex.TokenKind.PIPE) {
+                params.append(self.parse_lambda_param())
+                while self.cx.check(klex.TokenKind.COMMA) {
+                    seps.append(self.cx.bump())
+                    if self.cx.check(klex.TokenKind.PIPE) {
+                        break
+                    }
+                    params.append(self.parse_lambda_param())
+                }
+            }
+            bar = self.expect(klex.TokenKind.PIPE, "expected '|'")
+        }
+        let body = self.parse_expr(0)
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        return LambdaExpr(start, params, seps, bar, body, semi, rb)
+    }
+
+    func parse_lambda_param() LambdaParam {
+        let name = self.expect(klex.TokenKind.ID, "expected a parameter name")
+        var ty TypeNode? = nil
+        if self.at_type_start() {
+            ty = self.parse_type()
+        }
+        return LambdaParam(name, ty)
+    }
+
+    /// `if c { a } else { b }` used as a value. `else` is required by the
+    /// language; when it is missing the tree still records the shape.
+    func parse_if_expr() Expr {
+        let kw = self.cx.bump()
+        let cond = self.parse_expr(0)
+        let then_branch = self.parse_if_branch()
+        var else_kw SyntaxToken? = nil
+        var else_branch Node? = nil
+        if self.cx.check(klex.TokenKind.ELSE) {
+            else_kw = self.cx.bump()
+            if self.cx.check(klex.TokenKind.IF) {
+                else_branch = self.parse_if_expr()
+            } else {
+                else_branch = self.parse_if_branch()
+            }
+        } else {
+            self.error("'if' expression requires 'else'")
+        }
+        return IfExpr(kw, cond, then_branch, else_kw, else_branch)
+    }
+
+    func parse_if_branch() IfBranch {
+        let lb = self.expect(klex.TokenKind.LBRACE, "expected '{'")
+        let value = self.parse_expr(0)
+        let semi = self.cx.eat(klex.TokenKind.SEMI)
+        let rb = self.expect(klex.TokenKind.RBRACE, "expected '}'")
+        return IfBranch(lb, value, semi, rb)
+    }
+}

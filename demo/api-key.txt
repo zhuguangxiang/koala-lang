@@ -1,2 +1,0 @@
-https://openrouter.ai/api/v1"
-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

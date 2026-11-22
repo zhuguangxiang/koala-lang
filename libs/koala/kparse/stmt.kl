@@ -1,0 +1,1280 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/klex"
+
+/// A whole source file: top-level statements plus the end-of-input token,
+/// which owns any trivia left at the end of the file.
+pub class Module : Node {
+    pub let items list[Stmt]
+    pub let eof SyntaxToken
+
+    pub func __init__(items list[Stmt], eof SyntaxToken) {
+        self.items = items
+        self.eof = eof
+    }
+
+    pub func kind() NodeKind = NodeKind.MODULE
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        for s in self.items {
+            out.append(s)
+        }
+        out.append(self.eof)
+        return out
+    }
+}
+
+/// `{ ... }`: a statement block.
+pub class Block : Stmt {
+    pub let lbrace SyntaxToken
+    pub let items list[Stmt]
+    pub let rbrace SyntaxToken
+
+    pub func __init__(lbrace SyntaxToken, items list[Stmt], rbrace SyntaxToken) {
+        self.lbrace = lbrace
+        self.items = items
+        self.rbrace = rbrace
+    }
+
+    pub func kind() NodeKind = NodeKind.BLOCK
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lbrace)
+        for s in self.items {
+            out.append(s)
+        }
+        out.append(self.rbrace)
+        return out
+    }
+}
+
+/// An expression evaluated for its effect, with its optional terminator.
+pub class ExprStmt : Stmt {
+    pub let value Expr
+    pub let semi SyntaxToken?
+
+    pub func __init__(value Expr, semi SyntaxToken?) {
+        self.value = value
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.EXPR_STMT
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.value)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// A lone `;`.
+pub class EmptyStmt : Stmt {
+    pub let semi SyntaxToken
+
+    pub func __init__(semi SyntaxToken) {
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.EMPTY
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.semi)
+        return out
+    }
+}
+
+/// Tokens the parser skipped while recovering from an error.
+pub class ErrorStmt : Stmt {
+    pub let tokens list[SyntaxToken]
+
+    pub func __init__(tokens list[SyntaxToken]) {
+        self.tokens = tokens
+    }
+
+    pub func kind() NodeKind = NodeKind.ERROR_STMT
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        for t in self.tokens {
+            out.append(t)
+        }
+        return out
+    }
+}
+
+/// A `let`, `var` or `const` binding; also used for class fields.
+///
+/// `kind()` returns `LET`, `VAR` or `CONST`. `value` is nil for a field
+/// declared without an initializer (`pub let name str`). `else_kw` and
+/// `else_block` hold the diverging branch of `let x = e else { ... }`.
+pub class VarDecl : Stmt {
+    pub let prefix Prefix?
+    pub let kw SyntaxToken
+    pub let name SyntaxToken
+    pub let ty TypeNode?
+    pub let eq SyntaxToken?
+    pub let value Expr?
+    pub let else_kw SyntaxToken?
+    pub let else_block Block?
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        prefix Prefix?, kw SyntaxToken, name SyntaxToken, ty TypeNode?, eq SyntaxToken?,
+        value Expr?, else_kw SyntaxToken?, else_block Block?, semi SyntaxToken? ) {
+        self.prefix = prefix
+        self.kw = kw
+        self.name = name
+        self.ty = ty
+        self.eq = eq
+        self.value = value
+        self.else_kw = else_kw
+        self.else_block = else_block
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind {
+        switch self.kw.token_kind() {
+            case klex.TokenKind.VAR: return NodeKind.VAR
+            case klex.TokenKind.CONST: return NodeKind.CONST
+            case _: return NodeKind.LET
+        }
+    }
+
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.prefix)
+        out.append(self.kw)
+        out.append(self.name)
+        add_opt(out, self.ty)
+        add_opt(out, self.eq)
+        add_opt(out, self.value)
+        add_opt(out, self.else_kw)
+        add_opt(out, self.else_block)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// One name of a destructuring binding: `a`, `a int`, or the placeholder `_`.
+pub class TupleTarget : Node {
+    pub let name SyntaxToken
+    pub let ty TypeNode?
+
+    pub func __init__(name SyntaxToken, ty TypeNode?) {
+        self.name = name
+        self.ty = ty
+    }
+
+    pub func kind() NodeKind = NodeKind.TUPLE_TARGET
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        add_opt(out, self.ty)
+        return out
+    }
+}
+
+/// A destructuring binding: `let (a, b) = t`, `var (a int, _) = t`,
+/// optionally followed by `else { ... }`.
+pub class TupleDeclStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let lparen SyntaxToken
+    pub let targets list[TupleTarget]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken
+    pub let eq SyntaxToken
+    pub let value Expr
+    pub let else_kw SyntaxToken?
+    pub let else_block Block?
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, lparen SyntaxToken, targets list[TupleTarget], seps list[SyntaxToken],
+        rparen SyntaxToken, eq SyntaxToken, value Expr, else_kw SyntaxToken?, else_block Block?, semi SyntaxToken? ) {
+        self.kw = kw
+        self.lparen = lparen
+        self.targets = targets
+        self.seps = seps
+        self.rparen = rparen
+        self.eq = eq
+        self.value = value
+        self.else_kw = else_kw
+        self.else_block = else_block
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.TUPLE_DECL
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.lparen)
+        var i = 0
+        while i < self.targets.len() {
+            out.append(self.targets[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rparen)
+        out.append(self.eq)
+        out.append(self.value)
+        add_opt(out, self.else_kw)
+        add_opt(out, self.else_block)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// An assignment: `x = v`, `x += v`, `a[i] = v`, `o.f = v`.
+pub class AssignStmt : Stmt {
+    pub let target Expr
+    pub let op SyntaxToken
+    pub let value Expr
+    pub let semi SyntaxToken?
+
+    pub func __init__(target Expr, op SyntaxToken, value Expr, semi SyntaxToken?) {
+        self.target = target
+        self.op = op
+        self.value = value
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.ASSIGN
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.target)
+        out.append(self.op)
+        out.append(self.value)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// A tuple assignment: `(a, b) = t`.
+pub class TupleAssignStmt : Stmt {
+    pub let lparen SyntaxToken
+    pub let items list[Expr]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken
+    pub let op SyntaxToken
+    pub let value Expr
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        lparen SyntaxToken, items list[Expr], seps list[SyntaxToken], rparen SyntaxToken,
+        op SyntaxToken, value Expr, semi SyntaxToken? ) {
+        self.lparen = lparen
+        self.items = items
+        self.seps = seps
+        self.rparen = rparen
+        self.op = op
+        self.value = value
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.TUPLE_ASSIGN
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lparen)
+        var i = 0
+        while i < self.items.len() {
+            out.append(self.items[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rparen)
+        out.append(self.op)
+        out.append(self.value)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `return` or `return value`.
+pub class ReturnStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let value Expr?
+    pub let semi SyntaxToken?
+
+    pub func __init__(kw SyntaxToken, value Expr?, semi SyntaxToken?) {
+        self.kw = kw
+        self.value = value
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.RETURN
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        add_opt(out, self.value)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `break` or `continue`; `kind()` tells them apart.
+pub class JumpStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let semi SyntaxToken?
+
+    pub func __init__(kw SyntaxToken, semi SyntaxToken?) {
+        self.kw = kw
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind {
+        if self.kw.token_kind() == klex.TokenKind.CONTINUE {
+            return NodeKind.CONTINUE
+        }
+        return NodeKind.BREAK
+    }
+
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// An `if` statement, including `if let x = e { ... }` and its parenthesized
+/// spelling `if (let x = e) { ... }`.
+///
+/// `else_body` is a [`Block`](#block) or another `IfStmt` for `else if`.
+pub class IfStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let lparen SyntaxToken?
+    pub let let_kw SyntaxToken?
+    pub let name SyntaxToken?
+    pub let eq SyntaxToken?
+    pub let cond Expr
+    pub let rparen SyntaxToken?
+    pub let body Block
+    pub let else_kw SyntaxToken?
+    pub let else_body Node?
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, lparen SyntaxToken?, let_kw SyntaxToken?, name SyntaxToken?, eq SyntaxToken?,
+        cond Expr, rparen SyntaxToken?, body Block, else_kw SyntaxToken?, else_body Node?, semi SyntaxToken? ) {
+        self.kw = kw
+        self.lparen = lparen
+        self.let_kw = let_kw
+        self.name = name
+        self.eq = eq
+        self.cond = cond
+        self.rparen = rparen
+        self.body = body
+        self.else_kw = else_kw
+        self.else_body = else_body
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.IF
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        add_opt(out, self.lparen)
+        add_opt(out, self.let_kw)
+        add_opt(out, self.name)
+        add_opt(out, self.eq)
+        out.append(self.cond)
+        add_opt(out, self.rparen)
+        out.append(self.body)
+        add_opt(out, self.else_kw)
+        add_opt(out, self.else_body)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// A `while` statement, including `while let x = e { ... }` and
+/// `while (let x = e) { ... }`.
+pub class WhileStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let lparen SyntaxToken?
+    pub let let_kw SyntaxToken?
+    pub let name SyntaxToken?
+    pub let eq SyntaxToken?
+    pub let cond Expr
+    pub let rparen SyntaxToken?
+    pub let body Block
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, lparen SyntaxToken?, let_kw SyntaxToken?, name SyntaxToken?, eq SyntaxToken?,
+        cond Expr, rparen SyntaxToken?, body Block, semi SyntaxToken? ) {
+        self.kw = kw
+        self.lparen = lparen
+        self.let_kw = let_kw
+        self.name = name
+        self.eq = eq
+        self.cond = cond
+        self.rparen = rparen
+        self.body = body
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.WHILE
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        add_opt(out, self.lparen)
+        add_opt(out, self.let_kw)
+        add_opt(out, self.name)
+        add_opt(out, self.eq)
+        out.append(self.cond)
+        add_opt(out, self.rparen)
+        out.append(self.body)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `loop { ... }`: an unconditional loop.
+pub class LoopStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let body Block
+    pub let semi SyntaxToken?
+
+    pub func __init__(kw SyntaxToken, body Block, semi SyntaxToken?) {
+        self.kw = kw
+        self.body = body
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.LOOP
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.body)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `for x in e { ... }`, `for (k, v) in e { ... }`, `for _ in e { ... }`.
+pub class ForStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let lparen SyntaxToken?
+    pub let vars list[SyntaxToken]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken?
+    pub let in_kw SyntaxToken
+    pub let iter Expr
+    pub let body Block
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, lparen SyntaxToken?, vars list[SyntaxToken], seps list[SyntaxToken],
+        rparen SyntaxToken?, in_kw SyntaxToken, iter Expr, body Block, semi SyntaxToken? ) {
+        self.kw = kw
+        self.lparen = lparen
+        self.vars = vars
+        self.seps = seps
+        self.rparen = rparen
+        self.in_kw = in_kw
+        self.iter = iter
+        self.body = body
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.FOR
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        add_opt(out, self.lparen)
+        var i = 0
+        while i < self.vars.len() {
+            out.append(self.vars[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        add_opt(out, self.rparen)
+        out.append(self.in_kw)
+        out.append(self.iter)
+        out.append(self.body)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `with r { ... }`, `with v = e { ... }`, `with let v = e { ... } else { ... }`.
+pub class WithStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let let_kw SyntaxToken?
+    pub let name SyntaxToken?
+    pub let eq SyntaxToken?
+    pub let value Expr
+    pub let body Block
+    pub let else_kw SyntaxToken?
+    pub let else_block Block?
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, let_kw SyntaxToken?, name SyntaxToken?, eq SyntaxToken?, value Expr,
+        body Block, else_kw SyntaxToken?, else_block Block?, semi SyntaxToken? ) {
+        self.kw = kw
+        self.let_kw = let_kw
+        self.name = name
+        self.eq = eq
+        self.value = value
+        self.body = body
+        self.else_kw = else_kw
+        self.else_block = else_block
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.WITH
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        add_opt(out, self.let_kw)
+        add_opt(out, self.name)
+        add_opt(out, self.eq)
+        out.append(self.value)
+        out.append(self.body)
+        add_opt(out, self.else_kw)
+        add_opt(out, self.else_block)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// One pattern of a `case`: an expression, `in expr`, or `is Type`.
+pub class CasePattern : Node {
+    pub let in_kw SyntaxToken?
+    pub let is_kw SyntaxToken?
+    pub let value Expr?
+    pub let ty TypeNode?
+
+    pub func __init__(in_kw SyntaxToken?, is_kw SyntaxToken?, value Expr?, ty TypeNode?) {
+        self.in_kw = in_kw
+        self.is_kw = is_kw
+        self.value = value
+        self.ty = ty
+    }
+
+    pub func kind() NodeKind = NodeKind.CASE_PATTERN
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.in_kw)
+        add_opt(out, self.is_kw)
+        add_opt(out, self.value)
+        add_opt(out, self.ty)
+        return out
+    }
+}
+
+/// `case p1, p2: body`. `tail` holds the `;` or `,` written after the body.
+pub class CaseClause : Node {
+    pub let kw SyntaxToken
+    pub let patterns list[CasePattern]
+    pub let seps list[SyntaxToken]
+    pub let colon SyntaxToken
+    pub let body Stmt
+    pub let tail SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, patterns list[CasePattern], seps list[SyntaxToken],
+        colon SyntaxToken, body Stmt, tail SyntaxToken? ) {
+        self.kw = kw
+        self.patterns = patterns
+        self.seps = seps
+        self.colon = colon
+        self.body = body
+        self.tail = tail
+    }
+
+    pub func kind() NodeKind = NodeKind.CASE
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        var i = 0
+        while i < self.patterns.len() {
+            out.append(self.patterns[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.colon)
+        out.append(self.body)
+        add_opt(out, self.tail)
+        return out
+    }
+}
+
+/// `switch e { case ...: ... }`.
+///
+/// `cases` holds [`CaseClause`](#caseclause) nodes, plus `ErrorStmt` nodes
+/// for tokens skipped while recovering inside the body.
+pub class SwitchStmt : Stmt {
+    pub let kw SyntaxToken
+    pub let subject Expr
+    pub let lbrace SyntaxToken
+    pub let cases list[Node]
+    pub let rbrace SyntaxToken
+    pub let semi SyntaxToken?
+
+    pub func __init__(kw SyntaxToken, subject Expr, lbrace SyntaxToken, cases list[Node], rbrace SyntaxToken, semi SyntaxToken?) {
+        self.kw = kw
+        self.subject = subject
+        self.lbrace = lbrace
+        self.cases = cases
+        self.rbrace = rbrace
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.SWITCH
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.subject)
+        out.append(self.lbrace)
+        for c in self.cases {
+            out.append(c)
+        }
+        out.append(self.rbrace)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `import "path"` or `import "path" as alias`.
+pub class ImportStmt : Decl {
+    pub let kw SyntaxToken
+    pub let path SyntaxToken
+    pub let as_kw SyntaxToken?
+    pub let alias SyntaxToken?
+    pub let semi SyntaxToken?
+
+    pub func __init__(kw SyntaxToken, path SyntaxToken, as_kw SyntaxToken?, alias SyntaxToken?, semi SyntaxToken?) {
+        self.kw = kw
+        self.path = path
+        self.as_kw = as_kw
+        self.alias = alias
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.IMPORT
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.path)
+        add_opt(out, self.as_kw)
+        add_opt(out, self.alias)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// One name of a `from ... import ...` list: `name` or `name as alias`.
+pub class ImportItem : Node {
+    pub let name SyntaxToken
+    pub let as_kw SyntaxToken?
+    pub let alias SyntaxToken?
+
+    pub func __init__(name SyntaxToken, as_kw SyntaxToken?, alias SyntaxToken?) {
+        self.name = name
+        self.as_kw = as_kw
+        self.alias = alias
+    }
+
+    pub func kind() NodeKind = NodeKind.IMPORT_ITEM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        add_opt(out, self.as_kw)
+        add_opt(out, self.alias)
+        return out
+    }
+}
+
+/// `from "path" import a, b as c`.
+pub class FromStmt : Decl {
+    pub let kw SyntaxToken
+    pub let path SyntaxToken
+    pub let import_kw SyntaxToken
+    pub let items list[ImportItem]
+    pub let seps list[SyntaxToken]
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        kw SyntaxToken, path SyntaxToken, import_kw SyntaxToken,
+        items list[ImportItem], seps list[SyntaxToken], semi SyntaxToken? ) {
+        self.kw = kw
+        self.path = path
+        self.import_kw = import_kw
+        self.items = items
+        self.seps = seps
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.FROM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.path)
+        out.append(self.import_kw)
+        var i = 0
+        while i < self.items.len() {
+            out.append(self.items[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `link "path"`.
+pub class LinkStmt : Decl {
+    pub let kw SyntaxToken
+    pub let path SyntaxToken
+    pub let semi SyntaxToken?
+
+    pub func __init__(kw SyntaxToken, path SyntaxToken, semi SyntaxToken?) {
+        self.kw = kw
+        self.path = path
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.LINK
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.path)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// One function parameter: `x int`, `args ...T`, `x = 1`, `x int = 1`.
+pub class Param : Node {
+    pub let name SyntaxToken
+    pub let vararg SyntaxToken?
+    pub let ty TypeNode?
+    pub let eq SyntaxToken?
+    pub let default Expr?
+
+    pub func __init__(name SyntaxToken, vararg SyntaxToken?, ty TypeNode?, eq SyntaxToken?, default Expr?) {
+        self.name = name
+        self.vararg = vararg
+        self.ty = ty
+        self.eq = eq
+        self.default = default
+    }
+
+    pub func kind() NodeKind = NodeKind.PARAM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        add_opt(out, self.vararg)
+        add_opt(out, self.ty)
+        add_opt(out, self.eq)
+        add_opt(out, self.default)
+        return out
+    }
+}
+
+/// One type parameter: `T`, `T : Bound & Bound`, `infer T`, `const N int`.
+pub class TypeParam : Node {
+    pub let const_kw SyntaxToken?
+    pub let infer_kw SyntaxToken?
+    pub let name SyntaxToken
+    pub let colon SyntaxToken?
+    pub let bounds list[TypeNode]
+    pub let bseps list[SyntaxToken]
+
+    pub func __init__(
+        const_kw SyntaxToken?, infer_kw SyntaxToken?, name SyntaxToken, colon SyntaxToken?,
+        bounds list[TypeNode], bseps list[SyntaxToken] ) {
+        self.const_kw = const_kw
+        self.infer_kw = infer_kw
+        self.name = name
+        self.colon = colon
+        self.bounds = bounds
+        self.bseps = bseps
+    }
+
+    pub func kind() NodeKind = NodeKind.TYPE_PARAM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.const_kw)
+        add_opt(out, self.infer_kw)
+        out.append(self.name)
+        add_opt(out, self.colon)
+        var i = 0
+        while i < self.bounds.len() {
+            out.append(self.bounds[i])
+            if i < self.bseps.len() {
+                out.append(self.bseps[i])
+            }
+            i += 1
+        }
+        return out
+    }
+}
+
+/// `[T, U : Bound]`: the type parameter list of a function, class or trait.
+pub class TypeParamList : Node {
+    pub let lbracket SyntaxToken
+    pub let items list[TypeParam]
+    pub let seps list[SyntaxToken]
+    pub let rbracket SyntaxToken
+
+    pub func __init__(lbracket SyntaxToken, items list[TypeParam], seps list[SyntaxToken], rbracket SyntaxToken) {
+        self.lbracket = lbracket
+        self.items = items
+        self.seps = seps
+        self.rbracket = rbracket
+    }
+
+    pub func kind() NodeKind = NodeKind.TYPE_PARAMS
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lbracket)
+        var i = 0
+        while i < self.items.len() {
+            out.append(self.items[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rbracket)
+        return out
+    }
+}
+
+/// A function or method declaration.
+///
+/// `body` is a [`Block`](#block), or an expression for the one-line form
+/// `func f() = expr`. It is nil for a trait method signature, which has no
+/// body at all.
+pub class FuncDecl : Decl {
+    pub let prefix Prefix?
+    pub let kw SyntaxToken
+    pub let name SyntaxToken
+    pub let tparams TypeParamList?
+    pub let lparen SyntaxToken
+    pub let params list[Param]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken
+    pub let ret TypeNode?
+    pub let eq SyntaxToken?
+    pub let body Node?
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        prefix Prefix?, kw SyntaxToken, name SyntaxToken, tparams TypeParamList?, lparen SyntaxToken,
+        params list[Param], seps list[SyntaxToken], rparen SyntaxToken, ret TypeNode?,
+        eq SyntaxToken?, body Node?, semi SyntaxToken? ) {
+        self.prefix = prefix
+        self.kw = kw
+        self.name = name
+        self.tparams = tparams
+        self.lparen = lparen
+        self.params = params
+        self.seps = seps
+        self.rparen = rparen
+        self.ret = ret
+        self.eq = eq
+        self.body = body
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.FUNC
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.prefix)
+        out.append(self.kw)
+        out.append(self.name)
+        add_opt(out, self.tparams)
+        out.append(self.lparen)
+        var i = 0
+        while i < self.params.len() {
+            out.append(self.params[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rparen)
+        add_opt(out, self.ret)
+        add_opt(out, self.eq)
+        add_opt(out, self.body)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// One `name = value` argument of an annotation.
+pub class AnnotParam : Node {
+    pub let name SyntaxToken
+    pub let eq SyntaxToken
+    pub let value Expr
+
+    pub func __init__(name SyntaxToken, eq SyntaxToken, value Expr) {
+        self.name = name
+        self.eq = eq
+        self.value = value
+    }
+
+    pub func kind() NodeKind = NodeKind.ANNOT_PARAM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        out.append(self.eq)
+        out.append(self.value)
+        return out
+    }
+}
+
+/// `@name`, `@name(...)`. Arguments are types, a string literal, or
+/// `name = value` pairs; they are kept as generic nodes.
+pub class Annotation : Node {
+    pub let at SyntaxToken
+    pub let name SyntaxToken
+    pub let lparen SyntaxToken?
+    pub let args list[Node]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken?
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        at SyntaxToken, name SyntaxToken, lparen SyntaxToken?, args list[Node],
+        seps list[SyntaxToken], rparen SyntaxToken?, semi SyntaxToken? ) {
+        self.at = at
+        self.name = name
+        self.lparen = lparen
+        self.args = args
+        self.seps = seps
+        self.rparen = rparen
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.ANNOTATION
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.at)
+        out.append(self.name)
+        add_opt(out, self.lparen)
+        var i = 0
+        while i < self.args.len() {
+            out.append(self.args[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        add_opt(out, self.rparen)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// What may precede a declaration: annotations, `pub`, and `static`.
+pub class Prefix : Node {
+    pub let annotations list[Annotation]
+    pub let pub_kw SyntaxToken?
+    pub let static_kw SyntaxToken?
+
+    pub func __init__(annotations list[Annotation], pub_kw SyntaxToken?, static_kw SyntaxToken?) {
+        self.annotations = annotations
+        self.pub_kw = pub_kw
+        self.static_kw = static_kw
+    }
+
+    pub func kind() NodeKind = NodeKind.PREFIX
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        for a in self.annotations {
+            out.append(a)
+        }
+        add_opt(out, self.pub_kw)
+        add_opt(out, self.static_kw)
+        return out
+    }
+}
+
+/// A `class` or `trait` declaration; `kind()` tells them apart.
+///
+/// `bases` holds the types after `:`, separated by `&` in `bseps`.
+/// `members` holds [`VarDecl`](#vardecl) fields and [`FuncDecl`](#funcdecl)
+/// methods for a class, and body-less `FuncDecl` signatures for a trait.
+pub class TypeDecl : Decl {
+    pub let prefix Prefix?
+    pub let kw SyntaxToken
+    pub let name SyntaxToken
+    pub let tparams TypeParamList?
+    pub let colon SyntaxToken?
+    pub let bases list[TypeNode]
+    pub let bseps list[SyntaxToken]
+    pub let lbrace SyntaxToken
+    pub let members list[Stmt]
+    pub let rbrace SyntaxToken
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        prefix Prefix?, kw SyntaxToken, name SyntaxToken, tparams TypeParamList?, colon SyntaxToken?,
+        bases list[TypeNode], bseps list[SyntaxToken], lbrace SyntaxToken, members list[Stmt],
+        rbrace SyntaxToken, semi SyntaxToken? ) {
+        self.prefix = prefix
+        self.kw = kw
+        self.name = name
+        self.tparams = tparams
+        self.colon = colon
+        self.bases = bases
+        self.bseps = bseps
+        self.lbrace = lbrace
+        self.members = members
+        self.rbrace = rbrace
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind {
+        if self.kw.token_kind() == klex.TokenKind.TRAIT {
+            return NodeKind.TRAIT
+        }
+        return NodeKind.CLASS
+    }
+
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.prefix)
+        out.append(self.kw)
+        out.append(self.name)
+        add_opt(out, self.tparams)
+        add_opt(out, self.colon)
+        var i = 0
+        while i < self.bases.len() {
+            out.append(self.bases[i])
+            if i < self.bseps.len() {
+                out.append(self.bseps[i])
+            }
+            i += 1
+        }
+        out.append(self.lbrace)
+        for m in self.members {
+            out.append(m)
+        }
+        out.append(self.rbrace)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// One enum member: `NAME` or `NAME = 3`.
+pub class EnumMember : Node {
+    pub let name SyntaxToken
+    pub let eq SyntaxToken?
+    pub let value SyntaxToken?
+
+    pub func __init__(name SyntaxToken, eq SyntaxToken?, value SyntaxToken?) {
+        self.name = name
+        self.eq = eq
+        self.value = value
+    }
+
+    pub func kind() NodeKind = NodeKind.ENUM_MEMBER
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        add_opt(out, self.eq)
+        add_opt(out, self.value)
+        return out
+    }
+}
+
+/// An `enum` declaration. Members are separated by `,`, `;` or a newline;
+/// `seps[i]` is the separator written after `members[i]`.
+pub class EnumDecl : Decl {
+    pub let prefix Prefix?
+    pub let kw SyntaxToken
+    pub let name SyntaxToken
+    pub let lbrace SyntaxToken
+    pub let members list[EnumMember]
+    pub let seps list[SyntaxToken]
+    pub let rbrace SyntaxToken
+    pub let semi SyntaxToken?
+
+    pub func __init__(
+        prefix Prefix?, kw SyntaxToken, name SyntaxToken, lbrace SyntaxToken,
+        members list[EnumMember], seps list[SyntaxToken], rbrace SyntaxToken, semi SyntaxToken? ) {
+        self.prefix = prefix
+        self.kw = kw
+        self.name = name
+        self.lbrace = lbrace
+        self.members = members
+        self.seps = seps
+        self.rbrace = rbrace
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.ENUM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.prefix)
+        out.append(self.kw)
+        out.append(self.name)
+        out.append(self.lbrace)
+        var i = 0
+        while i < self.members.len() {
+            out.append(self.members[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rbrace)
+        add_opt(out, self.semi)
+        return out
+    }
+}
+
+/// `type Name = SomeType`.
+pub class TypeAliasStmt : Decl {
+    pub let prefix Prefix?
+    pub let kw SyntaxToken
+    pub let name SyntaxToken
+    pub let eq SyntaxToken
+    pub let ty TypeNode
+    pub let semi SyntaxToken?
+
+    pub func __init__(prefix Prefix?, kw SyntaxToken, name SyntaxToken, eq SyntaxToken, ty TypeNode, semi SyntaxToken?) {
+        self.prefix = prefix
+        self.kw = kw
+        self.name = name
+        self.eq = eq
+        self.ty = ty
+        self.semi = semi
+    }
+
+    pub func kind() NodeKind = NodeKind.TYPE_ALIAS
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.prefix)
+        out.append(self.kw)
+        out.append(self.name)
+        out.append(self.eq)
+        out.append(self.ty)
+        add_opt(out, self.semi)
+        return out
+    }
+}

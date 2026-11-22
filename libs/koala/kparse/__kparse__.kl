@@ -1,0 +1,85 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A parser for Koala source, built on [`koala/klex`](../klex).
+///
+///     import "koala/kparse"
+///
+///     let tree = kparse.parse("func main() { print(1) }")
+///     print(tree.ok())            // true
+///     print(tree.text() == src)   // true, the tree is lossless
+///     print(kparse.sexpr(tree.root))
+///
+/// The result is a *concrete* syntax tree: every byte of the input, comments
+/// and whitespace included, belongs to exactly one token, and every token
+/// belongs to exactly one node. Semicolons inserted by the lexer are tokens
+/// with an empty lexeme, so they show up in the tree without adding text.
+///
+/// Parsing never throws. Errors are collected in `diagnostics`, and the tree
+/// stays complete: a missing token or an error node stands in for whatever
+/// could not be parsed.
+
+/// The result of parsing a source text: the tree, its tokens, and the
+/// errors found along the way.
+pub class SyntaxTree {
+    pub let root Module
+    pub let tokens list[SyntaxToken]
+    pub let diagnostics list[Diagnostic]
+
+    pub func __init__(root Module, tokens list[SyntaxToken], diagnostics list[Diagnostic]) {
+        self.root = root
+        self.tokens = tokens
+        self.diagnostics = diagnostics
+    }
+
+    /// The source text, reproduced byte for byte.
+    pub func text() str = self.root.text()
+
+    /// True when no syntax error was found.
+    pub func ok() bool = self.diagnostics.len() == 0
+}
+
+/// Parse `src` into a syntax tree.
+pub func parse(src str) SyntaxTree {
+    let diags = list[Diagnostic]()
+    let toks = build_stream(src, diags)
+    let p = Parser(toks, diags)
+    let root = p.parse_module()
+    return SyntaxTree(root, toks, diags)
+}
+
+/// Read the file at `path` and parse it.
+///
+/// Errors
+///
+/// Panic if the file cannot be opened. Syntax errors are reported in the
+/// returned tree, not raised.
+pub func parse_file(path str) SyntaxTree {
+    let f = open(path, "r")!
+
+    // Read the whole file in chunks; `read` returns 0 at EOF and a
+    // negative value on error.
+    let chunk = bytes(8192)
+    let acc = Buffer(8192)
+    loop {
+        let n = f.read(chunk)
+        if n <= 0 {
+            break
+        }
+        acc.write(chunk.view(0, n))
+    }
+    f.close()
+
+    return parse(acc.to_str())
+}
+
+/// Tokenize `src` into the lossless token stream the parser uses.
+///
+/// Exposed for tests: significant tokens with ASI applied, each carrying
+/// its trivia, ending with a synthetic `EOF` token.
+pub func tokenize(src str) list[SyntaxToken] {
+    let diags = list[Diagnostic]()
+    return build_stream(src, diags)
+}

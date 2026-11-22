@@ -1,6 +1,6 @@
 {
   "model": "auto",
-  "base_url": "https://openrouter.ai/api/v1",
+  "base_url": "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1",
   "history_file": ".chat_history",
   "max_code_bytes": 1048576,
   "temperature": 1.0,

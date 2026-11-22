@@ -141,4 +141,7 @@ pub enum TokenKind {
     LINE_COMMENT,
     BLOCK_COMMENT,
     UNKNOWN,
+    // End of input. Never produced by the lexer itself; `koala/kparse`
+    // synthesizes one so trailing trivia always has a token to hang on.
+    EOF,
 }

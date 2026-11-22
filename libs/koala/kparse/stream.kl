@@ -1,0 +1,128 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/klex"
+
+/// Build the token stream the parser works on: significant tokens with
+/// automatic semicolons already inserted, each carrying its trivia.
+///
+/// `klex` is run twice over the same source:
+///
+/// - raw mode keeps whitespace, newlines and comments, so no byte is lost;
+/// - compiler mode applies ASI exactly as `koala.l` does.
+///
+/// The two streams are merged by byte offset. This way the semicolon rules
+/// live in one place (`klex`), and the parser sees the same token sequence
+/// the C compiler sees.
+///
+/// The result always ends with a synthetic `EOF` token, which owns any
+/// trivia left at the end of the file.
+///
+/// Limitation: a bare CR (`\r`) is dropped by `klex` itself, so CRLF input
+/// is not reproduced byte for byte. LF input is.
+pub func build_stream(src str, diags list[Diagnostic]) list[SyntaxToken] {
+    let raw_lex = klex.Lexer(src, true)
+    let raw = list[klex.Token]()
+    loop {
+        let t = raw_lex.next_token()
+        if t == nil {
+            break
+        }
+        raw.append(t)
+    }
+
+    let sig_lex = klex.Lexer(src)
+    let sig = list[klex.Token]()
+    loop {
+        let t = sig_lex.next_token()
+        if t == nil {
+            break
+        }
+        sig.append(t)
+    }
+
+    // The end-of-input position: the lexer tracks the line, the column is
+    // the number of bytes since the last newline.
+    var eof_col = 1
+    var k = src.len() - 1
+    while k >= 0 {
+        if src[k] == "\n" {
+            break
+        }
+        eof_col += 1
+        k -= 1
+    }
+
+    if raw_lex.error() != "" {
+        let at = Span(src.len(), src.len(), raw_lex.line(), eof_col)
+        diags.append(Diagnostic(raw_lex.error(), at))
+    }
+
+    let out = list[SyntaxToken]()
+    var pending = list[klex.Token]()
+    var si = 0
+    // True once a newline closed the trailing trivia of the last token;
+    // everything after it belongs to the next token's leading trivia.
+    var closed = false
+
+    for r in raw {
+        if !r.is_trivia() {
+            if si >= sig.len() {
+                panic(format("kparse: token stream mismatch at offset {}", r.offset))
+            }
+            let s = sig[si]
+            if s.offset != r.offset || s.kind != r.kind {
+                panic(format("kparse: token stream mismatch at offset {}", r.offset))
+            }
+            out.append(SyntaxToken(s, pending, list[klex.Token](), false))
+            pending = list[klex.Token]()
+            si += 1
+            closed = false
+            continue
+        }
+
+        if r.kind != klex.TokenKind.NEWLINE || closed || out.len() == 0 {
+            pending.append(r)
+            continue
+        }
+
+        // A newline right after a token: this is where ASI may fire.
+        if si < sig.len() && sig[si].is_inserted_semi() && sig[si].offset == r.offset {
+            out[out.len() - 1].trailing.extend(pending)
+            pending = list[klex.Token]()
+            let triv = list[klex.Token]()
+            triv.append(r)
+            out.append(SyntaxToken(sig[si], list[klex.Token](), triv, false))
+            si += 1
+        } else {
+            pending.append(r)
+            out[out.len() - 1].trailing.extend(pending)
+            pending = list[klex.Token]()
+        }
+        closed = true
+    }
+
+    // A semicolon inserted at end of input, after the last token.
+    while si < sig.len() {
+        let s = sig[si]
+        if !s.is_inserted_semi() {
+            panic(format("kparse: token stream mismatch at offset {}", s.offset))
+        }
+        if !closed && out.len() > 0 {
+            out[out.len() - 1].trailing.extend(pending)
+            pending = list[klex.Token]()
+        }
+        out.append(SyntaxToken(s, pending, list[klex.Token](), false))
+        pending = list[klex.Token]()
+        closed = true
+        si += 1
+    }
+
+    // The end-of-input position: the lexer tracks the line, the column is
+    // the number of bytes since the last newline.
+    let eof = klex.Token(klex.TokenKind.EOF, "", nil, raw_lex.line(), eof_col, src.len())
+    out.append(SyntaxToken(eof, pending, list[klex.Token](), false))
+    return out
+}

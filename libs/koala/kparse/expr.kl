@@ -1,0 +1,650 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/klex"
+
+/// A single-token expression: an identifier, `self`, `_`, or a literal
+/// (int, float, string, char, bytes, `true`, `false`, `nil`, `__KOALA_X__`).
+///
+/// All of them are one token wide, so they share one class; `kind()`
+/// returns `IDENT`, `SELF`, `UNDER` or `LITERAL`. For a literal,
+/// `token.token.value` holds the decoded value (`str` for string/char/bytes
+/// lexemes, `int` or `float` for numbers).
+pub class AtomExpr : Expr {
+    pub let token SyntaxToken
+
+    pub func __init__(token SyntaxToken) {
+        self.token = token
+    }
+
+    pub func kind() NodeKind {
+        switch self.token.token_kind() {
+            case klex.TokenKind.ID: return NodeKind.IDENT
+            case klex.TokenKind.SELF: return NodeKind.SELF
+            case klex.TokenKind.UNDERSCORE: return NodeKind.UNDER
+            case _: return NodeKind.LITERAL
+        }
+    }
+
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.token)
+        return out
+    }
+
+    /// The spelling of the identifier or literal.
+    pub func name() str = self.token.lexeme()
+}
+
+/// A type used where a value is expected, e.g. the `int` in `int(x)` or the
+/// `list` in `list[int]()`.
+pub class TypeExpr : Expr {
+    pub let ty TypeNode
+
+    pub func __init__(ty TypeNode) {
+        self.ty = ty
+    }
+
+    pub func kind() NodeKind = NodeKind.TYPE_EXPR
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.ty)
+        return out
+    }
+}
+
+/// `(expr)`: a parenthesized expression.
+pub class ParenExpr : Expr {
+    pub let lparen SyntaxToken
+    pub let inner Expr
+    pub let rparen SyntaxToken
+
+    pub func __init__(lparen SyntaxToken, inner Expr, rparen SyntaxToken) {
+        self.lparen = lparen
+        self.inner = inner
+        self.rparen = rparen
+    }
+
+    pub func kind() NodeKind = NodeKind.PAREN
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lparen)
+        out.append(self.inner)
+        out.append(self.rparen)
+        return out
+    }
+}
+
+/// A prefix operator application: `-x`, `+x`, `~x`, `!x`.
+pub class UnaryExpr : Expr {
+    pub let op SyntaxToken
+    pub let operand Expr
+
+    pub func __init__(op SyntaxToken, operand Expr) {
+        self.op = op
+        self.operand = operand
+    }
+
+    pub func kind() NodeKind = NodeKind.UNARY
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.op)
+        out.append(self.operand)
+        return out
+    }
+}
+
+/// A postfix operator application: `x!` (unwrap) or `x?` (optional type).
+///
+/// `kind()` returns `BANG` or `OPT`.
+pub class PostfixExpr : Expr {
+    pub let value Expr
+    pub let op SyntaxToken
+
+    pub func __init__(value Expr, op SyntaxToken) {
+        self.value = value
+        self.op = op
+    }
+
+    pub func kind() NodeKind {
+        if self.op.token_kind() == klex.TokenKind.QUESTION {
+            return NodeKind.OPT
+        }
+        return NodeKind.BANG
+    }
+
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.value)
+        out.append(self.op)
+        return out
+    }
+}
+
+/// A binary operator application, including `??` and `in`.
+pub class BinaryExpr : Expr {
+    pub let lhs Expr
+    pub let op SyntaxToken
+    pub let rhs Expr
+
+    pub func __init__(lhs Expr, op SyntaxToken, rhs Expr) {
+        self.lhs = lhs
+        self.op = op
+        self.rhs = rhs
+    }
+
+    pub func kind() NodeKind = NodeKind.BINARY
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lhs)
+        out.append(self.op)
+        out.append(self.rhs)
+        return out
+    }
+}
+
+/// `x is T` or `x as T`. `kind()` returns `IS` or `AS`.
+pub class CastExpr : Expr {
+    pub let value Expr
+    pub let op SyntaxToken
+    pub let ty TypeNode
+
+    pub func __init__(value Expr, op SyntaxToken, ty TypeNode) {
+        self.value = value
+        self.op = op
+        self.ty = ty
+    }
+
+    pub func kind() NodeKind {
+        if self.op.token_kind() == klex.TokenKind.AS {
+            return NodeKind.AS
+        }
+        return NodeKind.IS
+    }
+
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.value)
+        out.append(self.op)
+        out.append(self.ty)
+        return out
+    }
+}
+
+/// Member access: `x.f`, `x?.f`, `x!.f`. The operator token keeps the
+/// spelling, so all three share one class.
+pub class DotExpr : Expr {
+    pub let value Expr
+    pub let op SyntaxToken
+    pub let name SyntaxToken
+
+    pub func __init__(value Expr, op SyntaxToken, name SyntaxToken) {
+        self.value = value
+        self.op = op
+        self.name = name
+    }
+
+    pub func kind() NodeKind = NodeKind.DOT
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.value)
+        out.append(self.op)
+        out.append(self.name)
+        return out
+    }
+}
+
+/// A call: `f(a, b, k = v)`. Positional arguments are expressions, keyword
+/// arguments are [`KwArgExpr`](#kwargexpr).
+pub class CallExpr : Expr {
+    pub let callee Expr
+    pub let lparen SyntaxToken
+    pub let args list[Expr]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken
+
+    pub func __init__(callee Expr, lparen SyntaxToken, args list[Expr], seps list[SyntaxToken], rparen SyntaxToken) {
+        self.callee = callee
+        self.lparen = lparen
+        self.args = args
+        self.seps = seps
+        self.rparen = rparen
+    }
+
+    pub func kind() NodeKind = NodeKind.CALL
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.callee)
+        out.append(self.lparen)
+        var i = 0
+        while i < self.args.len() {
+            out.append(self.args[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rparen)
+        return out
+    }
+}
+
+/// A keyword argument: `name = value`.
+pub class KwArgExpr : Expr {
+    pub let name SyntaxToken
+    pub let eq SyntaxToken
+    pub let value Expr
+
+    pub func __init__(name SyntaxToken, eq SyntaxToken, value Expr) {
+        self.name = name
+        self.eq = eq
+        self.value = value
+    }
+
+    pub func kind() NodeKind = NodeKind.KW_ARG
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        out.append(self.eq)
+        out.append(self.value)
+        return out
+    }
+}
+
+/// Subscripting: `a[i]`, `a[i, j]`, `a[1:2]`. Items may be expressions or
+/// [`SliceExpr`](#sliceexpr).
+pub class IndexExpr : Expr {
+    pub let value Expr
+    pub let lbracket SyntaxToken
+    pub let items list[Expr]
+    pub let seps list[SyntaxToken]
+    pub let rbracket SyntaxToken
+
+    pub func __init__(value Expr, lbracket SyntaxToken, items list[Expr], seps list[SyntaxToken], rbracket SyntaxToken) {
+        self.value = value
+        self.lbracket = lbracket
+        self.items = items
+        self.seps = seps
+        self.rbracket = rbracket
+    }
+
+    pub func kind() NodeKind = NodeKind.INDEX
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.value)
+        out.append(self.lbracket)
+        var i = 0
+        while i < self.items.len() {
+            out.append(self.items[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rbracket)
+        return out
+    }
+}
+
+/// A slice inside `[]`, in any of its spellings: `a:b:c`, `:b`, `a:`, `::`,
+/// `:` and so on. Absent parts are nil; the colons are always present.
+pub class SliceExpr : Expr {
+    pub let start Expr?
+    pub let colon1 SyntaxToken
+    pub let stop Expr?
+    pub let colon2 SyntaxToken?
+    pub let step Expr?
+
+    pub func __init__(start Expr?, colon1 SyntaxToken, stop Expr?, colon2 SyntaxToken?, step Expr?) {
+        self.start = start
+        self.colon1 = colon1
+        self.stop = stop
+        self.colon2 = colon2
+        self.step = step
+    }
+
+    pub func kind() NodeKind = NodeKind.SLICE
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        add_opt(out, self.start)
+        out.append(self.colon1)
+        add_opt(out, self.stop)
+        add_opt(out, self.colon2)
+        add_opt(out, self.step)
+        return out
+    }
+}
+
+/// A list literal: `[a, b]`. `tail` holds a `;` written before `]`.
+pub class ListExpr : Expr {
+    pub let lbracket SyntaxToken
+    pub let items list[Expr]
+    pub let seps list[SyntaxToken]
+    pub let tail SyntaxToken?
+    pub let rbracket SyntaxToken
+
+    pub func __init__(lbracket SyntaxToken, items list[Expr], seps list[SyntaxToken], tail SyntaxToken?, rbracket SyntaxToken) {
+        self.lbracket = lbracket
+        self.items = items
+        self.seps = seps
+        self.tail = tail
+        self.rbracket = rbracket
+    }
+
+    pub func kind() NodeKind = NodeKind.LIST
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lbracket)
+        var i = 0
+        while i < self.items.len() {
+            out.append(self.items[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        add_opt(out, self.tail)
+        out.append(self.rbracket)
+        return out
+    }
+}
+
+/// One `key: value` pair of a map literal.
+pub class MapEntry : Node {
+    pub let key Expr
+    pub let colon SyntaxToken
+    pub let value Expr
+
+    pub func __init__(key Expr, colon SyntaxToken, value Expr) {
+        self.key = key
+        self.colon = colon
+        self.value = value
+    }
+
+    pub func kind() NodeKind = NodeKind.MAP_ENTRY
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.key)
+        out.append(self.colon)
+        out.append(self.value)
+        return out
+    }
+}
+
+/// A map literal: `{k: v, ...}`. The empty map is written `{:}`, whose lone
+/// colon is kept in `colon`. `tail` holds a `;` written before `}`.
+pub class MapExpr : Expr {
+    pub let lbrace SyntaxToken
+    pub let colon SyntaxToken?
+    pub let entries list[MapEntry]
+    pub let seps list[SyntaxToken]
+    pub let tail SyntaxToken?
+    pub let rbrace SyntaxToken
+
+    pub func __init__(
+        lbrace SyntaxToken, colon SyntaxToken?, entries list[MapEntry],
+        seps list[SyntaxToken], tail SyntaxToken?, rbrace SyntaxToken ) {
+        self.lbrace = lbrace
+        self.colon = colon
+        self.entries = entries
+        self.seps = seps
+        self.tail = tail
+        self.rbrace = rbrace
+    }
+
+    pub func kind() NodeKind = NodeKind.MAP
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lbrace)
+        add_opt(out, self.colon)
+        var i = 0
+        while i < self.entries.len() {
+            out.append(self.entries[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        add_opt(out, self.tail)
+        out.append(self.rbrace)
+        return out
+    }
+}
+
+/// A tuple literal: `(a, b)`, `(a,)`, or the empty tuple `()`.
+pub class TupleExpr : Expr {
+    pub let lparen SyntaxToken
+    pub let items list[Expr]
+    pub let seps list[SyntaxToken]
+    pub let rparen SyntaxToken
+
+    pub func __init__(lparen SyntaxToken, items list[Expr], seps list[SyntaxToken], rparen SyntaxToken) {
+        self.lparen = lparen
+        self.items = items
+        self.seps = seps
+        self.rparen = rparen
+    }
+
+    pub func kind() NodeKind = NodeKind.TUPLE
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lparen)
+        var i = 0
+        while i < self.items.len() {
+            out.append(self.items[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        out.append(self.rparen)
+        return out
+    }
+}
+
+/// One lambda parameter: `v` or `v int`.
+pub class LambdaParam : Node {
+    pub let name SyntaxToken
+    pub let ty TypeNode?
+
+    pub func __init__(name SyntaxToken, ty TypeNode?) {
+        self.name = name
+        self.ty = ty
+    }
+
+    pub func kind() NodeKind = NodeKind.LAMBDA_PARAM
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.name)
+        add_opt(out, self.ty)
+        return out
+    }
+}
+
+/// A lambda: `{|a, b| a + b}` or `{| a + b}`.
+///
+/// `start` is the `{|` or `{||` token. For the no-parameter form `bar` is
+/// nil and `params` is empty. `semi` holds a `;` written before the closing
+/// brace.
+pub class LambdaExpr : Expr {
+    pub let start SyntaxToken
+    pub let params list[LambdaParam]
+    pub let seps list[SyntaxToken]
+    pub let bar SyntaxToken?
+    pub let body Expr
+    pub let semi SyntaxToken?
+    pub let rbrace SyntaxToken
+
+    pub func __init__(
+        start SyntaxToken, params list[LambdaParam], seps list[SyntaxToken], bar SyntaxToken?,
+        body Expr, semi SyntaxToken?, rbrace SyntaxToken ) {
+        self.start = start
+        self.params = params
+        self.seps = seps
+        self.bar = bar
+        self.body = body
+        self.semi = semi
+        self.rbrace = rbrace
+    }
+
+    pub func kind() NodeKind = NodeKind.LAMBDA
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.start)
+        var i = 0
+        while i < self.params.len() {
+            out.append(self.params[i])
+            if i < self.seps.len() {
+                out.append(self.seps[i])
+            }
+            i += 1
+        }
+        add_opt(out, self.bar)
+        out.append(self.body)
+        add_opt(out, self.semi)
+        out.append(self.rbrace)
+        return out
+    }
+}
+
+/// One branch of an `if` expression: `{ value }`, with an optional `;`
+/// before the closing brace.
+pub class IfBranch : Node {
+    pub let lbrace SyntaxToken
+    pub let value Expr
+    pub let semi SyntaxToken?
+    pub let rbrace SyntaxToken
+
+    pub func __init__(lbrace SyntaxToken, value Expr, semi SyntaxToken?, rbrace SyntaxToken) {
+        self.lbrace = lbrace
+        self.value = value
+        self.semi = semi
+        self.rbrace = rbrace
+    }
+
+    pub func kind() NodeKind = NodeKind.IF_BRANCH
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.lbrace)
+        out.append(self.value)
+        add_opt(out, self.semi)
+        out.append(self.rbrace)
+        return out
+    }
+}
+
+/// An `if` used as a value: `if c { a } else { b }`.
+///
+/// `else_branch` is an [`IfBranch`](#ifbranch), or another `IfExpr` for
+/// `else if`. It is nil when `else` is missing, which the compiler rejects
+/// but the tree still represents.
+pub class IfExpr : Expr {
+    pub let kw SyntaxToken
+    pub let cond Expr
+    pub let then_branch IfBranch
+    pub let else_kw SyntaxToken?
+    pub let else_branch Node?
+
+    pub func __init__(kw SyntaxToken, cond Expr, then_branch IfBranch, else_kw SyntaxToken?, else_branch Node?) {
+        self.kw = kw
+        self.cond = cond
+        self.then_branch = then_branch
+        self.else_kw = else_kw
+        self.else_branch = else_branch
+    }
+
+    pub func kind() NodeKind = NodeKind.IF_EXPR
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        out.append(self.kw)
+        out.append(self.cond)
+        out.append(self.then_branch)
+        add_opt(out, self.else_kw)
+        add_opt(out, self.else_branch)
+        return out
+    }
+}
+
+/// Tokens the parser could not make sense of, kept so the tree stays
+/// lossless. A diagnostic is always recorded alongside it.
+pub class ErrorExpr : Expr {
+    pub let tokens list[SyntaxToken]
+
+    pub func __init__(tokens list[SyntaxToken]) {
+        self.tokens = tokens
+    }
+
+    pub func kind() NodeKind = NodeKind.ERROR_EXPR
+    pub func text() str = node_text(self)
+    pub func span() Span = node_span(self)
+
+    pub func slots() list[Node] {
+        let out = list[Node]()
+        for t in self.tokens {
+            out.append(t)
+        }
+        return out
+    }
+}

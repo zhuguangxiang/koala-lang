@@ -25,6 +25,18 @@ echo "=============================================="
     exit 1
 }
 
+# build demo & test it
+(cd "$ROOT/demo" && wombat build && wombat test) || {
+    echo "wombat test failed."
+    exit 1
+}
+
+# no-jit
+(cd "$ROOT/demo" && KOALA_JIT=0 wombat test) || {
+    echo "wombat test with JIT disabled failed."
+    exit 1
+}
+
 echo "Done."
 
 # cd build/debug

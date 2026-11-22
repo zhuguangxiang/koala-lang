@@ -1,0 +1,164 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/klex"
+
+/// The sort of a syntax tree node.
+///
+/// Koala enums only carry integer values, so the tree is modelled as a class
+/// per node shape and this enum is the tag used for fast dispatch:
+/// `switch n.kind() { case NodeKind.BINARY: ... }`. `n is BinaryExpr` works
+/// too, and narrows the type.
+pub enum NodeKind {
+    // A leaf: one token plus its attached trivia.
+    TOKEN,
+
+    // Types
+    ATOM_TYPE, NAMED_TYPE, TYPE_ARGS, OPTIONAL_TYPE, UNION_TYPE,
+    FUNC_TYPE, LIST_TYPE, MAP_TYPE, SET_TYPE, TUPLE_TYPE,
+    PAREN_TUPLE_TYPE, ARRAY_TYPE,
+
+    // Expressions
+    IDENT, SELF, UNDER, LITERAL, TYPE_EXPR, PAREN, UNARY, BANG, OPT,
+    BINARY, IS, AS, DOT, CALL, KW_ARG, INDEX, SLICE, LIST, MAP,
+    MAP_ENTRY, TUPLE, LAMBDA, LAMBDA_PARAM, IF_EXPR, IF_BRANCH,
+    ERROR_EXPR,
+
+    // Statements and declarations
+    MODULE, BLOCK, EXPR_STMT, LET, VAR, CONST, TUPLE_DECL, TUPLE_TARGET,
+    ASSIGN, TUPLE_ASSIGN, RETURN, BREAK, CONTINUE, IF, WHILE, LOOP,
+    FOR, WITH, SWITCH, CASE, CASE_PATTERN, IMPORT, FROM, IMPORT_ITEM,
+    LINK, FUNC, PARAM, TYPE_PARAM, TYPE_PARAMS, CLASS, TRAIT, ENUM,
+    ENUM_MEMBER, TYPE_ALIAS, PREFIX, ANNOTATION, ANNOT_PARAM, EMPTY,
+    ERROR_STMT,
+}
+
+/// A node of the concrete syntax tree.
+///
+/// The tree is *lossless*: every byte of the source belongs to exactly one
+/// token, and every token belongs to exactly one node. `slots()` lists the
+/// children in source order, mixing tokens and nodes, so concatenating the
+/// text of all slots reproduces the source exactly.
+pub trait Node {
+    /// The tag of this node, for `switch` dispatch.
+    func kind() NodeKind
+
+    /// Children in source order: tokens and nodes interleaved.
+    func slots() list[Node]
+
+    /// The full source text of this node, including comments and whitespace.
+    func text() str
+
+    /// The source range of this node, excluding leading/trailing trivia.
+    func span() Span
+}
+
+/// An expression.
+pub trait Expr : Node {}
+
+/// A statement. Declarations are statements too, as in `koala.y`.
+pub trait Stmt : Node {}
+
+/// A declaration: `func`, `class`, `trait`, `enum`, `type`, `import`, `link`.
+pub trait Decl : Stmt {}
+
+/// A type annotation.
+pub trait TypeNode : Node {}
+
+/// Append the full source text of `n` to `buf`.
+///
+/// Trivia lives on tokens, so writing every token in order reproduces the
+/// input byte for byte.
+pub func write_text(n Node, buf Buffer) {
+    if n is SyntaxToken {
+        for t in n.leading {
+            buf.write_str(t.lexeme)
+        }
+        buf.write_str(n.token.lexeme)
+        for t in n.trailing {
+            buf.write_str(t.lexeme)
+        }
+        return
+    }
+    for s in n.slots() {
+        write_text(s, buf)
+    }
+}
+
+/// The full source text of `n`, including comments and whitespace.
+pub func node_text(n Node) str {
+    let buf = Buffer()
+    write_text(n, buf)
+    return buf.to_str()
+}
+
+/// Collect the real tokens of `n` into `out`, in source order.
+///
+/// Missing tokens (inserted by error recovery) have no source text and are
+/// skipped.
+pub func collect_tokens(n Node, out list[SyntaxToken]) {
+    if n is SyntaxToken {
+        if !n.missing {
+            out.append(n)
+        }
+        return
+    }
+    for s in n.slots() {
+        collect_tokens(s, out)
+    }
+}
+
+/// All real tokens of `n`, in source order.
+pub func node_tokens(n Node) list[SyntaxToken] {
+    let out = list[SyntaxToken]()
+    collect_tokens(n, out)
+    return out
+}
+
+/// The source range of `n`, from its first real token to its last one.
+///
+/// An empty node (no tokens at all) gets a zero-width span at offset 0.
+pub func node_span(n Node) Span {
+    if n is SyntaxToken {
+        return n.span()
+    }
+    let toks = node_tokens(n)
+    if toks.len() == 0 {
+        return Span(0, 0, 1, 1)
+    }
+    let first = toks[0]
+    let last = toks[toks.len() - 1]
+    return Span(first.token.offset, last.end(), first.token.line, first.token.col)
+}
+
+/// Wrap a lexer token as a tree leaf with no trivia attached.
+pub func leaf(t klex.Token) SyntaxToken {
+    return SyntaxToken(t, list[klex.Token](), list[klex.Token](), false)
+}
+
+// Items and their separators are interleaved inline in each `slots()` method:
+// `seps[i]` is the separator written *after* `items[i]`, so a trailing comma
+// is just `seps.len() == items.len()`. A generic helper would upcast `T` to
+// `Node` inside a generic function, which currently miscompiles; see
+// koala_usage_issues.md #26.
+
+/// Append `n` to `out` when it is present.
+pub func add_opt(out list[Node], n Node?) {
+    if let v = n {
+        out.append(v)
+    }
+}
+
+/// Collect every token under `n`, in source order. Used by error recovery
+/// to keep the tokens of a construct it cannot place in the tree.
+pub func tokens_of(n Node, out list[SyntaxToken]) {
+    if n is SyntaxToken {
+        out.append(n)
+        return
+    }
+    for s in n.slots() {
+        tokens_of(s, out)
+    }
+}

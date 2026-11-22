@@ -1,0 +1,58 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/klex"
+
+/// Render a tree as an S-expression, for tests and debugging.
+///
+/// Trivia, inserted semicolons, missing tokens and pure delimiters
+/// (`()`, `[]`, `{}`, `,`, `;`) are left out, so the result shows the shape
+/// of the tree without the noise: `(BINARY (IDENT a) + (LITERAL 1))`.
+/// Use `text()` when the exact source is wanted.
+pub func sexpr(n Node) str {
+    let buf = Buffer()
+    write_sexpr(n, buf)
+    return buf.to_str()
+}
+
+/// True for tokens that carry no shape information in an S-expression.
+func is_delim(k klex.TokenKind) bool {
+    switch k {
+        case klex.TokenKind.LPAREN, klex.TokenKind.RPAREN,
+             klex.TokenKind.LBRACKET, klex.TokenKind.RBRACKET,
+             klex.TokenKind.LBRACE, klex.TokenKind.RBRACE,
+             klex.TokenKind.COMMA, klex.TokenKind.SEMI,
+             klex.TokenKind.EOF:
+            return true
+        case _:
+            return false
+    }
+}
+
+func write_sexpr(n Node, buf Buffer) {
+    if n is SyntaxToken {
+        if n.missing || n.lexeme().len() == 0 || is_delim(n.token_kind()) {
+            return
+        }
+        buf.write_str(n.lexeme())
+        return
+    }
+
+    buf.write_str("(")
+    buf.write_str(n.kind().name())
+    for s in n.slots() {
+        if s is SyntaxToken {
+            if s.missing || s.lexeme().len() == 0 || is_delim(s.token_kind()) {
+                continue
+            }
+            buf.write_str(" ")
+            buf.write_str(s.lexeme())
+        } else {
+            buf.write_str(" ")
+            write_sexpr(s, buf)
+        }
+    }
+    buf.write_str(")")
+}

@@ -1,0 +1,6 @@
+[package]
+name = "koala/kparse"
+version = "0.1.0"
+description = "A lossless CST parser for Koala source, built on koala/klex"
+dependencies = ["koala/klex"]
+natives = []
