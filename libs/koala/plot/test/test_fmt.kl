@@ -43,6 +43,23 @@ func test_fmt_partial() {
 }
 
 @test
+func test_fmt_full_marker_set() {
+    check_fmt("8", nil, nil, "8")
+    check_fmt("|", nil, nil, "|")
+    check_fmt("_", nil, nil, "_")
+    check_fmt("p", nil, nil, "p")
+    check_fmt("P", nil, nil, "P")
+    check_fmt("h", nil, nil, "h")
+    check_fmt("H--", nil, "--", "H")
+    check_fmt("<", nil, nil, "<")
+    check_fmt(">", nil, nil, ">")
+    check_fmt("1", nil, nil, "1")
+    check_fmt("4", nil, nil, "4")
+    check_fmt("*", nil, nil, "*")
+    check_fmt(",", nil, nil, ",")
+}
+
+@test
 func test_fmt_dashdot_vs_point() {
     check_fmt("r-.", "r", "-.", nil)
     check_fmt("k.", "k", nil, ".")
@@ -107,7 +124,9 @@ func test_resolve_cycle_colors() {
     ut.assert_eq(plot.resolve_color("C2"), "#2ca02c")
     ut.assert_eq(plot.resolve_color("C9"), "#17becf")
     ut.assert_eq(plot.resolve_color("#abcdef"), "#abcdef")
-    ut.assert_eq(plot.resolve_color("red"), "red")
+    ut.assert_eq(plot.resolve_color("red"), "#ff0000")
+    ut.assert_eq(plot.resolve_color("cyan"), "#00ffff")
+    ut.assert_eq(plot.resolve_color("tab10"), "tab10")
 }
 
 @should_panic("plot.fmt: invalid format character 'z'")

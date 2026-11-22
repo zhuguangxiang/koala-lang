@@ -5,23 +5,46 @@
 ///       cd demo && wombat build chat && wombat run chat
 ///
 /// Configuration:
-///   All settings come from config.json in the working directory (or the
-///   file named by $CHAT_CONFIG); there are no built-in defaults, so the
-///   file and every field are required. A template lives at
-///   demo/chat/config.json. The API key is NOT in config: it comes from
-///   $OPENAI_COMPAT_API_KEY, or is entered at startup when unset.
+///   All settings come from config.json in the working directory, or from
+///   the file named by `--config PATH` (the command-line option wins over
+///   $CHAT_CONFIG); there are no built-in defaults, so the file and every
+///   field are required. A template lives at demo/chat/config.json.
+///   The API key is NOT in config: it comes from $OPENAI_COMPAT_API_KEY,
+///   or is entered at startup when unset.
 ///   context_window sets the model's token budget; when a request reaches
 ///   80% of it, older history is auto-summarized (compaction) to fit.
+///   The optional no_access_dirs field lists directories the model must not
+///   read, relative to the agent's work directory (or absolute): /file,
+///   @PATH, /workdir and the agent's write action refuse them, and the
+///   agent prompt names them for the shell action (shell commands cannot
+///   be intercepted).
+///   Example: "no_access_dirs": ["secret", "/home/me/.config/Qoder"]
 ///
 /// Modes: starts in chat mode (single-shot Q&A). /agent switches to agent
 ///   mode, where each plain line runs the coding loop (write/compile/run
 ///   until done); /chat switches back. The prompt shows [chat] / [agent].
+///   The agent works in the current directory by default; /workdir PATH
+///   switches it (it persists across /reset and across tasks).
 /// Commands (both modes): /quit /exit Ctrl-D leave, /reset clears the
 ///   conversation, /clear clears the screen, /compact summarizes old history
 ///   now, /context shows window size and usage, /file PATH (or @PATH) loads
 ///   a file, /model shows or switches the model (/model NAME), /models lists
-///   the endpoint's models. Tab completes the /commands, model names after
-///   /model, paths after /file.
+///   the endpoint's models, /workdir shows or sets the agent's working
+///   directory (/workdir PATH). Paths may start with ~ for the home
+///   directory. Tab completes the /commands, model names after /model,
+///   paths after /file, directories after /workdir.
+///
+/// Layout: on a terminal this is an agent-CLI style alternate-screen TUI —
+///   the transcript scrolls on top, the input sits below it, and in agent
+///   mode a dim status bar with model, work dir and token usage is the last
+///   row. Both the transcript and the input are boxed: one column of border
+///   each side, content inside. The input box is three rows: Ctrl-J starts a
+///   new row, Enter submits all of them, and Ctrl-C drops the line. PgUp /
+///   PgDn page the transcript history; at the tail the window follows new
+///   output again, and sending a line snaps back to the tail. /clear wipes
+///   the transcript. Piped (non-tty) runs print plainly, without the boxes
+///   or the bar. The API key prompt echoes nothing, as `getpass`. The TUI itself
+///   is the koala/tui library: Screen, Layout and View in repl.kl.
 ///
 /// Layout:
 ///   config.kl   — Config (from config.json) and resolve_key
@@ -30,10 +53,26 @@
 ///   compact.kl  — context compaction (summarize old history near the limit)
 ///   repl.kl     — the input loop, commands, and terminal I/O
 
+import "std/sys"
 import "koala/openai" as openai
 
 func main() {
-    let cfg = Config()
+    let cfg = Config(_config_flag())
     let key = resolve_key()
     run_repl(Session(openai.Client(key, cfg.base_url), cfg, key), cfg)
+}
+
+/// The config file named by `--config PATH` on the command line, or nil.
+/// The path wins over $CHAT_CONFIG and config.json — see Config.
+func _config_flag() str? {
+    let a = sys.args()
+    var i = 1
+    while i < a.len() {
+        if a[i] == "--config" {
+            if i + 1 >= a.len() { panic("--config requires a path") }
+            return a[i + 1]
+        }
+        i += 1
+    }
+    return nil
 }

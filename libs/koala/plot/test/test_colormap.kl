@@ -1,6 +1,8 @@
 // RUN: koala --test %s
 
-// Unit tests for the plot colormaps (libs/koala/plot/colormap.kl).
+// Unit tests for the plot colormaps (libs/koala/plot/colormap.kl). The
+// expected RGB triples are matplotlib 3.11.2's own values at t = i/255
+// (rounded to 8-bit), i.e. entry int(t*255) of each vendored table.
 
 import "std/ut"
 import "koala/plot"
@@ -40,23 +42,11 @@ func test_gray_clamps() {
 }
 
 @test
-func test_viridis_anchors() {
+func test_viridis_endpoints() {
     let (r0, g0, b0) = plot.viridis(0.0)
     ut.assert_int_eq(r0, 68)
     ut.assert_int_eq(g0, 1)
     ut.assert_int_eq(b0, 84)
-    let (r1, g1, b1) = plot.viridis(0.25)
-    ut.assert_int_eq(r1, 59)
-    ut.assert_int_eq(g1, 82)
-    ut.assert_int_eq(b1, 139)
-    let (r2, g2, b2) = plot.viridis(0.5)
-    ut.assert_int_eq(r2, 33)
-    ut.assert_int_eq(g2, 145)
-    ut.assert_int_eq(b2, 140)
-    let (r3, g3, b3) = plot.viridis(0.75)
-    ut.assert_int_eq(r3, 94)
-    ut.assert_int_eq(g3, 201)
-    ut.assert_int_eq(b3, 98)
     let (r4, g4, b4) = plot.viridis(1.0)
     ut.assert_int_eq(r4, 253)
     ut.assert_int_eq(g4, 231)
@@ -64,12 +54,29 @@ func test_viridis_anchors() {
 }
 
 @test
-func test_viridis_interpolates() {
-    // t=0.1 lies in the first segment, f=0.4 between anchors 0 and 1.
+func test_viridis_table_values() {
+    // t=0.25 -> index 63, t=0.5 -> 127, t=0.75 -> 191.
+    let (r1, g1, b1) = plot.viridis(0.25)
+    ut.assert_int_eq(r1, 59)
+    ut.assert_int_eq(g1, 81)
+    ut.assert_int_eq(b1, 139)
+    let (r2, g2, b2) = plot.viridis(0.5)
+    ut.assert_int_eq(r2, 33)
+    ut.assert_int_eq(g2, 144)
+    ut.assert_int_eq(b2, 141)
+    let (r3, g3, b3) = plot.viridis(0.75)
+    ut.assert_int_eq(r3, 92)
+    ut.assert_int_eq(g3, 200)
+    ut.assert_int_eq(b3, 99)
+}
+
+@test
+func test_viridis_table_matches_matplotlib() {
+    // t=0.1 -> index 25 of matplotlib's own viridis table.
     let (r, g, b) = plot.viridis(0.1)
-    ut.assert_int_eq(r, 64)
-    ut.assert_int_eq(g, 33)
-    ut.assert_int_eq(b, 106)
+    ut.assert_int_eq(r, 72)
+    ut.assert_int_eq(g, 36)
+    ut.assert_int_eq(b, 117)
 }
 
 @test
@@ -84,6 +91,121 @@ func test_viridis_clamps() {
     ut.assert_int_eq(b2, 37)
 }
 
+// Each vendored map, spot-checked against matplotlib 3.11.2 at t = 0, 0.5
+// (index 127) and 1 (index 255).
+
+@test
+func test_plasma_values() {
+    let (r0, g0, b0) = plot.plasma(0.0)
+    ut.assert_int_eq(r0, 13)
+    ut.assert_int_eq(g0, 8)
+    ut.assert_int_eq(b0, 135)
+    let (rm, gm, bm) = plot.plasma(0.5)
+    ut.assert_int_eq(rm, 203)
+    ut.assert_int_eq(gm, 70)
+    ut.assert_int_eq(bm, 121)
+    let (r1, g1, b1) = plot.plasma(1.0)
+    ut.assert_int_eq(r1, 240)
+    ut.assert_int_eq(g1, 249)
+    ut.assert_int_eq(b1, 33)
+}
+
+@test
+func test_inferno_values() {
+    let (r0, g0, b0) = plot.inferno(0.0)
+    ut.assert_int_eq(r0, 0)
+    ut.assert_int_eq(g0, 0)
+    ut.assert_int_eq(b0, 4)
+    let (rm, gm, bm) = plot.inferno(0.5)
+    ut.assert_int_eq(rm, 186)
+    ut.assert_int_eq(gm, 54)
+    ut.assert_int_eq(bm, 85)
+    let (r1, g1, b1) = plot.inferno(1.0)
+    ut.assert_int_eq(r1, 252)
+    ut.assert_int_eq(g1, 255)
+    ut.assert_int_eq(b1, 164)
+}
+
+@test
+func test_magma_values() {
+    let (r0, g0, b0) = plot.magma(0.0)
+    ut.assert_int_eq(r0, 0)
+    ut.assert_int_eq(g0, 0)
+    ut.assert_int_eq(b0, 4)
+    let (rm, gm, bm) = plot.magma(0.5)
+    ut.assert_int_eq(rm, 181)
+    ut.assert_int_eq(gm, 54)
+    ut.assert_int_eq(bm, 122)
+    let (r1, g1, b1) = plot.magma(1.0)
+    ut.assert_int_eq(r1, 252)
+    ut.assert_int_eq(g1, 253)
+    ut.assert_int_eq(b1, 191)
+}
+
+@test
+func test_cividis_values() {
+    let (r0, g0, b0) = plot.cividis(0.0)
+    ut.assert_int_eq(r0, 0)
+    ut.assert_int_eq(g0, 34)
+    ut.assert_int_eq(b0, 78)
+    let (rm, gm, bm) = plot.cividis(0.5)
+    ut.assert_int_eq(rm, 124)
+    ut.assert_int_eq(gm, 123)
+    ut.assert_int_eq(bm, 120)
+    let (r1, g1, b1) = plot.cividis(1.0)
+    ut.assert_int_eq(r1, 254)
+    ut.assert_int_eq(g1, 232)
+    ut.assert_int_eq(b1, 56)
+}
+
+@test
+func test_turbo_values() {
+    let (r0, g0, b0) = plot.turbo(0.0)
+    ut.assert_int_eq(r0, 48)
+    ut.assert_int_eq(g0, 18)
+    ut.assert_int_eq(b0, 59)
+    let (rm, gm, bm) = plot.turbo(0.5)
+    ut.assert_int_eq(rm, 161)
+    ut.assert_int_eq(gm, 253)
+    ut.assert_int_eq(bm, 61)
+    let (r1, g1, b1) = plot.turbo(1.0)
+    ut.assert_int_eq(r1, 122)
+    ut.assert_int_eq(g1, 4)
+    ut.assert_int_eq(b1, 3)
+}
+
+@test
+func test_jet_values() {
+    let (r0, g0, b0) = plot.jet(0.0)
+    ut.assert_int_eq(r0, 0)
+    ut.assert_int_eq(g0, 0)
+    ut.assert_int_eq(b0, 128)
+    let (rm, gm, bm) = plot.jet(0.5)
+    ut.assert_int_eq(rm, 122)
+    ut.assert_int_eq(gm, 255)
+    ut.assert_int_eq(bm, 125)
+    let (r1, g1, b1) = plot.jet(1.0)
+    ut.assert_int_eq(r1, 128)
+    ut.assert_int_eq(g1, 0)
+    ut.assert_int_eq(b1, 0)
+}
+
+@test
+func test_coolwarm_values() {
+    let (r0, g0, b0) = plot.coolwarm(0.0)
+    ut.assert_int_eq(r0, 59)
+    ut.assert_int_eq(g0, 76)
+    ut.assert_int_eq(b0, 192)
+    let (rm, gm, bm) = plot.coolwarm(0.5)
+    ut.assert_int_eq(rm, 220)
+    ut.assert_int_eq(gm, 221)
+    ut.assert_int_eq(bm, 221)
+    let (r1, g1, b1) = plot.coolwarm(1.0)
+    ut.assert_int_eq(r1, 180)
+    ut.assert_int_eq(g1, 4)
+    ut.assert_int_eq(b1, 38)
+}
+
 @test
 func test_colormap_dispatch() {
     let (r, g, b) = plot.colormap("gray", 0.2)
@@ -94,7 +216,146 @@ func test_colormap_dispatch() {
     ut.assert_int_eq(b2, 84)
 }
 
-@should_panic("plot.colormap: unknown colormap 'jet'")
+// The full matplotlib 3.11.2 registry: all 91 base names resolve, and
+// each `_r` reversed variant resolves too.
+@test
+func test_colormap_full_registry() {
+    let names = [
+        "Accent", "Blues", "BrBG", "BuGn", "BuPu", "CMRmap",
+        "Dark2", "GnBu", "Grays", "Greens", "Greys", "OrRd",
+        "Oranges", "PRGn", "Paired", "Pastel1", "Pastel2", "PiYG",
+        "PuBu", "PuBuGn", "PuOr", "PuRd", "Purples", "RdBu",
+        "RdGy", "RdPu", "RdYlBu", "RdYlGn", "Reds", "Set1",
+        "Set2", "Set3", "Spectral", "Wistia", "YlGn", "YlGnBu",
+        "YlOrBr", "YlOrRd", "afmhot", "autumn", "berlin", "binary",
+        "bone", "brg", "bwr", "cividis", "cool", "coolwarm",
+        "copper", "cubehelix", "flag", "gist_earth", "gist_gray", "gist_grey",
+        "gist_heat", "gist_ncar", "gist_rainbow", "gist_stern", "gist_yarg", "gist_yerg",
+        "gnuplot", "gnuplot2", "gray", "grey", "hot", "hsv",
+        "inferno", "jet", "magma", "managua", "nipy_spectral", "ocean",
+        "okabe_ito", "pink", "plasma", "prism", "rainbow", "seismic",
+        "spring", "summer", "tab10", "tab20", "tab20b", "tab20c",
+        "terrain", "turbo", "twilight", "twilight_shifted", "vanimo", "viridis",
+        "winter",
+    ]
+    ut.assert_int_eq(names.len(), 91)
+    for n in names {
+        plot.colormap(n, 0.5)
+        plot.colormap(n + "_r", 0.5)
+    }
+}
+
+// `name_r(t)` == `name(1 - t)`, like matplotlib's reversed colormaps.
+@test
+func test_colormap_reversed_suffix() {
+    let (r0, g0, b0) = plot.colormap("viridis_r", 0.0)
+    ut.assert_int_eq(r0, 253)
+    ut.assert_int_eq(g0, 231)
+    ut.assert_int_eq(b0, 37)
+    let (r1, g1, b1) = plot.colormap("viridis_r", 1.0)
+    ut.assert_int_eq(r1, 68)
+    ut.assert_int_eq(g1, 1)
+    ut.assert_int_eq(b1, 84)
+    // listed map reversal
+    let (t0, t1, t2) = plot.colormap("tab10", 0.0)
+    let (u0, u1, u2) = plot.colormap("tab10_r", 1.0)
+    ut.assert_int_eq(t0, u0)
+    ut.assert_int_eq(t1, u1)
+    ut.assert_int_eq(t2, u2)    // "grey" is the matplotlib alias of "gray"
+    let (gr, gg, gb) = plot.colormap("grey", 0.2)
+    ut.assert_int_eq(gr, 51)
+    ut.assert_int_eq(gg, 51)
+    ut.assert_int_eq(gb, 51)
+}
+
+@should_panic("plot.colormap: unknown colormap 'no_such_r'")
+func test_colormap_unknown_reversed() {
+    plot.colormap("no_such_r", 0.5)
+}
+
+// Newly added registry maps, spot-checked against matplotlib 3.11.2 at
+// t = 0, 0.5 (index 127) and 1 (index 255).
+@test
+func test_new_registry_map_values() {
+    let (r0, g0, b0) = plot.colormap("winter", 0.0)
+    ut.assert_int_eq(r0, 0)
+    ut.assert_int_eq(g0, 0)
+    ut.assert_int_eq(b0, 255)
+    let (rm, gm, bm) = plot.colormap("winter", 0.5)
+    ut.assert_int_eq(rm, 0)
+    ut.assert_int_eq(gm, 127)
+    ut.assert_int_eq(bm, 192)
+    let (r1, g1, b1) = plot.colormap("winter", 1.0)
+    ut.assert_int_eq(r1, 0)
+    ut.assert_int_eq(g1, 255)
+    ut.assert_int_eq(b1, 128)
+
+    let (ar, ag, ab) = plot.colormap("autumn", 0.0)
+    ut.assert_int_eq(ar, 255)
+    ut.assert_int_eq(ag, 0)
+    ut.assert_int_eq(ab, 0)
+    let (ar2, ag2, ab2) = plot.colormap("autumn", 0.5)
+    ut.assert_int_eq(ar2, 255)
+    ut.assert_int_eq(ag2, 127)
+    ut.assert_int_eq(ab2, 0)
+
+    let (br, bg, bb) = plot.colormap("bone", 0.5)
+    ut.assert_int_eq(br, 111)
+    ut.assert_int_eq(bg, 122)
+    ut.assert_int_eq(bb, 143)
+
+    let (hr, hg, hb) = plot.colormap("hsv", 0.5)
+    ut.assert_int_eq(hr, 0)
+    ut.assert_int_eq(hg, 255)
+    ut.assert_int_eq(hb, 240)
+
+    let (tr, tg, tb) = plot.colormap("tab10", 0.0)
+    ut.assert_int_eq(tr, 31)
+    ut.assert_int_eq(tg, 119)
+    ut.assert_int_eq(tb, 180)
+    let (tr2, tg2, tb2) = plot.colormap("tab10", 1.0)
+    ut.assert_int_eq(tr2, 23)
+    ut.assert_int_eq(tg2, 190)
+    ut.assert_int_eq(tb2, 207)
+
+    let (sr, sg, sb) = plot.colormap("Set1", 0.0)
+    ut.assert_int_eq(sr, 228)
+    ut.assert_int_eq(sg, 26)
+    ut.assert_int_eq(sb, 28)
+
+    let (pr, pg, pb) = plot.colormap("prism", 1.0)
+    ut.assert_int_eq(pr, 84)
+    ut.assert_int_eq(pg, 255)
+    ut.assert_int_eq(pb, 0)
+
+    let (er, eg, eb) = plot.colormap("terrain", 0.0)
+    ut.assert_int_eq(er, 51)
+    ut.assert_int_eq(eg, 51)
+    ut.assert_int_eq(eb, 153)
+}
+@should_panic("plot.colormap: unknown colormap 'no_such_map'")
 func test_colormap_unknown() {
-    plot.colormap("jet", 0.5)
+    plot.colormap("no_such_map", 0.5)
+}
+
+@test
+func test_normalize_range() {
+    let out = plot.normalize([1.0, 2.0, 3.0])
+    ut.assert_int_eq(out.len(), 3)
+    ut.assert_float_close(out[0], 0.0)
+    ut.assert_float_close(out[1], 0.5)
+    ut.assert_float_close(out[2], 1.0)
+}
+
+@test
+func test_normalize_constant() {
+    // matplotlib Normalize returns 0.0 for every value when vmin == vmax.
+    let out = plot.normalize([3.0, 3.0])
+    ut.assert_float_close(out[0], 0.0)
+    ut.assert_float_close(out[1], 0.0)
+}
+
+@test
+func test_normalize_empty() {
+    ut.assert_int_eq(plot.normalize(list[float]()).len(), 0)
 }

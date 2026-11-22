@@ -57,13 +57,127 @@ const RENDERER_JS = """
     return [];
   }
 
-  function marker(kind, x, y, r, color) {
-    ctx.fillStyle = color;
+  function marker(kind, x, y, r, color, lw, face) {
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = (lw === undefined) ? 1.5 : lw;
     ctx.setLineDash([]);
+    // A fill shape uses `face` (default the edge color); face "none"
+    // strokes the outline instead of filling (matplotlib hollow markers).
+    function fillFace() {
+      if (face === "none") { ctx.stroke(); } else { ctx.fill(); }
+    }
     ctx.beginPath();
-    if (kind === "x") {
+    if (kind === ".") {
+      ctx.arc(x, y, Math.max(1.5, r * 0.35), 0, TAU);
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === ",") {
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      ctx.fillRect(x - 1, y - 1, 2, 2);
+    } else if (kind === "v") {
+      ctx.moveTo(x, y + r); ctx.lineTo(x + r, y - r); ctx.lineTo(x - r, y - r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "^") {
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r); ctx.lineTo(x - r, y + r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "<") {
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y - r); ctx.lineTo(x + r, y + r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === ">") {
+      ctx.moveTo(x + r, y); ctx.lineTo(x - r, y - r); ctx.lineTo(x - r, y + r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "1") {
+      ctx.moveTo(x, y + r); ctx.lineTo(x - r, y - r); ctx.lineTo(x + r, y - r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "2") {
+      ctx.moveTo(x, y - r); ctx.lineTo(x - r, y + r); ctx.lineTo(x + r, y + r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "3") {
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y - r); ctx.lineTo(x + r, y + r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "4") {
+      ctx.moveTo(x + r, y); ctx.lineTo(x - r, y - r); ctx.lineTo(x - r, y + r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "8") {
+      for (var k = 0; k < 8; k++) {
+        var a = Math.PI / 8 + k * Math.PI / 4;
+        var px = x + r * 0.92 * Math.cos(a), py = y - r * 0.92 * Math.sin(a);
+        if (k === 0) { ctx.moveTo(px, py); } else { ctx.lineTo(px, py); }
+      }
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "s") {
+      ctx.rect(x - r, y - r, 2 * r, 2 * r);
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "p") {
+      for (var k = 0; k < 5; k++) {
+        var a = Math.PI / 2 + k * 2 * Math.PI / 5;
+        var px = x + r * Math.cos(a), py = y - r * Math.sin(a);
+        if (k === 0) { ctx.moveTo(px, py); } else { ctx.lineTo(px, py); }
+      }
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "P") {
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      ctx.arc(x, y, r * 0.85, 0, TAU);
+      fillFace();
+      ctx.beginPath();
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
+      ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
+      ctx.stroke();
+    } else if (kind === "*") {
+      for (var k = 0; k < 10; k++) {
+        var rr = (k % 2 === 0) ? r : r * 0.5;
+        var a = Math.PI / 2 + k * Math.PI / 5;
+        var px = x + rr * Math.cos(a), py = y - rr * Math.sin(a);
+        if (k === 0) { ctx.moveTo(px, py); } else { ctx.lineTo(px, py); }
+      }
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "h") {
+      for (var k = 0; k < 6; k++) {
+        var a = Math.PI / 6 + k * Math.PI / 3;
+        var px = x + r * Math.cos(a), py = y - r * Math.sin(a);
+        if (k === 0) { ctx.moveTo(px, py); } else { ctx.lineTo(px, py); }
+      }
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "H") {
+      for (var k = 0; k < 6; k++) {
+        var a = k * Math.PI / 3;
+        var px = x + r * Math.cos(a), py = y - r * Math.sin(a);
+        if (k === 0) { ctx.moveTo(px, py); } else { ctx.lineTo(px, py); }
+      }
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "x") {
+      ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r);
+      ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
+      ctx.stroke();
+    } else if (kind === "X") {
+      ctx.lineWidth = Math.max(2.5, r);
       ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r);
       ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
       ctx.stroke();
@@ -71,19 +185,77 @@ const RENDERER_JS = """
       ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
       ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
       ctx.stroke();
-    } else if (kind === "s") {
-      ctx.rect(x - r, y - r, 2 * r, 2 * r); ctx.fill();
-    } else if (kind === "^") {
-      ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r); ctx.lineTo(x - r, y + r);
-      ctx.closePath(); ctx.fill();
-    } else if (kind === "v") {
-      ctx.moveTo(x, y + r); ctx.lineTo(x + r, y - r); ctx.lineTo(x - r, y - r);
-      ctx.closePath(); ctx.fill();
-    } else if (kind === "D" || kind === "d") {
+    } else if (kind === "D") {
       ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r);
-      ctx.lineTo(x - r, y); ctx.closePath(); ctx.fill();
+      ctx.lineTo(x - r, y); ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "d") {
+      ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.6, y); ctx.lineTo(x, y + r);
+      ctx.lineTo(x - r * 0.6, y); ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "|") {
+      ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
+    } else if (kind === "_") {
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.stroke();
+    } else if (kind === "tickleft" || kind === "tickright" ||
+               kind === "tickup" || kind === "tickdown") {
+      ctx.lineWidth = Math.max(1.5, r);
+      if (kind === "tickleft") { ctx.moveTo(x - r, y); ctx.lineTo(x, y); }
+      else if (kind === "tickright") { ctx.moveTo(x, y); ctx.lineTo(x + r, y); }
+      else if (kind === "tickup") { ctx.moveTo(x, y); ctx.lineTo(x, y - r); }
+      else { ctx.moveTo(x, y); ctx.lineTo(x, y + r); }
+      ctx.stroke();
+    } else if (kind === "caretleft") {
+      ctx.moveTo(x - r, y); ctx.lineTo(x, y + r); ctx.lineTo(x, y - r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "caretright") {
+      ctx.moveTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x, y - r);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "caretup") {
+      ctx.moveTo(x, y - r); ctx.lineTo(x - r, y); ctx.lineTo(x + r, y);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "caretdown") {
+      ctx.moveTo(x, y + r); ctx.lineTo(x - r, y); ctx.lineTo(x + r, y);
+      ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind === "caretleftbase" || kind === "caretrightbase" ||
+               kind === "caretupbase" || kind === "caretdownbase") {
+      ctx.moveTo(x - r, y); ctx.lineTo(x, y + r); ctx.lineTo(x + r, y);
+      ctx.lineTo(x, y - r); ctx.closePath();
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
+    } else if (kind.charAt(0) === "$" &&
+               kind.charAt(kind.length - 1) === "$") {
+      ctx.font = "12px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(kind.slice(1, -1), x, y);
+    } else if (kind.indexOf("path:") === 0) {
+      var pairs = kind.slice(5).split(";");
+      if (pairs.length >= 2) {
+        var f = pairs[0].split(",");
+        ctx.moveTo(x + parseFloat(f[0]) * r, y - parseFloat(f[1]) * r);
+        for (var q = 1; q < pairs.length; q++) {
+          var pt = pairs[q].split(",");
+          ctx.lineTo(x + parseFloat(pt[0]) * r, y - parseFloat(pt[1]) * r);
+        }
+        ctx.closePath();
+        ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+        fillFace();
+      }
     } else {
-      ctx.arc(x, y, r, 0, TAU); ctx.fill();
+      ctx.arc(x, y, r, 0, TAU);
+      ctx.fillStyle = (face === undefined || face === "none") ? color : face;
+      fillFace();
     }
   }
 
@@ -109,7 +281,23 @@ const RENDERER_JS = """
   function paintScatter(it) {
     var r = Math.sqrt(it.size) / 2;
     for (var i = 0; i < it.points.length; i++) {
-      marker(it.marker, it.points[i].x, it.points[i].y, r, it.color);
+      var col = it.colors ? it.colors[i] : it.color;
+      if (it.marker) {
+        marker(it.marker, it.points[i].x, it.points[i].y, r, col);
+      }
+    }
+  }
+
+  function paintBar(it) {
+    for (var i = 0; i < it.rects.length; i++) {
+      var r = it.rects[i];
+      ctx.fillStyle = it.color;
+      ctx.fillRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      if (it.edgecolor) {
+        ctx.strokeStyle = it.edgecolor;
+        ctx.lineWidth = it.linewidth;
+        ctx.strokeRect(r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0);
+      }
     }
   }
 
@@ -160,19 +348,281 @@ const RENDERER_JS = """
     }
   }
 
+  function paintPie(it) {
+    ctx.setLineDash([]);
+    var wd = it.wedges;
+    for (var i = 0; i < wd.length; i++) {
+      var w = wd[i];
+      ctx.fillStyle = w.color;
+      var a0 = -w.a0 * Math.PI / 180, a1 = -w.a1 * Math.PI / 180;
+      ctx.beginPath();
+      ctx.arc(w.cx, w.cy, w.r, a0, a1, true);
+      if (w.width) {
+        ctx.arc(w.cx, w.cy, w.r * (1 - w.width), a1, a0, false);
+      }
+      ctx.closePath();
+      ctx.fill();
+      if (w.edgecolor) {
+        ctx.strokeStyle = w.edgecolor;
+        ctx.lineWidth = w.linewidth;
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = "#000000";
+    ctx.font = "10px system-ui, sans-serif";
+    var labs = it.labels;
+    for (var j = 0; j < labs.length; j++) {
+      ctx.textAlign = labs[j].ha;
+      ctx.fillText(labs[j].text, labs[j].x, labs[j].y);
+    }
+    // autopct texts: matplotlib's textprops apply here only (labels keep
+    // their plain defaults); defaults are black/10px/normal/upright.
+    var tp = it.textprops;
+    var autos = it.autotexts;
+    ctx.textAlign = "center";
+    ctx.font = "10px system-ui, sans-serif";
+    ctx.fillStyle = "#000000";
+    for (var k = 0; k < autos.length; k++) {
+      if (tp) {
+        ctx.globalAlpha = (tp.alpha != null) ? tp.alpha : 1.0;
+        ctx.fillStyle = tp.color ? tp.color : "#000000";
+        var size = tp.fontsize ? tp.fontsize : 10;
+        var fam = tp.family ? tp.family : "system-ui, sans-serif";
+        var style = (tp.fontstyle === "italic" || tp.fontstyle === "oblique") ? "italic " : "";
+        var weight = tp.fontweight === "bold" ? "bold " : "";
+        ctx.font = style + weight + size + "px " + fam;
+        if (tp.rotation) {
+          ctx.save();
+          ctx.translate(autos[k].x, autos[k].y);
+          ctx.rotate(-tp.rotation * Math.PI / 180);
+          ctx.fillText(autos[k].text, 0, 0);
+          ctx.restore();
+          continue;
+        }
+      }
+      ctx.fillText(autos[k].text, autos[k].x, autos[k].y);
+    }
+    ctx.globalAlpha = 1.0;
+  }
+
+  function paintErrorbar(it) {
+    if (it.linestyle && it.points.length > 0) {
+      ctx.strokeStyle = it.color;
+      ctx.lineWidth = it.linewidth;
+      ctx.setLineDash(dash(it.linestyle));
+      ctx.beginPath();
+      ctx.moveTo(it.points[0].x, it.points[0].y);
+      for (var i = 1; i < it.points.length; i++) {
+        ctx.lineTo(it.points[i].x, it.points[i].y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (it.marker) {
+      var r = Math.max(it.linewidth + 1.5, 3);
+      for (var j = 0; j < it.points.length; j++) {
+        marker(it.marker, it.points[j].x, it.points[j].y, r, it.color);
+      }
+    }
+    ctx.strokeStyle = it.ecolor;
+    ctx.lineWidth = it.elinewidth;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    for (var k = 0; k < it.yerrs.length; k++) {
+      var s = it.yerrs[k];
+      ctx.moveTo(s.x, s.y0);
+      ctx.lineTo(s.x, s.y1);
+    }
+    for (var m = 0; m < it.xerrs.length; m++) {
+      var s2 = it.xerrs[m];
+      ctx.moveTo(s2.x0, s2.y);
+      ctx.lineTo(s2.x1, s2.y);
+    }
+    ctx.stroke();
+    if (it.caplen > 0) {
+      var cr = it.caplen / 2;
+      for (var n = 0; n < it.ycaps.length; n++) {
+        marker("_", it.ycaps[n].x, it.ycaps[n].y, cr, it.ecolor, it.capthick);
+      }
+      for (var p = 0; p < it.xcaps.length; p++) {
+        marker("|", it.xcaps[p].x, it.xcaps[p].y, cr, it.ecolor, it.capthick);
+      }
+    }
+    // One-sided bars (lim bit0 = lolims/xlolims, bit1 = uplims/xuplims)
+    // get an arrow head at the tip, drawn even without caps like
+    // matplotlib.
+    var ar = (it.caretsize || 0) / 2;
+    for (var q = 0; q < it.yerrs.length; q++) {
+      var s3 = it.yerrs[q];
+      if (!s3.lim) { continue; }
+      if (s3.lim == 1 || s3.lim == 3) {
+        marker("caretup", s3.x, s3.y1, ar, it.ecolor, it.capthick);
+      }
+      if (s3.lim == 2 || s3.lim == 3) {
+        marker("caretdown", s3.x, s3.y0, ar, it.ecolor, it.capthick);
+      }
+    }
+    for (var r2 = 0; r2 < it.xerrs.length; r2++) {
+      var s4 = it.xerrs[r2];
+      if (!s4.lim) { continue; }
+      if (s4.lim == 1 || s4.lim == 3) {
+        marker("caretright", s4.x1, s4.y, ar, it.ecolor, it.capthick);
+      }
+      if (s4.lim == 2 || s4.lim == 3) {
+        marker("caretleft", s4.x0, s4.y, ar, it.ecolor, it.capthick);
+      }
+    }
+  }
+
+  function paintFillBetween(it) {
+    ctx.setLineDash([]);
+    for (var i = 0; i < it.paths.length; i++) {
+      var verts = it.paths[i].verts;
+      if (verts.length < 3) { continue; }
+      ctx.beginPath();
+      ctx.moveTo(verts[0].x, verts[0].y);
+      for (var j = 1; j < verts.length; j++) {
+        ctx.lineTo(verts[j].x, verts[j].y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = it.color;
+      ctx.fill();
+    }
+  }
+
+  function paintStem(it) {
+    if (it.linestyle !== "") {
+      ctx.strokeStyle = it.color;
+      ctx.lineWidth = it.linewidth;
+      ctx.setLineDash(dash(it.linestyle));
+      ctx.beginPath();
+      for (var i = 0; i < it.stems.length; i++) {
+        var s = it.stems[i];
+        ctx.moveTo(s.x0, s.y0);
+        ctx.lineTo(s.x1, s.y1);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (it.baseline) {
+      ctx.strokeStyle = it.basecolor;
+      ctx.lineWidth = it.linewidth;
+      ctx.setLineDash(dash(it.basestyle));
+      ctx.beginPath();
+      ctx.moveTo(it.baseline.x0, it.baseline.y0);
+      ctx.lineTo(it.baseline.x1, it.baseline.y1);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (it.marker !== "") {
+      var r = it.markersize / 2;
+      for (var j = 0; j < it.markers.length; j++) {
+        marker(it.marker, it.markers[j].x, it.markers[j].y, r, it.markercolor);
+      }
+    }
+  }
+
+  function paintFilledContour(it) {
+    for (var b = 0; b < it.bands.length; b++) {
+      var band = it.bands[b];
+      for (var i = 0; i < band.paths.length; i++) {
+        var verts = band.paths[i].verts;
+        if (verts.length < 3) { continue; }
+        ctx.beginPath();
+        ctx.moveTo(verts[0].x, verts[0].y);
+        for (var j = 1; j < verts.length; j++) {
+          ctx.lineTo(verts[j].x, verts[j].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = band.color;
+        ctx.fill();
+      }
+    }
+  }
+
+  function strokeSegs(segs, color, ls, lw) {
+    if (segs.length === 0) { return; }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = (lw === undefined) ? 1.0 : lw;
+    ctx.setLineDash((ls === undefined) ? [] : dash(ls));
+    ctx.beginPath();
+    for (var i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      ctx.moveTo(s.x0, s.y0);
+      ctx.lineTo(s.x1, s.y1);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function paintBoxplot(it) {
+    for (var i = 0; i < it.boxes.length; i++) {
+      var verts = it.boxes[i].verts;
+      ctx.beginPath();
+      ctx.moveTo(verts[0].x, verts[0].y);
+      for (var j = 1; j < verts.length; j++) {
+        ctx.lineTo(verts[j].x, verts[j].y);
+      }
+      ctx.closePath();
+      if (it.boxfillcolor !== undefined) {
+        ctx.fillStyle = it.boxfillcolor;
+        ctx.fill();
+      }
+      ctx.strokeStyle = it.boxcolor;
+      ctx.lineWidth = (it.boxlinewidth === undefined) ? 1.0 : it.boxlinewidth;
+      ctx.setLineDash(dash(it.boxlinestyle));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    strokeSegs(it.medians, it.mediancolor, it.medianlinestyle,
+               it.medianlinewidth);
+    strokeSegs(it.whiskers, it.whiskercolor, it.whiskerlinestyle,
+               it.whiskerlinewidth);
+    strokeSegs(it.caps, it.capcolor, it.caplinestyle, it.caplinewidth);
+    strokeSegs(it.meanlines, it.meancolor, it.meanlinestyle,
+               it.meanlinewidth);
+    if (it.fliermarker !== "") {
+      var r = it.fliersize / 2;
+      for (var j = 0; j < it.fliers.length; j++) {
+        marker(it.fliermarker, it.fliers[j].x, it.fliers[j].y, r,
+               it.fliercolor, 1.0, it.flierfacecolor);
+      }
+    }
+    if (it.means.length > 0) {
+      var mr = it.meansize / 2;
+      for (var k = 0; k < it.means.length; k++) {
+        marker(it.meanmarker, it.means[k].x, it.means[k].y, mr, it.meancolor,
+               1.0, it.meanfacecolor);
+      }
+    }
+  }
+
   function paintItems(items, p) {
     ctx.save();
     ctx.beginPath();
     ctx.rect(p.x, p.y, p.w, p.h);
     ctx.clip();
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      if (it.kind === "line") { paintLine(it); }
-      else if (it.kind === "scatter") { paintScatter(it); }
-      else if (it.kind === "contour") { paintContour(it); }
-      else if (it.kind === "image") { paintImage(it, p); }
-      else if (it.kind === "hist") { paintHist(it); }
+    for (var pass = 0; pass <= 1; pass++) {
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        var above = (it.barsabove === true);
+        if ((pass === 0) === above) { continue; }
+        ctx.globalAlpha = (it.alpha === undefined) ? 1 : it.alpha;
+        if (it.kind === "line") { paintLine(it); }
+        else if (it.kind === "scatter") { paintScatter(it); }
+        else if (it.kind === "contour") { paintContour(it); }
+        else if (it.kind === "image") { paintImage(it, p); }
+        else if (it.kind === "hist") { paintHist(it); }
+        else if (it.kind === "bar") { paintBar(it); }
+        else if (it.kind === "pie") { paintPie(it); }
+        else if (it.kind === "errorbar") { paintErrorbar(it); }
+        else if (it.kind === "fill_between") { paintFillBetween(it); }
+        else if (it.kind === "stem") { paintStem(it); }
+        else if (it.kind === "contourf") { paintFilledContour(it); }
+        else if (it.kind === "boxplot") { paintBoxplot(it); }
+      }
     }
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -192,28 +642,129 @@ const RENDERER_JS = """
   }
 
   function paintFrameTicks(ax, p) {
-    ctx.strokeStyle = "#000000";
-    ctx.fillStyle = "#000000";
-    ctx.lineWidth = 1;
+    var ts = ax.tickstyle;
+    ctx.strokeStyle = ts.color;
+    ctx.fillStyle = ts.labelcolor;
+    ctx.lineWidth = ts.width;
     ctx.setLineDash([]);
     ctx.strokeRect(p.x, p.y, p.w, p.h);
-    ctx.textAlign = "center";
+    var len = ts.length;
+    var dir = ts.direction;
+    var pad = ts.pad;
     var xt = ax.xticks;
+    var yt = ax.yticks;
     for (var i = 0; i < xt.length; i++) {
       var x = xt[i].px;
-      ctx.beginPath();
-      ctx.moveTo(x, p.y + p.h); ctx.lineTo(x, p.y + p.h + 4);
-      ctx.stroke();
-      ctx.fillText(xt[i].label, x, p.y + p.h + 14);
+      if (ts.bottom) {
+        ctx.beginPath();
+        if (dir === "in") { ctx.moveTo(x, p.y + p.h); ctx.lineTo(x, p.y + p.h - len); }
+        else if (dir === "inout") { ctx.moveTo(x, p.y + p.h - len); ctx.lineTo(x, p.y + p.h + len); }
+        else { ctx.moveTo(x, p.y + p.h); ctx.lineTo(x, p.y + p.h + len); }
+        ctx.stroke();
+      }
+      if (ts.top) {
+        ctx.beginPath();
+        if (dir === "in") { ctx.moveTo(x, p.y); ctx.lineTo(x, p.y + len); }
+        else if (dir === "inout") { ctx.moveTo(x, p.y - len); ctx.lineTo(x, p.y + len); }
+        else { ctx.moveTo(x, p.y); ctx.lineTo(x, p.y - len); }
+        ctx.stroke();
+      }
     }
-    ctx.textAlign = "right";
-    var yt = ax.yticks;
     for (var j = 0; j < yt.length; j++) {
       var y = yt[j].px;
-      ctx.beginPath();
-      ctx.moveTo(p.x, y); ctx.lineTo(p.x - 4, y);
-      ctx.stroke();
-      ctx.fillText(yt[j].label, p.x - 8, y);
+      if (ts.left) {
+        ctx.beginPath();
+        if (dir === "in") { ctx.moveTo(p.x, y); ctx.lineTo(p.x + len, y); }
+        else if (dir === "inout") { ctx.moveTo(p.x - len, y); ctx.lineTo(p.x + len, y); }
+        else { ctx.moveTo(p.x, y); ctx.lineTo(p.x - len, y); }
+        ctx.stroke();
+      }
+      if (ts.right) {
+        ctx.beginPath();
+        if (dir === "in") { ctx.moveTo(p.x + p.w, y); ctx.lineTo(p.x + p.w - len, y); }
+        else if (dir === "inout") { ctx.moveTo(p.x + p.w - len, y); ctx.lineTo(p.x + p.w + len, y); }
+        else { ctx.moveTo(p.x + p.w, y); ctx.lineTo(p.x + p.w + len, y); }
+        ctx.stroke();
+      }
+    }
+    ctx.font = ts.labelsize + "px system-ui, sans-serif";
+    var labOff = (dir === "in") ? pad : len + pad;
+    var half = ts.labelsize / 2;
+    ctx.textAlign = "center";
+    if (ts.labelbottom) {
+      for (var k = 0; k < xt.length; k++) {
+        ctx.fillText(xt[k].label, xt[k].px, p.y + p.h + labOff + half);
+      }
+    }
+    if (ts.labeltop) {
+      for (var k2 = 0; k2 < xt.length; k2++) {
+        ctx.fillText(xt[k2].label, xt[k2].px, p.y - labOff - half);
+      }
+    }
+    ctx.textAlign = "right";
+    if (ts.labelleft) {
+      for (var m = 0; m < yt.length; m++) {
+        ctx.fillText(yt[m].label, p.x - labOff, yt[m].px);
+      }
+    }
+    ctx.textAlign = "left";
+    if (ts.labelright) {
+      for (var m2 = 0; m2 < yt.length; m2++) {
+        ctx.fillText(yt[m2].label, p.x + p.w + labOff, yt[m2].px);
+      }
+    }
+  }
+
+  function paintColorbar(cb) {
+    var g;
+    if (cb.orientation === "vertical") {
+      g = ctx.createLinearGradient(0, cb.y + cb.h, 0, cb.y);
+    } else {
+      g = ctx.createLinearGradient(cb.x, 0, cb.x + cb.w, 0);
+    }
+    for (var s = 0; s < cb.stops.length; s++) {
+      g.addColorStop(cb.stops[s].t, cb.stops[s].c);
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(cb.x, cb.y, cb.w, cb.h);
+    ctx.strokeStyle = "#000000";
+    ctx.fillStyle = "#000000";
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([]);
+    ctx.strokeRect(cb.x, cb.y, cb.w, cb.h);
+    ctx.font = "10px system-ui, sans-serif";
+    var tk = cb.ticks;
+    for (var i = 0; i < tk.length; i++) {
+      if (cb.orientation === "vertical") {
+        var ty = cb.y + cb.h - tk[i].px;
+        ctx.beginPath();
+        ctx.moveTo(cb.x + cb.w, ty);
+        ctx.lineTo(cb.x + cb.w + 3.5, ty);
+        ctx.stroke();
+        ctx.textAlign = "left";
+        ctx.fillText(tk[i].label, cb.x + cb.w + 3.5 + 3.5, ty);
+      } else {
+        var tx = cb.x + tk[i].px;
+        ctx.beginPath();
+        ctx.moveTo(tx, cb.y + cb.h);
+        ctx.lineTo(tx, cb.y + cb.h + 3.5);
+        ctx.stroke();
+        ctx.textAlign = "center";
+        ctx.fillText(tk[i].label, tx, cb.y + cb.h + 3.5 + 3.5 + 5);
+      }
+    }
+    if (cb.label) {
+      if (cb.orientation === "vertical") {
+        ctx.save();
+        ctx.translate(cb.x + cb.w + 3.5 + 3.5 + 12, cb.y + cb.h / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.textAlign = "center";
+        ctx.fillText(cb.label, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.textAlign = "center";
+        ctx.fillText(cb.label, cb.x + cb.w / 2, cb.y + cb.h + 3.5 + 3.5 + 5 + 14);
+      }
     }
   }
 
@@ -237,6 +788,15 @@ const RENDERER_JS = """
     ctx.font = "12px system-ui, sans-serif";
   }
 
+  function legendXY(loc, w, h, p) {
+    var pad = 8;
+    if (loc === "upper left") { return [p.x + pad, p.y + pad]; }
+    if (loc === "lower left") { return [p.x + pad, p.y + p.h - h - pad]; }
+    if (loc === "lower right") { return [p.x + p.w - w - pad, p.y + p.h - h - pad]; }
+    if (loc === "center") { return [p.x + (p.w - w) / 2, p.y + (p.h - h) / 2]; }
+    return [p.x + p.w - w - pad, p.y + pad];
+  }
+
   function paintLegend(lg, p) {
     if (!lg.show || lg.entries.length === 0) { return; }
     var w = 0;
@@ -246,8 +806,9 @@ const RENDERER_JS = """
     }
     var rh = 18;
     var h = lg.entries.length * rh + 10;
-    var x = p.x + p.w - w - 8;
-    var y = p.y + 8;
+    var xy = legendXY(lg.loc, w, h, p);
+    var x = xy[0];
+    var y = xy[1];
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#cccccc";
     ctx.lineWidth = 1;
@@ -268,11 +829,30 @@ const RENDERER_JS = """
   for (var a = 0; a < spec.axes.length; a++) {
     var ax = spec.axes[a];
     var p = ax.plot;
-    paintGrid(ax.grid, p);
+    if (ax.frame) {
+      paintGrid(ax.grid, p);
+    }
     paintItems(ax.items, p);
-    paintFrameTicks(ax, p);
+    if (ax.frame) {
+      paintFrameTicks(ax, p);
+    }
     paintLabels(ax);
     paintLegend(ax.legend, p);
+    if (ax.colorbar) {
+      paintColorbar(ax.colorbar);
+    }
+  }
+  if (spec.suptitle) {
+    var st = spec.suptitle;
+    ctx.fillStyle = "#000000";
+    ctx.font = "bold 16px system-ui, sans-serif";
+    ctx.textAlign = st.ha;
+    var vb = st.va;
+    if (vb === "baseline") { vb = "alphabetic"; }
+    else if (vb === "center_baseline") { vb = "middle"; }
+    ctx.textBaseline = vb;
+    ctx.fillText(st.text, st.x, st.y);
+    ctx.textBaseline = "middle";
   }
 })();
 """

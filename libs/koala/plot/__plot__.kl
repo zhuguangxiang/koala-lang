@@ -35,10 +35,11 @@
 ///
 /// v1 surface: `figure(figsize=(w,h), dpi)` (inches, matplotlib convention),
 /// `subplot` / `subplots`, `plot` (incl. fmt strings like "ro--"), `scatter`
-/// (`s`/`c`), `contour`, `imshow`, `hist` (returns `(n, bins, patches)`),
-/// `xlabel/ylabel/title/legend/xlim/ylim/grid/xticks/yticks`, `gcf/gca`,
-/// `show`, `close`, plus the Koala extension `savehtml(path)`. The OO
-/// `Figure`/`Axes` objects use matplotlib's `set_*` method names.
+/// (`s`/`c`), `contour`, `imshow` (with `extent`/`aspect`), `hist` (returns
+/// `(n, bins, patches)`, with `weights`/`density`), `xlabel/ylabel/title/
+/// legend/xlim/ylim/grid/xticks/yticks`, `gcf/gca`, `show`, `close`, plus
+/// the Koala extension `savehtml(path)`. The OO `Figure`/`Axes` objects use
+/// matplotlib's `set_*` method names.
 ///
 /// Koala-forced deviations (static typing / reserved words), documented at
 /// each call site: `plot(y, fmt)` is `plot(y, fmt = "...")`; `hist(range=)`

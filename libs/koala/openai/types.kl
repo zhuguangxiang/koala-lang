@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-from "koala/json" import parse_str, Object, Null, Value
+from "koala/json" import parse_str, Object, Array, String, Integer, Null, Value
 
 // Internal response parsing. Public API shape is in types declared here;
 // construction logic is internal.
@@ -80,6 +80,28 @@ pub class Usage {
     }
 }
 
+/// One chunk of a streamed chat completion — mirrors Python's
+/// ChatCompletionChunk, flattened to the first choice.
+///
+///     for chunk in client.chat.completions.stream(...) {
+///         print(chunk.delta)
+///     }
+pub class ChatChunk {
+    pub let id str
+    pub let model str
+    pub let delta str
+    pub let finish_reason str
+    pub let usage Usage?
+
+    pub func __init__(id str, model str, delta str, finish_reason str, usage Usage?) {
+        self.id = id
+        self.model = model
+        self.delta = delta
+        self.finish_reason = finish_reason
+        self.usage = usage
+    }
+}
+
 // ---- internal: build ChatCompletion from raw JSON ----
 
 func _parse_completion(status int, body str, transport_err str) ChatCompletion {
@@ -137,13 +159,26 @@ func _error_completion(status int, msg str) ChatCompletion {
 
 func _get_str(obj Object, k str) str {
     if !(k in obj) { return "" }
-    if obj[k] is Null { return "" }
-    return obj.get_str(k)
+    let v = obj[k]
+    if v is String { return v.value }
+    return ""
 }
 
 func _get_int(obj Object, k str) int {
     if !(k in obj) { return 0 }
-    return obj.get_int(k)
+    let v = obj[k]
+    if v is Integer { return v.value }
+    return 0
+}
+
+func _get_obj(obj Object, k str) Object? {
+    if !(k in obj) { return nil }
+    return obj[k] as Object
+}
+
+func _get_arr(obj Object, k str) Array? {
+    if !(k in obj) { return nil }
+    return obj[k] as Array
 }
 
 func _extract_error(body str) str {

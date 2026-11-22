@@ -11,7 +11,7 @@
 
 /// The marker characters matplotlib accepts in a fmt string.
 func marker_chars() str {
-    return ".,ov^<>1234spP*hH+xXDd"
+    return ".,ov^<>12348spP*hH+xXDd|_"
 }
 
 /// Remove the first occurrence of `sub` from `s` (no-op when absent).

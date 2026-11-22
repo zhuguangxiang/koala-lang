@@ -1,0 +1,156 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "koala/math"
+
+/// Boxplot statistics for one dataset (matplotlib `boxplot`), computed
+/// Koala-side at spec time: quartiles via linear interpolation (numpy's
+/// percentile default), whiskers at `whis` x IQR clamped to the data
+/// range, and fliers outside the whiskers.
+
+pub class BoxStat {
+    pub let pos float
+    pub let hw float
+    pub let n int
+    pub let q1 float
+    pub let med float
+    pub let q3 float
+    pub let iqr float
+    pub let wlo float
+    pub let whi float
+    pub let mean float
+    pub let fliers list[float]
+
+    pub func __init__(pos float, hw float, n int, q1 float, med float,
+                      q3 float, iqr float, wlo float, whi float,
+                      mean float, fliers list[float]) {
+        self.pos = pos
+        self.hw = hw
+        self.n = n
+        self.q1 = q1
+        self.med = med
+        self.q3 = q3
+        self.iqr = iqr
+        self.wlo = wlo
+        self.whi = whi
+        self.mean = mean
+        self.fliers = fliers
+    }
+
+    /// Notch half-height at the median, matplotlib's 1.57 x IQR / sqrt(n)
+    /// (0 when the IQR is 0 so no notch is cut).
+    func notch_dy() float {
+        if iqr == 0.0 {
+            return 0.0
+        }
+        return 1.57 * iqr / math.sqrt(float(n))
+    }
+}
+
+/// Linear-interpolation percentile of a sorted list (numpy `percentile`
+/// default method), matching matplotlib's quartile computation.
+func percentile(sorted list[float], p float) float {
+    let n = sorted.len()
+    let idx = p * float(n - 1)
+    let lo = int(floor(idx))
+    if lo >= n - 1 {
+        return sorted[n - 1]
+    }
+    let frac = idx - float(lo)
+    return sorted[lo] + frac * (sorted[lo + 1] - sorted[lo])
+}
+
+/// Compute `BoxStat` for one dataset at position `pos` with box
+/// half-width `hw`. Panics on empty data; callers check `box_skip` first
+/// (matplotlib emits NaN geometry that draws nothing, so NaN datasets are
+/// skipped entirely). `whis` is either the IQR multiplier (scalar, mpl
+/// default 1.5) or a pair of whisker percentiles like (10, 90); whisker
+/// ends fall back to q1/q3 when the nearest data point inside the fence
+/// lies beyond the quartile, exactly like matplotlib's boxplot_stats.
+pub func box_stats(data list[float], pos float, hw float,
+                   whis float | list[float]) BoxStat {
+    if data.len() == 0 {
+        panic("plot.box_stats: empty dataset")
+    }
+    let s = list[float]()
+    for v in data {
+        s.append(v)
+    }
+    s.sort()
+    let q1 = percentile(s, 0.25)
+    let med = percentile(s, 0.5)
+    let q3 = percentile(s, 0.75)
+    let iqr = q3 - q1
+    var loval = 0.0
+    var hival = 0.0
+    switch whis {
+        case is float: {
+            loval = q1 - whis * iqr
+            hival = q3 + whis * iqr
+        }
+        case is list[float]: {
+            if whis.len() != 2 {
+                panic("plot.Axes.boxplot: 'whis' must be a sequence of 2 percentiles")
+            }
+            if whis[0] < 0.0 || whis[0] > 100.0 || whis[1] < 0.0 ||
+               whis[1] > 100.0 {
+                panic("Percentiles must be in the range [0, 100]")
+            }
+            loval = percentile(s, whis[0] / 100.0)
+            hival = percentile(s, whis[1] / 100.0)
+        }
+    }
+    // matplotlib draws each whisker to the most extreme data point inside
+    // the fence, falling back to the quartile when that point is beyond it
+    // (or when no data point qualifies).
+    var wlo_end = 0.0
+    var whi_end = 0.0
+    var found_lo = false
+    var found_hi = false
+    for v in s {
+        if v >= loval && (!found_lo || v < wlo_end) {
+            wlo_end = v
+            found_lo = true
+        }
+        if v <= hival && (!found_hi || v > whi_end) {
+            whi_end = v
+            found_hi = true
+        }
+    }
+    if !found_lo || wlo_end > q1 {
+        wlo_end = q1
+    }
+    if !found_hi || whi_end < q3 {
+        whi_end = q3
+    }
+    let fliers = list[float]()
+    for v in s {
+        if v < wlo_end || v > whi_end {
+            fliers.append(v)
+        }
+    }
+    var total = 0.0
+    for v in s {
+        total = total + v
+    }
+    let mean = total / float(s.len())
+    return BoxStat(pos, hw, s.len(), q1, med, q3, iqr, wlo_end, whi_end,
+                   mean, fliers)
+}
+
+/// True when a dataset draws nothing: empty or containing NaN
+/// (matplotlib keeps NaN and emits all-NaN geometry; skipping produces
+/// the same visual result).
+pub func box_skip(data list[float]) bool {
+    if data.len() == 0 {
+        return true
+    }
+    for v in data {
+        if math.isnan(v) {
+            return true
+        }
+    }
+    return false
+}

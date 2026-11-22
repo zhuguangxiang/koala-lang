@@ -22,24 +22,24 @@ const SUMMARIZE_PROMPT = "You summarize conversations. Produce a concise summary
 
 /// Auto-compaction: if the last request used at least COMPACT_PERCENT of
 /// the context window, summarize the older history. Mutates `messages`.
-func maybe_compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]], prompt_tokens int) {
+pub func maybe_compact(client openai.Client, model str, cfg Config, messages list[dict[str, str]], prompt_tokens int) {
     let limit = cfg.context_window * COMPACT_PERCENT / 100
     if prompt_tokens < limit { return }
     if _compact(client, model, cfg, messages) {
-        print("(context compacted: " + str(prompt_tokens) + " tokens reached " + str(COMPACT_PERCENT) + "% of " + str(cfg.context_window) + "; older history summarized)")
+        emit("(context compacted: " + str(prompt_tokens) + " tokens reached " + str(COMPACT_PERCENT) + "% of " + str(cfg.context_window) + "; older history summarized)")
     }
 }
 
 /// Manual compaction (the /compact command), regardless of token usage.
-func compact_now(client openai.Client, model str, cfg Config, messages list[dict[str, str]]) {
+pub func compact_now(client openai.Client, model str, cfg Config, messages list[dict[str, str]]) {
     if messages.len() <= KEEP_RECENT + 2 {
-        print("(nothing to compact)")
+        emit("(nothing to compact)")
         return
     }
     if _compact(client, model, cfg, messages) {
-        print("(context compacted)")
+        emit("(context compacted)")
     } else {
-        print("(compaction failed: summary request error)")
+        emit("(compaction failed: summary request error)")
     }
 }
 

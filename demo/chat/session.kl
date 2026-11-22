@@ -1,8 +1,10 @@
 /*
- * demo/chat — the conversation and model selection.
+ * demo/chat — the conversation, model selection and agent work directory.
  */
 
 import "std/fs"
+import "std/os"
+import "std/time"
 import "koala/openai" as openai
 from "koala/http" import Url, Request, Client
 from "koala/json" import parse_str, Object
@@ -16,6 +18,7 @@ pub class Session {
     let cfg Config
     let key str
     var model str
+    var workdir str
     let messages list[dict[str, str]]
     var _agent Agent?
     var _last_tokens int
@@ -25,6 +28,7 @@ pub class Session {
         cfg = _cfg
         key = _key
         model = _cfg.model
+        workdir = os.getcwd()
         messages = list[dict[str, str]]()
         _agent = nil
         _last_tokens = 0
@@ -47,10 +51,12 @@ pub class Session {
     pub func set_model(name str) { model = name }
 
     /// Load `path` into the conversation as a user message. Return the
-    /// number of characters added, or nil when the file cannot be read.
+    /// number of characters added, or nil when the file cannot be read or
+    /// is inside a no-access directory.
     /// The fence and the path line are what make the model quote locations
     /// back well.
     pub func load_file(path str) int? {
+        if path_blocked(path, workdir, cfg.no_access_dirs) { return nil }
         if !fs.is_file(path) { return nil }
         let text = fs.read_str(path, cfg.max_code_bytes)
         let content = "File: " + path + "\n```\n" + text + "\n```\n"
@@ -58,20 +64,57 @@ pub class Session {
         return content.len()
     }
 
-    /// Send `text` as a user turn and return the model's response. On a
-    /// failed request the user turn is rolled back so the conversation
-    /// stays consistent for a retry; on success the reply is appended.
-    pub func ask(text str) openai.ChatCompletion {
+    /// Send `text` as a user turn and stream the reply in line by line:
+    /// each line is emitted as soon as its newline arrives. On a failed
+    /// request the user turn is rolled back so the conversation stays
+    /// consistent for a retry; on success the full reply is appended.
+    /// Return false on failure.
+    pub func ask(text str) bool {
         messages.append({"role": "user", "content": text})
-        let resp = client.chat.completions.create(model, messages, cfg.temperature, cfg.max_tokens)
-        if !resp.ok() {
+        let stream = client.chat.completions.stream(model, messages, cfg.temperature, cfg.max_tokens)
+        if !stream.ok() {
             messages.pop()
-            return resp
+            emit("Error [" + str(stream.status_code()) + "]: " + stream.error_message())
+            stream.close()
+            return false
         }
-        messages.append({"role": "assistant", "content": resp.choices[0].message.content})
-        _last_tokens = resp.usage.prompt_tokens
-        maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens)
-        return resp
+        var content = ""
+        var pending = ""
+        var started = false
+        for chunk in stream {
+            if chunk.delta.len() == 0 { continue }
+            content += chunk.delta
+            pending += chunk.delta
+            let lines = pending.split("\n")
+            var i = 0
+            while i < lines.len() - 1 {
+                if !started {
+                    emit("bot> " + lines[i])
+                    started = true
+                } else {
+                    emit(lines[i])
+                }
+                _pace(cfg.stream_delay_ms)
+                i += 1
+            }
+            pending = lines[lines.len() - 1]
+        }
+        // The tail after the last newline, if any.
+        if pending.len() > 0 {
+            if started {
+                emit(pending)
+            } else {
+                emit("bot> " + pending)
+            }
+            _pace(cfg.stream_delay_ms)
+        }
+        let usage = stream.usage()
+        stream.close()
+        messages.append({"role": "assistant", "content": content})
+        _last_tokens = usage.prompt_tokens
+        if usage.total_tokens > 0 { emit(format("({} tokens)", usage.total_tokens)) }
+        maybe_compact(client, model, cfg, messages, usage.prompt_tokens)
+        return true
     }
 
     /// Run the coding agent loop on `task` with the current model. The
@@ -81,7 +124,7 @@ pub class Session {
         if let a = _agent {
             a.run(task, model)
         } else {
-            let a = Agent(client, cfg)
+            let a = Agent(client, cfg, workdir)
             _agent = a
             a.run(task, model)
         }
@@ -94,7 +137,7 @@ pub class Session {
             if let a = _agent {
                 a.compact(model)
             } else {
-                print("(no agent conversation yet)")
+                emit("(no agent conversation yet)")
             }
         } else {
             compact_now(client, model, cfg, messages)
@@ -112,8 +155,41 @@ pub class Session {
         let window = cfg.context_window
         let tenths = used * 1000 / window
         let pct = str(tenths / 10) + "." + str(tenths % 10) + "%"
-        print("[" + which + "] context: " + str(used) + " / " + str(window) + " tokens (" + pct + ")")
-        print("auto-compaction at " + str(COMPACT_PERCENT) + "% (" + str(window * COMPACT_PERCENT / 100) + " tokens)")
+        emit("[" + which + "] context: " + str(used) + " / " + str(window) + " tokens (" + pct + ")")
+        emit("auto-compaction at " + str(COMPACT_PERCENT) + "% (" + str(window * COMPACT_PERCENT / 100) + " tokens)")
+    }
+
+    /// Change the directory the agent works in (/workdir PATH). Return
+    /// false when `path` is not a directory or is inside a no-access
+    /// directory. Applies to the next agent run and, when an agent is
+    /// already live, to it too.
+    pub func set_workdir(path str) bool {
+        if !fs.is_dir(path) { return false }
+        if path_blocked(path, workdir, cfg.no_access_dirs) { return false }
+        workdir = path
+        if let a = _agent { a.set_workdir(path) }
+        return true
+    }
+
+    /// True when `path` is inside one of the no-access directories.
+    pub func is_blocked(path str) bool {
+        return path_blocked(path, workdir, cfg.no_access_dirs)
+    }
+
+    /// Show the directory the agent works in (/workdir).
+    pub func show_workdir() {
+        emit("[agent] work dir: " + workdir)
+    }
+
+    /// One line for the agent-mode status bar: model, work dir, and token
+    /// usage (last agent request against the window).
+    pub func status_line() str {
+        var used = 0
+        if let a = _agent { used = a.last_tokens() }
+        let window = cfg.context_window
+        let tenths = used * 1000 / window
+        let pct = str(tenths / 10) + "." + str(tenths % 10) + "%"
+        return "model=" + model + " | dir=" + workdir + " | tokens " + str(used) + "/" + str(window) + " (" + pct + ")"
     }
 
     /// The model ids the endpoint offers (GET {base_url}/models), or nil
@@ -146,4 +222,10 @@ pub class Session {
         }
         return nil
     }
+}
+
+/// Pause `ms` milliseconds between streamed reply lines, so the eye can
+/// follow the line-by-line print effect; no-op for 0.
+func _pace(ms int) {
+    if ms > 0 { time.sleep(time.Duration.from_millis(ms)) }
 }

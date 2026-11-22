@@ -1,0 +1,124 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Session (session.kl): model selection, the status line, the work-dir
+// guard, file loading, and the transport-failure paths of ask() and
+// list_models(). Network success paths are covered by the pty E2E tests.
+
+import "std/ut"
+import "std/fs"
+import "std/os"
+import "demo/chat"
+import "koala/openai" as openai
+
+const SBASE = "/tmp/koala_chat_sesstest"
+
+func _fresh() {
+    fs.remove_all(SBASE)
+    fs.mkdir(SBASE)
+    fs.mkdir(SBASE + "/wd")
+    fs.write_str(SBASE + "/note.txt", "hello note\n")
+}
+
+/// A config.json with every required field, plus a no_access suffix.
+func _write_config(file str, no_access str) {
+    let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", \"history_file\": \"/tmp/koala_chat_sesstest/history\", \"max_code_bytes\": 1000, \"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, \"system_prompt\": \"s\"" + no_access + "}"
+    fs.write_str(file, json)
+}
+
+/// A Session against an unreachable endpoint (error paths only).
+func _session() chat.Session {
+    _fresh()
+    _write_config(SBASE + "/cfg.json", "")
+    os.setenv("CHAT_CONFIG", SBASE + "/cfg.json")
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    return chat.Session(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, "sk")
+}
+
+@test
+func test_model_selection() {
+    let s = _session()
+    ut.assert_true(s.current_model() == "auto")
+    s.set_model("gpt-42")
+    ut.assert_true(s.current_model() == "gpt-42")
+}
+
+@test
+func test_status_line_shape() {
+    let s = _session()
+    let line = s.status_line()
+    ut.assert_true("model=auto" in line)
+    ut.assert_true("dir=" in line)
+    ut.assert_true("tokens 0/" in line)
+    ut.assert_true("(0.0%)" in line)
+}
+
+@test
+func test_set_workdir() {
+    let s = _session()
+    ut.assert_true(s.set_workdir(SBASE + "/wd"))
+    ut.assert_true("dir=" + SBASE + "/wd" in s.status_line())
+    ut.assert_false(s.set_workdir(SBASE + "/missing"))
+    // a file is not a directory
+    ut.assert_false(s.set_workdir(SBASE + "/note.txt"))
+}
+
+@test
+func test_load_file() {
+    let s = _session()
+    ut.assert_true(s.load_file(SBASE + "/missing.txt") == nil)
+    ut.assert_true(s.load_file(SBASE + "/wd") == nil)
+    let n = s.load_file(SBASE + "/note.txt")
+    ut.assert_true(n != nil)
+    ut.assert_gt(n!, 0)
+}
+
+@test
+func test_ask_transport_failure() {
+    let s = _session()
+    // the failed turn is rolled back internally and false is returned;
+    // the rollback is asserted end to end in the pty tests via request
+    // bodies
+    ut.assert_false(s.ask("will not reach the endpoint"))
+}
+
+@test
+func test_list_models_transport_failure() {
+    let s = _session()
+    ut.assert_true(s.list_models() == nil)
+}
+
+@test
+func test_show_context_smoke() {
+    let s = _session()
+    s.show_context(false)
+    s.show_context(true)
+}
+
+@test
+func test_compact_branches_smoke() {
+    let s = _session()
+    // chat side: one system message, too short to compact
+    s.compact(false)
+    // agent side: no agent conversation yet
+    s.compact(true)
+}
+
+@test
+func test_reset_smoke() {
+    let s = _session()
+    s.set_model("gpt-42")
+    s.reset()
+    ut.assert_true(s.current_model() == "gpt-42")
+    ut.assert_true("tokens 0/" in s.status_line())
+}
+
+@test
+func test_agent_run_smoke() {
+    let s = _session()
+    // an unreachable endpoint: the loop reports the error and returns
+    s.agent("do it")
+}

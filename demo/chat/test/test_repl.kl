@@ -1,0 +1,98 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The REPL's pure helpers (repl.kl): blank-line detection, the mode-tagged
+// prompt, `~` expansion, and the file/dir completion matchers. The TUI and
+// the command loop itself are covered by the pty E2E tests.
+
+import "std/ut"
+import "std/fs"
+import "std/os"
+import "demo/chat"
+
+const RBASE = "/tmp/koala_chat_repltest"
+
+@test
+func test_is_blank() {
+    ut.assert_true(chat.is_blank(""))
+    ut.assert_true(chat.is_blank("   "))
+    ut.assert_true(chat.is_blank("\t\t"))
+    ut.assert_false(chat.is_blank("a"))
+    ut.assert_false(chat.is_blank("a "))
+    ut.assert_false(chat.is_blank(" a"))
+    ut.assert_false(chat.is_blank("\n"))
+}
+
+@test
+func test_prompt_tagged() {
+    // the tty form wraps the same visible text in bold-cyan escapes
+    ut.assert_true("[chat] you>" in chat.prompt("chat"))
+    ut.assert_true("[agent] you>" in chat.prompt("agent"))
+}
+
+@test
+func test_expand_tilde() {
+    if let home = os.getenv("HOME") {
+        ut.assert_true(chat.expand("~/x") == home + "/x")
+        ut.assert_true(chat.expand("~") == home)
+        ut.assert_true(chat.expand("~/a/b") == home + "/a/b")
+    }
+    // non-tilde paths pass through untouched
+    ut.assert_true(chat.expand("plain") == "plain")
+    ut.assert_true(chat.expand("/abs/path") == "/abs/path")
+}
+
+/// A fresh completion tree: aa.txt, ab.txt, z.txt and sub/aa.txt.
+func _tree() str {
+    fs.remove_all(RBASE)
+    fs.mkdir(RBASE)
+    fs.mkdir(RBASE + "/files")
+    fs.mkdir(RBASE + "/files/sub")
+    fs.write_str(RBASE + "/files/aa.txt", "a")
+    fs.write_str(RBASE + "/files/ab.txt", "b")
+    fs.write_str(RBASE + "/files/z.txt", "z")
+    fs.write_str(RBASE + "/files/sub/aa.txt", "s")
+    return RBASE
+}
+
+@test
+func test_file_matches_prefix() {
+    let b = _tree()
+    let m = chat.file_matches(b + "/files/a")
+    ut.assert_eq(m.len(), 2)
+    ut.assert_true((b + "/files/aa.txt") in m)
+    ut.assert_true((b + "/files/ab.txt") in m)
+}
+
+@test
+func test_file_matches_no_prefix() {
+    let b = _tree()
+    // a trailing slash completes everything in the directory
+    let m = chat.file_matches(b + "/files/")
+    ut.assert_eq(m.len(), 4)
+    ut.assert_true((b + "/files/sub") in m)
+}
+
+@test
+func test_file_matches_nothing() {
+    let b = _tree()
+    ut.assert_eq(chat.file_matches(b + "/files/zz").len(), 0)
+}
+
+@test
+func test_file_matches_missing_dir() {
+    let b = _tree()
+    ut.assert_eq(chat.file_matches(b + "/missing/a").len(), 0)
+}
+
+@test
+func test_dir_matches_filters_files() {
+    let b = _tree()
+    let m = chat.dir_matches(b + "/files/")
+    ut.assert_eq(m.len(), 1)
+    ut.assert_true((b + "/files/sub") in m)
+    // prefix matches that are files only are dropped entirely
+    ut.assert_eq(chat.dir_matches(b + "/files/a").len(), 0)
+}

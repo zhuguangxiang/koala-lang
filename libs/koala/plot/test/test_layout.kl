@@ -1,82 +1,206 @@
 // RUN: koala --test %s
 
-// Unit tests for the plot layout geometry (libs/koala/plot/layout.kl).
+// Unit tests for the layout controls (Figure.subplots_adjust /
+// Figure.tight_layout and their pyplot facades). Geometry expectations are
+// derived from the pixel constants in layout.kl (FIG_MARGIN=10, CELL_GAP=20,
+// PAD_LEFT=60, PAD_RIGHT=20, PAD_TOP=40, PAD_BOTTOM=50) on the default
+// 640x480 (dpi 100) figure: default cell (10, 10, 620, 460), data rect
+// (70, 50, 540, 370). tight_layout v1 uses those pads as the content
+// extents (documented deviation - no text measurement), so the default
+// 1x1 tight data rect is (60*1.08, 40*1.08, 640-80*1.08, 480-90*1.08).
 
 import "std/ut"
 import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
 
-@test
-func test_rect_helpers() {
-    let r = plot.Rect(10.0, 20.0, 100.0, 50.0)
-    ut.assert_float_close(r.right(), 110.0)
-    ut.assert_float_close(r.bottom(), 70.0)
-    ut.assert_float_close(r.center_x(), 60.0)
-    ut.assert_float_close(r.center_y(), 45.0)
+func axes_n(fig plot.Figure, i int) json.Object {
+    return fig.to_spec().get_array("axes").get_object(i)
+}
+
+func plot_of(fig plot.Figure, i int) json.Object {
+    return axes_n(fig, i).get_object("plot")
+}
+
+func check_plot(fig plot.Figure, i int, x float, y float, w float, h float) {
+    let p = plot_of(fig, i)
+    ut.assert_float_close(p.get_float("x"), x)
+    ut.assert_float_close(p.get_float("y"), y)
+    ut.assert_float_close(p.get_float("w"), w)
+    ut.assert_float_close(p.get_float("h"), h)
 }
 
 @test
-func test_cell_single() {
-    let cell = plot.cell_rect(800.0, 600.0, 1, 1, 0, 0)
-    ut.assert_float_close(cell.x, 10.0)
-    ut.assert_float_close(cell.y, 10.0)
-    ut.assert_float_close(cell.w, 780.0)
-    ut.assert_float_close(cell.h, 580.0)
+func test_adjust_noop_keeps_default() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    // All parameters omitted is a no-op (matplotlib semantics).
+    fig.subplots_adjust()
+    check_plot(fig, 0, 70.0, 50.0, 540.0, 370.0)
 }
 
 @test
-func test_plot_rect_single() {
-    let cell = plot.cell_rect(800.0, 600.0, 1, 1, 0, 0)
-    let p = plot.plot_rect(cell)
-    ut.assert_float_close(p.x, 70.0)
-    ut.assert_float_close(p.y, 50.0)
-    ut.assert_float_close(p.w, 700.0)
-    ut.assert_float_close(p.h, 490.0)
-    ut.assert_float_close(p.right(), 770.0)
-    ut.assert_float_close(p.bottom(), 540.0)
+func test_adjust_full_fractions() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplots_adjust(0.1, 0.2, 0.9, 0.8)
+    // Data rect: x=0.1*640=64, y=(1-0.8)*480=96, w=(0.9-0.1)*640=512,
+    // h=(0.8-0.2)*480=288.
+    check_plot(fig, 0, 64.0, 96.0, 512.0, 288.0)
 }
 
 @test
-func test_cell_two_columns() {
-    let c0 = plot.cell_rect(800.0, 600.0, 1, 2, 0, 0)
-    let c1 = plot.cell_rect(800.0, 600.0, 1, 2, 0, 1)
-    ut.assert_float_close(c0.w, 380.0)
-    ut.assert_float_close(c1.w, 380.0)
-    ut.assert_float_close(c0.x, 10.0)
-    ut.assert_float_close(c1.x, 410.0)
-    ut.assert_float_close(c0.y, 10.0)
-    ut.assert_float_close(c1.y, 10.0)
+func test_adjust_partial_top_seeds_rest() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplots_adjust(nil, nil, nil, 0.9)
+    // Top changes to 0.9; left/bottom/right are seeded from the default
+    // pixel layout: x=70, y=(1-0.9)*480=48, w=540, h=(0.9-0.125)*480=372.
+    check_plot(fig, 0, 70.0, 48.0, 540.0, 372.0)
 }
 
 @test
-func test_cell_two_rows() {
-    let r0 = plot.cell_rect(800.0, 600.0, 2, 1, 0, 0)
-    let r1 = plot.cell_rect(800.0, 600.0, 2, 1, 1, 0)
-    ut.assert_float_close(r0.h, 280.0)
-    ut.assert_float_close(r1.h, 280.0)
-    ut.assert_float_close(r0.y, 10.0)
-    ut.assert_float_close(r1.y, 310.0)
+func test_adjust_wspace_two_cols() {
+    let fig = plot.Figure()
+    fig.subplot(1, 2, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplot(1, 2, 2).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplots_adjust(nil, nil, nil, nil, 0.5)
+    // Seeded x0=70, x1=610; colw=540/(2+0.5)=216; gap=0.5*216=108.
+    check_plot(fig, 0, 70.0, 50.0, 216.0, 370.0)
+    check_plot(fig, 1, 394.0, 50.0, 216.0, 370.0)
 }
 
 @test
-func test_cell_grid_2x2() {
-    let cell = plot.cell_rect(800.0, 600.0, 2, 2, 1, 1)
-    ut.assert_float_close(cell.w, 380.0)
-    ut.assert_float_close(cell.h, 280.0)
-    ut.assert_float_close(cell.x, 410.0)
-    ut.assert_float_close(cell.y, 310.0)
+func test_adjust_hspace_two_rows() {
+    let fig = plot.Figure()
+    fig.subplot(2, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplot(2, 1, 2).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplots_adjust(nil, nil, nil, nil, nil, 0.5)
+    // Seeded y0=50, y1=420; rowh=370/(2+0.5)=148; gap=0.5*148=74.
+    check_plot(fig, 0, 70.0, 50.0, 540.0, 148.0)
+    check_plot(fig, 1, 70.0, 272.0, 540.0, 148.0)
 }
 
-@should_panic("plot.layout: rows and cols must be >= 1")
-func test_cell_zero_rows() {
-    plot.cell_rect(800.0, 600.0, 0, 1, 0, 0)
+@test
+func test_adjust_chained_keeps_prior() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.subplots_adjust(0.1)
+    fig.subplots_adjust(nil, 0.3)
+    // left=0.1 kept from the first call; bottom=0.3 set now; right/top
+    // seeded: x=64, y=(1-0.895833...)*480=50, w=610-64=546, h=336-50=286.
+    check_plot(fig, 0, 64.0, 50.0, 546.0, 286.0)
 }
 
-@should_panic("plot.layout: cell index out of range")
-func test_cell_index_out_of_range() {
-    plot.cell_rect(800.0, 600.0, 1, 1, 1, 0)
+@test
+func test_adjust_items_follow_new_rect() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(0.0, 2.0)
+    ax.set_ylim(0.0, 4.0)
+    ax.plot([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    fig.subplots_adjust(0.1, 0.2, 0.9, 0.8)
+    let it = axes_n(fig, 0).get_array("items").get_object(0)
+    let pts = it.get_array("points")
+    ut.assert_int_eq(pts.len(), 3)
+    // px(1)=64+0.5*512=320, py(1)=384-0.25*288=312.
+    ut.assert_float_close(pts.get_object(1).get_float("x"), 320.0)
+    ut.assert_float_close(pts.get_object(1).get_float("y"), 312.0)
 }
 
-@should_panic("plot.layout: figure too small for axes margins")
-func test_plot_rect_too_small() {
-    plot.plot_rect(plot.Rect(0.0, 0.0, 50.0, 50.0))
+@should_panic("left cannot be >= right")
+func test_adjust_left_ge_right() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1)
+    fig.subplots_adjust(0.5, nil, 0.3)
+}
+
+@should_panic("bottom cannot be >= top")
+func test_adjust_bottom_ge_top() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1)
+    fig.subplots_adjust(nil, 0.5, nil, 0.3)
+}
+
+@test
+func test_tight_default_1x1() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.tight_layout()
+    // ol=60*1.08=64.8, or_=20*1.08=21.6, ot=40*1.08=43.2, ob=50*1.08=54.
+    check_plot(fig, 0, 64.8, 43.2, 553.6, 382.8)
+}
+
+@test
+func test_tight_pad2() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.tight_layout(2.0)
+    check_plot(fig, 0, 120.0, 80.0, 480.0, 300.0)
+}
+
+@test
+func test_tight_wpad_hpad_overrides() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.tight_layout(1.0, 100.0, 50.0)
+    // w_pad replaces both horizontal outer margins, h_pad the vertical
+    // ones (both scaled by pad=1.0).
+    check_plot(fig, 0, 100.0, 50.0, 440.0, 380.0)
+}
+
+@test
+func test_tight_grid_2x2() {
+    let fig = plot.Figure()
+    var i = 1
+    while i <= 4 {
+        fig.subplot(2, 2, i).plot([0.0, 1.0], [0.0, 1.0])
+        i = i + 1
+    }
+    fig.tight_layout()
+    // colw=(640-64.8-21.6-20)/2=266.8, rowh=(480-43.2-54-20)/2=181.4,
+    // pixel gaps 20: second col x=351.6, second row y=244.6.
+    check_plot(fig, 0, 64.8, 43.2, 266.8, 181.4)
+    check_plot(fig, 1, 351.6, 43.2, 266.8, 181.4)
+    check_plot(fig, 2, 64.8, 244.6, 266.8, 181.4)
+    check_plot(fig, 3, 351.6, 244.6, 266.8, 181.4)
+}
+
+@test
+func test_tight_empty_figure_noop() {
+    let fig = plot.Figure()
+    fig.tight_layout()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    check_plot(fig, 0, 70.0, 50.0, 540.0, 370.0)
+}
+
+@should_panic("plot.Figure.tight_layout: pad must be > 0")
+func test_tight_pad_nonpositive() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1)
+    fig.tight_layout(0.0)
+}
+
+@test
+func test_tight_then_partial_adjust() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.tight_layout()
+    // No-arg adjust after tight is a no-op.
+    fig.subplots_adjust()
+    check_plot(fig, 0, 64.8, 43.2, 553.6, 382.8)
+    // A real partial adjust seeds from the tight fractions.
+    fig.subplots_adjust(0.05)
+    check_plot(fig, 0, 32.0, 43.2, 586.4, 382.8)
+}
+
+@test
+func test_pyplot_adjust_and_tight() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.subplots_adjust(0.1, 0.2, 0.9, 0.8)
+    check_plot(plt.gcf(), 0, 64.0, 96.0, 512.0, 288.0)
+    plt.tight_layout()
+    check_plot(plt.gcf(), 0, 64.8, 43.2, 553.6, 382.8)
 }

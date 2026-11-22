@@ -67,9 +67,18 @@ func test_tick_decimals() {
     ut.assert_int_eq(plot.tick_decimals(2.0), 0)
     ut.assert_int_eq(plot.tick_decimals(1.0), 0)
     ut.assert_int_eq(plot.tick_decimals(5.0), 0)
+    ut.assert_int_eq(plot.tick_decimals(10.0), 0)
+    ut.assert_int_eq(plot.tick_decimals(100.0), 0)
     ut.assert_int_eq(plot.tick_decimals(0.5), 1)
     ut.assert_int_eq(plot.tick_decimals(0.2), 1)
+    ut.assert_int_eq(plot.tick_decimals(0.1), 1)
+    ut.assert_int_eq(plot.tick_decimals(1.5), 1)
+    ut.assert_int_eq(plot.tick_decimals(2.5), 1)
     ut.assert_int_eq(plot.tick_decimals(0.05), 2)
+    ut.assert_int_eq(plot.tick_decimals(0.25), 2)
+    ut.assert_int_eq(plot.tick_decimals(0.75), 2)
+    ut.assert_int_eq(plot.tick_decimals(0.015), 3)
+    ut.assert_int_eq(plot.tick_decimals(0.3), 1)
 }
 
 @should_panic("plot.nice_ticks: require hi > lo")

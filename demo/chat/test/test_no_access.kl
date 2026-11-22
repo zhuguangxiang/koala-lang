@@ -1,0 +1,213 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The no-access directory guard: `path_blocked` (config.kl) against real
+// directories, and the Config / Session surfaces that carry the
+// `no_access_dirs` field. The agent's write refusal is covered end to end
+// by the chat pty tests.
+
+import "std/ut"
+import "std/fs"
+import "std/os"
+import "demo/chat"
+import "koala/openai" as openai
+
+const BASE = "/tmp/koala_chat_noaccess"
+
+/// A fresh base tree: secret/deep, dist, dist2, ok, and a symlink alias
+/// `link` -> `secret`. Used by every filesystem test.
+func _tree() str {
+    fs.remove_all(BASE)
+    fs.mkdir(BASE)
+    fs.mkdir(BASE + "/secret")
+    fs.mkdir(BASE + "/secret/deep")
+    fs.mkdir(BASE + "/dist")
+    fs.mkdir(BASE + "/dist2")
+    fs.mkdir(BASE + "/ok")
+    fs.write_str(BASE + "/secret/a.txt", "x")
+    fs.write_str(BASE + "/ok/ok.txt", "y")
+    fs.symlink(BASE + "/secret", BASE + "/link")
+    return BASE
+}
+
+/// A config.json with every required field plus an optional no_access_dirs
+/// suffix (`""`, a JSON array, or a wrong-typed value).
+func _write_config(file str, no_access str) {
+    let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", \"history_file\": \"/tmp/koala_chat_noaccess/history\", \"max_code_bytes\": 1000, \"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, \"system_prompt\": \"s\"" + no_access + "}"
+    fs.write_str(file, json)
+}
+
+@test
+func test_blocked_inside_and_boundary() {
+    let b = _tree()
+    ut.assert_true(chat.path_blocked(b + "/secret/a.txt", b, ["secret"]))
+    ut.assert_true(chat.path_blocked(b + "/secret/deep/f.kl", b, ["secret"]))
+    // the blocked directory itself, with and without a trailing slash
+    ut.assert_true(chat.path_blocked(b + "/secret", b, ["secret"]))
+    ut.assert_true(chat.path_blocked(b + "/secret/", b, ["secret"]))
+    // outside: a sibling file and a lookalike prefix are not blocked
+    ut.assert_false(chat.path_blocked(b + "/ok/ok.txt", b, ["secret"]))
+    ut.assert_false(chat.path_blocked(b + "/dist2/x", b, ["dist"]))
+    ut.assert_true(chat.path_blocked(b + "/dist/x", b, ["dist"]))
+}
+
+@test
+func test_blocked_dotdot_folds() {
+    let b = _tree()
+    // `..` steps are normalized before the comparison, so escaping the
+    // blocked directory lexically does not work
+    ut.assert_false(chat.path_blocked(b + "/secret/../ok/x", b, ["secret"]))
+    ut.assert_true(chat.path_blocked(b + "/secret/../ok/x", b, ["ok"]))
+}
+
+@test
+func test_blocked_symlink_alias() {
+    let b = _tree()
+    // a symlinked alias of the blocked directory blocks too
+    ut.assert_true(chat.path_blocked(b + "/link/x", b, ["secret"]))
+}
+
+@test
+func test_blocked_nonexistent_inside() {
+    let b = _tree()
+    // a not-yet-written file inside a blocked directory is blocked
+    ut.assert_true(chat.path_blocked(b + "/secret/new/plan.txt", b, ["secret"]))
+    // so is a blocked directory that does not exist yet
+    ut.assert_true(chat.path_blocked(b + "/nope/x.txt", b, ["nope"]))
+}
+
+@test
+func test_blocked_empty_list() {
+    let b = _tree()
+    ut.assert_false(chat.path_blocked(b + "/secret/a.txt", b, list[str]()))
+}
+
+@test
+func test_blocked_absolute_entry() {
+    let b = _tree()
+    // an absolute entry blocks without being joined to the work dir
+    ut.assert_true(chat.path_blocked(b + "/secret/x", b, [b + "/secret"]))
+    ut.assert_false(chat.path_blocked(b + "/ok/x", b, [b + "/secret"]))
+}
+
+@test
+func test_blocked_entry_is_a_file() {
+    let b = _tree()
+    // an entry naming a file blocks exactly that file
+    ut.assert_true(chat.path_blocked(b + "/secret/a.txt", b, ["secret/a.txt"]))
+    ut.assert_false(chat.path_blocked(b + "/secret", b, ["secret/a.txt"]))
+    ut.assert_false(chat.path_blocked(b + "/secret/a.txt.bak", b, ["secret/a.txt"]))
+}
+
+@test
+func test_blocked_entry_trailing_slash() {
+    let b = _tree()
+    ut.assert_true(chat.path_blocked(b + "/secret/x", b, ["secret/"]))
+}
+
+@test
+func test_blocked_entry_backslash() {
+    let b = _tree()
+    ut.assert_true(chat.path_blocked(b + "/secret/deep/f", b, ["secret\\deep"]))
+    ut.assert_false(chat.path_blocked(b + "/secret/deeper/f", b, ["secret\\deep"]))
+}
+
+@test
+func test_blocked_entry_root() {
+    let b = _tree()
+    // blocking "/" blocks everything
+    ut.assert_true(chat.path_blocked(b + "/ok/ok.txt", b, ["/"]))
+    ut.assert_true(chat.path_blocked(b, b, ["/"]))
+}
+
+@test
+func test_blocked_symlinked_workdir() {
+    let b = _tree()
+    // the work dir itself may be a symlink; both sides resolve
+    fs.symlink(b, b + "/wdlink")
+    ut.assert_true(chat.path_blocked(b + "/wdlink/secret/x", b + "/wdlink", ["secret"]))
+    ut.assert_false(chat.path_blocked(b + "/wdlink/ok/x", b + "/wdlink", ["secret"]))
+}
+
+@test
+func test_config_empty_entry_filtered() {
+    _tree()
+    let f = BASE + "/cfg5.json"
+    _write_config(f, ", \"no_access_dirs\": [\"secret\", \"\"]")
+    os.setenv("CHAT_CONFIG", f)
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    ut.assert_eq(cfg.no_access_dirs.len(), 1)
+    ut.assert_true(cfg.no_access_dirs[0] == "secret")
+}
+
+@test
+func test_config_parses_no_access_dirs() {
+    _tree()
+    let f = BASE + "/cfg1.json"
+    _write_config(f, ", \"no_access_dirs\": [\"secret\", \"db\"]")
+    os.setenv("CHAT_CONFIG", f)
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    ut.assert_eq(cfg.no_access_dirs.len(), 2)
+    ut.assert_true(cfg.no_access_dirs[0] == "secret")
+    ut.assert_true(cfg.no_access_dirs[1] == "db")
+}
+
+@test
+func test_config_absent_no_access_dirs() {
+    _tree()
+    let f = BASE + "/cfg2.json"
+    _write_config(f, "")
+    os.setenv("CHAT_CONFIG", f)
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    ut.assert_eq(cfg.no_access_dirs.len(), 0)
+}
+
+@test
+func test_config_non_array_no_access_dirs() {
+    _tree()
+    // a wrong-typed field is ignored, not fatal
+    let f = BASE + "/cfg3.json"
+    _write_config(f, ", \"no_access_dirs\": \"secret\"")
+    os.setenv("CHAT_CONFIG", f)
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    ut.assert_eq(cfg.no_access_dirs.len(), 0)
+}
+
+@test
+func test_session_workdir_and_load_blocked() {
+    let b = _tree()
+    let f = BASE + "/cfg4.json"
+    _write_config(f, ", \"no_access_dirs\": [\"secret\"]")
+    os.setenv("CHAT_CONFIG", f)
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    let s = chat.Session(openai.Client("sk-test", "http://127.0.0.1:1/v1"), cfg, "sk-test")
+    // the base directory is allowed as a work dir...
+    ut.assert_true(s.set_workdir(b))
+    // ...the blocked directory itself is refused
+    ut.assert_false(s.set_workdir(b + "/secret"))
+    ut.assert_true(s.is_blocked(b + "/secret/note.txt"))
+    ut.assert_false(s.is_blocked(b + "/ok/ok.txt"))
+    // loading a real file inside a blocked directory is refused
+    fs.write_str(b + "/secret/note.txt", "do not read")
+    ut.assert_true(s.load_file(b + "/secret/note.txt") == nil)
+    // an allowed file loads
+    let n = s.load_file(b + "/ok/ok.txt")
+    ut.assert_true(n != nil)
+    ut.assert_gt(n!, 0)
+}
+
+// last: leaks CHAT_CONFIG (the panic aborts before the unsetenv), and no
+// test after this one reads the config
+@should_panic
+func test_config_missing_file_panics() {
+    _tree()
+    os.setenv("CHAT_CONFIG", BASE + "/missing.json")
+    chat.Config()
+}

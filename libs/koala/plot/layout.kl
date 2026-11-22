@@ -76,3 +76,34 @@ pub func plot_rect(cell Rect) Rect {
     }
     return Rect(x, y, w, h)
 }
+
+/// Cell rectangle for figure-fraction layout parameters (matplotlib
+/// `subplots_adjust` / `tight_layout`): `left`/`right`/`bottom`/`top` are
+/// figure fractions of the DATA area measured from the figure's
+/// bottom-left corner (matplotlib `SubplotParams`), `wspace`/`hspace`
+/// fractions of the average column width / row height. The returned cell
+/// is the data area expanded by the fixed axes margins, so `plot_rect` of
+/// it recovers the exact fraction-specified data rectangle (matplotlib's
+/// axes box).
+pub func cell_rect_frac(figw float, figh float, rows int, cols int, r int,
+                        c int, left float, bottom float, right float,
+                        top float, wspace float, hspace float) Rect {
+    if rows < 1 || cols < 1 {
+        panic("plot.layout: rows and cols must be >= 1")
+    }
+    if r < 0 || r >= rows || c < 0 || c >= cols {
+        panic("plot.layout: cell index out of range")
+    }
+    let x0 = left * figw
+    let x1 = right * figw
+    let y0 = (1.0 - top) * figh
+    let y1 = (1.0 - bottom) * figh
+    let colw = (x1 - x0) / (float(cols) + float(cols - 1) * wspace)
+    let gapx = colw * wspace
+    let rowh = (y1 - y0) / (float(rows) + float(rows - 1) * hspace)
+    let gapy = rowh * hspace
+    let px = x0 + float(c) * (colw + gapx)
+    let py = y0 + float(r) * (rowh + gapy)
+    return Rect(px - PAD_LEFT, py - PAD_TOP, colw + PAD_LEFT + PAD_RIGHT,
+                rowh + PAD_TOP + PAD_BOTTOM)
+}

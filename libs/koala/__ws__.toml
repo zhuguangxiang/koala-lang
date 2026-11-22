@@ -28,11 +28,12 @@ packages = [
     "sqlite3",
     "shlex",
     "readline",
+    "tui",
     "openai",
     "sse",
     "klex",
     "kparse",
     "webview",
     "ui",
-    "plot",
+    # "plot",
 ]

@@ -1,0 +1,244 @@
+// RUN: koala --test %s
+
+// Unit tests for Figure.colorbar / pyplot.colorbar. Geometry expectations
+// follow matplotlib's make_axes applied to the default 640x480 figure's
+// data rect (70, 50, 540, 370): the data rect shrinks by (fraction + pad)
+// and the bar occupies the freed strip. Vertical defaults fraction=0.15,
+// pad=0.05; horizontal pad=0.15. shrink scales the bar around its center.
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+
+func axes_n(fig plot.Figure, i int) json.Object {
+    return fig.to_spec().get_array("axes").get_object(i)
+}
+
+func check_plot(fig plot.Figure, i int, x float, y float, w float, h float) {
+    let p = axes_n(fig, i).get_object("plot")
+    ut.assert_float_close(p.get_float("x"), x)
+    ut.assert_float_close(p.get_float("y"), y)
+    ut.assert_float_close(p.get_float("w"), w)
+    ut.assert_float_close(p.get_float("h"), h)
+}
+
+func cbar_of(fig plot.Figure, i int) json.Object {
+    return axes_n(fig, i).get_object("colorbar")
+}
+
+func check_cbar(fig plot.Figure, i int, x float, y float, w float, h float) {
+    let cb = cbar_of(fig, i)
+    ut.assert_float_close(cb.get_float("x"), x)
+    ut.assert_float_close(cb.get_float("y"), y)
+    ut.assert_float_close(cb.get_float("w"), w)
+    ut.assert_float_close(cb.get_float("h"), h)
+}
+
+@test
+func test_cbar_contourf_vertical_default() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let cf = ax.contourf([[0.0, 1.0], [2.0, 3.0]], [0.0, 1.0, 2.0, 3.0])
+    fig.colorbar(cf)
+    // Data rect: w = (1 - 0.15 - 0.05) * 540 = 432.
+    check_plot(fig, 0, 70.0, 50.0, 432.0, 370.0)
+    // Bar: x = 70 + 0.85 * 540 = 529, w = 0.15 * 540 = 81, full height.
+    check_cbar(fig, 0, 529.0, 50.0, 81.0, 370.0)
+    let cb = cbar_of(fig, 0)
+    ut.assert_eq(cb.get_str("orientation"), "vertical")
+    let stops = cb.get_array("stops")
+    ut.assert_eq(stops.len(), 16)
+    ut.assert_float_close(stops.get_object(0).get_float("t"), 0.0)
+    ut.assert_float_close(stops.get_object(15).get_float("t"), 1.0)
+    ut.assert_eq(stops.get_object(0).get_str("c"), "#440154")
+    ut.assert_eq(stops.get_object(15).get_str("c"), "#fde725")
+    // contourf ticks = the levels, integer-formatted like matplotlib.
+    let ticks = cb.get_array("ticks")
+    ut.assert_eq(ticks.len(), 4)
+    ut.assert_float_close(ticks.get_object(0).get_float("v"), 0.0)
+    ut.assert_eq(ticks.get_object(0).get_str("label"), "0")
+    ut.assert_eq(ticks.get_object(3).get_str("label"), "3")
+    // Low value at the bottom (px measured from the bar bottom).
+    ut.assert_float_close(ticks.get_object(0).get_float("px"), 370.0)
+    ut.assert_float_close(ticks.get_object(3).get_float("px"), 0.0)
+}
+
+@test
+func test_cbar_scatter_nice_ticks() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc)
+    // Range is exactly [min(c), max(c)] with nice ticks like mpl:
+    // 0, 2, 4, 6, 8, 10.
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    ut.assert_eq(ticks.len(), 6)
+    ut.assert_float_close(ticks.get_object(0).get_float("v"), 0.0)
+    ut.assert_float_close(ticks.get_object(5).get_float("v"), 10.0)
+    ut.assert_eq(ticks.get_object(0).get_str("label"), "0")
+    ut.assert_eq(ticks.get_object(5).get_str("label"), "10")
+}
+
+@test
+func test_cbar_auto_finds_last_mappable() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+               cvals = [2.0, 4.0, 6.0])
+    // No mappable argument: the last color-mapped artist wins.
+    fig.colorbar()
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    // Range [2, 6]: nice ticks 2, 3, 4, 5, 6.
+    ut.assert_float_close(ticks.get_object(0).get_float("v"), 2.0)
+    ut.assert_float_close(ticks.get_object(ticks.len() - 1).get_float("v"),
+                          6.0)
+}
+
+@test
+func test_cbar_horizontal_default_pad() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc, orientation = "horizontal")
+    // Horizontal pad default 0.15: h = (1 - 0.15 - 0.15) * 370 = 259.
+    check_plot(fig, 0, 70.0, 50.0, 540.0, 259.0)
+    // Bar below: y = 50 + 0.85 * 370 = 364.5, h = 0.15 * 370 = 55.5.
+    check_cbar(fig, 0, 70.0, 364.5, 540.0, 55.5)
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    // Horizontal: low value at the left.
+    ut.assert_float_close(ticks.get_object(0).get_float("px"), 0.0)
+    ut.assert_float_close(ticks.get_object(5).get_float("px"), 540.0)
+}
+
+@test
+func test_cbar_fraction_pad_shrink() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc, fraction = 0.2, pad = 0.1, shrink = 0.5)
+    // Data rect: w = (1 - 0.3) * 540 = 378.
+    check_plot(fig, 0, 70.0, 50.0, 378.0, 370.0)
+    // Bar: x = 70 + 0.8 * 540 = 502, w = 0.2 * 540 = 108, centered half
+    // height: y = 50 + 92.5 = 142.5, h = 185.
+    check_cbar(fig, 0, 502.0, 142.5, 108.0, 185.0)
+}
+
+@test
+func test_cbar_artists_use_shrunk_scales() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.scatter([5.0], [5.0], cvals = [1.0])
+    fig.colorbar()
+    ax.set_xlim(0.0, 10.0)
+    ax.set_ylim(0.0, 10.0)
+    // Midpoint lands in the shrunk data rect: x = 70 + 0.5 * 432 = 286,
+    // y = 50 + 370 - 0.5 * 370 = 235.
+    let items = axes_n(fig, 0).get_array("items")
+    let pts = items.get_object(0).get_array("points")
+    ut.assert_float_close(pts.get_object(0).get_float("x"), 286.0)
+    ut.assert_float_close(pts.get_object(0).get_float("y"), 235.0)
+}
+
+@test
+func test_cbar_set_label_set_ticks() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    let cb = fig.colorbar(sc)
+    cb.set_label("celsius")
+    cb.set_ticks([2.0, 4.0])
+    let c = cbar_of(fig, 0)
+    ut.assert_eq(c.get_str("label"), "celsius")
+    let ticks = c.get_array("ticks")
+    ut.assert_eq(ticks.len(), 2)
+    ut.assert_float_close(ticks.get_object(0).get_float("v"), 2.0)
+    ut.assert_eq(ticks.get_object(0).get_str("label"), "2")
+}
+
+@test
+func test_cbar_override_ticks_clamp_outside_range() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    let cb = fig.colorbar(sc)
+    // Out-of-range ticks are kept, clamped to the bar ends (matplotlib
+    // normalization does the same).
+    cb.set_ticks([-5.0, 20.0])
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    ut.assert_eq(ticks.len(), 2)
+    ut.assert_eq(ticks.get_object(0).get_str("label"), "-5")
+    ut.assert_eq(ticks.get_object(1).get_str("label"), "20")
+    ut.assert_float_close(ticks.get_object(0).get_float("px"), 370.0)
+    ut.assert_float_close(ticks.get_object(1).get_float("px"), 0.0)
+}
+
+@test
+func test_cbar_second_call_replaces() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0],
+                        cvals = [0.0, 5.0, 10.0])
+    fig.colorbar(sc, fraction = 0.1)
+    // The second call's geometry wins (replace semantics, like suptitle).
+    fig.colorbar(sc, fraction = 0.3, pad = 0.1)
+    // w = (1 - 0.4) * 540 = 324; bar x = 70 + 0.7 * 540 = 448, w = 162.
+    check_plot(fig, 0, 70.0, 50.0, 324.0, 370.0)
+    check_cbar(fig, 0, 448.0, 50.0, 162.0, 370.0)
+}
+
+@test
+func test_cbar_contourf_ticks_param() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let cf = ax.contourf([[0.0, 1.0], [2.0, 3.0]], [0.0, 1.0, 2.0, 3.0])
+    fig.colorbar(cf, ticks = [1.0, 3.0])
+    let ticks = cbar_of(fig, 0).get_array("ticks")
+    ut.assert_eq(ticks.len(), 2)
+    ut.assert_eq(ticks.get_object(1).get_str("label"), "3")
+}
+
+@test
+func test_cbar_pyplot_facade() {
+    let fig = plt.figure()
+    plt.contourf([[0.0, 1.0], [2.0, 3.0]], [0.0, 1.0, 2.0, 3.0])
+    let cb = plt.colorbar()
+    cb.set_label("z")
+    ut.assert_eq(cbar_of(fig, 0).get_str("label"), "z")
+    check_plot(fig, 0, 70.0, 50.0, 432.0, 370.0)
+}
+
+@should_panic("'diagonal' is not a valid value for orientation. Supported values are None, 'vertical', 'horizontal'")
+func test_cbar_bad_orientation() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    fig.colorbar(sc, orientation = "diagonal")
+}
+
+@should_panic("No mappable was found to use for colorbar creation. First define a mappable such as an image (with imshow) or a contour set (with contourf).")
+func test_cbar_no_mappable() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.colorbar()
+}
+
+@should_panic("plot.colorbar: mappable of kind 'line' has no colormap")
+func test_cbar_non_mappable() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let ln = ax.plot([0.0, 1.0], [0.0, 1.0])
+    fig.colorbar(ln)
+}
+
+@should_panic("plot.Figure.colorbar: no Axes present")
+func test_cbar_no_axes() {
+    let fig = plot.Figure()
+    fig.colorbar()
+}

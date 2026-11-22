@@ -374,6 +374,47 @@ plt.show()
   断言只针对序列化后的 figure spec JSON；另需验证同一进程内多次 `show()` 是否可行。
 - 嵌入式（LVGL 后端）绘图不在本方案范围。
 
+### 6.6 matplotlib 兼容性：偏离与不做清单（P4，v1 快照 2026-11-22）
+
+**验证方法**：每个特性先以 venv 里的 matplotlib 3.11 实测默认值/错误消息/几何公式，
+再按实测结果实现。以下各项中 mpl 完全一致的行为不再重复列出（margins 常量数据扩张
+公式 `0.05*max(|v|,1)*(1+2m)`、`margin < -0.5` 报错、`tick_params` 全套校验消息、
+`suptitle` 默认 `x=0.5, y=0.98, ha=center, va=top`、colorbar 几何 `(1-fraction-pad)`
+收缩 + `pad` 默认 0.05 竖/0.15 横、contourf 刻度=levels、scatter 刻度=nice ticks、
+`subplots_adjust()` 全空 no-op、`margins()` 无参返回当前值等，均已按实测对齐）。
+
+**偏离清单**（与 matplotlib 3.11 的已知差异）：
+
+| 特性 | v1 行为 | matplotlib |
+|---|---|---|
+| marker | fmt 字符子集 `.,ov^<>12348spP*hH+xXDd\|_` | 全集（含 `$...$`、自定义路径） |
+| colormap | viridis/plasma/inferno/magma/cividis/turbo/jet/coolwarm/gray 真表；其他名字 panic | 全部注册表 + 反转后缀 `_r` |
+| scatter | 无 `vmin/vmax` kwarg，范围= cvals 极值；`c` 与 `cvals` 互斥 | 可显式 vmin/vmax |
+| bar/barh | `bottom`/`left` 标量 | 支持逐条序列 |
+| pie | `wedgeprops` 只支持 `width`/`linewidth` 展开参数；无 `autopct`/`textprops` | props dict 全集 |
+| errorbar/fill_between/stem/step | 参数子集（v1 文档注释已列） | 全集 |
+| boxplot | NaN/空数据集跳过（同 mpl 的 NaN 几何不可见）；位置刻度标签取整显示；`manage_ticks` 扩张语义同 mpl bxp | `whis` 标量/序列；box/whisker/cap/flier/median/mean props dict（含 mpl 的 setdefault 与 flier `color` 惰性语义） |
+| hist | 无 `cumulative`/`bottom`/`histtype`/`align`/`orientation`/`rwidth`/`log`/`stacked`；`bins` 仅 int | `weights`（长度不匹配 panic，同 ValueError）；`density`（count / bin宽 / 总权重，同 numpy；全零权重 → NaN 计数，bar 不画；负权重合法，bar 向基线下方延伸） |
+| imshow | 无 `origin`/`interpolation`/`vmin`/`vmax`/`filternorm`；相同 extent 极限展开 ±0.5（mpl 展开量不同）；字符串 aspect 仅小写 `"inf"/"nan"` 特判（`"Inf"/"NaN"` 报转换错） | `extent`（覆盖既有极限，可反转）；`aspect`（默认 `"equal"`，`"auto"`/正数/数字字符串；像素比 = (\|xspan\|/\|yspan\|)/aspect，按绘制时极限收缩、居中、不放大；非法值 panic 同 ValueError 文案） |
+| tight_layout | 用固定像素 pad 近似内容范围，不做文本测量；`wspace`/`hspace` 以列宽/行高的分数近似多格间隙 | 实测文本包围盒 |
+| tick_params | 尺寸单位是**像素**；`labelsize` 不支持字符串；`which="minor"/"both"` 接受但忽略（无次刻度） | 单位为 pt |
+| colorbar | fraction/pad 以**数据矩形**为基准（mpl 以含标签的 axes box）；无 `aspect` 约束宽度模型；bar 刻度外观固定默认（不随 axes `tick_params`）；第二次调用**替换**前一个 bar（mpl 可叠加）；省略 mappable 时取目标 axes 上**最后一个**可映射 artist（mpl 用全局 current-image 注册表）；`contour`（线）不可映射；`extend` 三角箭头不画；`set_ticks` 越界值钳制到两端（同 mpl normalization），标签小数位用 `tick_decimals` | make_axes_gridspec |
+| 刻度标签小数位 | `tick_decimals` 对步长 1.5/2.5 算出 0 位小数（mpl 为 1），影响 frame 刻度与 colorbar 覆盖刻度的标签精度 | ScalarFormatter |
+| savefig | 仅 PNG；无 `dpi`/`bbox_inches`/`transparent`；需显示器（webview 抓 canvas），headless 用 `savehtml` | 全格式 |
+| subplots | 返回 `(Figure, Axes)`（第一个子图），其余用 `fig.subplot` 取 | 返回 `(fig, Axes 数组)` |
+| show | 阻塞默认可关（`block=false` 轮询）；`close()` 对应 destroy | 非阻塞默认 |
+
+**不做清单**（v1 明确排除）：3D `plot_surface`（§6.2 已定，用 contour 替代）；
+交互缩放/平移/点击回调（依赖未落地的 webview bind/dispatch，见 §6.5）；
+动画；LVGL 后端；多 colorbar 叠加；legend 拖动。
+
+**twinx/twiny 评估结论**（P3 最后一项）：matplotlib 语义是同 cell 叠加第二个
+axes、共享 x/y 轴、隐藏重叠 spine、对侧刻度。Koala 现状：`Axes` 与 `(row, col)`
+一一对应（`subplot` 按 cell 复用），无 axes 联动/观察者机制，渲染器每个 axes 画
+整框。落地需要 ①同 cell 多 axes ②xlim/ylim 联动语义 ③spine 级 frame 控制
+④刻度/图例重叠处理——工作量接近一个新图型。结论：**推迟到 v2**，课程作业
+（单轴）不受影响。
+
 ---
 
 ## 7. 编译器 / 语言层影响评估（已核实）

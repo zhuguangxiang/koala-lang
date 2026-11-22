@@ -1,0 +1,138 @@
+// RUN: koala --test %s
+
+// Unit tests for the autoscale margins (Axes.margins / plt.margins).
+// Ground truth from matplotlib 3.11.2: margins are fractions of the data
+// interval added on each side; a constant value uses the 5%-of-value
+// default interval (floor 1); margin < -0.5 is rejected with
+// "margin must be greater than -0.5".
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+
+@test
+func test_margins_get_defaults() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    let (xm, ym) = ax.margins()
+    ut.assert_float_close(xm, 0.05)
+    ut.assert_float_close(ym, 0.05)
+}
+
+@test
+func test_margins_expand_view() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.plot([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    ax.margins(0.1, 0.2)
+    let (xl, xh) = ax.get_xlim()
+    let (yl, yh) = ax.get_ylim()
+    // matplotlib: xlim (-0.2, 2.2), ylim (-0.8, 4.8).
+    ut.assert_float_close(xl, -0.2)
+    ut.assert_float_close(xh, 2.2)
+    ut.assert_float_close(yl, -0.8)
+    ut.assert_float_close(yh, 4.8)
+}
+
+@test
+func test_margins_zero_tight() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.plot([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    ax.margins(0.0, 0.0)
+    let (xl, xh) = ax.get_xlim()
+    let (yl, yh) = ax.get_ylim()
+    ut.assert_float_close(xl, 0.0)
+    ut.assert_float_close(xh, 2.0)
+    ut.assert_float_close(yl, 0.0)
+    ut.assert_float_close(yh, 4.0)
+}
+
+@test
+func test_margins_partial_only_x() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.plot([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    ax.margins(0.0, nil)
+    let (xl, xh) = ax.get_xlim()
+    let (yl, yh) = ax.get_ylim()
+    ut.assert_float_close(xl, 0.0)
+    ut.assert_float_close(xh, 2.0)
+    // y keeps its default 0.05 margin.
+    ut.assert_float_close(yl, -0.2)
+    ut.assert_float_close(yh, 4.2)
+}
+
+@test
+func test_margins_constant_data() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.plot([1.0, 1.0], [3.0, 3.0])
+    let (xl, xh) = ax.get_xlim()
+    let (yl, yh) = ax.get_ylim()
+    // matplotlib: 1 +- 0.05*1*1.1 = +-0.055; 3 +- 0.165.
+    ut.assert_float_close(xl, 0.945)
+    ut.assert_float_close(xh, 1.055)
+    ut.assert_float_close(yl, 2.835)
+    ut.assert_float_close(yh, 3.165)
+}
+
+@test
+func test_margins_constant_with_margin_one() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.margins(1.0, 1.0)
+    ax.plot([1.0, 1.0], [3.0, 3.0])
+    let (xl, xh) = ax.get_xlim()
+    let (yl, yh) = ax.get_ylim()
+    // matplotlib: half = 0.05*|v|*(1+2*1): 1 +- 0.15; 3 +- 0.45.
+    ut.assert_float_close(xl, 0.85)
+    ut.assert_float_close(xh, 1.15)
+    ut.assert_float_close(yl, 2.55)
+    ut.assert_float_close(yh, 3.45)
+}
+
+@test
+func test_margins_negative_allowed_above_half() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 10.0])
+    ax.margins(-0.25, nil)
+    let (xl, xh) = ax.get_xlim()
+    // margin -0.25 clips the data range: (2.5, 7.5).
+    ut.assert_float_close(xl, 2.5)
+    ut.assert_float_close(xh, 7.5)
+}
+
+@should_panic("margin must be greater than -0.5")
+func test_margins_below_half() {
+    plot.Figure().subplot(1, 1, 1).margins(-1.0, nil)
+}
+
+@should_panic("margin must be greater than -0.5")
+func test_margins_below_half_y() {
+    plot.Figure().subplot(1, 1, 1).margins(nil, -0.6)
+}
+
+@test
+func test_margins_log_scale() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    ax.set_xscale("log")
+    ax.plot([1.0, 100.0], [0.0, 1.0])
+    ax.margins(0.0, nil)
+    let (xl, xh) = ax.get_xlim()
+    // Zero margin: exact data bounds [1, 100].
+    ut.assert_float_close(xl, 1.0)
+    ut.assert_float_close(xh, 100.0)
+}
+
+@test
+func test_pyplot_margins() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    let (xm, ym) = plt.margins()
+    ut.assert_float_close(xm, 0.05)
+    ut.assert_float_close(ym, 0.05)
+    plt.margins(0.1, 0.2)
+    let (xl, xh) = plt.gca().get_xlim()
+    let (yl, yh) = plt.gca().get_ylim()
+    ut.assert_float_close(xl, -0.2)
+    ut.assert_float_close(xh, 2.2)
+    ut.assert_float_close(yl, -0.8)
+    ut.assert_float_close(yh, 4.8)
+}

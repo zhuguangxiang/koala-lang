@@ -26,6 +26,39 @@ let _editor = Editor()
 /// plain line.
 pub func input(prompt = "") str? = _editor.readline(prompt)
 
+/// Read a line from the terminal without echoing it, after `prompt`, as
+/// Python's `getpass`: each character typed is drawn as `*`. Nil at the end
+/// of the input, "" on Ctrl-C. The line is never added to the history.
+pub func password(prompt = "") str? = _editor.password(prompt)
+
+/// Edit in a multi-row area: `row` / `col` is where the prompt starts, the
+/// area is `width` columns wide and `height` rows tall. The prompt is drawn
+/// on the first row, the line wraps at `width`, Ctrl-J starts a new row,
+/// Up / Down move a visual row (the history at the edges), C-a / C-e / Home
+/// / End and kill-line stop at the row, Enter submits the whole text, and a
+/// paste keeps its newlines. With `height` 0 (the default) the editor is
+/// the single-row kind, drawn from the cursor with `\r`.
+pub func set_input_area(row int, col int, width int, height int) {
+    _editor.set_input_area(row, col, width, height)
+}
+
+/// Set the function called for each key before the editor's bindings, to
+/// let an application handle keys the editor does not know, e.g. Page Up /
+/// Page Down. Return true when it handled the key: in a multi-row input
+/// area the editor then re-draws the area (absolute positioning), so the
+/// hook may draw anywhere; on a single row it draws nothing, and the hook
+/// must leave the cursor where the editor expects to draw the line. False
+/// runs the key as usual; nil for none.
+pub func set_key_hook(function KeyHook? = nil) {
+    _editor.set_key_hook(function)
+}
+
+/// `text` cut to `cols` columns at most (never inside a character cluster)
+/// and padded with spaces to exactly `cols` columns, for drawing in a
+/// fixed-width area. ANSI escape sequences and `\x01`..`\x02` text are kept
+/// and take no columns.
+pub func fit_text(text str, cols int) str = _fit_text(text, cols)
+
 // The path of a history file, `~/.history` by default, as readline's.
 func _history_path(filename str?) str {
     if let name = filename { return name }

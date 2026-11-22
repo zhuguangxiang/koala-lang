@@ -82,11 +82,23 @@ pub func histogram_edges(x list[float], edges list[float]) (list[int], list[floa
 
 /// Histogram of `x` with `bins` equal-width bins over `range_` (or the data
 /// min/max when nil; an empty sample defaults to `(0, 1)` and a constant
-/// sample `c` expands to `(c-0.5, c+0.5)`, matching matplotlib). Returns
-/// `(counts, edges)`. Panics on `bins < 1` or a non-positive range span.
-pub func histogram(x list[float], bins int = 10, range_ (float, float)? = nil) (list[int], list[float]) {
+/// sample `c` expands to `(c-0.5, c+0.5)`, matching matplotlib). `weights`
+/// replaces each sample's unit contribution (numpy `weights`; the length
+/// must match `x`). `density` normalizes each count by `bin width x total`
+/// so the histogram integrates to 1 (numpy `density`; a zero total weight
+/// yields NaN counts, which draw nothing, exactly like matplotlib).
+/// Returns `(counts, edges)` with float counts. Panics on `bins < 1`, a
+/// non-positive range span, or a weights length mismatch.
+pub func histogram(x list[float], bins int = 10, range_ (float, float)? = nil,
+                   weights list[float]? = nil,
+                   density bool = false) (list[float], list[float]) {
     if bins < 1 {
         panic("plot.histogram: bins must be >= 1")
+    }
+    if let w = weights {
+        if w.len() != x.len() {
+            panic("plot.histogram: weights should have the same shape as x")
+        }
     }
     var lo = 0.0
     var hi = 1.0
@@ -111,5 +123,47 @@ pub func histogram(x list[float], bins int = 10, range_ (float, float)? = nil) (
         }
     }
     let edges = bin_edges(bins, lo, hi)
-    return histogram_edges(x, edges)
+    let counts = list[float]()
+    var i = 0
+    while i < bins {
+        counts.append(0.0)
+        i = i + 1
+    }
+    i = 0
+    while i < x.len() {
+        let v = x[i]
+        if v < lo || v > hi {
+            i = i + 1
+            continue
+        }
+        var b = bins - 1
+        var j = 0
+        var found = false
+        while j < bins - 1 && !found {
+            if v < edges[j + 1] {
+                b = j
+                found = true
+            }
+            j = j + 1
+        }
+        var w = 1.0
+        if let ws = weights {
+            w = ws[i]
+        }
+        counts[b] = counts[b] + w
+        i = i + 1
+    }
+    if density {
+        var total = 0.0
+        for c in counts {
+            total = total + c
+        }
+        i = 0
+        while i < bins {
+            let db = edges[i + 1] - edges[i]
+            counts[i] = counts[i] / db / total
+            i = i + 1
+        }
+    }
+    return (counts, edges)
 }

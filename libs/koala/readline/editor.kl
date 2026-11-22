@@ -129,8 +129,19 @@ pub class Editor {
     // The startup and pre-input hooks.
     var _startup_hook Hook? = nil
     var _pre_input_hook Hook? = nil
+    // The per-key hook, called for each key before the bindings.
+    var _key_hook KeyHook? = nil
     // For yank-last-arg: how many lines back the last one went.
     var _last_arg_index int = 0
+    // The input area for multi-row editing, set with `set_input_area`: its
+    // first row and column, its width in columns and height in rows. Zero
+    // height: the single-row editing of a plain prompt.
+    var _input_row int = 0
+    var _input_col int = 1
+    var _input_width int = 0
+    var _input_height int = 0
+    // The first visual row shown in the input area.
+    var _vtop int = 0
 
     pub func __init__(term Terminal? = nil) {
         if let t = term {
@@ -143,6 +154,9 @@ pub class Editor {
         _keys = _KeyReader(_term)
         _bindings = dict[str, str]()
         _bindings["\t"] = "self-insert"
+        // Ctrl-J (LF) starts a new row in a multi-row area; elsewhere it
+        // accepts, as readline's LF.
+        _bindings["\n"] = "insert-newline"
         _bindings["\x18\x15"] = "undo"
         _bindings["\x18\x12"] = "re-read-init-file"
         _bindings["\x18\x07"] = "abort"
@@ -176,10 +190,78 @@ pub class Editor {
         return line
     }
 
+    /// Read a line after `prompt` without echoing it, as Python's `getpass`:
+    /// nothing typed shows, not even a mask. Nil at the end of the input
+    /// (Ctrl-D), "" on Ctrl-C. The line is never added to the history.
+    pub func password(prompt = "") str? {
+        if !_term.is_interactive() { return _read_plain(prompt) }
+        if !_term.set_raw(true) { return _read_plain(prompt) }
+        _keys.take_seq()
+        _term.write(_prompt_text(prompt))
+        _term.flush()
+
+        let chars = list[str]()
+        var line str? = nil
+        while true {
+            let key = _read_key(_keys)
+            if key.name == "eof" || key.name == "ctrl-d" { break }
+            if key.name == "enter" { line = "".join(chars); break }
+            if key.name == "ctrl-c" {
+                _term.write("^C\r\n")
+                _term.flush()
+                line = ""
+                break
+            }
+            if key.name == "backspace" {
+                if chars.len() > 0 {
+                    chars.delete(chars.len() - 1, chars.len())
+                }
+                continue
+            }
+            // a character or a paste enters as typed, with no echo;
+            // arrow keys and other sequences are ignored
+            if key.name == "char" || key.name == "paste" {
+                for c in key.text { chars.append(c) }
+            }
+        }
+        _keys.take_seq()
+        _term.write("\r\n")
+        _term.flush()
+        _term.set_raw(false)
+        return line
+    }
+
+    /// Edit in a multi-row area: `row` / `col` is where the prompt starts,
+    /// the area is `width` columns wide and `height` rows tall. The prompt
+    /// is drawn on the first row, the line wraps at `width`, Ctrl-J starts
+    /// a new row, Up / Down move a visual row (the history at the edges),
+    /// C-a / C-e / Home / End and kill-line stop at the row, Enter submits
+    /// the whole text, and a paste keeps its newlines. With `height` 0 (the
+    /// default) the editor is the single-row kind, drawn from the cursor
+    /// with `\r`.
+    pub func set_input_area(row int, col int, width int, height int) {
+        if height <= 0 {
+            _input_height = 0
+            return
+        }
+        _input_row = row
+        _input_col = col
+        _input_width = width
+        _input_height = height
+    }
+
+    /// Set the function called for each key before the bindings, to let an
+    /// application handle keys the editor does not know, e.g. Page Up /
+    /// Page Down; nil for none.
+    pub func set_key_hook(function KeyHook? = nil) {
+        _key_hook = function
+    }
+
     // Edit a line in raw mode.
     func _edit(prompt str) str? {
         _chars = list[str]()
         _pos = 0
+        _vtop = 0
         _prompt = prompt
         _last = ""
         _undo.clear()
@@ -220,7 +302,12 @@ pub class Editor {
                 return _text()
             }
             if name == "ctrl-c" {
-                _term.write("^C\r\n")
+                if _input_height > 0 {
+                    // no newline: the frame below the area must not scroll
+                    _term.write("^C")
+                } else {
+                    _term.write("^C\r\n")
+                }
                 _term.flush()
                 return ""
             }
@@ -246,8 +333,30 @@ pub class Editor {
                 continue
             }
 
+            if let hook = _key_hook {
+                if hook.call(name, key.seq) {
+                    _last = ""
+                    // in an input area the editor redraws it, absolutely
+                    // positioned, so the cursor ends up where the editor
+                    // draws next; on a single row the hook leaves the
+                    // cursor itself
+                    if _input_height > 0 { _refresh() }
+                    continue
+                }
+            }
             let command = _command(key)
             if command == "accept-line" { return _accept() }
+            if command == "insert-newline" {
+                if _input_height > 0 {
+                    if _last != "insert" { _save_undo() }
+                    _insert("\n")
+                    _last = "insert"
+                    _refresh()
+                    continue
+                }
+                // single-row: LF accepts, as readline
+                return _accept()
+            }
             if command == "reverse-search-history" || command == "forward-search-history" {
                 // the key that ends the search does its usual job
                 waiting = _search(command == "reverse-search-history")
@@ -358,15 +467,17 @@ pub class Editor {
         } else if command == "forward-char" {
             _pos = _cluster_end(_chars, _pos)
         } else if command == "beginning-of-line" {
-            _pos = 0
+            if _input_height > 0 { _pos = _line_start(_pos) } else { _pos = 0 }
         } else if command == "end-of-line" {
-            _pos = _chars.len()
+            if _input_height > 0 { _pos = _line_end(_pos) } else { _pos = _chars.len() }
         } else if command == "backward-word" {
             _pos = _word_start(_pos)
         } else if command == "forward-word" {
             _pos = _word_end(_pos)
         } else if command == "kill-line" {
-            _kill(_pos, _chars.len(), true, !key.seq.starts_with("\x1b"))
+            var end = _chars.len()
+            if _input_height > 0 { end = _line_end(_pos) }
+            _kill(_pos, end, true, !key.seq.starts_with("\x1b"))
             kind = "kill-forward"
         } else if command == "unix-line-discard" || command == "backward-kill-line" {
             _kill(0, _pos, false, !key.seq.starts_with("\x1b"))
@@ -417,9 +528,9 @@ pub class Editor {
                 _undo.clear()
             }
         } else if command == "previous-history" {
-            _show_history(_shown_index - 1)
+            if !(_input_height > 0 && _move_row(-1)) { _show_history(_shown_index - 1) }
         } else if command == "next-history" {
-            _show_history(_shown_index + 1)
+            if !(_input_height > 0 && _move_row(1)) { _show_history(_shown_index + 1) }
         } else if command == "beginning-of-history" {
             _show_history(0)
         } else if command == "end-of-history" {
@@ -623,7 +734,9 @@ pub class Editor {
     }
 
     // Show the matches under the line, as readline's rl_display_match_list,
-    // or through the display hook; then draw the line again.
+    // or through the display hook; then draw the line again. In an input
+    // area there are no rows under the line, so only the hook can show the
+    // matches; without one, beep.
     func _list(text str, matches list[str], files bool) {
         let shown = list[str]()
         var longest = 0
@@ -637,6 +750,17 @@ pub class Editor {
             }
             shown.append(name)
             if _text_width(name) > longest { longest = _text_width(name) }
+        }
+
+        if _input_height > 0 {
+            if let hook = _display_hook {
+                _term.set_raw(false)
+                hook.display(_common_prefix(matches), matches, longest)
+                _term.set_raw(true)
+            } else {
+                _bell()
+            }
+            return
         }
 
         if let hook = _display_hook {
@@ -1180,27 +1304,38 @@ pub class Editor {
     }
 
     /// Write the history to `filename`, `~/.history` by default, one line
-    /// each, keeping the last `get_history_length()` lines. False when it
+    /// each (multi-row lines cannot be stored in it and are skipped),
+    /// keeping the last `get_history_length()` lines. False when it
     /// cannot be written.
     pub func write_history_file(filename str? = nil) bool {
         let path = _history_path(filename)
-        if !fs.write_str(path, _lines_text(_history, 0)) { return false }
+        let lines = list[str]()
+        for h in _history {
+            if !("\n" in h) { lines.append(h) }
+        }
+        if !fs.write_str(path, _lines_text(lines, 0)) { return false }
         return _truncate_file(path)
     }
 
     /// Append the last `nelements` lines of the history to `filename`,
     /// `~/.history` by default, which must exist, then keep its last
-    /// `get_history_length()` lines. False when it cannot be written.
+    /// `get_history_length()` lines. Multi-row lines are skipped, as with
+    /// `write_history_file`. False when it cannot be written.
     pub func append_history_file(nelements int, filename str? = nil) bool {
         let path = _history_path(filename)
         if !fs.is_file(path) { return false }
 
         var first = _history.len() - nelements
         if first < 0 { first = 0 }
+        let lines = list[str]()
+        for i in range(first, _history.len()) {
+            let h = _history[i]
+            if !("\n" in h) { lines.append(h) }
+        }
         let f = fs.open(path, "a")
         if f == nil { return false }
         let file = f
-        file.write(_lines_text(_history, first).to_bytes())
+        file.write(_lines_text(lines, 0).to_bytes())
         file.close()
         return _truncate_file(path)
     }
@@ -1394,10 +1529,18 @@ pub class Editor {
 
     // ---- paste and accept ----
 
-    // Insert pasted text up to its first newline. True when there was one:
-    // the line is complete, and the text after it is the start of the next
-    // lines.
+    // Insert pasted text. In a multi-row area the whole text goes in, its
+    // newlines as new rows; else up to its first newline, and True when
+    // there was one: the line is complete, and the text after it is the
+    // start of the next lines.
     func _paste(text str) bool {
+        if _input_height > 0 {
+            for c in _chars_of(text) {
+                if c == "\r" { continue }
+                _insert(c)
+            }
+            return false
+        }
         let chars = _chars_of(text)
         var i = 0
         let n = chars.len()
@@ -1425,17 +1568,168 @@ pub class Editor {
 
     func _text() str = "".join(_chars)
 
-    // Leave the edited row: the program's output goes on the next one.
+    // Leave the edited rows: the program's output goes on the next one. In
+    // an input area nothing is written: the app redraws its frame.
     func _finish_line() {
+        if _input_height > 0 { return }
         _term.write("\r\n")
         _term.flush()
     }
 
     // ---- drawing ----
 
+    // Draw the prompt and the line: in the input area when one is set, as
+    // the single row from the cursor otherwise.
+    func _refresh() {
+        if _input_height > 0 {
+            _refresh_area()
+            return
+        }
+        _refresh_line()
+    }
+
+    // Draw the line in the input area, over its rows, scrolled so that the
+    // cursor row is visible.
+    func _refresh_area() {
+        let rows = _visual_rows()
+
+        // the cursor's visual row and column
+        var cr = rows.len() - 1
+        var cc = 0
+        var i = 0
+        while i < rows.len() {
+            let (start, end, left) = rows[i]
+            if _pos >= start && _pos <= end {
+                cr = i
+                cc = left + _shown_width(start, _pos)
+                break
+            }
+            i += 1
+        }
+
+        // the window of rows shown: the cursor row must be in it
+        if cr < _vtop { _vtop = cr }
+        if cr >= _vtop + _input_height { _vtop = cr - _input_height + 1 }
+        var max_top = rows.len() - _input_height
+        if max_top < 0 { max_top = 0 }
+        if _vtop > max_top { _vtop = max_top }
+
+        var row = _input_row
+        var r = _vtop
+        while r < _vtop + _input_height {
+            var text = ""
+            if r < rows.len() {
+                let (start, end, left) = rows[r]
+                if r == 0 { text += _prompt_text(_prompt) }
+                var j = start
+                while j < end {
+                    text += _shown(_chars[j])
+                    j += 1
+                }
+                let used = left + _shown_width(start, end)
+                if used < _input_width { text += " " * (_input_width - used) }
+            } else {
+                // a row the text no longer reaches: blank it out
+                text = " " * _input_width
+            }
+            _term.write("\x1b[" + str(row) + ";" + str(_input_col) + "H" + text)
+            row += 1
+            r += 1
+        }
+        _term.write("\x1b[" + str(_input_row + cr - _vtop) + ";" + str(_input_col + cc) + "H")
+        _term.flush()
+    }
+
+    // The visual rows of the line in the input area: each one the flat
+    // indices `start..end` it shows (never the newline that ends it) and
+    // the column `left` it starts at. Rows wrap at the area width; the
+    // prompt takes its columns on the first row.
+    func _visual_rows() list[(int, int, int)] {
+        let rows = list[(int, int, int)]()
+        let prompt_width = _text_width(_prompt)
+        let n = _chars.len()
+        var start = 0
+        var budget = _input_width - prompt_width
+        var left = prompt_width
+        while true {
+            var end = start
+            var width = 0
+            while end < n && _chars[end] != "\n" {
+                let next = _cluster_end(_chars, end)
+                let w = _shown_width(end, next)
+                if width + w > budget && end > start { break }
+                width += w
+                end = next
+            }
+            rows.append((start, end, left))
+            if end >= n { break }
+            // a row ends at a newline (skip it) or, wrapped, before the
+            // cluster that did not fit (it starts the next row)
+            if _chars[end] == "\n" {
+                start = end + 1
+            } else {
+                start = end
+            }
+            budget = _input_width
+            left = 0
+        }
+        return rows
+    }
+
+    // The flat index of the start of the line the cursor is on.
+    func _line_start(pos int) int {
+        var i = pos - 1
+        while i >= 0 && _chars[i] != "\n" { i -= 1 }
+        return i + 1
+    }
+
+    // The flat index of the end of the line the cursor is on: the next
+    // newline, else the end of the text.
+    func _line_end(pos int) int {
+        var i = pos
+        let n = _chars.len()
+        while i < n && _chars[i] != "\n" { i += 1 }
+        return i
+    }
+
+    // Up / Down in the input area: to the visual row above / below the
+    // cursor, the same column clamped to the row. True when it moved.
+    func _move_row(dir int) bool {
+        let rows = _visual_rows()
+        var cr = rows.len() - 1
+        var cc = 0
+        var cur_left = 0
+        var i = 0
+        while i < rows.len() {
+            let (start, end, left) = rows[i]
+            if _pos >= start && _pos <= end {
+                cr = i
+                cur_left = left
+                cc = cur_left + _shown_width(start, _pos)
+                break
+            }
+            i += 1
+        }
+        let target = cr + dir
+        if target < 0 || target >= rows.len() { return false }
+        let (start, end, left) = rows[target]
+        let rel = cc - cur_left
+        var j = start
+        var width = 0
+        while j < end {
+            let next = _cluster_end(_chars, j)
+            let w = _shown_width(j, next)
+            if width + w > rel { break }
+            width += w
+            j = next
+        }
+        _pos = j
+        return true
+    }
+
     // Draw the prompt and the line, scrolled so that the cursor is on the
     // screen, as linenoise's refreshSingleLine.
-    func _refresh() {
+    func _refresh_line() {
         let cols = _term.columns()
         let prompt_width = _text_width(_prompt)
 

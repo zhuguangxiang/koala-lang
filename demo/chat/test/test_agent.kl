@@ -1,0 +1,312 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The agent action protocol (agent.kl): block parsing, the no-access prompt
+// injection, the write/shell executor's every branch, and Agent's work-dir
+// guard. The model-driven loop itself is covered by the pty E2E tests.
+
+import "std/ut"
+import "std/fs"
+import "std/os"
+import "demo/chat"
+import "koala/openai" as openai
+
+const ABASE = "/tmp/koala_chat_agenttest"
+
+/// A fresh work tree with a `secret` directory.
+func _work() str {
+    fs.remove_all(ABASE)
+    fs.mkdir(ABASE)
+    fs.mkdir(ABASE + "/secret")
+    return ABASE
+}
+
+/// A config.json with every required field plus a no_access_dirs suffix.
+func _write_config(file str, no_access str) {
+    let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", \"history_file\": \"/tmp/koala_chat_agenttest/history\", \"max_code_bytes\": 1000, \"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, \"system_prompt\": \"s\"" + no_access + "}"
+    fs.write_str(file, json)
+}
+
+/// Build a Config from `file` via $CHAT_CONFIG.
+func _cfg(file str) chat.Config {
+    os.setenv("CHAT_CONFIG", file)
+    let cfg = chat.Config()
+    os.unsetenv("CHAT_CONFIG")
+    return cfg
+}
+
+// ---- parse_block ----
+
+@test
+func test_parse_block_none() {
+    ut.assert_true(chat.parse_block("") == nil)
+    ut.assert_true(chat.parse_block("no fence\njust text") == nil)
+    // a fence must start its line: inline backticks are not a block
+    ut.assert_true(chat.parse_block("mid ``` fence\nnext") == nil)
+}
+
+@test
+func test_parse_block_basic() {
+    let (info, body) = chat.parse_block("```write a.txt\nbody\n```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "write a.txt")
+    ut.assert_true(body == "body")
+}
+
+@test
+func test_parse_block_leading_text() {
+    let (info, body) = chat.parse_block("preface\n```done\nhi\n```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "done")
+    ut.assert_true(body == "hi")
+}
+
+@test
+func test_parse_block_no_closing_fence() {
+    let (info, body) = chat.parse_block("```shell\ncmd\nmore") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "shell")
+    ut.assert_true(body == "cmd\nmore")
+}
+
+@test
+func test_parse_block_first_wins() {
+    let (info, body) = chat.parse_block("```a\n1\n```\n```b\n2\n```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "a")
+    ut.assert_true(body == "1")
+}
+
+@test
+func test_parse_block_blank_lines_kept() {
+    let (info, body) = chat.parse_block("```write f\n\nline1\n\n```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "write f")
+    ut.assert_true(body == "\nline1\n")
+}
+
+@test
+func test_parse_block_indented_fence() {
+    let (info, body) = chat.parse_block("  ```write x\n  body\n  ```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "write x")
+    // body lines keep their original indentation
+    ut.assert_true(body == "  body")
+}
+
+@test
+func test_parse_block_info_stripped() {
+    let (info, _) = chat.parse_block("```done \nhi\n```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "done")
+}
+
+@test
+func test_parse_block_empty_body() {
+    let (info, body) = chat.parse_block("```write f\n```") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "write f")
+    ut.assert_true(body == "")
+}
+
+@test
+func test_parse_block_close_with_spaces() {
+    let (info, body) = chat.parse_block("```done\nx\n ``` ") else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_true(info == "done")
+    ut.assert_true(body == "x")
+}
+
+// ---- agent_prompt ----
+
+@test
+func test_agent_prompt_plain() {
+    let p = chat.agent_prompt(list[str]())
+    ut.assert_true("autonomous coding agent" in p)
+    ut.assert_true(!("Never read" in p))
+}
+
+@test
+func test_agent_prompt_lists_blocked() {
+    let p = chat.agent_prompt(["secret", "/abs/dir"])
+    ut.assert_true("Never read, write, list" in p)
+    ut.assert_true("\n- secret" in p)
+    ut.assert_true("\n- /abs/dir" in p)
+}
+
+// ---- run_action: write ----
+
+@test
+func test_write_relative() {
+    let w = _work()
+    let r = chat.run_action("write ok.txt", "hello", w, list[str]())
+    ut.assert_true(r == "write ok: ok.txt (5 bytes)")
+    ut.assert_true(fs.read_str(w + "/ok.txt") == "hello")
+}
+
+@test
+func test_write_absolute() {
+    let w = _work()
+    let r = chat.run_action("write " + w + "/abs.txt", "AB", w, list[str]())
+    ut.assert_true(r == "write ok: " + w + "/abs.txt (2 bytes)")
+    ut.assert_true(fs.read_str(w + "/abs.txt") == "AB")
+}
+
+@test
+func test_write_missing_path() {
+    let w = _work()
+    ut.assert_true(chat.run_action("write ", "x", w, list[str]()) == "write: missing path")
+    ut.assert_true(chat.run_action("write   ", "x", w, list[str]()) == "write: missing path")
+}
+
+@test
+func test_write_refused_relative() {
+    let w = _work()
+    let r = chat.run_action("write secret/x.txt", "x", w, ["secret"])
+    ut.assert_true(r == "write refused: secret/x.txt is in a no-access directory")
+    ut.assert_true(!fs.is_file(w + "/secret/x.txt"))
+}
+
+@test
+func test_write_refused_absolute() {
+    let w = _work()
+    let r = chat.run_action("write " + w + "/secret/x.txt", "x", w, [w + "/secret"])
+    ut.assert_true(r == "write refused: " + w + "/secret/x.txt is in a no-access directory")
+    ut.assert_true(!fs.is_file(w + "/secret/x.txt"))
+}
+
+@test
+func test_write_failed_missing_dir() {
+    let w = _work()
+    ut.assert_true(chat.run_action("write nope/x.txt", "x", w, list[str]()) == "write failed: nope/x.txt")
+}
+
+@test
+func test_write_dotdot_normalized() {
+    let w = _work()
+    let r = chat.run_action("write sub/../fold.txt", "f", w, list[str]())
+    ut.assert_true(r == "write ok: sub/../fold.txt (1 bytes)")
+    ut.assert_true(fs.is_file(w + "/fold.txt"))
+}
+
+@test
+func test_write_backslash_normalized() {
+    let w = _work()
+    // the guard and the write see the same folded path: the file lands at
+    // the folded location, not inside secret/
+    let r = chat.run_action("write secret\\..\\fold2.txt", "g", w, list[str]())
+    ut.assert_true(r == "write ok: secret\\..\\fold2.txt (1 bytes)")
+    ut.assert_true(fs.is_file(w + "/fold2.txt"))
+    ut.assert_true(!fs.is_file(w + "/secret/fold2.txt"))
+}
+
+// ---- run_action: shell ----
+
+@test
+func test_shell_stdout() {
+    let w = _work()
+    ut.assert_true(chat.run_action("shell", "echo hi", w, list[str]()) == "exit 0\nstdout:\nhi")
+}
+
+@test
+func test_shell_stderr() {
+    let w = _work()
+    ut.assert_true(chat.run_action("shell", "echo e 1>&2", w, list[str]()) == "exit 0\nstderr:\ne")
+}
+
+@test
+func test_shell_both_streams() {
+    let w = _work()
+    let r = chat.run_action("shell", "echo o; echo e 1>&2", w, list[str]())
+    ut.assert_true(r == "exit 0\nstdout:\no\nstderr:\ne")
+}
+
+@test
+func test_shell_failure_code() {
+    let w = _work()
+    ut.assert_true(chat.run_action("shell", "exit 3", w, list[str]()) == "exit 3")
+}
+
+@test
+func test_shell_empty_command() {
+    let w = _work()
+    ut.assert_true(chat.run_action("shell", "  ", w, list[str]()) == "shell: empty command")
+}
+
+@test
+func test_shell_runs_in_workdir() {
+    let w = _work()
+    ut.assert_true(chat.run_action("shell", "pwd", w, list[str]()) == "exit 0\nstdout:\n" + w)
+}
+
+@test
+func test_shell_aliases() {
+    let w = _work()
+    ut.assert_true("stdout:\nsh-run" in chat.run_action("sh", "echo sh-run", w, list[str]()))
+    ut.assert_true("stdout:\nbash-run" in chat.run_action("bash", "echo bash-run", w, list[str]()))
+    // "shell <extra>" runs the body, not the info tail
+    ut.assert_true("stdout:\nbody-runs" in chat.run_action("shell echo ignored", "echo body-runs", w, list[str]()))
+}
+
+// ---- run_action: unknown ----
+
+@test
+func test_unknown_action() {
+    let w = _work()
+    ut.assert_true(chat.run_action("frobnicate x", "body", w, list[str]()) == "unknown action: frobnicate x")
+}
+
+// ---- Agent ----
+
+@test
+func test_agent_set_workdir() {
+    let w = _work()
+    _write_config(ABASE + "/cfg.json", ", \"no_access_dirs\": [\"secret\"]")
+    let cfg = _cfg(ABASE + "/cfg.json")
+    let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w)
+    ut.assert_eq(a.last_tokens(), 0)
+    ut.assert_true(a.set_workdir(w))
+    ut.assert_false(a.set_workdir(w + "/secret"))
+    ut.assert_false(a.set_workdir(w + "/missing"))
+    ut.assert_false(a.set_workdir(w + "/cfg.json"))
+}
+
+@test
+func test_agent_run_error_smoke() {
+    let w = _work()
+    _write_config(ABASE + "/cfg.json", "")
+    let cfg = _cfg(ABASE + "/cfg.json")
+    // an unreachable endpoint: the loop reports the error and returns
+    let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w)
+    a.run("do it", "auto")
+}
+
+@test
+func test_agent_compact_smoke() {
+    let w = _work()
+    _write_config(ABASE + "/cfg.json", "")
+    let cfg = _cfg(ABASE + "/cfg.json")
+    let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w)
+    // a conversation too short to compact: "(nothing to compact)"
+    a.compact("auto")
+}

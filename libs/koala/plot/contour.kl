@@ -3,6 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+import "koala/math"
+
 /// Contour extraction (marching squares) for the plot spec layer, computed
 /// Koala-side per docs/koala_ml.md §6.3 so the figure spec carries resolved
 /// contour line geometry in data coordinates and the renderer only strokes
@@ -235,4 +237,194 @@ pub func auto_levels(Z list[list[float]], n int = 8) list[float] {
         i = i + 1
     }
     return levels
+}
+
+/// ---------------------------------------------------------------------------
+/// Filled contours (contourf)
+/// ---------------------------------------------------------------------------
+
+/// Open-ended sentinels for the below/above `extend` bands; they never
+/// straddle real data so no interpolation divides by them.
+const NEG_INF = -1.0e300
+const POS_INF = 1.0e300
+
+/// Append the polygon described by flat `[x0, y0, x1, y1, ...]` verts to
+/// `out`, dropping duplicate points and sorting the vertices by angle around
+/// their centroid so the canvas fill rule is order-independent. A clipped
+/// triangle yields 3-6 vertices; fewer than 3 means the polygon is empty.
+func add_polygon(out list[list[float]], verts list[float]) {
+    let ded = list[float]()
+    var i = 0
+    while i + 1 < verts.len() {
+        let x = verts[i]
+        let y = verts[i + 1]
+        var dup = false
+        var j = 0
+        while j + 1 < ded.len() {
+            if ded[j] == x && ded[j + 1] == y {
+                dup = true
+                break
+            }
+            j = j + 2
+        }
+        if !dup {
+            ded.append(x)
+            ded.append(y)
+        }
+        i = i + 2
+    }
+    let n = ded.len() / 2
+    if n < 3 {
+        return
+    }
+    var cx = 0.0
+    var cy = 0.0
+    var k = 0
+    while k < ded.len() {
+        cx = cx + ded[k]
+        cy = cy + ded[k + 1]
+        k = k + 2
+    }
+    cx = cx / float(n)
+    cy = cy / float(n)
+    // Insertion sort by angle around the centroid.
+    var a = 1
+    while a < n {
+        var b = a
+        while b > 0 {
+            let ang1 = math.atan2(ded[2 * b + 1] - cy, ded[2 * b] - cx)
+            let ang2 = math.atan2(ded[2 * b - 1] - cy, ded[2 * b - 2] - cx)
+            if ang1 >= ang2 {
+                break
+            }
+            let tx = ded[2 * b]
+            let ty = ded[2 * b + 1]
+            ded[2 * b] = ded[2 * b - 2]
+            ded[2 * b + 1] = ded[2 * b - 1]
+            ded[2 * b - 2] = tx
+            ded[2 * b - 1] = ty
+            b = b - 1
+        }
+        a = a + 1
+    }
+    out.append(ded)
+}
+
+/// Clip triangle (px0,py0,z0), (px1,py1,z1), (px2,py2,z2) against the band
+/// `lo <= z <= hi`, appending the result polygon to `out`.
+func clip_tri(out list[list[float]],
+              p0x float, p0y float, z0 float,
+              p1x float, p1y float, z1 float,
+              p2x float, p2y float, z2 float,
+              lo float, hi float) {
+    let verts = list[float]()
+    let xs = [p0x, p1x, p2x]
+    let ys = [p0y, p1y, p2y]
+    let zs = [z0, z1, z2]
+    var v = 0
+    while v < 3 {
+        if zs[v] >= lo && zs[v] <= hi {
+            verts.append(xs[v])
+            verts.append(ys[v])
+        }
+        v = v + 1
+    }
+    // Edge (i, j) straddle intersections for both band boundaries.
+    var e = 0
+    while e < 3 {
+        let j = (e + 1) % 3
+        if (zs[e] < lo) != (zs[j] < lo) {
+            let t = (lo - zs[e]) / (zs[j] - zs[e])
+            verts.append(xs[e] + t * (xs[j] - xs[e]))
+            verts.append(ys[e] + t * (ys[j] - ys[e]))
+        }
+        if (zs[e] < hi) != (zs[j] < hi) {
+            let t = (hi - zs[e]) / (zs[j] - zs[e])
+            verts.append(xs[e] + t * (xs[j] - xs[e]))
+            verts.append(ys[e] + t * (ys[j] - ys[e]))
+        }
+        e = e + 1
+    }
+    add_polygon(out, verts)
+}
+
+/// Filled-contour paths for `contourf`: each grid cell splits into four
+/// triangles meeting at the cell center (like matplotlib's quad refinement),
+/// and each triangle is clipped against every level band. Returns one entry
+/// per band — ordering matches the artist's band list: an optional below
+/// band (`extend` "min"/"both"), one band per `levels[i]..levels[i+1]`
+/// interval, then an optional above band (`extend` "max"/"both"). Each band
+/// is a list of flat `[x0, y0, x1, y1, ...]` data-space polygons. A
+/// constant-Z grid produces no geometry (the artist emits empty bands).
+pub func contourf_paths(Z list[list[float]], xax list[float],
+                        yax list[float], levels list[float],
+                        extend str?) list[list[list[float]]] {
+    let bands = list[list[list[float]]]()
+    var ext_below = false
+    var ext_above = false
+    if let e = extend {
+        ext_below = e == "min" || e == "both"
+        ext_above = e == "max" || e == "both"
+    }
+
+    let los = list[float]()
+    let his = list[float]()
+    if ext_below {
+        los.append(NEG_INF)
+        his.append(levels[0])
+    }
+    var bi = 0
+    while bi < levels.len() - 1 {
+        los.append(levels[bi])
+        his.append(levels[bi + 1])
+        bi = bi + 1
+    }
+    if ext_above {
+        los.append(levels[levels.len() - 1])
+        his.append(POS_INF)
+    }
+
+    var b = 0
+    while b < los.len() {
+        bands.append(list[list[float]]())
+        b = b + 1
+    }
+
+    let rows = Z.len()
+    let cols = Z[0].len()
+    var r = 0
+    while r < rows - 1 {
+        var c = 0
+        while c < cols - 1 {
+            // Corner z: z00 bottom-left, z01 bottom-right, z10 top-left,
+            // z11 top-right; xs[c]/ys[r] are the grid coordinates.
+            let z00 = Z[r][c]
+            let z01 = Z[r][c + 1]
+            let z10 = Z[r + 1][c]
+            let z11 = Z[r + 1][c + 1]
+            let x0 = xax[c]
+            let x1 = xax[c + 1]
+            let y0 = yax[r]
+            let y1 = yax[r + 1]
+            let zmid = (z00 + z01 + z10 + z11) / 4.0
+            let xmid = (x0 + x1) / 2.0
+            let ymid = (y0 + y1) / 2.0
+            var b2 = 0
+            while b2 < los.len() {
+                let out = bands[b2]
+                clip_tri(out, x0, y0, z00, x0, y1, z10, xmid, ymid, zmid,
+                         los[b2], his[b2])
+                clip_tri(out, x0, y1, z10, x1, y1, z11, xmid, ymid, zmid,
+                         los[b2], his[b2])
+                clip_tri(out, x1, y1, z11, x1, y0, z01, xmid, ymid, zmid,
+                         los[b2], his[b2])
+                clip_tri(out, x1, y0, z01, x0, y0, z00, xmid, ymid, zmid,
+                         los[b2], his[b2])
+                b2 = b2 + 1
+            }
+            c = c + 1
+        }
+        r = r + 1
+    }
+    return bands
 }

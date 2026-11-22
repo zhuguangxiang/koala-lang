@@ -1,0 +1,640 @@
+// RUN: koala --test %s
+
+// Unit tests for boxplot (BoxStat/box_stats in boxplot.kl, Boxplot artist
+// in items.kl, Axes.boxplot in figure.kl, plt.boxplot in pyplot.kl).
+// All values are matplotlib 3.11.2 ground truth (probed in the venv):
+// default box half-width 0.075, whiskers at the extreme data points
+// inside the 1.5*IQR fence, black boxes, C1 median, hollow `o` fliers.
+// Main pixel frame: xlim (0.5, 2.5) -> px(x) = 70 + (x - 0.5)*270;
+// ylim (-0.2, 26.2) -> py(y) = 420 - (y + 0.2)/26.4*370.
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+import "koala/math"
+
+func first_axes(fig plot.Figure) json.Object {
+    return fig.to_spec().get_array("axes").get_object(0)
+}
+
+func boxplot_item(fig plot.Figure) json.Object {
+    return first_axes(fig).get_array("items").get_object(0)
+}
+
+@test
+func test_boxplot_default() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0],
+                                  [2.0, 4.0, 6.0, 8.0, 10.0, 25.0]])
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("kind"), "boxplot")
+    ut.assert_int_eq(it.get_array("boxes").len(), 2)
+    // Box 0: matplotlib verts (0.925, 2)..(1.075, 4).
+    let b0 = it.get_array("boxes").get_object(0).get_array("verts")
+    ut.assert_int_eq(b0.len(), 4)
+    ut.assert_float_close(b0.get_object(0).get_float("x"), 184.75)
+    ut.assert_float_close(b0.get_object(0).get_float("y"), 389.1666666666667)
+    ut.assert_float_close(b0.get_object(1).get_float("x"), 225.25)
+    ut.assert_float_close(b0.get_object(1).get_float("y"), 389.1666666666667)
+    ut.assert_float_close(b0.get_object(2).get_float("x"), 225.25)
+    ut.assert_float_close(b0.get_object(2).get_float("y"), 361.1363636363636)
+    ut.assert_float_close(b0.get_object(3).get_float("x"), 184.75)
+    ut.assert_float_close(b0.get_object(3).get_float("y"), 361.1363636363636)
+    // Median of box 0 at y = 3 spanning the box width.
+    let m0 = it.get_array("medians").get_object(0)
+    ut.assert_float_close(m0.get_float("x0"), 184.75)
+    ut.assert_float_close(m0.get_float("y0"), 375.1515151515151)
+    ut.assert_float_close(m0.get_float("x1"), 225.25)
+    ut.assert_float_close(m0.get_float("y1"), 375.1515151515151)
+    // Whiskers: (1, 2)-(1, 1), (1, 4)-(1, 5); dataset 2 upper whisker
+    // ends at the data point 10 (inside the fence), not the fence 17.
+    let ws = it.get_array("whiskers")
+    ut.assert_int_eq(ws.len(), 4)
+    ut.assert_float_close(ws.get_object(0).get_float("y1"), 403.1818181818182)
+    ut.assert_float_close(ws.get_object(1).get_float("y1"), 347.1212121212121)
+    ut.assert_float_close(ws.get_object(2).get_float("y0"), 354.1287878787879)
+    ut.assert_float_close(ws.get_object(3).get_float("y1"), 277.0454545454546)
+    // Caps at the whisker ends, half the box half-width.
+    let caps = it.get_array("caps")
+    ut.assert_int_eq(caps.len(), 4)
+    ut.assert_float_close(caps.get_object(0).get_float("x0"), 194.875)
+    ut.assert_float_close(caps.get_object(0).get_float("y0"), 403.1818181818182)
+    ut.assert_float_close(caps.get_object(0).get_float("x1"), 215.125)
+    ut.assert_float_close(caps.get_object(3).get_float("y0"), 277.0454545454546)
+    // One flier (25) from dataset 2.
+    let fliers = it.get_array("fliers")
+    ut.assert_int_eq(fliers.len(), 1)
+    ut.assert_float_close(fliers.get_object(0).get_float("x"), 475.0)
+    ut.assert_float_close(fliers.get_object(0).get_float("y"), 66.81818181818181)
+    // Colors and sizes.
+    ut.assert_eq(it.get_str("boxcolor"), "#000000")
+    ut.assert_true(!("boxfillcolor" in it))
+    ut.assert_eq(it.get_str("mediancolor"), "#ff7f0e")
+    ut.assert_eq(it.get_str("capcolor"), "#000000")
+    ut.assert_eq(it.get_str("fliermarker"), "o")
+    ut.assert_eq(it.get_str("fliercolor"), "#000000")
+    ut.assert_eq(it.get_str("flierfacecolor"), "none")
+    ut.assert_float_close(it.get_float("fliersize"), 8.333333333333334)
+    // manage_ticks: positions as ticks, position axis at (0.5, 2.5);
+    // value axis autoscales over [1, 25].
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.5)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), -0.2)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 26.2)
+    let xt = a.get_array("xticks")
+    ut.assert_int_eq(xt.len(), 2)
+    ut.assert_float_close(xt.get_object(0).get_float("value"), 1.0)
+    ut.assert_eq(xt.get_object(0).get_str("label"), "1")
+    ut.assert_float_close(xt.get_object(1).get_float("value"), 2.0)
+    ut.assert_eq(xt.get_object(1).get_str("label"), "2")
+}
+
+@test
+func test_boxplot_quartiles() {
+    // numpy linear-interpolation quartiles of [1..5]: Q1 2, med 3, Q3 4,
+    // IQR 2, whiskers at data extremes 1 and 5, no fliers.
+    let st = plot.box_stats([1.0, 2.0, 3.0, 4.0, 5.0], 1.0, 0.075, 1.5)
+    ut.assert_float_close(st.q1, 2.0)
+    ut.assert_float_close(st.med, 3.0)
+    ut.assert_float_close(st.q3, 4.0)
+    ut.assert_float_close(st.iqr, 2.0)
+    ut.assert_float_close(st.wlo, 1.0)
+    ut.assert_float_close(st.whi, 5.0)
+    ut.assert_float_close(st.mean, 3.0)
+    ut.assert_int_eq(st.fliers.len(), 0)
+    // Even count with interpolation: [1..6] -> Q1 2.25, med 3.5, Q3 4.75.
+    let st2 = plot.box_stats([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], 1.0, 0.075, 1.5)
+    ut.assert_float_close(st2.q1, 2.25)
+    ut.assert_float_close(st2.med, 3.5)
+    ut.assert_float_close(st2.q3, 4.75)
+}
+
+@test
+func test_boxplot_patch_artist() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, true)
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("boxfillcolor"), "#1f77b4")
+}
+
+@test
+func test_boxplot_notch() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, true)
+    let it = boxplot_item(fig)
+    let b0 = it.get_array("boxes").get_object(0).get_array("verts")
+    ut.assert_int_eq(b0.len(), 10)
+    // Notch inner points at the median on x = pos +- hw/4 (0.9625,
+    // 1.0375 -> px 319.75, 360.25); the notch depth is
+    // 1.57 * IQR / sqrt(n) around y = 3.
+    ut.assert_float_close(b0.get_object(3).get_float("x"), 360.25)
+    let dy = 1.57 * 2.0 / math.sqrt(5.0)
+    let ymed = 420.0 - (3.0 - 0.8) / 4.4 * 370.0
+    let ytop = 420.0 - (3.0 - dy - 0.8) / 4.4 * 370.0
+    ut.assert_float_close(b0.get_object(3).get_float("y"), ymed)
+    ut.assert_float_close(b0.get_object(2).get_float("y"), ytop)
+    // Median line spans only the notch inner width when notched.
+    let m0 = it.get_array("medians").get_object(0)
+    ut.assert_float_close(m0.get_float("x0"), 319.75)
+    ut.assert_float_close(m0.get_float("x1"), 360.25)
+}
+
+@test
+func test_boxplot_showmeans() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 true)
+    let it = boxplot_item(fig)
+    let means = it.get_array("means")
+    ut.assert_int_eq(means.len(), 1)
+    ut.assert_float_close(means.get_object(0).get_float("x"), 340.0)
+    ut.assert_float_close(means.get_object(0).get_float("y"), 235.0)
+    ut.assert_eq(it.get_str("meancolor"), "#2ca02c")
+    ut.assert_int_eq(it.get_array("meanlines").len(), 0)
+}
+
+@test
+func test_boxplot_meanline() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 true, true, true)
+    let it = boxplot_item(fig)
+    ut.assert_int_eq(it.get_array("means").len(), 0)
+    let ml = it.get_array("meanlines").get_object(0)
+    ut.assert_float_close(ml.get_float("x0"), 299.5)
+    ut.assert_float_close(ml.get_float("y0"), 235.0)
+    ut.assert_float_close(ml.get_float("x1"), 380.5)
+    ut.assert_float_close(ml.get_float("y1"), 235.0)
+    ut.assert_eq(it.get_str("meancolor"), "#2ca02c")
+}
+
+@test
+func test_boxplot_sym() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                 "r+")
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("fliermarker"), "+")
+    ut.assert_eq(it.get_str("fliercolor"), "#ff0000")
+    ut.assert_eq(it.get_str("flierfacecolor"), "#ff0000")
+    let fliers = it.get_array("fliers")
+    ut.assert_int_eq(fliers.len(), 1)
+    ut.assert_float_close(fliers.get_object(0).get_float("x"), 340.0)
+
+    let fig2 = plot.Figure()
+    fig2.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                  "none")
+    ut.assert_eq(boxplot_item(fig2).get_str("fliermarker"), "")
+}
+
+@test
+func test_boxplot_showfliers_false() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 false, false)
+    ut.assert_int_eq(boxplot_item(fig).get_array("fliers").len(), 0)
+}
+
+@test
+func test_boxplot_horizontal() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "horizontal")
+    let a = first_axes(fig)
+    // Value axis autoscales [1, 5]; position axis at (0.5, 1.5) with
+    // yticks at the positions.
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.8)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 5.2)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 0.5)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 1.5)
+    let yt = a.get_array("yticks")
+    ut.assert_int_eq(yt.len(), 1)
+    ut.assert_float_close(yt.get_object(0).get_float("value"), 1.0)
+    let it = boxplot_item(fig)
+    let b0 = it.get_array("boxes").get_object(0).get_array("verts")
+    // Box corners (2, 0.925) and (4, 1.075) with swapped axes.
+    ut.assert_float_close(b0.get_object(0).get_float("x"), 217.2727272727273)
+    ut.assert_float_close(b0.get_object(0).get_float("y"), 262.75)
+    ut.assert_float_close(b0.get_object(2).get_float("x"), 462.7272727272727)
+    ut.assert_float_close(b0.get_object(2).get_float("y"), 207.25)
+}
+
+@test
+func test_boxplot_positions_widths() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, [2.5], [0.4])
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 2.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 3.0)
+    let b0 = boxplot_item(fig).get_array("boxes").get_object(0).get_array("verts")
+    ut.assert_float_close(b0.get_object(0).get_float("x"), 232.0)
+    ut.assert_float_close(b0.get_object(1).get_float("x"), 448.0)
+}
+
+@test
+func test_boxplot_tick_labels() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]],
+                                 ["a", "b"])
+    let xt = first_axes(fig).get_array("xticks")
+    ut.assert_eq(xt.get_object(0).get_str("label"), "a")
+    ut.assert_eq(xt.get_object(1).get_str("label"), "b")
+}
+
+@test
+func test_boxplot_manage_ticks_false() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.boxplot([[1.0, 2.0, 3.0, 4.0, 5.0], [2.0, 4.0, 6.0, 8.0, 10.0, 25.0]],
+               nil, false, nil, "vertical", 1.5, nil, nil, false, false,
+               true, false, false)
+    // Box extent (0.925, 2.075) autoscaled like matplotlib.
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.8675)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.1325)
+}
+
+@test
+func test_boxplot_nan_skip() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0], [1.0, 2.0, 0.0 / 0.0]])
+    // NaN dataset draws nothing (matplotlib emits invisible NaN geometry)
+    // but its position still gets a tick.
+    let it = boxplot_item(fig)
+    ut.assert_int_eq(it.get_array("boxes").len(), 1)
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.5)
+    ut.assert_int_eq(a.get_array("xticks").len(), 2)
+}
+
+@test
+func test_boxplot_empty_ok() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([])
+    let it = boxplot_item(fig)
+    ut.assert_int_eq(it.get_array("boxes").len(), 0)
+    ut.assert_int_eq(it.get_array("medians").len(), 0)
+    ut.assert_int_eq(it.get_array("whiskers").len(), 0)
+    // Like matplotlib: one tick at position 1, position axis (0.5, 1.5).
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 1.5)
+    let xt = a.get_array("xticks")
+    ut.assert_int_eq(xt.len(), 1)
+    ut.assert_float_close(xt.get_object(0).get_float("value"), 1.0)
+}
+
+@test
+func test_boxplot_legend() {
+    let fig = plot.Figure()
+    let art = fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0]], nil, false,
+                                           nil, "vertical", 1.5, nil, nil,
+                                           false, false, true, true, true,
+                                           "x")
+    ut.assert_eq(art.legend_label()!, "x")
+    ut.assert_eq(art.legend_color()!, "#000000")
+}
+
+@test
+func test_pyplot_boxplot_forwarding() {
+    plt.close()
+    plt.figure()
+    let bp = plt.boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]])
+    ut.assert_eq(bp.kind(), "boxplot")
+    let fig = plt.gcf()
+    let a = fig.to_spec().get_array("axes").get_object(0)
+    let it = a.get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("kind"), "boxplot")
+}
+
+@test
+func test_boxplot_sequential_expand() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.boxplot([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0, 8.0, 10.0, 25.0]])
+    ax.boxplot([[2.0, 4.0, 6.0, 8.0, 10.0, 25.0]], nil, false, nil,
+               "vertical", 1.5, [3.0])
+    // mpl expands the interval to (0.5, 3.5) and accumulates ticks.
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 3.5)
+    let xt = a.get_array("xticks")
+    ut.assert_int_eq(xt.len(), 3)
+    ut.assert_float_close(xt.get_object(2).get_float("value"), 3.0)
+    ut.assert_int_eq(a.get_array("items").len(), 2)
+}
+
+@should_panic("plot.Axes.boxplot: 'xx' is not a valid value for orientation. Supported values are 'horizontal', 'vertical'")
+func test_boxplot_orientation_invalid() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "xx")
+}
+
+@should_panic("The number of labels (1) must match the number of columns (2).")
+func test_boxplot_tick_labels_mismatch() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0], [1.0, 2.0]], ["a"])
+}
+
+@should_panic("List of boxplot statistics and `positions` values must have same the length")
+func test_boxplot_positions_mismatch() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0], [1.0, 2.0]], nil,
+                                           false, nil, "vertical", 1.5,
+                                           [1.0])
+}
+
+@should_panic("List of boxplot statistics and `widths` values must have same the length")
+func test_boxplot_widths_mismatch() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0], [1.0, 2.0]], nil,
+                                           false, nil, "vertical", 1.5, nil,
+                                           [0.3])
+}
+
+@test
+func test_boxplot_whis_percentiles() {
+    // mpl percentile branch: whiskers end at the extreme data points
+    // inside [percentile(10), percentile(90)], the rest are fliers.
+    let st = plot.box_stats([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+                             10.0], 1.0, 0.075, [10.0, 90.0])
+    ut.assert_float_close(st.wlo, 2.0)
+    ut.assert_float_close(st.whi, 9.0)
+    ut.assert_int_eq(st.fliers.len(), 2)
+    ut.assert_float_close(st.fliers[0], 1.0)
+    ut.assert_float_close(st.fliers[1], 10.0)
+    let st2 = plot.box_stats([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+                              10.0], 1.0, 0.075, [0.0, 100.0])
+    ut.assert_float_close(st2.wlo, 1.0)
+    ut.assert_float_close(st2.whi, 10.0)
+    ut.assert_int_eq(st2.fliers.len(), 0)
+}
+
+@test
+func test_boxplot_whis_fallback() {
+    // When the percentile range selects no data point (or the selected
+    // point lies beyond the quartile), mpl falls back to the quartile.
+    let st = plot.box_stats([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+                             10.0], 1.0, 0.075, [99.9, 100.0])
+    ut.assert_float_close(st.wlo, st.q1)
+    ut.assert_float_close(st.whi, 10.0)
+    ut.assert_int_eq(st.fliers.len(), 3)
+    ut.assert_float_close(st.fliers[0], 1.0)
+    ut.assert_float_close(st.fliers[2], 3.0)
+    let st2 = plot.box_stats([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+                              10.0], 1.0, 0.075, [0.001, 0.002])
+    ut.assert_float_close(st2.wlo, 2.0)
+    ut.assert_float_close(st2.whi, st2.q3)
+    ut.assert_int_eq(st2.fliers.len(), 4)
+    ut.assert_float_close(st2.fliers[0], 1.0)
+    ut.assert_float_close(st2.fliers[1], 8.0)
+    ut.assert_float_close(st2.fliers[3], 10.0)
+}
+
+@test
+func test_boxplot_whis_figure() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0,
+                                   9.0, 10.0]], nil, false, nil, "vertical",
+                                 [10.0, 90.0])
+    // Single box frame: xlim (0.5, 1.5) -> px(x) = 70 + (x - 0.5)*540;
+    // ylim (0.55, 10.45) -> py(y) = 420 - (y - 0.55)/9.9*370.
+    let it = boxplot_item(fig)
+    let ws = it.get_array("whiskers")
+    ut.assert_float_close(ws.get_object(0).get_float("y0"), 319.0909090909091)
+    ut.assert_float_close(ws.get_object(0).get_float("y1"), 365.8080808080808)
+    ut.assert_float_close(ws.get_object(1).get_float("y0"), 150.9090909090909)
+    ut.assert_float_close(ws.get_object(1).get_float("y1"), 104.19191919191919)
+    let fl = it.get_array("fliers")
+    ut.assert_int_eq(fl.len(), 2)
+    ut.assert_float_close(fl.get_object(0).get_float("y"), 403.1818181818182)
+    ut.assert_float_close(fl.get_object(1).get_float("y"), 66.81818181818181)
+}
+
+@test
+func test_boxplot_props_lines() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0]], nil, false, nil,
+                                 "vertical", 1.5, nil, nil, false, false,
+                                 true, false, true, nil,
+                                 {"color": "#ff0000", "linewidth": 3},
+                                 {"color": "#00ff00", "linestyle": ":"},
+                                 {"color": "#0000ff", "linestyle": "dashdot",
+                                  "linewidth": 2},
+                                 nil,
+                                 {"color": "#ff00ff", "linewidth": 4})
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("boxcolor"), "#ff0000")
+    ut.assert_float_close(it.get_float("boxlinewidth"), 3.0)
+    ut.assert_eq(it.get_str("whiskercolor"), "#00ff00")
+    ut.assert_eq(it.get_str("whiskerlinestyle"), ":")
+    ut.assert_eq(it.get_str("capcolor"), "#0000ff")
+    ut.assert_eq(it.get_str("caplinestyle"), "-.")
+    ut.assert_float_close(it.get_float("caplinewidth"), 2.0)
+    ut.assert_eq(it.get_str("mediancolor"), "#ff00ff")
+    ut.assert_float_close(it.get_float("medianlinewidth"), 4.0)
+}
+
+@test
+func test_boxplot_props_int_linewidth() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0]], nil, false, nil,
+                                 "vertical", 1.5, nil, nil, false, false,
+                                 true, false, true, nil,
+                                 {"linewidth": 2})
+    ut.assert_float_close(boxplot_item(fig).get_float("boxlinewidth"), 2.0)
+}
+
+@test
+func test_boxplot_patch_artist_props() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0]], nil, false, nil,
+                                 "vertical", 1.5, nil, nil, true, false,
+                                 true, false, true, nil,
+                                 {"color": "#ff0000", "facecolor": "#00ff00",
+                                  "linestyle": ":"})
+    let it = boxplot_item(fig)
+    // color moves to the edge, facecolor fills; mpl forces solid edges.
+    ut.assert_eq(it.get_str("boxcolor"), "#ff0000")
+    ut.assert_eq(it.get_str("boxfillcolor"), "#00ff00")
+    ut.assert_eq(it.get_str("boxlinestyle"), "-")
+}
+
+@test
+func test_boxplot_flierprops() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 false, true, false, true, nil, nil, nil,
+                                 nil, {"marker": "s", "markersize": 10,
+                                       "markeredgecolor": "#ff0000",
+                                       "markerfacecolor": "#00ff00"})
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("fliermarker"), "s")
+    ut.assert_eq(it.get_str("fliercolor"), "#ff0000")
+    ut.assert_eq(it.get_str("flierfacecolor"), "#00ff00")
+    // 10 points at 100 dpi.
+    ut.assert_float_close(it.get_float("fliersize"), 13.88888888888889)
+}
+
+@test
+func test_boxplot_flierprops_color_inert() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 false, true, false, true, nil, nil, nil,
+                                 nil, {"color": "#00ff00"})
+    // 'color' sets the invisible Line2D color; the marker edge keeps the
+    // rcParams default (matplotlib quirk).
+    ut.assert_eq(boxplot_item(fig).get_str("fliercolor"), "#000000")
+}
+
+@test
+func test_boxplot_flierprops_marker_none() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 false, true, false, true, nil, nil, nil,
+                                 nil, {"marker": "none"})
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("fliermarker"), "")
+    ut.assert_int_eq(it.get_array("fliers").len(), 0)
+}
+
+@test
+func test_boxplot_sym_overrides_flierprops() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 30.0]], nil, false,
+                                 "r+", "vertical", 1.5, nil, nil, false,
+                                 false, true, false, true, nil, nil, nil,
+                                 nil, {"marker": "s",
+                                       "markeredgecolor": "#00ff00",
+                                       "markerfacecolor": "#0000ff"})
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("fliermarker"), "+")
+    ut.assert_eq(it.get_str("fliercolor"), "#ff0000")
+    ut.assert_eq(it.get_str("flierfacecolor"), "#ff0000")
+}
+
+@test
+func test_boxplot_meanprops() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 true, true, false, true, nil, nil, nil,
+                                 nil, nil, nil,
+                                 {"color": "#ff0000", "marker": "s",
+                                  "markersize": 12,
+                                  "markerfacecolor": "#00ff00"})
+    let it = boxplot_item(fig)
+    ut.assert_eq(it.get_str("meancolor"), "#ff0000")
+    ut.assert_eq(it.get_str("meanmarker"), "s")
+    ut.assert_eq(it.get_str("meanfacecolor"), "#00ff00")
+    ut.assert_float_close(it.get_float("meansize"), 16.666666666666668)
+}
+
+@test
+func test_boxplot_meanline_dash() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 true, true, true)
+    let it = boxplot_item(fig)
+    // mpl default meanprops linestyle is '--'.
+    ut.assert_eq(it.get_str("meanlinestyle"), "--")
+    ut.assert_int_eq(it.get_array("meanlines").len(), 1)
+    ut.assert_int_eq(it.get_array("means").len(), 0)
+}
+
+@test
+func test_boxplot_meanline_explicit() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 true, true, true, true, nil, nil, nil,
+                                 nil, nil, nil,
+                                 {"marker": "s", "linestyle": ":"})
+    let it = boxplot_item(fig)
+    // Explicit props survive meanline mode (matplotlib setdefault), and
+    // the marker is drawn at the mean alongside the line.
+    ut.assert_eq(it.get_str("meanlinestyle"), ":")
+    ut.assert_eq(it.get_str("meanmarker"), "s")
+    ut.assert_int_eq(it.get_array("meanlines").len(), 1)
+    ut.assert_int_eq(it.get_array("means").len(), 1)
+}
+
+@test
+func test_boxplot_marker_mode_explicit_ls() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], nil, false,
+                                 nil, "vertical", 1.5, nil, nil, false,
+                                 true, true, false, true, nil, nil, nil,
+                                 nil, nil, nil, {"linestyle": ":"})
+    // An explicit linestyle survives marker mode (matplotlib setdefault).
+    ut.assert_eq(boxplot_item(fig).get_str("meanlinestyle"), ":")
+}
+
+@test
+func test_pyplot_boxplot_props_forwarding() {
+    plt.close()
+    plt.figure()
+    plt.boxplot([[1.0, 2.0, 3.0]], nil, false, nil, "vertical",
+                [10.0, 90.0], nil, nil, false, false, true, false, true,
+                nil, nil, nil, nil, nil, {"color": "#ff0000"})
+    let a = plt.gcf().to_spec().get_array("axes").get_object(0)
+    let it = a.get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("mediancolor"), "#ff0000")
+}
+
+@should_panic("plot.Axes.boxplot: 'whis' must be a sequence of 2 percentiles")
+func test_boxplot_whis_len_1() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", [10.0])
+}
+
+@should_panic("plot.Axes.boxplot: 'whis' must be a sequence of 2 percentiles")
+func test_boxplot_whis_len_3() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", [10.0, 90.0, 50.0])
+}
+
+@should_panic("Percentiles must be in the range [0, 100]")
+func test_boxplot_whis_out_of_range() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", [-1.0, 90.0])
+}
+
+@should_panic("Percentiles must be in the range [0, 100]")
+func test_boxplot_whis_out_of_range_hi() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", [10.0, 101.0])
+}
+
+@should_panic("plot.Axes.boxplot: unexpected key 'bogus' in boxprops (supported: color, facecolor, linestyle, linewidth)")
+func test_boxplot_props_unknown_key() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", 1.5, nil, nil,
+                                           false, false, true, false, true,
+                                           nil, {"bogus": 1})
+}
+
+@should_panic("plot.Axes.boxplot: 'linewidth' must be a number")
+func test_boxplot_props_wrong_type() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", 1.5, nil, nil,
+                                           false, false, true, false, true,
+                                           nil, {"linewidth": "2"})
+}
+
+@should_panic("'bogus' is not a valid value for linestyle in whiskerprops")
+func test_boxplot_props_bad_linestyle() {
+    plot.Figure().subplot(1, 1, 1).boxplot([[1.0, 2.0]], nil, false, nil,
+                                           "vertical", 1.5, nil, nil,
+                                           false, false, true, false, true,
+                                           nil, nil, {"linestyle": "bogus"})
+}

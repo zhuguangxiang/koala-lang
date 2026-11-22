@@ -1,0 +1,285 @@
+// RUN: koala --test %s
+
+// Unit tests for contourf (FilledContour artist in items.kl,
+// Axes.contourf in figure.kl, plt.contourf in pyplot.kl, geometry in
+// contour.kl, maxn_levels in ticks.kl). Level/color/limit expectations
+// are matplotlib 3.11.2's own values (probed in the venv). Pixel frame
+// (0, 2) x (0, 1): px(x) = 70 + x*270, py(y) = 420 - y*370.
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+
+func first_axes(fig plot.Figure) json.Object {
+    return fig.to_spec().get_array("axes").get_object(0)
+}
+
+func contourf_item(fig plot.Figure) json.Object {
+    return first_axes(fig).get_array("items").get_object(0)
+}
+
+func has_vert(band json.Object, px float, py float) bool {
+    let ps = band.get_array("paths")
+    var pi = 0
+    while pi < ps.len() {
+        let verts = ps.get_object(pi).get_array("verts")
+        var v = 0
+        while v < verts.len() {
+            let o = verts.get_object(v)
+            if o.get_float("x") == px && o.get_float("y") == py {
+                return true
+            }
+            v = v + 1
+        }
+        pi = pi + 1
+    }
+    return false
+}
+
+@test
+func test_contourf_default_auto() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).contourf([[0.0, 1.0], [2.0, 3.0]])
+    let it = contourf_item(fig)
+    ut.assert_eq(it.get_str("kind"), "contourf")
+    let bands = it.get_array("bands")
+    // maxn_levels(0, 3, 7) = [0, 0.5, ..., 3] -> 6 bands, color at each
+    // band midpoint through viridis.
+    ut.assert_int_eq(bands.len(), 6)
+    ut.assert_eq(bands.get_object(0).get_str("color"), "#481f70")
+    ut.assert_eq(bands.get_object(1).get_str("color"), "#3b518b")
+    ut.assert_eq(bands.get_object(2).get_str("color"), "#287c8e")
+    ut.assert_eq(bands.get_object(3).get_str("color"), "#20a386")
+    ut.assert_eq(bands.get_object(4).get_str("color"), "#5cc863")
+    ut.assert_eq(bands.get_object(5).get_str("color"), "#c5e021")
+    // matplotlib limits: grid extent exactly.
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 1.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 1.0)
+}
+
+@test
+func test_contourf_explicit_levels() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).contourf([[0.0, 1.0, 2.0], [1.0, 2.0, 3.0]],
+                                 [0.5, 2.5])
+    let it = contourf_item(fig)
+    let bands = it.get_array("bands")
+    ut.assert_int_eq(bands.len(), 1)
+    // viridis(norm(1.5)) with norm (1.5-0.5)/(2.5-0.5) = 0.5.
+    ut.assert_eq(bands.get_object(0).get_str("color"), "#21908d")
+    ut.assert_true(bands.get_object(0).get_array("paths").len() > 0)
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 1.0)
+}
+
+@test
+func test_contourf_extend_both() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).contourf([[0.0, 1.0, 2.0], [1.0, 2.0, 3.0]],
+                                 [0.5, 2.5], "viridis", nil, nil, nil, "both")
+    let it = contourf_item(fig)
+    let bands = it.get_array("bands")
+    ut.assert_int_eq(bands.len(), 3)
+    ut.assert_eq(bands.get_object(0).get_str("color"), "#440154")
+    ut.assert_eq(bands.get_object(1).get_str("color"), "#21908d")
+    ut.assert_eq(bands.get_object(2).get_str("color"), "#fde725")
+    // Below band: matplotlib's polygon (0,0.5),(0,0),(0.5,0) split by the
+    // cell center (0.25,0.25) into two triangles.
+    let b0 = bands.get_object(0)
+    ut.assert_int_eq(b0.get_array("paths").len(), 2)
+    let p0 = b0.get_array("paths").get_object(0).get_array("verts")
+    ut.assert_int_eq(p0.len(), 3)
+    ut.assert_float_close(p0.get_object(0).get_float("x"), 70.0)
+    ut.assert_float_close(p0.get_object(0).get_float("y"), 420.0)
+    ut.assert_float_close(p0.get_object(1).get_float("x"), 137.5)
+    ut.assert_float_close(p0.get_object(1).get_float("y"), 327.5)
+    ut.assert_float_close(p0.get_object(2).get_float("x"), 70.0)
+    ut.assert_float_close(p0.get_object(2).get_float("y"), 235.0)
+    let p1 = b0.get_array("paths").get_object(1).get_array("verts")
+    ut.assert_float_close(p1.get_object(0).get_float("x"), 70.0)
+    ut.assert_float_close(p1.get_object(0).get_float("y"), 420.0)
+    ut.assert_float_close(p1.get_object(1).get_float("x"), 205.0)
+    ut.assert_float_close(p1.get_object(1).get_float("y"), 420.0)
+    ut.assert_float_close(p1.get_object(2).get_float("x"), 137.5)
+    ut.assert_float_close(p1.get_object(2).get_float("y"), 327.5)
+    // Above band has geometry too.
+    ut.assert_true(bands.get_object(2).get_array("paths").len() > 0)
+}
+
+@test
+func test_contourf_extend_min_max() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.contourf([[0.0, 1.0], [1.0, 2.0]], [0.5, 1.5], "viridis", nil, nil,
+                nil, "min")
+    let bands = contourf_item(fig).get_array("bands")
+    ut.assert_int_eq(bands.len(), 2)
+    ut.assert_eq(bands.get_object(0).get_str("color"), "#440154")
+    ut.assert_eq(bands.get_object(1).get_str("color"), "#21908d")
+
+    let fig2 = plot.Figure()
+    fig2.subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]], [0.5, 1.5],
+                                   "viridis", nil, nil, nil, "max")
+    let bands2 = contourf_item(fig2).get_array("bands")
+    ut.assert_int_eq(bands2.len(), 2)
+    ut.assert_eq(bands2.get_object(0).get_str("color"), "#21908d")
+    ut.assert_eq(bands2.get_object(1).get_str("color"), "#fde725")
+}
+
+@test
+func test_contourf_constant_auto() {
+    // Constant grid: matplotlib expands by half a step and fills the whole
+    // domain with one band at cmap(norm(z)) = viridis(0.5).
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).contourf([[3.0, 3.0], [3.0, 3.0]])
+    let it = contourf_item(fig)
+    let bands = it.get_array("bands")
+    ut.assert_int_eq(bands.len(), 1)
+    ut.assert_eq(bands.get_object(0).get_str("color"), "#21908d")
+    let b0 = bands.get_object(0)
+    ut.assert_true(has_vert(b0, 70.0, 420.0))
+    ut.assert_true(has_vert(b0, 610.0, 420.0))
+    ut.assert_true(has_vert(b0, 70.0, 50.0))
+    ut.assert_true(has_vert(b0, 610.0, 50.0))
+}
+
+@test
+func test_contourf_constant_explicit_levels() {
+    // Same full-domain fill with explicit bracketing levels; color at
+    // norm(3.0) = (3-2)/(4-2) = 0.5 (matplotlib probes identically).
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).contourf([[3.0, 3.0], [3.0, 3.0]], [2.0, 4.0])
+    let bands = contourf_item(fig).get_array("bands")
+    ut.assert_int_eq(bands.len(), 1)
+    ut.assert_eq(bands.get_object(0).get_str("color"), "#21908d")
+    let b0 = bands.get_object(0)
+    ut.assert_true(has_vert(b0, 70.0, 420.0))
+    ut.assert_true(has_vert(b0, 610.0, 420.0))
+    ut.assert_true(has_vert(b0, 70.0, 50.0))
+    ut.assert_true(has_vert(b0, 610.0, 50.0))
+}
+
+@test
+func test_contourf_xs_ys() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]], [0.5, 1.5],
+                                  "viridis", [10.0, 20.0], [0.0, 5.0])
+    let a = first_axes(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 10.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 20.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 5.0)
+}
+
+@test
+func test_contourf_alpha_label() {
+    let fig = plot.Figure()
+    let art = fig.subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]],
+                                           [0.5, 1.5], "viridis", nil, nil,
+                                           0.5, nil, "Z")
+    let it = contourf_item(fig)
+    ut.assert_float_close(it.get_float("alpha"), 0.5)
+    ut.assert_eq(it.get_str("label"), "Z")
+    ut.assert_eq(art.legend_label()!, "Z")
+    ut.assert_eq(art.legend_color()!, "#21908d")
+}
+
+@test
+func test_maxn_levels() {
+    // matplotlib MaxNLocator(nbins=7).tick_values ground truth.
+    let lv = plot.maxn_levels(0.0, 3.0, 7)
+    ut.assert_int_eq(lv.len(), 7)
+    ut.assert_float_close(lv[0], 0.0)
+    ut.assert_float_close(lv[1], 0.5)
+    ut.assert_float_close(lv[2], 1.0)
+    ut.assert_float_close(lv[3], 1.5)
+    ut.assert_float_close(lv[4], 2.0)
+    ut.assert_float_close(lv[5], 2.5)
+    ut.assert_float_close(lv[6], 3.0)
+
+    let lv2 = plot.maxn_levels(0.0, 4.0, 7)
+    ut.assert_int_eq(lv2.len(), 8)
+    ut.assert_float_close(lv2[1], 0.6)
+    ut.assert_float_close(lv2[2], 1.2)
+    ut.assert_float_close(lv2[3], 1.8)
+    ut.assert_float_close(lv2[4], 2.4)
+    ut.assert_float_close(lv2[5], 3.0)
+    ut.assert_float_close(lv2[6], 3.6)
+    ut.assert_float_close(lv2[7], 4.2)
+
+    let lv3 = plot.maxn_levels(1.0, 100.0, 7)
+    ut.assert_int_eq(lv3.len(), 8)
+    ut.assert_float_close(lv3[0], 0.0)
+    ut.assert_float_close(lv3[1], 15.0)
+    ut.assert_float_close(lv3[2], 30.0)
+    ut.assert_float_close(lv3[3], 45.0)
+    ut.assert_float_close(lv3[4], 60.0)
+    ut.assert_float_close(lv3[5], 75.0)
+    ut.assert_float_close(lv3[6], 90.0)
+    ut.assert_float_close(lv3[7], 105.0)
+}
+
+@test
+func test_contourf_pyplot() {
+    plt.close()
+    plt.figure()
+    let art = plt.contourf([[0.0, 1.0], [1.0, 2.0]], [0.5, 1.5])
+    ut.assert_eq(art.kind(), "contourf")
+    let fig = plt.gcf()
+    let a = fig.to_spec().get_array("axes").get_object(0)
+    let bands = a.get_array("items").get_object(0).get_array("bands")
+    ut.assert_int_eq(bands.len(), 1)
+}
+
+@should_panic("plot.Axes.contourf: Z needs at least 2 rows")
+func test_contourf_one_row() {
+    plot.Figure().subplot(1, 1, 1).contourf([[1.0, 2.0]])
+}
+
+@should_panic("plot.Axes.contourf: Z needs at least 2 cols")
+func test_contourf_one_col() {
+    plot.Figure().subplot(1, 1, 1).contourf([[1.0], [2.0]])
+}
+
+@should_panic("plot.Axes.contourf: Z must be rectangular")
+func test_contourf_ragged() {
+    plot.Figure().subplot(1, 1, 1).contourf([[1.0, 2.0], [3.0]])
+}
+
+@should_panic("Filled contours require at least 2 levels.")
+func test_contourf_levels_too_few() {
+    plot.Figure().subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]], [1.0])
+}
+
+@should_panic("Contour levels must be increasing")
+func test_contourf_levels_decreasing() {
+    plot.Figure().subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]],
+                                           [3.0, 1.0])
+}
+
+@should_panic("plot.Axes.contourf: 'xx' is not a valid value for extend. Supported values are 'min', 'max', 'both'")
+func test_contourf_extend_invalid() {
+    plot.Figure().subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]],
+                                           [0.5, 1.5], "viridis", nil, nil,
+                                           nil, "xx")
+}
+
+@should_panic("plot.Axes.contourf: xs length must match Z columns")
+func test_contourf_xs_mismatch() {
+    plot.Figure().subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]],
+                                           [0.5, 1.5], "viridis", [1.0])
+}
+
+@should_panic("plot.Axes.contourf: ys length must match Z rows")
+func test_contourf_ys_mismatch() {
+    plot.Figure().subplot(1, 1, 1).contourf([[0.0, 1.0], [1.0, 2.0]],
+                                           [0.5, 1.5], "viridis", nil,
+                                           [1.0])
+}

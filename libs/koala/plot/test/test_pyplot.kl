@@ -124,12 +124,36 @@ func test_hist_forwarding() {
 }
 
 @test
+func test_hist_weights_density_forwarding() {
+    plt.figure()
+    let (n, _, _) = plt.hist([1.0, 2.0, 3.0, 4.0], 2,
+                             weights = [0.5, 0.5, 1.0, 2.0], density = true)
+    ut.assert_float_close(n[0], 1.0 / 6.0)
+    ut.assert_float_close(n[1], 0.5)
+}
+
+@test
 func test_imshow_forwarding() {
     plt.figure()
     let img = plt.imshow([[0.0, 1.0], [2.0, 3.0]])
     ut.assert_int_eq(img.rows, 2)
     ut.assert_int_eq(img.cols, 2)
     ut.assert_eq(img.kind(), "image")
+}
+
+@test
+func test_imshow_extent_aspect_forwarding() {
+    plt.figure()
+    plt.imshow([[0.0, 1.0], [2.0, 3.0]], extent = (0.0, 4.0, 0.0, 2.0),
+               aspect = "auto")
+    let a = plt.gcf().to_spec().get_array("axes").get_object(0)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 4.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 2.0)
+    // aspect "auto" -> unshrunk data box
+    ut.assert_float_close(a.get_object("plot").get_float("w"), 540.0)
+    ut.assert_float_close(a.get_object("plot").get_float("h"), 370.0)
 }
 
 @test
@@ -160,10 +184,161 @@ func test_ticks_forwarding() {
 }
 
 @test
+func test_xlim_getter_setter() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.xlim(2.0, 8.0)
+    if let lims = plt.xlim() {
+        let (a, b) = lims
+        ut.assert_float_close(a, 2.0)
+        ut.assert_float_close(b, 8.0)
+    } else {
+        ut.assert_true(false, "xlim getter returned nil")
+    }
+    // A nil side keeps its current value (matplotlib xlim(left=...)).
+    plt.xlim(0.0, nil)
+    if let lims2 = plt.xlim() {
+        let (c, d) = lims2
+        ut.assert_float_close(c, 0.0)
+        ut.assert_float_close(d, 8.0)
+    } else {
+        ut.assert_true(false, "xlim getter returned nil")
+    }
+    plt.ylim(10.0, 20.0)
+    if let ylims = plt.ylim() {
+        let (e, f) = ylims
+        ut.assert_float_close(e, 10.0)
+        ut.assert_float_close(f, 20.0)
+    } else {
+        ut.assert_true(false, "ylim getter returned nil")
+    }
+}
+
+@test
+func test_xlim_getter_autoscale() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 10.0], [0.0, 10.0])
+    if let lims = plt.xlim() {
+        let (a, b) = lims
+        ut.assert_true(a <= 0.0)
+        ut.assert_true(b >= 10.0)
+    } else {
+        ut.assert_true(false, "xlim getter returned nil")
+    }
+}
+
+@test
+func test_xticks_getter_labels() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.xlim(0.0, 1.0)
+    plt.xticks([0.0, 0.5, 1.0], ["a", "b", "c"])
+    if let got = plt.xticks() {
+        let (locs, labels) = got
+        ut.assert_int_eq(locs.len(), 3)
+        ut.assert_int_eq(labels.len(), 3)
+        ut.assert_eq(labels[0], "a")
+        ut.assert_eq(labels[1], "b")
+        ut.assert_eq(labels[2], "c")
+    } else {
+        ut.assert_true(false, "xticks getter returned nil")
+    }
+}
+
+@test
+func test_yticks_getter_auto() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 10.0], [0.0, 10.0])
+    if let got = plt.yticks() {
+        let (locs, labels) = got
+        ut.assert_true(locs.len() >= 2)
+        ut.assert_int_eq(locs.len(), labels.len())
+        ut.assert_true(labels[0].len() > 0)
+    } else {
+        ut.assert_true(false, "yticks getter returned nil")
+    }
+}
+
+@should_panic("plot.xticks: labels require ticks")
+func test_xticks_labels_without_ticks() {
+    plt.figure()
+    plt.xticks(nil, ["a"])
+}
+
+@should_panic("plot.Axes.set_xticks: labels must match ticks length")
+func test_set_xticks_label_mismatch() {
+    let ax = plt.Figure().subplot(1, 1, 1)
+    ax.set_xticks([0.0, 1.0], ["only-one"])
+}
+
+@test
+func test_legend_loc_forwarding() {
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], label = "a")
+    plt.legend("lower left")
+    let ax = plt.gca()
+    ut.assert_true(ax.legend_on)
+    ut.assert_eq(ax.legend_loc, "lower left")
+    plt.legend()
+    ut.assert_eq(ax.legend_loc, "best")
+}
+
+@test
+func test_alpha_forwarding() {
+    plt.figure()
+    let line = plt.plot([0.0, 1.0], [0.0, 1.0], alpha = 0.3)
+    ut.assert_float_close(line.alpha, 0.3)
+    let sc = plt.scatter([0.0], [0.0], alpha = 0.7)
+    ut.assert_float_close(sc.alpha, 0.7)
+    let (n, edges, h) = plt.hist([0.0, 1.0], alpha = 0.6)
+    ut.assert_float_close(h.alpha, 0.6)
+    let img = plt.imshow([[0.0, 1.0]], alpha = 0.9)
+    ut.assert_float_close(img.alpha, 0.9)
+}
+
+@test
 func test_close_resets_state() {
     plt.figure()
     plt.plot([0.0, 1.0], [0.0, 1.0])
     plt.close()
     let fig = plt.gcf()
     ut.assert_int_eq(fig.axes.len(), 0)
+}
+
+@test
+func test_png_from_data_url() {
+    // A known-good 1x1 transparent PNG as a canvas data URL.
+    let url = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    let png = plt.png_from_data_url(url)
+    ut.assert_int_eq(png.len(), 70)
+    // PNG signature: 89 50 4E 47
+    ut.assert_int_eq(png[0], 137)
+    ut.assert_int_eq(png[1], 80)
+    ut.assert_int_eq(png[2], 78)
+    ut.assert_int_eq(png[3], 71)
+}
+
+@should_panic("plot.png_from_data_url: not a PNG data URL")
+func test_png_from_data_url_not_png() {
+    plt.png_from_data_url("data:image/jpeg;base64,AAAA")
+}
+@test
+func test_scatter_cvals_forwarding() {
+    plt.close()
+    plt.figure()
+    let sc = plt.scatter([0.0, 1.0, 2.0], [2.0, 1.0, 0.0],
+                         cvals = [0.0, 0.5, 1.0], cmap = "plasma")
+    ut.assert_eq(sc.cmap, "plasma")
+    if let cols = sc.colors {
+        ut.assert_int_eq(cols.len(), 3)
+        // plasma(0) and plasma(1).
+        ut.assert_eq(cols[0], "#0d0887")
+        ut.assert_eq(cols[2], "#f0f921")
+    } else {
+        ut.assert_true(false, "colors not set")
+    }
 }

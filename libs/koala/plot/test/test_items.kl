@@ -168,7 +168,14 @@ func test_resolve_color() {
     ut.assert_eq(plot.resolve_color("k"), "#000000")
     ut.assert_eq(plot.resolve_color("w"), "#ffffff")
     ut.assert_eq(plot.resolve_color("#abcdef"), "#abcdef")
-    ut.assert_eq(plot.resolve_color("red"), "red")
+    ut.assert_eq(plot.resolve_color("red"), "#ff0000")
+    ut.assert_eq(plot.resolve_color("blue"), "#0000ff")
+    ut.assert_eq(plot.resolve_color("green"), "#008000")
+    ut.assert_eq(plot.resolve_color("cyan"), "#00ffff")
+    ut.assert_eq(plot.resolve_color("magenta"), "#ff00ff")
+    ut.assert_eq(plot.resolve_color("yellow"), "#ffff00")
+    ut.assert_eq(plot.resolve_color("black"), "#000000")
+    ut.assert_eq(plot.resolve_color("white"), "#ffffff")
 }
 
 @should_panic("plot.Line: x and y must have the same length")
@@ -179,4 +186,192 @@ func test_plot_length_mismatch() {
 @should_panic("plot.Scatter: x and y must have the same length")
 func test_scatter_length_mismatch() {
     plot.Figure().subplot(1, 1, 1).scatter([0.0, 1.0], [0.0])
+}
+
+@test
+func test_alpha_in_spec() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    ax.plot([0.0, 1.0], [0.0, 1.0], alpha = 0.5)
+    ax.scatter([0.0, 1.0], [0.0, 1.0], alpha = 0.25)
+    ax.hist([0.0, 1.0], 1, alpha = 0.75)
+    ax.imshow([[0.0, 1.0], [1.0, 0.0]], alpha = 0.4)
+    // Default alpha is 1.0.
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    let items = first_axes(fig).get_array("items")
+    ut.assert_float_close(items.get_object(0).get_float("alpha"), 0.5)
+    ut.assert_float_close(items.get_object(1).get_float("alpha"), 0.25)
+    ut.assert_float_close(items.get_object(2).get_float("alpha"), 0.75)
+    ut.assert_float_close(items.get_object(3).get_float("alpha"), 0.4)
+    ut.assert_float_close(items.get_object(4).get_float("alpha"), 1.0)
+}
+
+@should_panic("plot.Line: alpha must be in [0, 1]")
+func test_line_alpha_bad() {
+    plot.Figure().subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0], alpha = 1.5)
+}
+
+@should_panic("plot.Scatter: alpha must be in [0, 1]")
+func test_scatter_alpha_bad() {
+    plot.Figure().subplot(1, 1, 1).scatter([0.0], [0.0], alpha = -0.1)
+}
+
+@should_panic("plot.Hist: alpha must be in [0, 1]")
+func test_hist_alpha_bad() {
+    plot.Figure().subplot(1, 1, 1).hist([0.0], alpha = 2.0)
+}
+
+@should_panic("plot.Contour: alpha must be in [0, 1]")
+func test_contour_alpha_bad() {
+    plot.Figure().subplot(1, 1, 1).contour([[0.0, 1.0], [0.0, 1.0]], alpha = 1.1)
+}
+
+@should_panic("plot.Image: alpha must be in [0, 1]")
+func test_imshow_alpha_bad() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0]], alpha = -0.5)
+}
+@test
+func test_scatter_cvals_spec() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([0.0, 1.0, 2.0], [0.0, 1.0, 4.0],
+                        cvals = [0.0, 1.0, 2.0], cmap = "viridis")
+    ut.assert_eq(sc.cmap, "viridis")
+    if let cols = sc.colors {
+        ut.assert_int_eq(cols.len(), 3)
+        // min -> viridis(0), max -> viridis(1), mid -> viridis(0.5).
+        ut.assert_eq(cols[0], "#440154")
+        ut.assert_eq(cols[1], "#21908d")
+        ut.assert_eq(cols[2], "#fde725")
+    } else {
+        ut.assert_true(false, "colors not set")
+    }
+    // The legend patch color is the cmap midpoint.
+    ut.assert_eq(sc.color, "#21908d")
+    let it = first_axes(fig).get_array("items").get_object(0)
+    ut.assert_int_eq(it.get_array("colors").len(), 3)
+    ut.assert_eq(it.get_array("colors").get_str(0), "#440154")
+    ut.assert_eq(it.get_array("colors").get_str(2), "#fde725")
+}
+
+@test
+func test_scatter_vmin_vmax() {
+    // cvals [0, 1, 2] with vmin=1 vmax=2: 0 clamps to viridis(0),
+    // 1 -> 0, 2 -> viridis(1).
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([0.0, 1.0, 2.0], [0.0, 1.0, 4.0],
+                        cvals = [0.0, 1.0, 2.0], vmin = 1.0, vmax = 2.0)
+    if let cols = sc.colors {
+        ut.assert_int_eq(cols.len(), 3)
+        ut.assert_eq(cols[0], "#440154")
+        ut.assert_eq(cols[1], "#440154")
+        ut.assert_eq(cols[2], "#fde725")
+    } else {
+        ut.assert_true(false, "colors not set")
+    }
+    if let lo = sc.cvmin {
+        ut.assert_float_close(lo, 1.0)
+    } else {
+        ut.assert_true(false, "cvmin not set")
+    }
+    if let hi = sc.cvmax {
+        ut.assert_float_close(hi, 2.0)
+    } else {
+        ut.assert_true(false, "cvmax not set")
+    }
+}
+
+@test
+func test_scatter_vmin_only_falls_back_to_data_hi() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    let sc = ax.scatter([0.0, 1.0], [0.0, 1.0], cvals = [0.0, 10.0],
+                        vmin = 5.0)
+    if let lo = sc.cvmin {
+        ut.assert_float_close(lo, 5.0)
+    } else {
+        ut.assert_true(false, "cvmin not set")
+    }
+    if let hi = sc.cvmax {
+        ut.assert_float_close(hi, 10.0)
+    } else {
+        ut.assert_true(false, "cvmax not set")
+    }
+    // 5 -> (5-5)/(10-5) = 0, 10 -> 1.
+    if let cols = sc.colors {
+        ut.assert_eq(cols[0], "#440154")
+        ut.assert_eq(cols[1], "#fde725")
+    } else {
+        ut.assert_true(false, "colors not set")
+    }
+}
+
+@test
+func test_scatter_vmin_equals_vmax_all_zero() {
+    let ax = plot.Figure().subplot(1, 1, 1)
+    let sc = ax.scatter([0.0, 1.0], [0.0, 1.0], cvals = [1.0, 9.0],
+                        vmin = 3.0, vmax = 3.0)
+    if let cols = sc.colors {
+        ut.assert_eq(cols[0], "#440154")
+        ut.assert_eq(cols[1], "#440154")
+    } else {
+        ut.assert_true(false, "colors not set")
+    }
+}
+
+@test
+func test_scatter_vmin_vmax_ignored_without_cvals() {
+    // matplotlib warns "No data for colormapping" and ignores vmin/vmax
+    // when `c` is a color string.
+    let ax = plot.Figure().subplot(1, 1, 1)
+    let sc = ax.scatter([0.0, 1.0], [0.0, 1.0], c = "r",
+                        vmin = 0.0, vmax = 1.0)
+    ut.assert_true(sc.colors == nil)
+    ut.assert_true(sc.cvmin == nil)
+    ut.assert_eq(sc.color, "#ff0000")
+}
+
+@should_panic("minvalue must be less than or equal to maxvalue")
+func test_scatter_vmin_gt_vmax() {
+    plot.Figure().subplot(1, 1, 1).scatter([0.0, 1.0], [0.0, 1.0],
+                                           cvals = [0.0, 1.0],
+                                           vmin = 5.0, vmax = 1.0)
+}
+
+@test
+func test_scatter_cvals_constant() {
+    // matplotlib Normalize maps a constant value list to 0.0 -> cmap(0).
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([0.0, 1.0], [0.0, 1.0], cvals = [7.0, 7.0])
+    if let cols = sc.colors {
+        ut.assert_eq(cols[0], "#440154")
+        ut.assert_eq(cols[1], "#440154")
+    } else {
+        ut.assert_true(false, "colors not set")
+    }
+}
+
+@test
+func test_scatter_solid_has_no_colors_key() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.scatter([0.0, 1.0], [0.0, 1.0], c = "r")
+    let it = first_axes(fig).get_array("items").get_object(0)
+    ut.assert_eq(it.get_str("color"), "#ff0000")
+    ut.assert_true(!("colors" in it))
+}
+
+@should_panic("plot.Scatter: cvals must match x length")
+func test_scatter_cvals_length_mismatch() {
+    plot.Figure().subplot(1, 1, 1).scatter([0.0, 1.0], [0.0, 1.0],
+                                           cvals = [0.5])
+}
+
+@should_panic("plot.Scatter: 'c' and 'cvals' are mutually exclusive")
+func test_scatter_c_and_cvals_exclusive() {
+    plot.Figure().subplot(1, 1, 1).scatter([0.0, 1.0], [0.0, 1.0],
+                                           c = "r", cvals = [0.0, 1.0])
 }

@@ -45,6 +45,69 @@ func test_html_embeds_painter() {
 }
 
 @test
+func test_html_embeds_marker_shapes() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("""kind === "8") {""") >= 0)
+    ut.assert_true(html.index("""kind === "p") {""") >= 0)
+    ut.assert_true(html.index("""kind === "h") {""") >= 0)
+    ut.assert_true(html.index("""kind === "P") {""") >= 0)
+    ut.assert_true(html.index("""kind === "X") {""") >= 0)
+    ut.assert_true(html.index("""kind === "|") {""") >= 0)
+    ut.assert_true(html.index("""kind === "_") {""") >= 0)
+    ut.assert_true(html.index("""kind === "<") {""") >= 0)
+    ut.assert_true(html.index("""kind === "1") {""") >= 0)
+    ut.assert_true(html.index("""kind === "tickleft" || kind === "tickright" ||""") >= 0)
+    ut.assert_true(html.index("""kind === "caretleft") {""") >= 0)
+    ut.assert_true(html.index("""kind === "caretright") {""") >= 0)
+    ut.assert_true(html.index("""kind === "caretup") {""") >= 0)
+    ut.assert_true(html.index("""kind === "caretdown") {""") >= 0)
+    ut.assert_true(html.index("""kind === "caretleftbase" || kind === "caretrightbase" ||""") >= 0)
+    ut.assert_true(html.index("""kind.charAt(0) === "$" &&""") >= 0)
+    ut.assert_true(html.index("""kind.indexOf("path:") === 0""") >= 0)
+}
+
+@test
+func test_html_embeds_boxplot_styles() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    // Props-driven style paths: per-group colors/linestyles/linewidths,
+    // mean marker/face, flier face, and the hollow-marker fillFace branch.
+    ut.assert_true(html.index("""if (face === "none") { ctx.stroke(); } else { ctx.fill(); }""") >= 0)
+    ut.assert_true(html.index("""it.boxlinewidth === undefined) ? 1.0 : it.boxlinewidth""") >= 0)
+    ut.assert_true(html.index("""strokeSegs(it.medians, it.mediancolor, it.medianlinestyle,""") >= 0)
+    ut.assert_true(html.index("""strokeSegs(it.whiskers, it.whiskercolor, it.whiskerlinestyle,""") >= 0)
+    ut.assert_true(html.index("""strokeSegs(it.caps, it.capcolor, it.caplinestyle, it.caplinewidth)""") >= 0)
+    ut.assert_true(html.index("""strokeSegs(it.meanlines, it.meancolor, it.meanlinestyle,""") >= 0)
+    ut.assert_true(html.index("""it.flierfacecolor""") >= 0)
+    ut.assert_true(html.index("""marker(it.meanmarker,""") >= 0)
+    ut.assert_true(html.index("""it.meanfacecolor""") >= 0)
+}
+
+@test
+func test_html_embeds_alpha() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("ctx.globalAlpha") >= 0)
+}
+
+@test
+func test_html_embeds_pie_textprops() {
+    plt.close()
+    plt.figure()
+    plt.pie([1.0, 2.0], autopct = "%d%%",
+            textprops = plt.TextProps(color = "white", fontsize = 14.0,
+                fontweight = "bold", fontstyle = "italic", rotation = 45.0))
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("""kind":"pie""") >= 0)
+    ut.assert_true(html.index("""textprops""") >= 0)
+    ut.assert_true(html.index("""#ffffff""") >= 0)
+    ut.assert_true(html.index("var tp = it.textprops") >= 0)
+    ut.assert_true(html.index("ctx.font = style + weight + size") >= 0)
+    ut.assert_true(html.index("ctx.rotate(-tp.rotation") >= 0)
+}
+
+@test
 func test_html_embeds_line_scatter() {
     plt.figure()
     plt.plot([0.0, 1.0], [0.0, 1.0])
@@ -64,6 +127,32 @@ func test_html_embeds_contour_image_hist() {
     ut.assert_true(html.index("""kind":"contour""") >= 0)
     ut.assert_true(html.index("""kind":"image""") >= 0)
     ut.assert_true(html.index("""kind":"hist""") >= 0)
+}
+
+@test
+func test_html_custom_tick_labels() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.xlim(0.0, 1.0)
+    plt.xticks([0.0, 1.0], ["lo", "hi"])
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("""label":"lo""") >= 0)
+    ut.assert_true(html.index("""label":"hi""") >= 0)
+}
+
+@test
+func test_html_legend_loc() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], label = "a")
+    plt.legend("lower left")
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("""loc":"lower left""") >= 0)
+    ut.assert_true(html.index("""loc === "lower left") {""") >= 0)
+    plt.legend()
+    let html2 = plt.figure_html(plt.gcf())
+    ut.assert_true(html2.index("""loc":"best""") >= 0)
 }
 
 func read_file(path str) str {
@@ -112,4 +201,10 @@ func test_show_unknown_backend() {
     os.setenv("KOALA_PLOT_BACKEND", "bogus")
     plt.figure()
     plt.show()
+}
+@test
+func test_html_embeds_scatter_colors() {
+    plt.figure()
+    let html = plt.figure_html(plt.gcf())
+    ut.assert_true(html.index("it.colors ? it.colors[i] : it.color") >= 0)
 }

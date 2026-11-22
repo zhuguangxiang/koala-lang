@@ -200,6 +200,53 @@ func _prompt_text(prompt str) str {
     return prompt.replace("\x01", "").replace("\x02", "")
 }
 
+// `text` cut to at most `cols` columns (never inside a character cluster)
+// and padded with spaces to exactly `cols` columns, for drawing in a
+// fixed-width area. ANSI escape sequences and `\x01`..`\x02` text are kept
+// and take no columns.
+func _fit_text(text str, cols int) str {
+    let all = _chars_of(text)
+    var out = ""
+    var width = 0
+    var i = 0
+    let n = all.len()
+    while i < n {
+        let c = all[i]
+        if c == "\x01" {
+            while i < n && all[i] != "\x02" { i += 1 }
+            i += 1
+            continue
+        }
+        if c == "\x1b" && i + 1 < n && all[i + 1] == "[" {
+            let esc_start = i
+            i += 2
+            while i < n && !_is_csi_final(all[i]) { i += 1 }
+            i += 1
+            var j = esc_start
+            while j < i {
+                out += all[j]
+                j += 1
+            }
+            continue
+        }
+        let next = _cluster_end(all, i)
+        let w = _cluster_width(all, i, next)
+        if width + w > cols { break }
+        var j = i
+        while j < next {
+            out += all[j]
+            j += 1
+        }
+        width += w
+        i = next
+    }
+    while width < cols {
+        out += " "
+        width += 1
+    }
+    return out
+}
+
 // A C0 control character or DEL, shown as `^X`.
 func _is_control(c str) bool {
     let cp = _codepoint(c)

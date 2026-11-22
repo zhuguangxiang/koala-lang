@@ -1,0 +1,133 @@
+// RUN: koala --test %s
+
+// Marker 全集 (markers.kl): int 0..11 tick/caret table, named strings,
+// "None"/"none"/""/" " -> no marker, "$...$" mathtext, "path:..." custom
+// polygon, and the fmt-kwarg merge rule in Axes.plot/errorbar.
+
+import "std/ut"
+import "koala/plot" as plt
+import "koala/json"
+
+func items(fig plt.Figure) json.Array {
+    return fig.to_spec().get_array("axes").get_object(0).get_array("items")
+}
+
+@test
+func test_int_marker_table() {
+    plt.close()
+    plt.figure()
+    let names = ["tickleft", "tickright", "tickup", "tickdown",
+                 "caretleft", "caretright", "caretup", "caretdown",
+                 "caretleftbase", "caretrightbase", "caretupbase",
+                 "caretdownbase"]
+    var i = 0
+    while i < names.len() {
+        plt.plot([0.0, 1.0], [0.0, 1.0], marker = i)
+        i = i + 1
+    }
+    let its = items(plt.gcf())
+    i = 0
+    while i < names.len() {
+        ut.assert_eq(its.get_object(i).get_str("marker"), names[i])
+        i = i + 1
+    }
+}
+
+@should_panic("Unrecognized marker style 12")
+func test_int_marker_out_of_range() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = 12)
+}
+
+@test
+func test_none_marker_variants() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = "none")
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = "None")
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = "")
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = " ")
+    let its = items(plt.gcf())
+    var i = 0
+    while i < 5 {
+        ut.assert_true(its.get_object(i).get("marker") == nil)
+        i = i + 1
+    }
+}
+
+@test
+func test_fmt_kwarg_merge() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], fmt = "o-")
+    plt.plot([0.0, 1.0], [0.0, 1.0], fmt = "o-", marker = "none")
+    plt.plot([0.0, 1.0], [0.0, 1.0], fmt = "o-", marker = "^")
+    plt.plot([0.0, 1.0], [0.0, 1.0], fmt = "o-", marker = 5)
+    let its = items(plt.gcf())
+    ut.assert_eq(its.get_object(0).get_str("marker"), "o")
+    ut.assert_eq(its.get_object(1).get_str("marker"), "o")
+    ut.assert_eq(its.get_object(2).get_str("marker"), "^")
+    ut.assert_eq(its.get_object(3).get_str("marker"), "caretright")
+}
+
+@test
+func test_mathtext_and_path_markers() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = "$x$")
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = "path:0,0;1,0;0,1")
+    let its = items(plt.gcf())
+    ut.assert_eq(its.get_object(0).get_str("marker"), "$x$")
+    ut.assert_eq(its.get_object(1).get_str("marker"), "path:0,0;1,0;0,1")
+}
+
+@should_panic("Unrecognized marker style foo")
+func test_unknown_marker_string() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0], marker = "foo")
+}
+
+@test
+func test_scatter_markers() {
+    plt.close()
+    plt.figure()
+    plt.scatter([0.0, 1.0], [0.0, 1.0])
+    plt.scatter([0.0, 1.0], [0.0, 1.0], marker = "s")
+    plt.scatter([0.0, 1.0], [0.0, 1.0], marker = 5)
+    plt.scatter([0.0, 1.0], [0.0, 1.0], marker = "none")
+    let its = items(plt.gcf())
+    ut.assert_eq(its.get_object(0).get_str("marker"), "o")
+    ut.assert_eq(its.get_object(1).get_str("marker"), "s")
+    ut.assert_eq(its.get_object(2).get_str("marker"), "caretright")
+    ut.assert_true(its.get_object(3).get("marker") == nil)
+}
+
+@test
+func test_errorbar_markers() {
+    plt.close()
+    plt.figure()
+    plt.errorbar([0.0, 1.0], [0.0, 1.0], yerr = 0.5, marker = 7)
+    plt.errorbar([0.0, 1.0], [0.0, 1.0], yerr = 0.5, marker = "none")
+    let its = items(plt.gcf())
+    ut.assert_eq(its.get_object(0).get_str("kind"), "errorbar")
+    ut.assert_eq(its.get_object(0).get_str("marker"), "caretdown")
+    ut.assert_true(its.get_object(1).get("marker") == nil)
+}
+
+@test
+func test_step_marker() {
+    plt.close()
+    plt.figure()
+    plt.step([0.0, 1.0], [0.0, 1.0], marker = 4)
+    let it = items(plt.gcf()).get_object(0)
+    ut.assert_eq(it.get_str("kind"), "line")
+    ut.assert_eq(it.get_str("marker"), "caretleft")
+}
+
+@should_panic("Unrecognized marker style bogus")
+func test_line_ctor_unknown_marker() {
+    plt.Line([0.0, 1.0], [0.0, 1.0], marker = "bogus")
+}

@@ -1,0 +1,367 @@
+// RUN: koala --test %s
+
+// Unit tests for Axes.twinx / Axes.twiny (and the pyplot facades).
+// Semantics follow matplotlib 3.11: the twin occupies the same cell and
+// frame, hides the shared axis (twinx: x-axis; twiny: y-axis), draws its
+// own axis on the opposite side, links limits both ways, and autoscales
+// the shared view as the union of every group member's data (mpl
+// sharex/sharey view semantics, verified against the venv matplotlib).
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+
+func axes_n(fig plot.Figure, i int) json.Object {
+    return fig.to_spec().get_array("axes").get_object(i)
+}
+
+func plot_rect(fig plot.Figure, i int) json.Object {
+    return axes_n(fig, i).get_object("plot")
+}
+
+func xlim(fig plot.Figure, i int) (float, float) {
+    let a = axes_n(fig, i).get_array("xlim")
+    return (a.get_float(0), a.get_float(1))
+}
+
+func ylim(fig plot.Figure, i int) (float, float) {
+    let a = axes_n(fig, i).get_array("ylim")
+    return (a.get_float(0), a.get_float(1))
+}
+
+func tickstyle(fig plot.Figure, i int) json.Object {
+    return axes_n(fig, i).get_object("tickstyle")
+}
+
+@test
+func test_twinx_same_cell_two_axes() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    let ax2 = ax.twinx()
+    let spec = fig.to_spec()
+    ut.assert_eq(spec.get_array("axes").len(), 2)
+    let p0 = plot_rect(fig, 0)
+    let p1 = plot_rect(fig, 1)
+    ut.assert_float_close(p1.get_float("x"), p0.get_float("x"))
+    ut.assert_float_close(p1.get_float("y"), p0.get_float("y"))
+    ut.assert_float_close(p1.get_float("w"), p0.get_float("w"))
+    ut.assert_float_close(p1.get_float("h"), p0.get_float("h"))
+    // Both axes draw the full frame (mpl: all spines visible on the twin).
+    ut.assert_eq(axes_n(fig, 1).get_bool("frame"), true)
+}
+
+@test
+func test_twinx_tick_sides() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.twinx()
+    // Host keeps its default left/bottom ticks.
+    let th = tickstyle(fig, 0)
+    ut.assert_eq(th.get_bool("labelleft"), true)
+    ut.assert_eq(th.get_bool("labelright"), false)
+    ut.assert_eq(th.get_bool("labelbottom"), true)
+    // Twin: y ticks right, x-axis hidden.
+    let tt = tickstyle(fig, 1)
+    ut.assert_eq(tt.get_bool("labelright"), true)
+    ut.assert_eq(tt.get_bool("labelleft"), false)
+    ut.assert_eq(tt.get_bool("right"), true)
+    ut.assert_eq(tt.get_bool("left"), false)
+    ut.assert_eq(tt.get_bool("labelbottom"), false)
+    ut.assert_eq(tt.get_bool("labeltop"), false)
+    ut.assert_eq(tt.get_bool("bottom"), false)
+    ut.assert_eq(tt.get_bool("top"), false)
+}
+
+@test
+func test_twinx_xlim_linked_both_ways() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 1.0])
+    let ax2 = ax.twinx()
+    ax2.set_xlim(1.0, 9.0)
+    let (hlo, hhi) = xlim(fig, 0)
+    ut.assert_float_close(hlo, 1.0)
+    ut.assert_float_close(hhi, 9.0)
+    ax.set_xlim(2.0, 8.0)
+    let (tlo, thi) = xlim(fig, 1)
+    ut.assert_float_close(tlo, 2.0)
+    ut.assert_float_close(thi, 8.0)
+    // get_xlim on the twin reflects the shared view.
+    let (glo, ghi) = ax2.get_xlim()
+    ut.assert_float_close(glo, 2.0)
+    ut.assert_float_close(ghi, 8.0)
+}
+
+@test
+func test_twinx_ylim_independent() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 10.0])
+    let ax2 = ax.twinx()
+    ax2.plot([0.0, 1.0], [100.0, 200.0])
+    ax2.set_ylim(50.0, 250.0)
+    let (hlo, hhi) = ylim(fig, 0)
+    ut.assert_float_close(hlo, -0.5)
+    ut.assert_float_close(hhi, 10.5)
+    let (tlo, thi) = ylim(fig, 1)
+    ut.assert_float_close(tlo, 50.0)
+    ut.assert_float_close(thi, 250.0)
+}
+
+@test
+func test_twinx_autoscale_union() {
+    // mpl sharex: the shared view autoscales to the union of both axes'
+    // data: host [0,10] + twin [20,30] -> [-1.5, 31.5] with 5% margins.
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 10.0])
+    let ax2 = ax.twinx()
+    ax2.plot([20.0, 30.0], [100.0, 0.0])
+    let (hlo, hhi) = xlim(fig, 0)
+    let (tlo, thi) = xlim(fig, 1)
+    ut.assert_float_close(hlo, -1.5)
+    ut.assert_float_close(hhi, 31.5)
+    ut.assert_float_close(tlo, -1.5)
+    ut.assert_float_close(thi, 31.5)
+    // The twin's y view is its own.
+    let (ylo, yhi) = ylim(fig, 1)
+    ut.assert_float_close(ylo, -5.0)
+    ut.assert_float_close(yhi, 105.0)
+}
+
+@test
+func test_twinx_explicit_host_xlim_wins() {
+    // An explicit host limit must not be overwritten by autoscaling.
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 10.0])
+    let ax2 = ax.twinx()
+    ax2.plot([20.0, 30.0], [100.0, 0.0])
+    ax.set_xlim(1.0, 9.0)
+    let (tlo, thi) = xlim(fig, 1)
+    ut.assert_float_close(tlo, 1.0)
+    ut.assert_float_close(thi, 9.0)
+    let (hlo, hhi) = xlim(fig, 0)
+    ut.assert_float_close(hlo, 1.0)
+    ut.assert_float_close(hhi, 9.0)
+}
+
+@test
+func test_twinx_empty_host_twin_data() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let ax2 = ax.twinx()
+    ax2.plot([5.0, 10.0], [0.0, 1.0])
+    let (tlo, thi) = xlim(fig, 1)
+    ut.assert_float_close(tlo, 4.75)
+    ut.assert_float_close(thi, 10.25)
+    let (hlo, hhi) = xlim(fig, 0)
+    ut.assert_float_close(hlo, 4.75)
+    ut.assert_float_close(hhi, 10.25)
+}
+
+@test
+func test_twinx_artist_px_uses_twin_ylim() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 10.0])
+    let ax2 = ax.twinx()
+    ax2.plot([20.0, 30.0], [100.0, 0.0])
+    // Shared xlim [-1.5, 31.5], twin ylim [-5, 105]; data rect 540x370 at
+    // (70, 50). Point [20, 100] maps through the twin's own y scale.
+    let items = axes_n(fig, 1).get_array("items")
+    let pts = items.get_object(0).get_array("points")
+    ut.assert_float_close(pts.get_object(0).get_float("x"),
+                          70.0 + (20.0 - (-1.5)) / (31.5 - (-1.5)) *
+                          (610.0 - 70.0), 1e-6)
+    ut.assert_float_close(pts.get_object(0).get_float("y"),
+                          420.0 + (100.0 - (-5.0)) / (105.0 - (-5.0)) *
+                          (50.0 - 420.0), 1e-6)
+}
+
+@test
+func test_twinx_labels_positions() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let ax2 = ax.twinx()
+    ax.set_ylabel("left")
+    ax.set_xlabel("bottom")
+    ax2.set_ylabel("right")
+    ax2.set_xlabel("hidden")
+    // Host ylabel on the left (cell.x + PAD_LEFT/2 = 40).
+    let hy = axes_n(fig, 0).get_object("ylabel")
+    ut.assert_float_close(hy.get_float("x"), 40.0)
+    ut.assert_eq(hy.get_str("text"), "left")
+    // Twin ylabel on the right (cell.x + cell.w - PAD_RIGHT/2 = 620).
+    let ty = axes_n(fig, 1).get_object("ylabel")
+    ut.assert_float_close(ty.get_float("x"), 620.0)
+    ut.assert_eq(ty.get_str("text"), "right")
+    // The twin's x-axis is invisible, so its xlabel is not emitted.
+    ut.assert_eq(axes_n(fig, 1).get("xlabel") == nil, true)
+    // Host xlabel stays below the plot (pl.bottom + PAD_BOTTOM/2 = 445).
+    let hx = axes_n(fig, 0).get_object("xlabel")
+    ut.assert_float_close(hx.get_float("y"), 445.0)
+}
+
+@test
+func test_twiny_sides_and_ylim_linked() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 10.0])
+    let ax2 = ax.twiny()
+    // Twin: x ticks on top, y-axis hidden.
+    let tt = tickstyle(fig, 1)
+    ut.assert_eq(tt.get_bool("labeltop"), true)
+    ut.assert_eq(tt.get_bool("labelbottom"), false)
+    ut.assert_eq(tt.get_bool("top"), true)
+    ut.assert_eq(tt.get_bool("bottom"), false)
+    ut.assert_eq(tt.get_bool("labelleft"), false)
+    ut.assert_eq(tt.get_bool("labelright"), false)
+    ut.assert_eq(tt.get_bool("left"), false)
+    ut.assert_eq(tt.get_bool("right"), false)
+    // ylim linked both ways; xlim independent.
+    ax2.set_ylim(2.0, 6.0)
+    let (hlo, hhi) = ylim(fig, 0)
+    ut.assert_float_close(hlo, 2.0)
+    ut.assert_float_close(hhi, 6.0)
+    ax2.set_xlim(0.5, 1.5)
+    let (tlo, thi) = xlim(fig, 1)
+    ut.assert_float_close(tlo, 0.5)
+    ut.assert_float_close(thi, 1.5)
+    let (hxlo, hxhi) = xlim(fig, 0)
+    ut.assert_float_close(hxlo, -0.05)
+    ut.assert_float_close(hxhi, 1.05)
+    // xlabel on top (cell.y + PAD_TOP/2 = 30), ylabel not emitted.
+    ax2.set_xlabel("top")
+    let tx = axes_n(fig, 1).get_object("xlabel")
+    ut.assert_float_close(tx.get_float("y"), 30.0)
+    ut.assert_eq(tx.get_str("text"), "top")
+    ut.assert_eq(axes_n(fig, 1).get("ylabel") == nil, true)
+}
+
+@test
+func test_twiny_autoscale_union() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 10.0])
+    let ax2 = ax.twiny()
+    ax2.plot([0.5, 0.6], [20.0, 30.0])
+    // Shared y = union [0, 30] with 5% margins -> [-1.5, 31.5].
+    let (hlo, hhi) = ylim(fig, 0)
+    let (tlo, thi) = ylim(fig, 1)
+    ut.assert_float_close(hlo, -1.5)
+    ut.assert_float_close(hhi, 31.5)
+    ut.assert_float_close(tlo, -1.5)
+    ut.assert_float_close(thi, 31.5)
+}
+
+@test
+func test_twinx_multiple_twins_union() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 10.0], [0.0, 1.0])
+    let t1 = ax.twinx()
+    t1.plot([20.0, 30.0], [0.0, 1.0])
+    let t2 = ax.twinx()
+    t2.plot([40.0, 50.0], [0.0, 1.0])
+    let spec = fig.to_spec()
+    ut.assert_eq(spec.get_array("axes").len(), 3)
+    // Union [0, 50] with 5% margins -> [-2.5, 52.5] on all three.
+    let (alo, ahi) = xlim(fig, 0)
+    let (b1lo, b1hi) = xlim(fig, 1)
+    let (b2lo, b2hi) = xlim(fig, 2)
+    ut.assert_float_close(alo, -2.5)
+    ut.assert_float_close(ahi, 52.5)
+    ut.assert_float_close(b1lo, -2.5)
+    ut.assert_float_close(b1hi, 52.5)
+    ut.assert_float_close(b2lo, -2.5)
+    ut.assert_float_close(b2hi, 52.5)
+}
+
+@test
+func test_twinx_chain_twiny() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let ax2 = ax.twinx()
+    let ax3 = ax2.twiny()
+    ax3.plot([50.0, 60.0], [5.0, 15.0])
+    let spec = fig.to_spec()
+    ut.assert_eq(spec.get_array("axes").len(), 3)
+    // ax3's x is its own: autoscale [50, 60] -> [49.5, 60.5].
+    let (x3lo, x3hi) = xlim(fig, 2)
+    ut.assert_float_close(x3lo, 49.5)
+    ut.assert_float_close(x3hi, 60.5)
+    // ax3 shares y with ax2 (the twinx twin), not with the host.
+    let (y2lo, y2hi) = ylim(fig, 1)
+    ut.assert_float_close(y2lo, 4.5)
+    ut.assert_float_close(y2hi, 15.5)
+    let (y3lo, y3hi) = ylim(fig, 2)
+    ut.assert_float_close(y3lo, 4.5)
+    ut.assert_float_close(y3hi, 15.5)
+    let (y0lo, y0hi) = ylim(fig, 0)
+    ut.assert_float_close(y0lo, 0.0)
+    ut.assert_float_close(y0hi, 1.0)
+}
+
+@test
+func test_subplot_reuse_returns_host() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.twinx()
+    fig.subplot(1, 1, 1)
+    // Reuse must not create a third axes entry.
+    ut.assert_eq(fig.to_spec().get_array("axes").len(), 2)
+}
+
+@test
+func test_twinx_colorbar_shrinks_host_only() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let sc = ax.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    let ax2 = ax.twinx()
+    fig.colorbar(sc)
+    // mpl parity: the colorbar attaches to the mappable's axes (the host)
+    // and steals space from it only; the twin keeps the full bbox.
+    ut.assert_float_close(plot_rect(fig, 0).get_float("w"), 432.0, 1e-6)
+    ut.assert_float_close(plot_rect(fig, 1).get_float("w"), 540.0, 1e-6)
+    ut.assert_eq(axes_n(fig, 0).get("colorbar") == nil, false)
+    ut.assert_eq(axes_n(fig, 1).get("colorbar") == nil, true)
+}
+
+@test
+func test_colorbar_twin_mappable_and_auto_target() {
+    // A mappable on the twin attaches the colorbar to the twin.
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    let ax2 = ax.twinx()
+    let sc2 = ax2.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    fig.colorbar(sc2)
+    ut.assert_float_close(plot_rect(fig, 0).get_float("w"), 540.0, 1e-6)
+    ut.assert_float_close(plot_rect(fig, 1).get_float("w"), 432.0, 1e-6)
+    // No mappable argument: the current image's axes wins (gci-like), so
+    // a host mappable is found even though the twin exists.
+    let fig2 = plot.Figure()
+    let a1 = fig2.subplot(1, 1, 1)
+    a1.scatter([1.0, 2.0], [1.0, 2.0], cvals = [0.0, 1.0])
+    a1.twinx()
+    fig2.colorbar()
+    ut.assert_float_close(plot_rect(fig2, 0).get_float("w"), 432.0, 1e-6)
+    ut.assert_float_close(plot_rect(fig2, 1).get_float("w"), 540.0, 1e-6)
+}
+
+@test
+func test_pyplot_twin_facades() {
+    let fig = plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.twinx()
+    plt.twiny()
+    ut.assert_eq(fig.to_spec().get_array("axes").len(), 3)
+    // gca() is still the host axes (autoscaled [0, 1] -> [-0.05, 1.05]).
+    let (glo, ghi) = plt.gca().get_ylim()
+    ut.assert_float_close(glo, -0.05)
+    ut.assert_float_close(ghi, 1.05)
+}

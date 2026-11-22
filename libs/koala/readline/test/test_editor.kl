@@ -363,3 +363,56 @@ func test_no_signal_keys() {
     ut.assert_eq(readline.Editor(term).readline("> ")!, "ab")
     ut.assert_eq(term.signals().len(), 0)
 }
+
+@test
+func test_password_hides_text() {
+    // nothing is drawn: not the text, not a mask
+    let term = readline.MemoryTerminal("sk-abc123\r")
+    ut.assert_eq(readline.Editor(term).password("API key: ")!, "sk-abc123")
+    let out = term.output()
+    ut.assert_true("API key: \r\n" in out)
+    ut.assert_false("sk-abc123" in out)
+    ut.assert_false("*" in out)
+}
+
+@test
+func test_password_backspace() {
+    // Backspace removes a character
+    let term = readline.MemoryTerminal("ab\x7fX\r")
+    ut.assert_eq(readline.Editor(term).password("> ")!, "aX")
+    ut.assert_eq(term.output(), "> \r\n")
+}
+
+@test
+func test_password_ctrl_c() {
+    // Ctrl-C drops the line, as with `input`
+    let term = readline.MemoryTerminal("ab\x03")
+    ut.assert_eq(readline.Editor(term).password("> ")!, "")
+    ut.assert_true("^C\r\n" in term.output())
+}
+
+@test
+func test_password_eof() {
+    // the end of the input is nil, as with `input`
+    let term = readline.MemoryTerminal("ab")
+    ut.assert_true(readline.Editor(term).password("> ") == nil)
+}
+
+@test
+func test_password_pipe() {
+    // on a pipe it reads a plain line, as `input` does
+    let term = readline.MemoryTerminal("abc\n", interactive=false)
+    ut.assert_eq(readline.Editor(term).password("> ")!, "abc")
+}
+
+@test
+func test_password_paste() {
+    // a bracketed paste enters as typed, not as the ESC[200~ wrapper,
+    // and shows nothing
+    let term = readline.MemoryTerminal("\x1b[200~sk-abc123\x1b[201~\r")
+    ut.assert_eq(readline.Editor(term).password("API key: ")!, "sk-abc123")
+    let out = term.output()
+    ut.assert_true("API key: \r\n" in out)
+    ut.assert_false("[200~" in out)
+    ut.assert_false("*" in out)
+}

@@ -1,0 +1,83 @@
+// RUN: koala --test %s
+
+// Unit tests for the figure-level title (Figure.suptitle / plt.suptitle).
+// x/y are figure fractions resolved to pixels; defaults are matplotlib's
+// (0.5, 0.98, ha="center", va="top") on the 640x480 (dpi 100) figure.
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+
+func suptitle_of(fig plot.Figure) json.Object {
+    return fig.to_spec().get_object("suptitle")
+}
+
+@test
+func test_suptitle_default_position() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    fig.suptitle("hello")
+    let st = suptitle_of(fig)
+    ut.assert_eq(st.get_str("text"), "hello")
+    ut.assert_float_close(st.get_float("x"), 320.0)
+    // matplotlib's y=0.98 is bottom-up; top-down pixel y is 0.02*480=9.6.
+    ut.assert_float_close(st.get_float("y"), 9.6)
+    ut.assert_eq(st.get_str("ha"), "center")
+    ut.assert_eq(st.get_str("va"), "top")
+}
+
+@test
+func test_suptitle_custom_anchor() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1)
+    fig.suptitle("t", 0.25, 0.5, "left", "bottom")
+    let st = suptitle_of(fig)
+    ut.assert_float_close(st.get_float("x"), 160.0)
+    ut.assert_float_close(st.get_float("y"), 240.0)
+    ut.assert_eq(st.get_str("ha"), "left")
+    ut.assert_eq(st.get_str("va"), "bottom")
+}
+
+@test
+func test_suptitle_replaces_previous() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1)
+    fig.suptitle("first")
+    fig.suptitle("second")
+    ut.assert_eq(suptitle_of(fig).get_str("text"), "second")
+}
+
+@test
+func test_suptitle_empty_figure() {
+    let fig = plot.Figure()
+    fig.suptitle("bare")
+    let spec = fig.to_spec()
+    ut.assert_int_eq(spec.get_array("axes").len(), 0)
+    ut.assert_eq(spec.get_object("suptitle").get_str("text"), "bare")
+}
+
+@test
+func test_suptitle_va_baseline_accepted() {
+    let fig = plot.Figure()
+    fig.suptitle("t", 0.5, 0.5, "center", "baseline")
+    ut.assert_eq(suptitle_of(fig).get_str("va"), "baseline")
+}
+
+@test
+func test_pyplot_suptitle() {
+    plt.close()
+    plt.figure()
+    plt.suptitle("via plt")
+    ut.assert_eq(suptitle_of(plt.gcf()).get_str("text"), "via plt")
+}
+
+@should_panic("'middle' is not a valid value for align. Supported values are 'center', 'right', 'left'")
+func test_suptitle_bad_ha() {
+    plot.Figure().suptitle("t", 0.5, 0.98, "middle")
+}
+
+@should_panic("'middle' is not a valid value for align. Supported values are 'top', 'bottom', 'center', 'baseline', 'center_baseline'")
+func test_suptitle_bad_va() {
+    plot.Figure().suptitle("t", 0.5, 0.98, "center", "middle")
+}

@@ -14,16 +14,26 @@ func test_autoscale_empty() {
 
 @test
 func test_autoscale_constant() {
+    // matplotlib: constant data gets the 5%-of-value default interval
+    // (floor 1) expanded by the margin: 3 +- 0.05*3*(1+2*0.05) = +-0.165.
     let (lo, hi) = plot.autoscale([3.0, 3.0, 3.0])
-    ut.assert_float_close(lo, 2.0)
-    ut.assert_float_close(hi, 4.0)
+    ut.assert_float_close(lo, 2.835)
+    ut.assert_float_close(hi, 3.165)
 }
 
 @test
 func test_autoscale_single() {
     let (lo, hi) = plot.autoscale([7.0])
-    ut.assert_float_close(lo, 6.0)
-    ut.assert_float_close(hi, 8.0)
+    ut.assert_float_close(lo, 6.615)
+    ut.assert_float_close(hi, 7.385)
+}
+
+@test
+func test_autoscale_constant_small_value() {
+    // |v| < 1 falls back to the floor-1 interval: +-0.05*1.1 = +-0.055.
+    let (lo, hi) = plot.autoscale([0.2, 0.2])
+    ut.assert_float_close(lo, 0.145)
+    ut.assert_float_close(hi, 0.255)
 }
 
 @test

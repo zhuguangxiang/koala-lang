@@ -15,3 +15,16 @@
 pub trait Hook {
     func call()
 }
+
+/// A function called for each key the editor reads, before its bindings,
+/// to let an application handle keys the editor does not know, e.g. Page
+/// Up / Page Down. `name` is the key's name ("unknown" for Page Up and
+/// Page Down), `seq` the bytes it arrived as. Return true when it handled
+/// the key: the editor does not run it. In a multi-row input area the
+/// editor then redraws the area (absolute positioning), so the hook may
+/// draw anywhere on the screen; on a single row it draws nothing, and the
+/// hook must leave the cursor where the editor expects to draw the line.
+/// Return false to let the editor run the key as usual.
+pub trait KeyHook {
+    func call(name str, seq str) bool
+}

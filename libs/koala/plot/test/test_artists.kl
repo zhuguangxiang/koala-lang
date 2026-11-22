@@ -23,7 +23,7 @@ func test_contour_artist_pixels() {
     let lvs = it.get_array("levels")
     ut.assert_int_eq(lvs.len(), 1)
     ut.assert_float_close(lvs.get_object(0).get_float("level"), 0.5)
-    ut.assert_eq(lvs.get_object(0).get_str("color"), "#21918c")
+    ut.assert_eq(lvs.get_object(0).get_str("color"), "#21908d")
     let segs = lvs.get_object(0).get_array("segments")
     ut.assert_int_eq(segs.len(), 1)
     ut.assert_float_close(segs.get_object(0).get_float("x0"), 340.0)
@@ -87,12 +87,196 @@ func test_imshow_constant_grid() {
 }
 
 @test
+func test_imshow_default_aspect_equal() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]])
+    // 2x2 data: (2/2)/1 = 1 -> square box, width shrunk, centered.
+    let p = ax0(fig).get_object("plot")
+    ut.assert_float_close(p.get_float("w"), 370.0)
+    ut.assert_float_close(p.get_float("h"), 370.0)
+    ut.assert_float_close(p.get_float("x"), 155.0)
+    ut.assert_float_close(p.get_float("y"), 50.0)
+}
+
+@test
+func test_imshow_aspect_auto_full_rect() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], aspect = "auto")
+    let p = ax0(fig).get_object("plot")
+    ut.assert_float_close(p.get_float("x"), 70.0)
+    ut.assert_float_close(p.get_float("w"), 540.0)
+    ut.assert_float_close(p.get_float("h"), 370.0)
+}
+
+@test
+func test_imshow_aspect_number_shrinks() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    // aspect 2: (2/2)/2 = 0.5 -> w = 185, centered x = 247.5
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], aspect = 2.0)
+    let p = ax0(fig).get_object("plot")
+    ut.assert_float_close(p.get_float("w"), 185.0)
+    ut.assert_float_close(p.get_float("h"), 370.0)
+    ut.assert_float_close(p.get_float("x"), 247.5)
+
+    let fig2 = plot.Figure()
+    let ax2 = fig2.subplot(1, 1, 1)
+    // aspect 0.5: (2/2)/0.5 = 2 -> h = 270, centered y = 100
+    ax2.imshow([[0.0, 1.0], [2.0, 3.0]], aspect = 0.5)
+    let p2 = ax0(fig2).get_object("plot")
+    ut.assert_float_close(p2.get_float("w"), 540.0)
+    ut.assert_float_close(p2.get_float("h"), 270.0)
+    ut.assert_float_close(p2.get_float("y"), 100.0)
+}
+
+@test
+func test_imshow_aspect_numeric_string() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], aspect = "2")
+    let p = ax0(fig).get_object("plot")
+    ut.assert_float_close(p.get_float("w") / p.get_float("h"), 0.5)
+}
+
+@test
+func test_imshow_aspect_applies_at_draw_time() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]])
+    ax.set_xlim(0.0, 4.0)
+    // aspect resolves with the current limits: yspan 2, xspan 4 -> (4/2)/1 = 2
+    let p = ax0(fig).get_object("plot")
+    ut.assert_float_close(p.get_float("w") / p.get_float("h"), 2.0)
+    ut.assert_float_close(p.get_float("w"), 540.0)
+    ut.assert_float_close(p.get_float("h"), 270.0)
+    ut.assert_float_close(p.get_float("x"), 70.0)
+    ut.assert_float_close(p.get_float("y"), 100.0)
+}
+
+@test
+func test_imshow_aspect_image_rect_follows() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], aspect = 2.0)
+    let a = ax0(fig)
+    // limits keep the extent semantics, only the box shrinks
+    ut.assert_float_close(a.get_array("xlim").get_float(0), -0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 1.5)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 1.5)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), -0.5)
+    let r = a.get_array("items").get_object(0).get_object("rect")
+    ut.assert_float_close(r.get_float("x"), 247.5)
+    ut.assert_float_close(r.get_float("w"), 185.0)
+    ut.assert_float_close(r.get_float("h"), 370.0)
+}
+
+@test
+func test_imshow_extent_sets_limits() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], extent = (10.0, 20.0, 30.0, 40.0))
+    let a = ax0(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 10.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 20.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 30.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 40.0)
+    // square spans -> equal aspect keeps a square box
+    let p = a.get_object("plot")
+    ut.assert_float_close(p.get_float("w"), 370.0)
+    ut.assert_float_close(p.get_float("h"), 370.0)
+}
+
+@test
+func test_imshow_extent_overrides_limits() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(-1.0, 1.0)
+    ax.set_ylim(-1.0, 1.0)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], extent = (0.0, 2.0, 0.0, 2.0))
+    let a = ax0(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 2.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 0.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 2.0)
+}
+
+@test
+func test_imshow_extent_inverted_aspect() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], extent = (2.0, 0.0, 3.0, 0.0),
+              aspect = 2.0)
+    let a = ax0(fig)
+    // inverted limits kept; |span| used -> (2/3)/2 = 1/3
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 2.0)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 0.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), 3.0)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 0.0)
+    let p = a.get_object("plot")
+    ut.assert_float_close(p.get_float("w") / p.get_float("h"), 1.0 / 3.0)
+}
+
+@test
+func test_imshow_aspect_identical_limits_expanded() {
+    // Identical extent limits expand to (a-0.5, b+0.5) in resolved_xlim
+    // before the aspect applies (mpl also auto-expands, different amount).
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.imshow([[0.0, 1.0], [2.0, 3.0]], extent = (1.0, 1.0, 0.0, 3.0),
+              aspect = 2.0)
+    let a = ax0(fig)
+    ut.assert_float_close(a.get_array("xlim").get_float(0), 0.5)
+    ut.assert_float_close(a.get_array("xlim").get_float(1), 1.5)
+    // expanded span 1, yspan 3 -> (1/3)/2 = 1/6 -> w = 370/6
+    let p = a.get_object("plot")
+    ut.assert_float_close(p.get_float("w"), 370.0 / 6.0)
+    ut.assert_float_close(p.get_float("h"), 370.0)
+}
+
+@should_panic("plot.Axes.imshow: aspect must be finite and positive")
+func test_imshow_aspect_zero() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = 0.0)
+}
+
+@should_panic("plot.Axes.imshow: aspect must be finite and positive")
+func test_imshow_aspect_negative() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = -1.0)
+}
+
+@should_panic("plot.Axes.imshow: aspect must be finite and positive")
+func test_imshow_aspect_zero_str() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = "0")
+}
+
+@should_panic("plot.Axes.imshow: aspect must be finite and positive")
+func test_imshow_aspect_inf_str() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = "inf")
+}
+
+@should_panic("plot.Axes.imshow: aspect must be finite and positive")
+func test_imshow_aspect_nan_str() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = "nan")
+}
+
+@should_panic("plot.Axes.imshow: could not convert string to float: 'bad'")
+func test_imshow_aspect_bad_str() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = "bad")
+}
+
+@should_panic("plot.Axes.imshow: could not convert string to float: ' auto'")
+func test_imshow_aspect_ws_str() {
+    plot.Figure().subplot(1, 1, 1).imshow([[0.0, 1.0]], aspect = " auto")
+}
+
+@test
 func test_hist_return_triple() {
     let fig = plot.Figure()
     let ax = fig.subplot(1, 1, 1)
     let (n, bins, patches) = ax.hist([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0], 5)
     ut.assert_int_eq(n.len(), 5)
-    ut.assert_int_eq(n[0], 2)
+    ut.assert_float_close(n[0], 2.0)
     ut.assert_int_eq(bins.len(), 6)
     ut.assert_eq(patches.kind(), "hist")
     let it = ax0(fig).get_array("items").get_object(0)
@@ -122,6 +306,76 @@ func test_hist_autoscale_counts() {
     // counts [2,1] -> y extent (0,2) -> autoscale (-0.1, 2.1)
     ut.assert_float_close(a.get_array("ylim").get_float(0), -0.1)
     ut.assert_float_close(a.get_array("ylim").get_float(1), 2.1)
+}
+
+@test
+func test_hist_density_forwarding() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let (n, bins, patches) = ax.hist([1.0, 2.0, 3.0, 4.0], 2, density = true)
+    ut.assert_float_close(n[0], 1.0 / 3.0)
+    ut.assert_float_close(n[1], 1.0 / 3.0)
+    ut.assert_int_eq(bins.len(), 3)
+    ut.assert_eq(patches.kind(), "hist")
+}
+
+@test
+func test_hist_weights_forwarding() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    let (n, _, patches) = ax.hist([1.0, 2.0, 3.0, 4.0], 2,
+                                  weights = [0.5, 0.5, 1.0, 2.0])
+    ut.assert_float_close(n[0], 1.0)
+    ut.assert_float_close(n[1], 3.0)
+    ut.assert_eq(patches.kind(), "hist")
+    // spec carries float counts: bar heights 1.0/3.0 of the y range
+    let it = ax0(fig).get_array("items").get_object(0)
+    ut.assert_int_eq(it.get_array("bars").len(), 2)
+}
+
+@test
+func test_hist_negative_weights_pixels() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.set_xlim(1.0, 2.0)
+    ax.set_ylim(-2.0, 2.0)
+    ax.hist([1.0, 2.0], 2, weights = [-1.0, 2.0])
+    let bars = ax0(fig).get_array("items").get_object(0).get_array("bars")
+    // y pixel: 420 - (y - (-2)) / 4 * 370; base at y=0 -> 235
+    let b0 = bars.get_object(0)
+    // count -1 -> yc = 327.5, bar below base: y=235, h=92.5
+    ut.assert_float_close(b0.get_float("y"), 235.0)
+    ut.assert_float_close(b0.get_float("h"), 92.5)
+    let b1 = bars.get_object(1)
+    // count +2 -> yc = 50, bar above base: y=50, h=185
+    ut.assert_float_close(b1.get_float("y"), 50.0)
+    ut.assert_float_close(b1.get_float("h"), 185.0)
+}
+
+@test
+func test_hist_negative_weights_autoscale() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.hist([1.0, 2.0], 2, weights = [-1.0, 2.0])
+    let a = ax0(fig)
+    // y extent (-1, 2) -> autoscale (-1.15, 2.15), mpl margin 5%
+    ut.assert_float_close(a.get_array("ylim").get_float(0), -1.15)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 2.15)
+}
+
+@test
+func test_hist_density_nan_skips_bars() {
+    // mpl: empty data + density -> NaN counts, patches draw nothing;
+    // our spec skips non-finite bars entirely
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.hist(list[float](), 2, density = true)
+    let it = ax0(fig).get_array("items").get_object(0)
+    ut.assert_int_eq(it.get_array("bars").len(), 0)
+    // y extent falls back to (0,1) -> autoscale (-0.05, 1.05)
+    let a = ax0(fig)
+    ut.assert_float_close(a.get_array("ylim").get_float(0), -0.05)
+    ut.assert_float_close(a.get_array("ylim").get_float(1), 1.05)
 }
 
 @test

@@ -4,8 +4,10 @@
  */
 
 import "koala/webview"
+import "koala/base64"
 import "std/os"
 import "std/fs"
+import "std/time"
 
 /// The matplotlib.pyplot-style stateful facade. `import "koala/plot" as plt`
 /// gives the familiar `plt.figure / plt.plot / plt.scatter / plt.xlabel /
@@ -69,6 +71,18 @@ pub func subplot(rows int, cols int, index int) Axes {
     return _ax!
 }
 
+/// Create a twin axes sharing the current axes' x-axis (matplotlib
+/// `pyplot.twinx`). The current axes stays active (like matplotlib).
+pub func twinx() Axes {
+    return gca().twinx()
+}
+
+/// Create a twin axes sharing the current axes' y-axis (matplotlib
+/// `pyplot.twiny`).
+pub func twiny() Axes {
+    return gca().twiny()
+}
+
 /// Create a figure with a `nrows x ncols` grid of subplots and return
 /// `(fig, ax)` where `ax` is the first subplot (matplotlib `pyplot.subplots`).
 /// The whole grid is created on `fig.axes`; for a grid, reach the remaining
@@ -89,36 +103,269 @@ pub func subplots(nrows int = 1, ncols int = 1) (Figure, Axes) {
     return (fig, first!)
 }
 
+/// Adjust the data-area margins of the current figure as figure fractions
+/// (matplotlib `pyplot.subplots_adjust`). Omitted values keep the current
+/// fraction, seeded from the pixel-margin layout.
+pub func subplots_adjust(left float? = nil, bottom float? = nil,
+                         right float? = nil, top float? = nil,
+                         wspace float? = nil, hspace float? = nil) {
+    gcf().subplots_adjust(left, bottom, right, top, wspace, hspace)
+}
+
+/// Shrink the margins of the current figure to the axes decorations
+/// (matplotlib `pyplot.tight_layout`).
+pub func tight_layout(pad float = 1.08, w_pad float? = nil,
+                      h_pad float? = nil) {
+    gcf().tight_layout(pad, w_pad, h_pad)
+}
+
+/// Add a centered figure-level title (matplotlib `pyplot.suptitle`).
+pub func suptitle(t str, x float = 0.5, y float = 0.98,
+                  ha str = "center", va str = "top") {
+    gcf().suptitle(t, x, y, ha, va)
+}
+
+/// Set or retrieve the autoscale margins of the current axes (matplotlib
+/// `pyplot.margins`).
+pub func margins(x float? = nil, y float? = nil) (float, float) {
+    return gca().margins(x, y)
+}
+
+/// Change the appearance of ticks and tick labels (matplotlib
+/// `pyplot.tick_params`).
+pub func tick_params(axis str? = nil, which str? = nil,
+                     direction str? = nil, length float? = nil,
+                     width float? = nil, color str? = nil,
+                     pad float? = nil, labelsize float? = nil,
+                     labelcolor str? = nil, bottom bool? = nil,
+                     top bool? = nil, left bool? = nil, right bool? = nil,
+                     labelbottom bool? = nil, labeltop bool? = nil,
+                     labelleft bool? = nil, labelright bool? = nil) {
+    gca().tick_params(axis, which, direction, length, width, color, pad,
+                      labelsize, labelcolor, bottom, top, left, right,
+                      labelbottom, labeltop, labelleft, labelright)
+}
+
+/// Add a colorbar for `mappable` to the current figure (matplotlib
+/// `pyplot.colorbar`).
+pub func colorbar(mappable Artist? = nil, orientation str? = nil,
+                  fraction float = 0.15, pad float? = nil,
+                  shrink float = 1.0, label str? = nil,
+                  ticks list[float]? = nil) Colorbar {
+    return gcf().colorbar(mappable, nil, orientation, fraction, pad, shrink,
+                          label, ticks)
+}
+
+/// Set the x-axis scale of the current axes (matplotlib `pyplot.xscale`).
+pub func xscale(scale str) { gca().set_xscale(scale) }
+
+/// Set the y-axis scale of the current axes (matplotlib `pyplot.yscale`).
+pub func yscale(scale str) { gca().set_yscale(scale) }
+
+/// Plot with a logarithmic x axis (matplotlib `pyplot.semilogx`).
+pub func semilogx(x list[float], y list[float], fmt str? = nil,
+                  label str? = nil, color str? = nil, linestyle str? = nil,
+                  linewidth float = 1.5, marker int | str = "none",
+                  alpha float = 1.0) Line {
+    gca().set_xscale("log")
+    return gca().plot(x, y, fmt, label, color, linestyle, linewidth, marker,
+                      alpha)
+}
+
+/// Plot with a logarithmic y axis (matplotlib `pyplot.semilogy`).
+pub func semilogy(x list[float], y list[float], fmt str? = nil,
+                  label str? = nil, color str? = nil, linestyle str? = nil,
+                  linewidth float = 1.5, marker int | str = "none",
+                  alpha float = 1.0) Line {
+    gca().set_yscale("log")
+    return gca().plot(x, y, fmt, label, color, linestyle, linewidth, marker,
+                      alpha)
+}
+
+/// Plot with logarithmic x and y axes (matplotlib `pyplot.loglog`).
+pub func loglog(x list[float], y list[float], fmt str? = nil,
+                label str? = nil, color str? = nil, linestyle str? = nil,
+                linewidth float = 1.5, marker int | str = "none",
+                alpha float = 1.0) Line {
+    gca().set_xscale("log")
+    gca().set_yscale("log")
+    return gca().plot(x, y, fmt, label, color, linestyle, linewidth, marker,
+                      alpha)
+}
+
 /// Draw a polyline on the current axes (matplotlib `pyplot.plot`).
 pub func plot(x list[float], y list[float]? = nil, fmt str? = nil,
               label str? = nil, color str? = nil, linestyle str? = nil,
-              linewidth float = 1.5, marker str? = nil) Line {
-    return gca().plot(x, y, fmt, label, color, linestyle, linewidth, marker)
+              linewidth float = 1.5, marker int | str = "none",
+              alpha float = 1.0) Line {
+    return gca().plot(x, y, fmt, label, color, linestyle, linewidth, marker, alpha)
 }
 
 /// Draw a point cloud on the current axes (matplotlib `pyplot.scatter`).
+///
+/// Numeric `c` values are spelled `cvals` (static typing cannot overload
+/// the `c` param on str vs list): pass `cvals` (a value per point, mapped
+/// through `cmap` like matplotlib's default Normalize) instead of `c`.
+/// `c` and `cvals` are mutually exclusive.
 pub func scatter(x list[float], y list[float], s float = 36.0, c str? = nil,
-                 marker str = "o", label str? = nil) Scatter {
-    return gca().scatter(x, y, s, c, marker, label)
+                 marker int | str = "o", label str? = nil,
+                 alpha float = 1.0, cvals list[float]? = nil,
+                 cmap str = "viridis", vmin float? = nil,
+                 vmax float? = nil) Scatter {
+    return gca().scatter(x, y, s, c, marker, label, alpha, cvals, cmap,
+                         vmin, vmax)
+}
+
+/// Vertical bars on the current axes (matplotlib `pyplot.bar`).
+/// `bottom` is scalar or a per-bar sequence, like matplotlib.
+pub func bar(x list[float], height list[float], width float = 0.8,
+             bottom float | list[float] = 0.0, align str = "center",
+             color str? = nil, edgecolor str? = nil,
+             linewidth float = 1.0, tick_label list[str]? = nil,
+             label str? = nil, alpha float = 1.0) Bar {
+    return gca().bar(x, height, width, bottom, align, color, edgecolor,
+                     linewidth, tick_label, label, alpha)
+}
+
+/// Horizontal bars on the current axes (matplotlib `pyplot.barh`).
+/// `left` is scalar or a per-bar sequence, like matplotlib.
+pub func barh(y list[float], width list[float], height float = 0.8,
+              left float | list[float] = 0.0, align str = "center",
+              color str? = nil, edgecolor str? = nil,
+              linewidth float = 1.0, tick_label list[str]? = nil,
+              label str? = nil, alpha float = 1.0) Bar {
+    return gca().barh(y, width, height, left, align, color, edgecolor,
+                      linewidth, tick_label, label, alpha)
 }
 
 /// Draw contour lines on the current axes (matplotlib `pyplot.contour`).
 pub func contour(Z list[list[float]], levels list[float]? = nil,
                  cmap str = "viridis", xs list[float]? = nil,
-                 ys list[float]? = nil) Contour {
-    return gca().contour(Z, levels, cmap, xs, ys)
+                 ys list[float]? = nil, alpha float = 1.0) Contour {
+    return gca().contour(Z, levels, cmap, xs, ys, alpha)
 }
 
 /// Display a raster image on the current axes (matplotlib `pyplot.imshow`).
-pub func imshow(Z list[list[float]], cmap str = "viridis") Image {
-    return gca().imshow(Z, cmap)
+/// `extent`/`aspect` forward to `Axes.imshow`.
+pub func imshow(Z list[list[float]], cmap str = "viridis",
+                alpha float = 1.0,
+                extent (float, float, float, float)? = nil,
+                aspect float | str = "equal") Image {
+    return gca().imshow(Z, cmap, alpha, extent, aspect)
 }
 
 /// Histogram on the current axes (matplotlib `pyplot.hist`); returns the
-/// matplotlib triple `(n, bins, patches)`. `range_` is matplotlib's `range=`.
+/// matplotlib triple `(n, bins, patches)`. `range_` is matplotlib's `range=`;
+/// `weights`/`density` match numpy semantics.
 pub func hist(x list[float], bins int = 10, range_ (float, float)? = nil,
-              color str? = nil, label str? = nil) (list[int], list[float], Hist) {
-    return gca().hist(x, bins, range_, color, label)
+              color str? = nil, label str? = nil, alpha float = 1.0,
+              weights list[float]? = nil,
+              density bool = false) (list[float], list[float], Hist) {
+    return gca().hist(x, bins, range_, color, label, alpha, weights, density)
+}
+
+/// Pie chart on the current axes (matplotlib `pyplot.pie`); see
+/// `Axes.pie` for the parameter deviations.
+pub func pie(x list[float], explode list[float]? = nil,
+             labels list[str]? = nil, colors list[str]? = nil,
+             autopct str? = nil, pctdistance float = 0.6,
+             labeldistance float = 1.1, startangle float = 0.0,
+             radius float = 1.0, counterclock bool = true,
+             center_x float = 0.0, center_y float = 0.0,
+             frame bool = false, normalize bool = true,
+             edgecolor str? = nil, linewidth float = 0.0,
+             width float? = nil, textprops TextProps? = nil,
+             alpha float = 1.0) Pie {
+    return gca().pie(x, explode, labels, colors, autopct, pctdistance,
+                     labeldistance, startangle, radius, counterclock,
+                     center_x, center_y, frame, normalize, edgecolor,
+                     linewidth, width, textprops, alpha)
+}
+
+/// Plot `y` vs `x` with error bars on the current axes (matplotlib
+/// `pyplot.errorbar`); see `Axes.errorbar` for the parameter deviations.
+pub func errorbar(x list[float], y list[float], yerr float? = nil,
+                  xerr float? = nil, yerrs list[float]? = nil,
+                  xerrs list[float]? = nil,
+                  yerrs2 list[list[float]]? = nil,
+                  xerrs2 list[list[float]]? = nil,
+                  fmt str = "", ecolor str? = nil, elinewidth float? = nil,
+                  capsize float = 0.0, capthick float = 1.0,
+                  errorevery int = 1, barsabove bool = false,
+                  lolims bool = false, uplims bool = false,
+                  xlolims bool = false, xuplims bool = false,
+                  lolims_ls list[bool]? = nil,
+                  uplims_ls list[bool]? = nil,
+                  xlolims_ls list[bool]? = nil,
+                  xuplims_ls list[bool]? = nil,
+                  label str? = nil, color str? = nil,
+                  linestyle str? = nil, linewidth float = 1.5,
+                  marker int | str = "none", alpha float = 1.0) Errorbar {
+    return gca().errorbar(x, y, yerr, xerr, yerrs, xerrs, yerrs2, xerrs2,
+                          fmt, ecolor, elinewidth, capsize, capthick,
+                          errorevery, barsabove, lolims, uplims, xlolims,
+                          xuplims, lolims_ls, uplims_ls, xlolims_ls,
+                          xuplims_ls, label, color, linestyle, linewidth,
+                          marker, alpha)
+}
+
+/// Fill the area between two curves on the current axes (matplotlib
+/// `pyplot.fill_between`); see `Axes.fill_between` for the deviations.
+pub func fill_between(x list[float], y1 list[float], y2 list[float]? = nil,
+                      where list[bool]? = nil, interpolate bool = false,
+                      step str? = nil, color str? = nil,
+                      alpha float? = nil, label str? = nil) FillBetween {
+    return gca().fill_between(x, y1, y2, where, interpolate, step, color,
+                              alpha, label)
+}
+
+/// A stepwise line on the current axes (matplotlib `pyplot.step`).
+pub func step(x list[float], y list[float], where str = "pre",
+              fmt str = "", label str? = nil, color str? = nil,
+              linestyle str? = nil, linewidth float = 1.5,
+              marker int | str = "none", alpha float = 1.0) Line {
+    return gca().step(x, y, where, fmt, label, color, linestyle, linewidth,
+                      marker, alpha)
+}
+
+/// A stem plot on the current axes (matplotlib `pyplot.stem`).
+pub func stem(x list[float], y list[float], linefmt str? = nil,
+              markerfmt str? = nil, basefmt str? = nil, bottom float = 0.0,
+              label str? = nil, orientation str = "vertical",
+              alpha float = 1.0) Stem {
+    return gca().stem(x, y, linefmt, markerfmt, basefmt, bottom, label,
+                      orientation, alpha)
+}
+
+/// Filled contours of grid `Z` on the current axes (matplotlib
+/// `pyplot.contourf`).
+pub func contourf(Z list[list[float]], levels list[float]? = nil,
+                  cmap str = "viridis", xs list[float]? = nil,
+                  ys list[float]? = nil, alpha float? = nil,
+                  extend str? = nil, label str? = nil) FilledContour {
+    return gca().contourf(Z, levels, cmap, xs, ys, alpha, extend, label)
+}
+
+/// Box-and-whisker plot on the current axes (matplotlib `pyplot.boxplot`).
+pub func boxplot(x list[list[float]], tick_labels list[str]? = nil,
+                 notch bool = false, sym str? = nil,
+                 orientation str = "vertical",
+                 whis float | list[float] = 1.5,
+                 positions list[float]? = nil, widths list[float]? = nil,
+                 patch_artist bool = false, showmeans bool = false,
+                 showfliers bool = true, meanline bool = false,
+                 manage_ticks bool = true, label str? = nil,
+                 boxprops dict[str, any]? = nil,
+                 whiskerprops dict[str, any]? = nil,
+                 capprops dict[str, any]? = nil,
+                 flierprops dict[str, any]? = nil,
+                 medianprops dict[str, any]? = nil,
+                 meanprops dict[str, any]? = nil) Boxplot {
+    return gca().boxplot(x, tick_labels, notch, sym, orientation, whis,
+                         positions, widths, patch_artist, showmeans,
+                         showfliers, meanline, manage_ticks, label, boxprops,
+                         whiskerprops, capprops, flierprops, medianprops,
+                         meanprops)
 }
 
 /// Set the x-axis label of the current axes (matplotlib `pyplot.xlabel`).
@@ -131,22 +378,83 @@ pub func ylabel(text str) { gca().set_ylabel(text) }
 pub func title(text str) { gca().set_title(text) }
 
 /// Enable the legend on the current axes (matplotlib `pyplot.legend`).
-pub func legend() { gca().legend() }
+/// `loc` is matplotlib's legend location; "best" places it upper right.
+pub func legend(loc str = "best") { gca().legend(loc) }
 
-/// Set the x-axis limits of the current axes (matplotlib `pyplot.xlim`).
-pub func xlim(left float, right float) { gca().set_xlim(left, right) }
+/// Get or set the x-axis limits of the current axes (matplotlib
+/// `pyplot.xlim`): no arguments returns the current `(left, right)`,
+/// otherwise sets the limits. A side given as nil keeps its current value.
+pub func xlim(left float? = nil, right float? = nil) (float, float)? {
+    let ax = gca()
+    if left == nil && right == nil {
+        return ax.get_xlim()
+    }
+    let (l, r) = ax.get_xlim()
+    var nl = l
+    var nr = r
+    if let v = left {
+        nl = v
+    }
+    if let v = right {
+        nr = v
+    }
+    ax.set_xlim(nl, nr)
+    return nil
+}
 
-/// Set the y-axis limits of the current axes (matplotlib `pyplot.ylim`).
-pub func ylim(bottom float, top float) { gca().set_ylim(bottom, top) }
+/// Get or set the y-axis limits of the current axes (matplotlib
+/// `pyplot.ylim`); semantics as `xlim`.
+pub func ylim(bottom float? = nil, top float? = nil) (float, float)? {
+    let ax = gca()
+    if bottom == nil && top == nil {
+        return ax.get_ylim()
+    }
+    let (b, t) = ax.get_ylim()
+    var nb = b
+    var nt = t
+    if let v = bottom {
+        nb = v
+    }
+    if let v = top {
+        nt = v
+    }
+    ax.set_ylim(nb, nt)
+    return nil
+}
 
 /// Show or hide the grid on the current axes (matplotlib `pyplot.grid`).
 pub func grid(on bool = true) { gca().grid(on) }
 
-/// Override the x tick positions (matplotlib `pyplot.xticks`).
-pub func xticks(ticks list[float]) { gca().set_xticks(ticks) }
+/// Get or set the x tick positions of the current axes (matplotlib
+/// `pyplot.xticks`): no arguments returns `(locs, labels)`, otherwise sets
+/// the positions, with optional custom `labels`.
+pub func xticks(ticks list[float]? = nil,
+                labels list[str]? = nil) (list[float], list[str])? {
+    let ax = gca()
+    if let t = ticks {
+        ax.set_xticks(t, labels)
+        return nil
+    }
+    if labels != nil {
+        panic("plot.xticks: labels require ticks")
+    }
+    return ax.get_xticks()
+}
 
-/// Override the y tick positions (matplotlib `pyplot.yticks`).
-pub func yticks(ticks list[float]) { gca().set_yticks(ticks) }
+/// Get or set the y tick positions of the current axes (matplotlib
+/// `pyplot.yticks`); semantics as `xticks`.
+pub func yticks(ticks list[float]? = nil,
+                labels list[str]? = nil) (list[float], list[str])? {
+    let ax = gca()
+    if let t = ticks {
+        ax.set_yticks(t, labels)
+        return nil
+    }
+    if labels != nil {
+        panic("plot.yticks: labels require ticks")
+    }
+    return ax.get_yticks()
+}
 
 /// Discard the current figure and axes (matplotlib `pyplot.close`). The
 /// window backend, when present, is torn down by `show`/the renderer layer.
@@ -162,6 +470,53 @@ pub func close() {
 pub func savehtml(path str) {
     if !fs.write_str(path, figure_html(gcf())) {
         panic("plot.savehtml: cannot write '" + path + "'")
+    }
+}
+
+/// Convert a canvas `toDataURL("image/png")` data URL to raw PNG bytes.
+/// Panics if the URL is not PNG data.
+pub func png_from_data_url(url str) bytes {
+    if url.index("data:image/png;base64,") != 0 {
+        panic("plot.png_from_data_url: not a PNG data URL")
+    }
+    return base64.standard_decode(url.substr(22))
+}
+
+/// Save the current figure as a PNG file (matplotlib `pyplot.savefig`).
+///
+/// Renders the figure in a system-webview window, grabs the canvas as PNG
+/// via `toDataURL`, decodes and writes it. The window is shown briefly (it
+/// may flash), so a display is required. Unlike matplotlib there is no
+/// `dpi`/`bbox_inches`/`transparent` kwarg: the pixel size is fixed by
+/// `figure(figsize, dpi)`. Headless environments can use `savehtml` (HTML,
+/// no PNG). Panics if the render times out or the file cannot be written.
+pub func savefig(path str) {
+    let fig = gcf()
+    let win = webview.Window()
+    win.set_title("koala/plot")
+    win.set_size(int(fig.width), int(fig.height))
+    win.set_html(figure_html(fig))
+    win.poll()
+    var url = ""
+    var waited = 0
+    while url == "" {
+        let probe = win.eval_sync("document.getElementById('plot') !== null")
+        if probe == "true" {
+            url = win.eval_sync(
+                "document.getElementById('plot').toDataURL('image/png')")
+        } else {
+            win.poll()
+            time.sleep(time.Duration(10000000))
+            waited = waited + 10
+            if waited > 5000 {
+                win.destroy()
+                panic("plot.savefig: render timed out")
+            }
+        }
+    }
+    win.destroy()
+    if !fs.write_bytes(path, png_from_data_url(url)) {
+        panic("plot.savefig: cannot write '" + path + "'")
     }
 }
 

@@ -3,8 +3,10 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+import "koala/http" as http
+import "koala/sse" as sse
 from "koala/http" import Url
-from "koala/json" import Object, Array, String, Integer, Float, Value
+from "koala/json" import parse_str, Object, Array, String, Integer, Float, Boolean, Value
 
 /// The chat completions endpoint.
 ///
@@ -36,7 +38,29 @@ pub class Completions {
         return _parse_completion(status, text, "")
     }
 
-    func _build_json(model str, messages list[dict[str, str]], temperature float, max_tokens int, top_p float, frequency_penalty float, presence_penalty float) str {
+    /// Create a streamed chat completion, as Python's
+    /// `create(..., stream=True)`. Returns at once; iterate the chunks
+    /// with `for`. Each chunk carries the next piece of text in `delta`;
+    /// the final chunk carries `usage` (`stream_options.include_usage`
+    /// is sent). The iterator ends at `[DONE]` or the end of the stream.
+    /// `ChatStream.ok()` is false on a connect error, an HTTP error, or
+    /// a response that is not an SSE stream.
+    pub func stream(model str, messages list[dict[str, str]], temperature float = 1.0, max_tokens int = 0, top_p float = 0.0, frequency_penalty float = 0.0, presence_penalty float = 0.0) ChatStream {
+        let path = _base_url.path() + "/chat/completions"
+        let url = Url(_base_url.scheme(), _base_url.host(), _base_url.port(), path)
+        let body = _build_json(model, messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, true)
+
+        let headers = list[list[str]]()
+        _hdr(headers, "Authorization", "Bearer " + _api_key)
+        _hdr(headers, "Content-Type", "application/json")
+        _hdr(headers, "Connection", "close")
+
+        let client = http.Client()
+        let es = sse.connect_sse(client, "POST", url, headers, body.to_bytes(), _timeout_ms)
+        return ChatStream(es)
+    }
+
+    func _build_json(model str, messages list[dict[str, str]], temperature float, max_tokens int, top_p float, frequency_penalty float, presence_penalty float, streaming bool = false) str {
         let root = Object()
         root.add("model", String(model))
 
@@ -66,8 +90,145 @@ pub class Completions {
         if presence_penalty != 0.0 {
             root.add("presence_penalty", Float(presence_penalty))
         }
+        if streaming {
+            root.add("stream", Boolean(true))
+            let opts = Object()
+            opts.add("include_usage", Boolean(true))
+            root.add("stream_options", opts)
+        }
 
         return root.to_json()
+    }
+}
+
+/// The chunks of a streamed chat completion, an iterator: `for chunk in
+/// stream`. `ok()` is false when the request failed; `status_code()` and
+/// `error_message()` report, as on `ChatCompletion`. `usage()` is the
+/// usage of the last chunk that carried one. `close()` releases the
+/// connection before the stream ends.
+pub class ChatStream : Iterator[ChatChunk] {
+    let _es sse.EventSource?
+    var _it sse.SSEIter? = nil
+    var _status int = 0
+    var _err str = ""
+    var _usage Usage = Usage(0, 0, 0)
+    var _ahead ChatChunk? = nil
+    var _resolved bool = false
+
+    func __init__(es sse.EventSource?) {
+        _es = es
+    }
+
+    // The response head is read lazily, on the first query.
+    func _resolve() {
+        if _resolved { return }
+        _resolved = true
+        if let es = _es {
+            let status = es.response().status()
+            if status == 0 {
+                _err = "transport failure: connect or read error"
+                es.response().close()
+                return
+            }
+            _status = status
+            if status != 200 {
+                let buf = Buffer()
+                while let chunk = es.response().read() { buf.write(chunk) }
+                var msg = _extract_error(buf.to_str())
+                if msg.len() == 0 { msg = "HTTP " + str(status) }
+                _err = msg
+                es.response().close()
+                return
+            }
+            _it = es.iter_sse()
+            if _it == nil {
+                _err = es.error()
+                es.response().close()
+            }
+        } else {
+            _err = "transport failure: connect or read error"
+        }
+    }
+
+    /// True when the stream is ready to iterate.
+    pub func ok() bool {
+        _resolve()
+        return _it != nil
+    }
+
+    /// The HTTP status, 0 on a connect or read failure.
+    pub func status_code() int {
+        _resolve()
+        return _status
+    }
+
+    /// The error message, "" when there is none.
+    pub func error_message() str {
+        _resolve()
+        return _err
+    }
+
+    /// The usage of the last chunk that carried one (the final chunk).
+    pub func usage() Usage { return _usage }
+
+    /// Release the connection; the stream ends where it is.
+    pub func close() {
+        if let es = _es { es.response().close() }
+    }
+
+    pub func has_next() bool {
+        _resolve()
+        if _ahead != nil { return true }
+        _ahead = _next_chunk()
+        return _ahead != nil
+    }
+
+    pub func next_strict() ChatChunk {
+        if !has_next() { panic("No more chunks in ChatStream") }
+        let chunk = _ahead!
+        _ahead = nil
+        return chunk
+    }
+
+    pub func next() ChatChunk? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+
+    // The next chunk from the SSE events: what is not a chunk is
+    // skipped, and the stream ends at [DONE] or the end of the events.
+    // Fields a proxy sends as null or with other types (e.g. "delta":
+    // null, "usage": null) are treated as absent, never fatal.
+    func _next_chunk() ChatChunk? {
+        if _it == nil { return nil }
+        loop {
+            if let ev = _it.next() {
+                if ev.data == "[DONE]" { return nil }
+                let root = parse_str(ev.data) as Object
+                if root == nil { continue }
+                let id = _get_str(root, "id")
+                let mdl = _get_str(root, "model")
+                var delta = ""
+                var fr = ""
+                if let arr = _get_arr(root, "choices") {
+                    if arr.len() > 0 {
+                        if let c = arr.value[0] as Object {
+                            if let d = _get_obj(c, "delta") {
+                                delta = _get_str(d, "content")
+                            }
+                            fr = _get_str(c, "finish_reason")
+                        }
+                    }
+                }
+                var usage Usage? = nil
+                if let u = _get_obj(root, "usage") {
+                    usage = Usage(_get_int(u, "prompt_tokens"), _get_int(u, "completion_tokens"), _get_int(u, "total_tokens"))
+                }
+                if let u = usage { _usage = u }
+                return ChatChunk(id, mdl, delta, fr, usage)
+            }
+            return nil
+        }
     }
 }
 

@@ -5,9 +5,47 @@
 import "std/fs"
 import "std/os"
 import "koala/readline"
+import "koala/tui"
+
+// ---- the transcript: a tui.View, shared by all files of the package ----
+// They call `emit` instead of `print`; the view re-renders the lines above
+// the pinned input row, and `print` streams them live as usual.
+
+var _chrome _Chrome? = nil
+
+/// Print `s` and record its lines for the TUI redraw. When the window has
+/// been paged away from the tail, the lines are only recorded; they show
+/// up once the window follows the tail again.
+func emit(s str) {
+    if let c = _chrome {
+        c.view.append_str(s)
+        if c.view.is_following() || !os.isatty(1) {
+            // the cursor to the bottom row of the transcript region, at the
+            // left content column: the prints below scroll only the region
+            let trans = c.trans_elastic
+            c.screen.write_at(trans.row + trans.height - 1, 2, "")
+            print(s)
+        }
+        return
+    }
+    print(s)
+}
+
+/// Record the user's input line without printing it — the editor already
+/// shows it while typing (terminals only). Recording snaps the window back
+/// to the tail, so the sent line and its reply always show. A multi-line
+/// input becomes one transcript line per row.
+func record_input(line str) {
+    if os.isatty(1) {
+        if let c = _chrome {
+            c.view.follow(true)
+            c.view.append_str(line)
+        }
+    }
+}
 
 /// True when the line holds nothing but spaces or tabs.
-func _is_blank(line str) bool {
+pub func is_blank(line str) bool {
     for c in line {
         if c != " " && c != "\t" { return false }
     }
@@ -16,11 +54,151 @@ func _is_blank(line str) bool {
 
 /// The prompt, tagged with the current mode ([chat] / [agent]); bold cyan
 /// on a terminal, plain on a pipe.
-func _prompt(mode str) str {
+pub func prompt(mode str) str {
     if os.isatty(1) {
         return "\x01\x1b[1;36m\x02[" + mode + "] you>\x01\x1b[0m\x02 "
     }
     return "[" + mode + "] you> "
+}
+
+// ---- the agent-CLI layout: a boxed transcript, a boxed input area, and ----
+// ---- in agent mode a status row. PgUp / PgDn page the transcript. ----
+
+/// The TUI chrome around the shared transcript view: the boxed input area
+/// and, in agent mode, the status row under it. The rows are re-cut when
+/// the mode changes, and the view follows its new rect.
+class _Chrome {
+    let screen tui.Screen
+    let view tui.View
+    // the input box: rows input_top..input_bottom, its content at col 2
+    var input_rect tui.Rect
+    var input_top int
+    var input_bottom int
+    // the transcript box: rows trans_top..trans_bottom; the content rows
+    // are elastic, so read their row and height live
+    var trans_elastic tui.Rect
+    var trans_top int
+    var trans_bottom int
+    var status tui.Rect?
+
+    func __init__(_screen tui.Screen, _view tui.View) {
+        screen = _screen
+        view = _view
+        input_rect = tui.Rect(1, 2, 3, 1)
+        input_top = 1
+        input_bottom = 1
+        trans_elastic = tui.Rect(1, 2, 1, 1)
+        trans_top = 1
+        trans_bottom = 1
+        status = nil
+        set_bar(false)
+    }
+
+    /// Re-cut the rows: the transcript box on top, the input box under it
+    /// and, with `bar`, the status row under that. Borders take one row
+    /// each; the content sits one column in from the edges.
+    func set_bar(bar bool) {
+        let layout = tui.Layout(screen)
+        status = nil
+        if bar { status = layout.fixed_bottom(1) }
+        input_bottom = layout.fixed_bottom(1).row
+        let content = layout.fixed_bottom(3)
+        input_rect = tui.Rect(content.row, 2, content.height, screen.columns() - 2)
+        input_top = layout.fixed_bottom(1).row
+        trans_bottom = layout.fixed_bottom(1).row
+        trans_elastic = layout.elastic()
+        view.set_rect(trans_elastic)
+        trans_top = layout.fixed(1).row
+    }
+
+    /// Draw the transcript box: its borders and the visible lines of the
+    /// window, each cut and padded to the content width.
+    func draw_transcript() {
+        let cols = screen.columns()
+        let w = cols - 2
+        screen.write_at(trans_top, 1, "┌" + "─" * (cols - 2) + "┐")
+        screen.write_at(trans_bottom, 1, "└" + "─" * (cols - 2) + "┘")
+        let lines = view.render()
+        var i = 0
+        while i < trans_elastic.height {
+            var text = " " * w
+            if i < lines.len() { text = readline.fit_text(lines[i], w) }
+            screen.write_at(trans_elastic.row + i, 2, text)
+            i += 1
+        }
+    }
+
+    /// Draw the borders of the input box; the editor draws its content
+    /// rows.
+    func draw_input_box() {
+        let cols = screen.columns()
+        screen.write_at(input_top, 1, "┌" + "─" * (cols - 2) + "┐")
+        screen.write_at(input_bottom, 1, "└" + "─" * (cols - 2) + "┘")
+    }
+}
+
+/// PgUp / PgDn page the transcript window; every other key is the editor's.
+/// The editor draws its area again after the hook, absolutely positioned,
+/// so the cursor lands back in the input box.
+class _Pager : readline.KeyHook {
+    let chrome _Chrome
+
+    func __init__(_chrome _Chrome) {
+        chrome = _chrome
+    }
+
+    func call(name str, seq str) bool {
+        if name != "unknown" { return false }
+        if seq == "\x1b[5~" {
+            // Page Up: one page towards the older lines
+            chrome.view.scroll_up(_page())
+            chrome.draw_transcript()
+            return true
+        }
+        if seq == "\x1b[6~" {
+            // Page Down: towards the tail; there, follow again
+            chrome.view.scroll_down(_page())
+            if chrome.view.at_tail() { chrome.view.follow(true) }
+            chrome.draw_transcript()
+            return true
+        }
+        return false
+    }
+
+    // A page: the window minus its last row, so a line of context survives.
+    func _page() int {
+        let h = chrome.trans_elastic.height
+        if h <= 1 { return 1 }
+        return h - 1
+    }
+}
+
+/// Shows the completion candidates in the transcript: the boxed input area
+/// has no rows under it for readline's column listing, so the candidates
+/// are emitted as the rows readline would draw — columns filled down then
+/// across, each name padded to the longest one.
+class _ChatDisplay : readline.DisplayMatchesHook {
+    func display(substitution str, matches list[str], longest_match_length int) {
+        if let c = _chrome {
+            // the transcript content sits one column in from each border
+            let cols = c.screen.columns() - 2
+            let width = longest_match_length + 2
+            var limit = cols / width
+            if limit != 1 && limit * width == cols { limit -= 1 }
+            if limit == 0 { limit = 1 }
+            let count = (matches.len() + limit - 1) / limit
+            for row in range(count) {
+                var out = ""
+                for col in range(limit) {
+                    let i = col * count + row
+                    if i >= matches.len() { break }
+                    out += matches[i]
+                    if col < limit - 1 { out += " " * (width - matches[i].len()) }
+                }
+                emit(out)
+            }
+        }
+    }
 }
 
 /// Run the loop against `session` until /quit, /exit or Ctrl-D. Starts in
@@ -35,36 +213,62 @@ func run_repl(session Session, cfg Config) {
     readline.parse_and_bind("tab: complete")
     readline.set_completer(_ChatCompleter(session))
     readline.set_completer_delims(" \t\n")
+    readline.set_completion_display_matches_hook(_ChatDisplay())
+
+    let screen = tui.Screen()
+    let view = tui.View(tui.Rect(1, 1, 0, 80))
+    let chrome = _Chrome(screen, view)
+    _chrome = chrome
+    readline.set_key_hook(_Pager(chrome))
 
     var mode = "chat"
-    print("Chat with " + cfg.model + ". /agent = coding loop, /chat = Q&A, /quit or Ctrl-D to leave, /reset to clear, /file PATH to load, /model to switch models.")
-    while let line = readline.input(_prompt(mode)) {
+    emit("Chat with " + cfg.model + ". /agent = coding loop, /chat = Q&A, /quit or Ctrl-D to leave, /reset to clear, /file PATH to load, /model to switch models.")
+    while true {
+        screen.frame_start()
+        chrome.draw_transcript()
+        chrome.draw_input_box()
+        if let st = chrome.status {
+            let cols = screen.columns()
+            screen.write_at(st.row, 1,
+                            readline.fit_text("\x1b[2m[agent] " + session.status_line() + "\x1b[0m", cols))
+        }
+        // only the transcript region scrolls; the cursor sits in the box
+        let trans = chrome.trans_elastic
+        screen.pin_input(chrome.input_rect.row, 2, trans.row, trans.row + trans.height - 1)
+        readline.set_input_area(chrome.input_rect.row, 2, chrome.input_rect.width,
+                                chrome.input_rect.height)
+        let line = screen.input(prompt(mode))
+        if line == nil { break }
         // blank lines (and the "" Ctrl-C returns) are not sent
-        if _is_blank(line) { continue }
+        if is_blank(line) { continue }
+        record_input(line)
         if line == "/quit" || line == "/exit" { break }
         if line == "/chat" {
             mode = "chat"
-            print("(chat mode)")
+            chrome.set_bar(false)
+            emit("(chat mode)")
             continue
         }
         if line == "/agent" {
             mode = "agent"
-            print("(agent mode — type a task directly; /chat to return)")
+            chrome.set_bar(true)
+            emit("(agent mode — type a task directly; /chat to return)")
             continue
         }
         if line.starts_with("/agent ") {
             mode = "agent"
+            chrome.set_bar(true)
             let task = line.substr(7, line.len()).strip()
             if task != "" { session.agent(task) }
             continue
         }
         if line == "/reset" {
             session.reset()
-            print("(the history is cleared)")
+            emit("(the history is cleared)")
             continue
         }
         if line == "/clear" {
-            if os.isatty(1) { printf("\x1b[2J\x1b[3J\x1b[H") }
+            chrome.view.clear()
             continue
         }
         if line == "/compact" {
@@ -75,45 +279,62 @@ func run_repl(session Session, cfg Config) {
             session.show_context(mode == "agent")
             continue
         }
+        if line == "/workdir" || line.starts_with("/workdir ") {
+            let path = expand(line.substr(8, line.len()).strip())
+            if path == "" {
+                session.show_workdir()
+            } else if session.is_blocked(path) {
+                emit("no access: " + path)
+            } else if session.set_workdir(path) {
+                emit("(work dir set to " + path + ")")
+            } else {
+                emit("not a directory: " + path)
+            }
+            continue
+        }
         if line == "/models" {
             if let models = session.list_models() {
-                for m in models { print("  " + m) }
+                for m in models { emit("  " + m) }
             } else {
-                print("(cannot list models)")
+                emit("(cannot list models)")
             }
             continue
         }
         if line == "/model" {
-            print("(current model: " + session.current_model() + ")")
+            emit("(current model: " + session.current_model() + ")")
             continue
         }
         if line.starts_with("/model ") {
             let name = line.substr(7, line.len()).strip()
             if name == "" {
-                print("(current model: " + session.current_model() + ")")
+                emit("(current model: " + session.current_model() + ")")
             } else {
                 session.set_model(name)
-                print("(model set to " + name + ")")
+                emit("(model set to " + name + ")")
             }
             continue
         }
         if line == "/file" || line.starts_with("/file ") {
-            let path = line.substr(5, line.len()).strip()
+            let path = expand(line.substr(5, line.len()).strip())
             if path == "" {
-                print("(usage: /file PATH)")
+                emit("(usage: /file PATH)")
+            } else if session.is_blocked(path) {
+                emit("no access: " + path)
             } else if let n = session.load_file(path) {
-                print("(loaded " + path + ", " + str(n) + " chars)")
+                emit("(loaded " + path + ", " + str(n) + " chars)")
             } else {
-                print("cannot read: " + path)
+                emit("cannot read: " + path)
             }
             continue
         }
         if line.starts_with("@") {
-            let path = line.substr(1, line.len())
-            if let n = session.load_file(path) {
-                print("(loaded " + path + ", " + str(n) + " chars)")
+            let path = expand(line.substr(1, line.len()))
+            if session.is_blocked(path) {
+                emit("no access: " + path)
+            } else if let n = session.load_file(path) {
+                emit("(loaded " + path + ", " + str(n) + " chars)")
             } else {
-                print("cannot read: " + path)
+                emit("cannot read: " + path)
             }
             continue
         }
@@ -122,36 +343,38 @@ func run_repl(session Session, cfg Config) {
         if mode == "agent" {
             session.agent(line)
         } else {
-            let resp = session.ask(line)
-            if !resp.ok() {
-                print("Error [" + str(resp.status_code) + "]: " + resp.error_message)
-                continue
-            }
-            print("bot> " + resp.choices[0].message.content)
-            printf("({} tokens)\n", resp.usage.total_tokens)
+            session.ask(line)
         }
     }
 
+    screen.leave()
     readline.write_history_file(cfg.history_file)
 }
 
 /// Tab completion: the /commands for the first word, model names after
-/// "/model ", and file paths after "/file ". No trailing space is added —
-/// commands are matched exactly and arguments are parsed as-is, so a stray
-/// space would break "/quit" or end up inside a model name or path.
+/// "/model ", file paths after "/file ", and directories after "/workdir ".
+/// No trailing space is added — commands are matched exactly and arguments
+/// are parsed as-is, so a stray space would break "/quit" or end up inside
+/// a model name or path.
 class _ChatCompleter : readline.Completer {
     let session Session
     let commands list[str]
     var models list[str]?
-    var file_text str
-    var file_matches list[str]
+    // nil until the first completion, so completing an empty word (right
+    // after "/file " or "/workdir ") does not hit an empty stale cache
+    var file_text str?
+    var file_cache list[str]
+    var dir_text str?
+    var dir_cache list[str]
 
     func __init__(_session Session) {
         session = _session
-        commands = ["/quit", "/exit", "/reset", "/clear", "/compact", "/context", "/model", "/models", "/file", "/agent", "/chat"]
+        commands = ["/quit", "/exit", "/reset", "/clear", "/compact", "/context", "/workdir", "/model", "/models", "/file", "/agent", "/chat"]
         models = nil
-        file_text = ""
-        file_matches = list[str]()
+        file_text = nil
+        file_cache = list[str]()
+        dir_text = nil
+        dir_cache = list[str]()
     }
 
     func complete(text str, state int) str? {
@@ -163,6 +386,7 @@ class _ChatCompleter : readline.Completer {
         let cmd = before.split(" ")[0]
         if cmd == "/model" { return _nth(_model_list(), text, state) }
         if cmd == "/file" { return _nth(_files(text), text, state) }
+        if cmd == "/workdir" { return _nth(_dirs(text), text, state) }
         return nil
     }
 
@@ -189,17 +413,34 @@ class _ChatCompleter : readline.Completer {
 
     /// File-path matches for `text`, cached per word being completed.
     func _files(text str) list[str] {
-        if text != file_text {
-            file_text = text
-            file_matches = _file_matches(text)
+        if let ft = file_text {
+            if text == ft { return file_cache }
         }
-        return file_matches
+        file_text = text
+        file_cache = file_matches(text)
+        return file_cache
     }
+
+    /// Directory-path matches for `text`, cached per word being completed.
+    func _dirs(text str) list[str] {
+        if let dt = dir_text {
+            if text == dt { return dir_cache }
+        }
+        dir_text = text
+        dir_cache = dir_matches(text)
+        return dir_cache
+    }
+}
+
+/// Expand a leading `~` (or `~/`) in a user-typed path to the home
+/// directory; any other path passes through unchanged.
+pub func expand(path str) str {
+    return fs.Path(path).expand_user().to_str()
 }
 
 /// The paths that complete `text`: its directory part followed by each name
 /// in that directory starting with the rest, as readline's file completion.
-func _file_matches(text str) list[str] {
+pub func file_matches(text str) list[str] {
     let out = list[str]()
     var dir = ""
     var prefix = text
@@ -210,10 +451,20 @@ func _file_matches(text str) list[str] {
     }
     var where = dir
     if where.len() == 0 { where = "." }
+    where = expand(where)
     if !fs.is_dir(where) { return out }
     for path in fs.list_dir(where) {
         let name = path.name()
         if name.starts_with(prefix) { out.append(dir + name) }
+    }
+    return out
+}
+
+/// The directory-only matches of `text`, for /workdir.
+pub func dir_matches(text str) list[str] {
+    let out = list[str]()
+    for m in file_matches(text) {
+        if fs.is_dir(expand(m)) { out.append(m) }
     }
     return out
 }

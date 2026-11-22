@@ -73,15 +73,68 @@ pub func nice_ticks(lo float, hi float, target = 6) (list[float], float) {
 }
 
 /// Number of decimal places needed to label ticks spaced by `step` without
-/// losing precision (e.g. step 0.5 -> 1, step 2 -> 0, step 0.05 -> 2).
+/// losing precision. Replicates matplotlib's `ScalarFormatter._set_format`
+/// significant-figure iteration (sigfigs = 3 - floor(log10(range)), then
+/// decrement while rounding to that many decimals reproduces the ticks),
+/// applied to the minimal adjacent pair `[0, step]`; the pair yields the
+/// same count as the full tick list whenever the view range is below 1000,
+/// which is where plain (no offset) labels are used. Examples: step 2 -> 0,
+/// step 1.5/2.5 -> 1 (mpl shows "0.0, 1.5, 3.0"), step 0.25/0.75 -> 2.
 /// Panics if `step <= 0`.
 pub func tick_decimals(step float) int {
     if step <= 0.0 {
         panic("plot.tick_decimals: require step > 0")
     }
-    var d = -floor(math.log10(step))
-    if d < 0.0 {
-        d = 0.0
+    let oom = int(floor(math.log10(step)))
+    var sigfigs = 3 - oom
+    if sigfigs < 0 {
+        sigfigs = 0
     }
-    return int(d)
+    let thresh = 1e-3 * math.pow(10.0, float(oom))
+    while sigfigs >= 0 {
+        if abs(step - round_dec(step, sigfigs)) < thresh {
+            sigfigs = sigfigs - 1
+        } else {
+            break
+        }
+    }
+    return sigfigs + 1
+}
+
+/// Round `x` to `dec` decimal places (half away from zero).
+func round_dec(x float, dec int) float {
+    let p = math.pow(10.0, float(dec))
+    return round(x * p) / p
+}
+
+/// Level selection matching matplotlib's `MaxNLocator(nbins=7)`, the auto
+/// level choice of `contourf`: raw step = span / nbins, rounded UP to the
+/// first of {1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10} x 10^n, then levels span
+/// floor(vmin/step)*step .. ceil(vmax/step)*step. Requires `vmax > vmin`.
+pub func maxn_levels(vmin float, vmax float, nbins int = 7) list[float] {
+    let steps = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0]
+    let raw = (vmax - vmin) / float(nbins)
+    let scale = math.pow(10.0, floor(math.log10(raw)))
+    let target = raw / scale
+    var i = 0
+    while i < steps.len() && steps[i] < target {
+        i = i + 1
+    }
+    var step = scale * 10.0
+    if i < steps.len() {
+        step = steps[i] * scale
+    }
+    let lo = floor(vmin / step) * step
+    let hi = ceil(vmax / step) * step
+    let levels = list[float]()
+    var n = int(round((hi - lo) / step))
+    if n < 0 {
+        n = 0
+    }
+    var k = 0
+    while k <= n {
+        levels.append(lo + float(k) * step)
+        k = k + 1
+    }
+    return levels
 }

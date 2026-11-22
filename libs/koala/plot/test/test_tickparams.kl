@@ -1,0 +1,125 @@
+// RUN: koala --test %s
+
+// Unit tests for tick appearance controls (Axes.tick_params /
+// plt.tick_params). Defaults are matplotlib 3.11.2: direction "out",
+// length 3.5, width 0.8, color black, pad 3.5, labelsize 10, labelcolor
+// black; ticks on all four sides, labels on bottom/left only. Sizes are
+// pixels in Koala (matplotlib uses points; documented deviation).
+
+import "std/ut"
+import "koala/plot"
+import "koala/plot" as plt
+import "koala/json"
+
+func ts_of(fig plot.Figure) json.Object {
+    return fig.to_spec().get_array("axes").get_object(0).get_object("tickstyle")
+}
+
+@test
+func test_tickparams_defaults() {
+    let fig = plot.Figure()
+    fig.subplot(1, 1, 1).plot([0.0, 1.0], [0.0, 1.0])
+    let ts = ts_of(fig)
+    ut.assert_eq(ts.get_str("direction"), "out")
+    ut.assert_float_close(ts.get_float("length"), 3.5)
+    ut.assert_float_close(ts.get_float("width"), 0.8)
+    ut.assert_eq(ts.get_str("color"), "#000000")
+    ut.assert_float_close(ts.get_float("pad"), 3.5)
+    ut.assert_float_close(ts.get_float("labelsize"), 10.0)
+    ut.assert_eq(ts.get_str("labelcolor"), "#000000")
+    ut.assert_eq(ts.get_bool("bottom"), true)
+    ut.assert_eq(ts.get_bool("top"), true)
+    ut.assert_eq(ts.get_bool("left"), true)
+    ut.assert_eq(ts.get_bool("right"), true)
+    ut.assert_eq(ts.get_bool("labelbottom"), true)
+    ut.assert_eq(ts.get_bool("labeltop"), false)
+    ut.assert_eq(ts.get_bool("labelleft"), true)
+    ut.assert_eq(ts.get_bool("labelright"), false)
+}
+
+@test
+func test_tickparams_shared_appearance() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.tick_params("both", "major", "in", 6.0, 2.0, "#ff0000", 5.0, 14.0,
+                   "#00ff00")
+    let ts = ts_of(fig)
+    ut.assert_eq(ts.get_str("direction"), "in")
+    ut.assert_float_close(ts.get_float("length"), 6.0)
+    ut.assert_float_close(ts.get_float("width"), 2.0)
+    ut.assert_eq(ts.get_str("color"), "#ff0000")
+    ut.assert_float_close(ts.get_float("pad"), 5.0)
+    ut.assert_float_close(ts.get_float("labelsize"), 14.0)
+    ut.assert_eq(ts.get_str("labelcolor"), "#00ff00")
+}
+
+@test
+func test_tickparams_axis_x_toggles_only_x() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.tick_params("x", nil, nil, nil, nil, nil, nil, nil, nil, false,
+                   false, nil, nil, false, true, nil, nil)
+    let ts = ts_of(fig)
+    ut.assert_eq(ts.get_bool("bottom"), false)
+    ut.assert_eq(ts.get_bool("top"), false)
+    ut.assert_eq(ts.get_bool("labelbottom"), false)
+    ut.assert_eq(ts.get_bool("labeltop"), true)
+    // y side untouched.
+    ut.assert_eq(ts.get_bool("left"), true)
+    ut.assert_eq(ts.get_bool("right"), true)
+}
+
+@test
+func test_tickparams_axis_y_toggles_only_y() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.tick_params("y", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+                   false, nil, nil, nil, false, true)
+    let ts = ts_of(fig)
+    ut.assert_eq(ts.get_bool("left"), false)
+    ut.assert_eq(ts.get_bool("labelleft"), false)
+    ut.assert_eq(ts.get_bool("labelright"), true)
+    // x side untouched.
+    ut.assert_eq(ts.get_bool("bottom"), true)
+    ut.assert_eq(ts.get_bool("top"), true)
+}
+
+@test
+func test_tickparams_which_minor_accepted() {
+    let fig = plot.Figure()
+    let ax = fig.subplot(1, 1, 1)
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.tick_params("both", "minor")
+    // Accepted; only major ticks exist so the style stays default.
+    let ts = ts_of(fig)
+    ut.assert_eq(ts.get_str("direction"), "out")
+}
+
+@should_panic("'z' is not a valid value for axis. Supported values are 'x', 'y', 'both'")
+func test_tickparams_bad_axis() {
+    plot.Figure().subplot(1, 1, 1).tick_params("z")
+}
+
+@should_panic("'side' is not a valid value for which. Supported values are 'major', 'minor', 'both'")
+func test_tickparams_bad_which() {
+    plot.Figure().subplot(1, 1, 1).tick_params("both", "side")
+}
+
+@should_panic("'sideways' is not a valid value for tickdir. Supported values are 'in', 'out', 'inout'")
+func test_tickparams_bad_direction() {
+    plot.Figure().subplot(1, 1, 1).tick_params("both", "major", "sideways")
+}
+
+@test
+func test_pyplot_tick_params() {
+    plt.close()
+    plt.figure()
+    plt.plot([0.0, 1.0], [0.0, 1.0])
+    plt.tick_params("both", "major", "inout", 8.0)
+    let ts = ts_of(plt.gcf())
+    ut.assert_eq(ts.get_str("direction"), "inout")
+    ut.assert_float_close(ts.get_float("length"), 8.0)
+}

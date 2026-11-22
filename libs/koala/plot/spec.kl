@@ -4,6 +4,7 @@
  */
 
 import "koala/json"
+import "koala/math"
 
 /// Figure-spec serialization helpers. The spec carries *resolved pixel
 /// geometry* (docs/koala_ml.md §6.3): every rectangle, tick pixel position,
@@ -44,14 +45,17 @@ func text_json(text str, x float, y float) json.Object {
 }
 
 /// Tick marks as `{value, px, label}` objects, `px` resolved through `scale`.
-func ticks_json(values list[float], scale Scale, decimals int) json.Array {
+/// `labels` is preformatted and aligned with `values`.
+func ticks_json(values list[float], labels list[str], scale Scale) json.Array {
     let arr = json.Array()
-    for v in values {
+    var i = 0
+    while i < values.len() {
         let t = json.Object()
-        t["value"] = json.Float(v)
-        t["px"] = json.Float(scale.pixel(v))
-        t["label"] = json.String(format_tick(v, decimals))
+        t["value"] = json.Float(values[i])
+        t["px"] = json.Float(scale.pixel(values[i]))
+        t["label"] = json.String(labels[i])
         arr.append(t)
+        i = i + 1
     }
     return arr
 }
@@ -85,10 +89,13 @@ func items_json(artists list[Artist], sx Scale, sy Scale, plot Rect) json.Array 
 }
 
 /// Legend state plus entries collected from labeled artists (matplotlib
-/// `legend()` auto-detects artists carrying a label).
-func legend_json(show bool, artists list[Artist]) json.Object {
+/// `legend()` auto-detects artists carrying a label). `loc` is the
+/// matplotlib legend location, resolved to pixel coordinates by the
+/// painter (the box size is only known there).
+func legend_json(show bool, artists list[Artist], loc str) json.Object {
     let o = json.Object()
     o["show"] = json.Boolean(show)
+    o["loc"] = json.String(loc)
     let entries = json.Array()
     if show {
         for art in artists {
@@ -109,12 +116,45 @@ func legend_json(show bool, artists list[Artist]) json.Object {
     return o
 }
 
-/// Resolve the tick values and label precision for one axis: explicit
-/// overrides win, otherwise nice ticks across `[lo, hi]`. A degenerate
-/// span yields a single tick at `lo`. Ticks are clipped to the view limits
-/// (matplotlib only draws ticks inside the axes): `nice_ticks` brackets the
-/// data and so can emit ticks beyond `[lo, hi]`, which must not be painted.
-func axis_ticks(lo float, hi float, override list[float]?) (list[float], int) {
+/// The superscript digit for `d` ("0".."9"), used by log tick labels.
+func sup_digit(d str) str {
+    let digits = "0123456789"
+    let sups = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+    let i = digits.index(d)
+    if i < 0 {
+        return d
+    }
+    return sups.substr(i, i + 1)
+}
+
+/// A matplotlib-style log tick label: "10" followed by the superscript
+/// exponent, e.g. 10⁻¹, 10² (matplotlib renders `$10^{2}$`).
+pub func log_tick_label(k int) str {
+    var n = k
+    var s = ""
+    if n < 0 {
+        s = "⁻"
+        n = -n
+    }
+    let ds = format("{}", n)
+    var i = 0
+    while i < ds.len() {
+        s = s + sup_digit(ds.substr(i, i + 1))
+        i = i + 1
+    }
+    return "10" + s
+}
+
+/// Resolve the tick values and their labels for one axis: explicit
+/// overrides win, otherwise nice ticks across `[lo, hi]` (or decade ticks
+/// for `log`). A degenerate span yields a single tick at `lo`. Ticks are
+/// clipped to the view limits (matplotlib only draws ticks inside the
+/// axes): `nice_ticks` brackets the data and so can emit ticks beyond
+/// `[lo, hi]`, which must not be painted. Custom `labels` (same length as
+/// `override`, validated by the caller) replace the formatted values; they
+/// are clipped together with the ticks.
+func axis_ticks(lo float, hi float, override list[float]?,
+                labels list[str]?, log bool = false) (list[float], list[str]) {
     let a = min(lo, hi)
     let b = max(lo, hi)
     let eps = (b - a) * 1e-9 + 1e-12
@@ -127,26 +167,61 @@ func axis_ticks(lo float, hi float, override list[float]?) (list[float], int) {
             }
         }
         let kept = list[float]()
-        for v in t {
+        let klabels = list[str]()
+        var i = 0
+        while i < t.len() {
+            let v = t[i]
             if v >= a - eps && v <= b + eps {
                 kept.append(v)
+                if let ls = labels {
+                    klabels.append(ls[i])
+                } else {
+                    klabels.append(format_tick(v, dec))
+                }
             }
+            i = i + 1
         }
-        return (kept, dec)
+        return (kept, klabels)
     }
     if hi == lo {
-        return ([lo], 0)
+        if log {
+            return ([a], [log_tick_label(int(flr(math.log10(a))))])
+        }
+        return ([lo], [format_tick(lo, 0)])
+    }
+    if log {
+        // Decade ticks bracketing the view (one extra decade each side for
+        // float-error safety), clipped like matplotlib paints them.
+        let klo = int(flr(math.log10(a))) - 1
+        let khi = int(cil(math.log10(b))) + 1
+        let kept = list[float]()
+        let klabels = list[str]()
+        var k = klo
+        while k <= khi {
+            let v = math.pow(10.0, float(k))
+            if v >= a - eps && v <= b + eps {
+                kept.append(v)
+                klabels.append(log_tick_label(k))
+            }
+            k = k + 1
+        }
+        if kept.len() == 0 {
+            return ([a], [log_tick_label(int(flr(math.log10(a))))])
+        }
+        return (kept, klabels)
     }
     let (ticks, step) = nice_ticks(a, b)
     let dec = tick_decimals(step)
     let kept = list[float]()
+    let klabels = list[str]()
     for v in ticks {
         if v >= a - eps && v <= b + eps {
             kept.append(v)
+            klabels.append(format_tick(v, dec))
         }
     }
     if kept.len() == 0 {
-        return ([a], dec)
+        return ([a], [format_tick(a, dec)])
     }
-    return (kept, dec)
+    return (kept, klabels)
 }

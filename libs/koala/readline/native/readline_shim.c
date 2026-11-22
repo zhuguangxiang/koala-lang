@@ -13,10 +13,22 @@
  * input and no output processing, one byte per read. The original mode
  * is restored by tty_raw_off, and at exit if the program ends while the
  * terminal is raw.
+ *
+ * The program's terminal is restored however it ends:
+ * - exit() and a normal return from main run restore_at_exit, so the
+ *   original mode comes back after a panic too;
+ * - a fatal signal (Ctrl-C and friends, abort, a crash) runs
+ *   fatal_signal first: the original mode, and the escape sequence
+ *   koala/tui writes when it leaves the screen (reset the scroll region,
+ *   leave the alternate screen, bracketed paste off), then the signal is
+ *   raised again with its old disposition. On a terminal not in the
+ *   alternate screen the sequence is a no-op; on a pipe it is not
+ *   written.
  */
 
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <termios.h>
 #include <unistd.h>
 #include "object.h"
@@ -25,11 +37,66 @@ static struct termios g_orig_termios;
 static int g_raw_fd = -1;
 static int g_atexit_registered = 0;
 
-static void restore_at_exit(void)
+// Reset the scroll region, leave the alternate screen, bracketed paste
+// off: the last words koala/tui writes when it leaves the screen.
+#define RESTORE_SEQ "\x1b[r\x1b[?1049l\x1b[?2004l"
+
+static void restore_termios(void)
 {
     if (g_raw_fd >= 0) {
         tcsetattr(g_raw_fd, TCSAFLUSH, &g_orig_termios);
         g_raw_fd = -1;
+    }
+}
+
+static void write_restore_seq(void)
+{
+    if (isatty(1)) {
+        (void)!write(1, RESTORE_SEQ, sizeof(RESTORE_SEQ) - 1);
+    }
+}
+
+static void restore_at_exit(void)
+{
+    restore_termios();
+    write_restore_seq();
+}
+
+// The signals that end a program while its terminal is raw, with their
+// dispositions from before raw mode: the deliberate ends (Ctrl-C and the
+// like), abort() — the C-level panic path — and the crash faults, so the
+// terminal comes back for those too. Only syscalls run in the handler.
+#define NFATAL 9
+static const int g_fatal_sigs[NFATAL] = {
+    SIGINT, SIGTERM, SIGHUP, SIGQUIT,
+    SIGABRT, SIGSEGV, SIGBUS, SIGFPE, SIGILL,
+};
+static struct sigaction g_fatal_prev[NFATAL];
+static int g_handlers_installed = 0;
+
+static void fatal_signal(int sig)
+{
+    restore_termios();
+    write_restore_seq();
+    for (int i = 0; i < NFATAL; i++) {
+        if (g_fatal_sigs[i] == sig) {
+            sigaction(sig, &g_fatal_prev[i], NULL);
+            break;
+        }
+    }
+    raise(sig);
+}
+
+static void install_fatal_handlers(void)
+{
+    if (g_handlers_installed) return;
+    g_handlers_installed = 1;
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = fatal_signal;
+    sigemptyset(&sa.sa_mask);
+    for (int i = 0; i < NFATAL; i++) {
+        sigaction(g_fatal_sigs[i], &sa, &g_fatal_prev[i]);
     }
 }
 
@@ -50,6 +117,7 @@ static TValue _tty_raw_on(TValue *self, TValue *args, int nargs)
         atexit(restore_at_exit);
         g_atexit_registered = 1;
     }
+    install_fatal_handlers();
 
     struct termios raw = g_orig_termios;
     // input: no break, no CR to NL, no parity check, no strip, no flow control

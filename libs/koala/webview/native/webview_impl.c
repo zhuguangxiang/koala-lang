@@ -63,6 +63,10 @@ static void on_window_destroy(GtkWidget *widget, gpointer arg)
     WvInstance *inst = (WvInstance *)arg;
     (void)widget;
     inst->window = NULL;
+    /* A WM close (or any window destruction) must end run(): the API
+     * contract is "blocks until the window is closed". destroy() disconnects
+     * this handler before closing, so teardown is unaffected. */
+    inst->stop_run_loop = 1;
 }
 
 /* We hold a reference on the webview, so GTK must not dispose it as a child
