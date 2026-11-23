@@ -140,6 +140,25 @@ func test_store_rename_branches() {
 }
 
 @test
+func test_store_save_is_atomic() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s6")
+    ut.assert_true(st.save("x", _rec()))
+    // the temp file is gone: the rename put it in place
+    ut.assert_false(fs.is_file(st.path("x") + ".tmp"))
+    ut.assert_true(st.load("x") != nil)
+    // a second save replaces the first one
+    let rec = _rec()
+    rec["k"] = String("w")
+    ut.assert_true(st.save("x", rec))
+    ut.assert_true(st.load("x")!.get_str("k") == "w")
+    // a path that is a directory fails instead of writing through it
+    fs.mkdir(st.path("bad"))
+    ut.assert_false(st.save("bad", _rec()))
+    ut.assert_false(fs.is_file(st.path("bad") + ".tmp"))
+}
+
+@test
 func test_auto_name_shape_and_dedup() {
     _setup()
     let st = chat.SessionStore(MSBASE + "/s5")
@@ -256,12 +275,108 @@ func test_manager_rename_branches() {
     m.new("alpha")
     ut.assert_true(m.rename("gamma"))
     ut.assert_true(m.current_session().name() == "gamma")
-    ut.assert_false(fs.is_file(MSBASE + "/s12/alpha.json"))
-    ut.assert_true(fs.is_file(MSBASE + "/s12/gamma.json"))
+    // /rename writes the record only: the file keeps the id
+    ut.assert_true(fs.is_file(MSBASE + "/s12/alpha.json"))
+    ut.assert_false(fs.is_file(MSBASE + "/s12/gamma.json"))
+    ut.assert_true(m.current_session().id() == "alpha")
     ut.assert_true(m.names()[0] == "gamma")
     ut.assert_false(m.rename("bad/name"))
     ut.assert_false(m.rename("main"))
     ut.assert_true(m.current_session().name() == "gamma")
+    // the id is a selection key, and renaming back onto it is not a clash
+    ut.assert_true(m.switch_to("alpha"))
+    ut.assert_true(m.rename("alpha"))
+    ut.assert_true(m.current_session().name() == "alpha")
+    ut.assert_true(m.current_session().id() == "alpha")
+}
+
+@test
+func test_rename_keeps_the_record_and_the_pointer() {
+    _setup()
+    let dir = MSBASE + "/s20"
+    let m = _mgr(dir)
+    m.new("alpha")
+    ut.assert_true(m.rename("gamma"))
+    let obj = chat.SessionStore(dir).load("alpha")
+    ut.assert_true(obj != nil)
+    ut.assert_true(obj!.get_str("name") == "gamma")
+    ut.assert_true(obj!.get_str("id") == "alpha")
+    ut.assert_true(obj!.get_int("version") == 2)
+    // the pointer follows the id, so a reopen lands on the renamed session
+    ut.assert_true(chat.SessionStore(dir).read_current() == "alpha")
+    let m2 = chat.SessionManager(_client(), _gcfg, "sk", dir)
+    ut.assert_true(m2.current_session().name() == "gamma")
+}
+
+@test
+func test_current_pointer_wins_over_recency() {
+    _setup()
+    let dir = MSBASE + "/s21"
+    let m = _mgr(dir)
+    m.new("older")
+    m.new("newer")
+    ut.assert_true(m.switch_to("older"))
+    // "newer" is the last written file, but .current points at "older"
+    fs.set_times(dir + "/newer.json", 2000, 2000)
+    fs.set_times(dir + "/older.json", 1000, 1000)
+    ut.assert_true(chat.SessionStore(dir).read_current() == "older")
+    let m2 = chat.SessionManager(_client(), _gcfg, "sk", dir)
+    ut.assert_true(m2.current_session().id() == "older")
+    ut.assert_true(m2.current_session().name() == "older")
+}
+
+@test
+func test_current_pointer_skips_a_stale_id() {
+    _setup()
+    let dir = MSBASE + "/s22"
+    let m = _mgr(dir)
+    m.new("a")
+    m.new("b")
+    let st = chat.SessionStore(dir)
+    ut.assert_true(st.write_current("gone"))
+    let m2 = chat.SessionManager(_client(), _gcfg, "sk", dir)
+    // fallback: the most recently written file, and the pointer is repaired
+    ut.assert_true(m2.current_session().name() == "b")
+    ut.assert_true(st.read_current() == "b")
+}
+
+@test
+func test_broken_session_files_are_listed_not_fatal() {
+    _setup()
+    let dir = MSBASE + "/s24"
+    let st = chat.SessionStore(dir)
+    ut.assert_true(st.save("good", _mkrec()))
+    // not JSON at all
+    fs.write_str(st.path("bad"), "not json")
+    // valid JSON, but not a session record
+    fs.write_str(st.path("half"), "{\"name\": \"half\"}")
+    let m = _mgr(dir)
+    ut.assert_true(m.count() == 1)
+    ut.assert_true(m.current_session().id() == "good")
+    let b = m.broken()
+    ut.assert_true(b.len() == 2)
+    let joined = b[0] + "|" + b[1]
+    ut.assert_true("bad (not a JSON object)" in joined)
+    ut.assert_true("half (malformed record)" in joined)
+    // a healthy store has nothing to report
+    ut.assert_true(chat.SessionManager(_client(), _gcfg, "sk", MSBASE + "/s25").broken().len() == 0)
+}
+
+@test
+func test_store_current_pointer_branches() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s23")
+    ut.assert_true(st.read_current() == "")
+    fs.write_str(st.current_path(), "not json")
+    ut.assert_true(st.read_current() == "")
+    fs.write_str(st.current_path(), "[1]")
+    ut.assert_true(st.read_current() == "")
+    ut.assert_true(st.write_current("x"))
+    // atomic: the tmp file is consumed by the rename
+    ut.assert_false(fs.is_file(st.current_path() + ".tmp"))
+    ut.assert_true(st.read_current() == "x")
+    // it is a pointer, not a record: /sessions never lists it
+    ut.assert_true(st.list_names().len() == 0)
 }
 
 @test
@@ -379,6 +494,74 @@ func test_restore_session_with_agent_messages() {
 }
 
 @test
+func test_pending_turn_survives_a_record() {
+    _setup()
+    let s = chat.Session(_client(), _gcfg, "sk", "orig")
+    let rec = s.to_record()
+    ut.assert_true(rec.get_str("run_state") == "idle")
+    ut.assert_false("pending" in rec)
+    // a record whose last agent turn stopped mid-way
+    let ams = Array()
+    let m1 = Object()
+    m1["role"] = String("user")
+    m1["content"] = String("write it")
+    ams.append(m1)
+    let m2 = Object()
+    m2["role"] = String("assistant")
+    m2["content"] = String("(step limit)")
+    ams.append(m2)
+    rec["agent_messages"] = ams
+    rec["run_state"] = String("pending")
+    let p = Object()
+    p["mark"] = Integer(1)
+    p["reason"] = String("step limit")
+    rec["pending"] = p
+    let r = chat.restore_session(_client(), _gcfg, "sk", rec)
+    ut.assert_true(r != nil)
+    ut.assert_true(r!.run_state() == "pending")
+    ut.assert_true(r!.pending_reason() == "step limit")
+    // the record round-trips run_state and the pending mark/reason
+    let back = r!.to_record()
+    ut.assert_true(back.get_str("run_state") == "pending")
+    let pb = back.get("pending")!
+    ut.assert_true(pb is Object)
+    let po = pb as Object
+    ut.assert_true(po!.get_int("mark") == 1)
+    ut.assert_true(po!.get_str("reason") == "step limit")
+    // a pending state without the object (or with a bad type) is idle
+    var rec2 = _mkrec()
+    rec2["agent_messages"] = ams
+    rec2["run_state"] = String("pending")
+    let r2 = chat.restore_session(_client(), _gcfg, "sk", rec2)
+    ut.assert_true(r2 != nil)
+    ut.assert_true(r2!.run_state() == "idle")
+}
+
+@test
+func test_restore_interrupted_turn_can_still_cancel() {
+    _setup()
+    let rec = _mkrec()
+    let ams = Array()
+    let m1 = Object()
+    m1["role"] = String("user")
+    m1["content"] = String("write it")
+    ams.append(m1)
+    rec["agent_messages"] = ams
+    rec["run_state"] = String("pending")
+    let p = Object()
+    p["mark"] = Integer(0)
+    p["reason"] = String("interrupted")
+    rec["pending"] = p
+    let r = chat.restore_session(_client(), _gcfg, "sk", rec)
+    ut.assert_true(r != nil)
+    ut.assert_true(r!.pending_reason() == "interrupted")
+    // /cancel still knows where the turn began, so it can drop it
+    ut.assert_true(r!.cancel_agent())
+    ut.assert_true(r!.run_state() == "idle")
+    ut.assert_true(r!.pending_reason() == "")
+}
+
+@test
 func test_restore_session_missing_fields() {
     _setup()
     let missing = ["name", "model", "workdir", "paused", "last_tokens", "messages", "agent_messages"]
@@ -426,13 +609,115 @@ func test_restore_session_mistyped_fields() {
     ut.assert_true(chat.restore_session(_client(), _gcfg, "sk", rec) == nil)
 }
 
+// ---- rich messages: the tool structure survives a save/restore cycle ----
+
+@test
+func test_rich_agent_messages_survive_a_record() {
+    _setup()
+    let calls = list[openai.ToolCall]()
+    calls.append(openai.ToolCall("call_1", "function", openai.FunctionCall("Write", "{\"path\": \"a.txt\"}")))
+    let msgs = Array()
+    msgs.append(openai.message_to_object(openai.assistant_msg("", calls)))
+    msgs.append(openai.message_to_object(openai.tool_msg("call_1", "wrote a.txt")))
+    let rec = _mkrec()
+    rec["agent_messages"] = msgs
+    let r = chat.restore_session(_client(), _gcfg, "sk", rec)
+    ut.assert_true(r != nil)
+    let back = r!.to_record().get_array("agent_messages").value
+    ut.assert_eq(back.len(), 2)
+    ut.assert_true(back[0] is Object)
+    let a0 = back[0] as Object
+    ut.assert_eq(a0!.get_str("role"), "assistant")
+    // a tool-only turn has no content, so the field is left out
+    ut.assert_false("content" in a0!)
+    let c0 = a0!.get_array("tool_calls").value[0] as Object
+    ut.assert_eq(c0!.get_str("id"), "call_1")
+    ut.assert_eq(c0!.get_str("type"), "function")
+    ut.assert_eq(c0!.get_object("function").get_str("name"), "Write")
+    ut.assert_eq(c0!.get_object("function").get_str("arguments"), "{\"path\": \"a.txt\"}")
+    ut.assert_true(back[1] is Object)
+    let b1 = back[1] as Object
+    ut.assert_eq(b1!.get_str("role"), "tool")
+    ut.assert_eq(b1!.get_str("tool_call_id"), "call_1")
+    ut.assert_eq(b1!.get_str("content"), "wrote a.txt")
+    // the restored agent holds the same messages, ready for the wire
+    let a = chat.restore_agent(_client(), _gcfg, "/tmp", msgs, false)
+    let conv = a.conversation()
+    ut.assert_eq(conv.len(), 2)
+    ut.assert_eq(conv[1]["role"], "user")
+    ut.assert_true(conv[1]["content"].starts_with("[tool result] wrote a.txt"))
+}
+
+@test
+func test_rich_messages_parse_partially() {
+    _setup()
+    // a call with no function name is dropped, the message is kept
+    let m = Object()
+    m["role"] = String("assistant")
+    m["tool_calls"] = Array()
+    let parsed = openai.message_from_object(m)
+    ut.assert_true(parsed != nil)
+    ut.assert_eq(parsed!.tool_calls.len(), 0)
+    ut.assert_eq(parsed!.content, "")
+    // no role: not a message
+    ut.assert_true(openai.message_from_object(Object()) == nil)
+    // a mistyped field costs only that field
+    let m2 = Object()
+    m2["role"] = String("tool")
+    m2["content"] = Integer(7)
+    m2["tool_call_id"] = String("c9")
+    let p2 = openai.message_from_object(m2)
+    ut.assert_true(p2 != nil)
+    ut.assert_eq(p2!.content, "")
+    ut.assert_eq(p2!.tool_call_id, "c9")
+}
+
+@test
+func test_store_mtime_for_last_active() {
+    _setup()
+    let st = chat.SessionStore(MSBASE + "/s7")
+    ut.assert_eq(st.mtime("nope"), 0)
+    ut.assert_true(st.save("x", _rec()))
+    ut.assert_gt(st.mtime("x"), 0)
+}
+
+@test
+func test_message_counts_chat_and_agent() {
+    _setup()
+    let s = chat.Session(_client(), _gcfg, "sk", "orig")
+    let (c0, a0) = s.message_counts()
+    ut.assert_eq(c0, 1)
+    ut.assert_eq(a0, 0)
+    // a file handed to the agent creates its conversation
+    fs.write_str(MSBASE + "/note.txt", "hello")
+    ut.assert_true(s.load_file(MSBASE + "/note.txt", true) != nil)
+    let (c1, a1) = s.message_counts()
+    ut.assert_eq(c1, 1)
+    ut.assert_gt(a1, 1)
+}
+
+@test
+func test_status_line_reads_the_active_conversation_tokens() {
+    _setup()
+    // a restored session carries the chat's last prompt_tokens
+    let rec = _mkrec()
+    rec["last_tokens"] = Integer(42)
+    let r = chat.restore_session(_client(), _gcfg, "sk", rec)
+    ut.assert_true(r != nil)
+    ut.assert_true("tokens 42/4096" in r!.status_line())
+    // agent mode reads the agent's count, and there is no agent yet
+    ut.assert_true("tokens 0/4096" in r!.status_line(0, true))
+    ut.assert_eq(r!.active_tokens(false), 42)
+    ut.assert_eq(r!.active_tokens(true), 0)
+}
+
 @test
 func test_restore_agent() {
     _setup()
-    let msgs = list[dict[str, str]]()
-    let m1 = dict[str, str]()
-    m1["role"] = "assistant"
-    m1["content"] = "hi"
+    let msgs = Array()
+    let m1 = Object()
+    m1["role"] = String("assistant")
+    m1["content"] = String("hi")
     msgs.append(m1)
     let a = chat.restore_agent(_client(), _gcfg, MSBASE, msgs, true)
     ut.assert_true(a.is_paused())

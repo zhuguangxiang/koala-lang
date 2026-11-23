@@ -1,6 +1,6 @@
 # demo/chat 其他模块优化分析与实施计划
 
-> 状态：分析与计划完成，待实施
+> 状态：分析与计划完成；P0/P1 中与 agent loop、会话、压缩、中断相关的部分已随 `agent_loop_plan.md` M1–M7 落地，剩余（模块重构、启动诊断、P2）待实施，逐项状态见 §1.3
 > 范围：`demo/chat` 中除 `session.kl` / `sessions.kl` 之外的模块，以及它们直接依赖的 `libs/koala`、`libs/std` 模块
 > 关系：
 > - `session_plan.md` 负责会话持久化、恢复、活动上下文与生命周期，本文不重复展开。
@@ -43,6 +43,22 @@
 - 会话 v2 schema、v1 迁移、原子保存、`.current`、`/resume`、`/continue`：见 `session_plan.md`。
 - native tool 协议、`Read/Write/Edit/Bash/Glob/Grep`、权限模式、plan mode：见 `agent_loop_plan.md` M1–M4。
 - UI Phase 0–4 已完成的 golden、resize、plain fallback：见 `demo/chat/todo.md`。
+
+### 1.3 实施状态（2026-11-22，M1–M7 落地后）
+
+| 层级 | 模块 | 状态 |
+|---|---|---|
+| P0 | `libs/koala/json` | ✅ 已落地（M1）：`try_parse*` 系列不 panic，`parse_*` 保留严格语义 |
+| P0 | `libs/koala/openai` | ✅ 已落地（M1/M2/M7）：rich message、`tool_calls`/`tool_call_id`/`name`、流式 tool delta、`message_to_object`/`message_from_object` |
+| P0 | `agent.kl` | ✅ 已落地（M2/M3）：native loop + fenced 回落，工具层拆到 `tools.kl`，`/continue` 与 `/cancel` |
+| P0 | `session.kl` / `sessions.kl` | ✅ 已落地（M7）：rich 持久化、原子保存、`/file` 活动上下文、`/resume`/`/unpause`、`/sessions` 统计与坏文件 `!` 行、稳定 id + `.current` + `--new`/`--resume`、跨重启 pending；未落地项见 `session_plan.md` §13.1 |
+| P0 | `config.kl` | 部分：新增 agent 相关项（`agent_max_steps`、超时、输出上限、权限模式与 allow/deny），但缺字段仍 `panic`，未做范围校验与诊断页 |
+| P1 | `compact.kl` | ✅ 已落地（M6）：pair-safe 切分、rich token 估算、请求前 guard、失败报错保留历史 |
+| P1 | `repl.kl` | 部分：命令已集中到 `command_infos()`（`/help`、补全、`/sessions` 共用），但分发仍是 `if` 链；`active_mode` 未持久化 |
+| P1 | `ui.kl` | 部分：结构化工具块、多工具、diff、审批已到位（M2/M3/M5）；状态行仍只有 mode/model/workdir/branch/token，没有权限模式与后台任务 |
+| P1 | `__chat__.kl` | 部分：`--config`、`--continue` 已支持；启动失败（缺 config/key）仍是 `panic`，没有错误页 |
+| P1 | `readline` / `http` / `sse` | ✅ 已落地（M5）：可中断读取支撑 Ctrl-C 与流式 tool call |
+| P2 | `tui` / `std/fs` / `koala/cli` / `koala/log` | 未动 |
 
 ## 2. 模块清单
 
@@ -194,7 +210,7 @@ safe JSON
 - `run_repl` 从 523 行到 763 行，输入、命令分发、模式切换、会话切换、TUI 绘制全部在一个函数里。
 - 命令元数据 `command_infos()`（`repl.kl:784-805`）只服务补全和 `/help`，真正的执行仍是 `if line == ...` / `line.starts_with(...)` 的长链（`repl.kl:586-758`）。新增命令必须同时改两处，容易漂移。
 - `mode` 是 `run_repl` 的局部变量（`repl.kl:546`），`_status_mode` 是包级变量（`repl.kl:22`）；`Session` 没有持久化 `active_mode`。恢复一个只有 agent 历史的会话后，模式仍然从 chat 开始。
-- 保存点只有循环顶部 `mgr.save_current()`（`repl.kl:554`），不是消息变化后的安全边界。长 agent 任务中途退出会丢消息；详见 `session_plan.md` S5。
+- 保存点在循环顶部 `mgr.save_current()`，且已在 `agent` / `ask` / `/continue` / `/cancel` 之后补了立即保存；但 tool 轮内部仍不落盘（进程在长任务中途被杀会丢本轮已发生的 tool 结果），详见 `session_plan.md` S5。
 - `record_input` 只在 TUI 下记录（`repl.kl:60-70`），plain 模式没有用户消息回显；这不是错误，但会让 non-tty 日志与 TUI 日志不一致。
 - `poll_resize` 只在流式 chunk 之间被调用（`session.kl:133-136`、`repl.kl:302-310`）。agent 的 `os.output`、非流式请求、压缩、审批期间没有 resize 处理。
 - 没有请求/工具执行期间的取消路径。readline 的 Ctrl-C 只在编辑行时返回 `""`（`libs/koala/readline/editor.kl:304-313`）；请求进行中按 Ctrl-C 会走终端信号默认路径，不能安全停止工具。
@@ -795,6 +811,7 @@ bash demo/chat/test/test_pty.sh
 8. **配置兼容性**。当前 `Config()` 的 panic 契约被测试固定；改成 `try_load` 时要保留兼容层，避免一次性破坏所有调用点。
 9. **写放大**。rich message + 每 tool checkpoint + 全量快照可能让长会话写盘变慢；先做 dirty/去抖，event log 作为后手。
 10. **Unicode 宽度**。工具输出、diff、路径都可能包含 CJK/emoji；所有新渲染必须走 `readline.width` / `wrap_text`，不能直接 `len()`。
+11. **GC 只能手动触发**。运行时的 `gc_collect` 唯一条入口是 `gc.collect()`，分配超过 `KOALA_GC_MAX`（默认 1 GiB）是 panic 而不是回收；长会话必须自己在“能停下来的地方”收。现状：`agent.settle_heap()` 在每 step 结束、turn 结束、`/cancel`、`/compact` 后以及 REPL 每轮输入循环顶部按 50k 块阈值收集。新增长生命周期缓存时，要同时确认它有对应的 stop point。
 
 ### 9.2 待确认决策
 

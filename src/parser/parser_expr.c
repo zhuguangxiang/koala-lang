@@ -3,14 +3,13 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <inttypes.h>
+#include <math.h>
 #include "atom.h"
 #include "log.h"
 #include "parser.h"
 #include "utf8.h"
 #include "version.h"
-
-#include <inttypes.h>
-#include <math.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -4153,8 +4152,7 @@ static const char *const_op_word(BiOpKind op)
     return "op";
 }
 
-static Literal *const_eval_binary_int(ParserState *ps, BiOpKind op, Loc loc, Literal *a,
-                                      Literal *b)
+static Literal *const_eval_binary_int(ParserState *ps, BiOpKind op, Loc loc, Literal *a, Literal *b)
 {
     int sign = a->sign;
     uint64_t ua = a->ival;
@@ -5084,6 +5082,11 @@ static void parse_in(ParserState *ps, Expr *exp)
     container->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, container);
     if (!container->ts) return;
+
+    if (type_is_optional(container->ts)) {
+        kl_error(in->op_loc, "optional container type is not allowed in 'in' operator.");
+        return;
+    }
 
     Symbol *container_ts_sym = get_symbol_by_id(container->ts->sym_id);
     ASSERT(container_ts_sym);

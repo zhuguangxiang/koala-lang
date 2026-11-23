@@ -296,6 +296,36 @@ func test_session_lines_golden() {
 }
 
 @test
+func test_broken_session_line_marks_the_file() {
+    ut.assert_eq(chat.broken_session_line("old (not a JSON object)"), "! old (not a JSON object)")
+    ut.assert_eq(chat.broken_session_line("x"), "! x")
+}
+
+@test
+func test_session_lines_agent_count_and_last_active() {
+    let rows = [
+        chat.SessionRow(1, "main", "auto", 12, false, true, 34, "11-22 23:41"),
+        chat.SessionRow(2, "beta", "gpt4", 3, false, false, 0, "11-20 08:05"),
+    ]
+    let wide = chat.session_lines(rows, 60, true)
+    ut.assert_true("12+34 msgs" in wide[0])
+    ut.assert_true(wide[0].ends_with("11-22 23:41"))
+    ut.assert_true("3 msgs" in wide[1])
+    ut.assert_true(wide[1].ends_with("11-20 08:05"))
+    // the last-active column drops before the message count on a narrow row
+    let narrow = chat.session_lines(rows, 30, true)
+    for line in narrow {
+        ut.assert_false("11-22" in line)
+        ut.assert_true("msgs" in line)
+        ut.assert_true(readline.width(line) <= 30)
+    }
+    // an empty active field never adds the column
+    let plain_rows = [chat.SessionRow(1, "main", "auto", 12, false, true)]
+    let lines = chat.session_lines(plain_rows, 60, true)
+    ut.assert_eq(lines[0], "* 1 main  auto  12 msgs")
+}
+
+@test
 func test_session_lines_elides_long_name() {
     let rows = [chat.SessionRow(1, "abcdefghijklmnopqrstuvwxyz", "auto", 1, false, false)]
     let lines = chat.session_lines(rows, 40, true)
@@ -604,7 +634,20 @@ func test_approval_lines_plain_has_no_unicode_or_ansi() {
         ut.assert_false("…" in row)
     }
     ut.assert_true("    ... 4 unchanged" in joined)
-    ut.assert_true("[y] once | [a] all this session | [n] deny | [d] full diff" in joined)
+    ut.assert_true("[y] once | [a] all edits this session | [n] deny | [d] full diff" in joined)
+}
+
+@test
+func test_approval_all_label_covers_one_kind() {
+    ut.assert_eq(chat.approval_all_label("write a.txt"), "all edits this session")
+    ut.assert_eq(chat.approval_all_label("edit a.txt"), "all edits this session")
+    ut.assert_eq(chat.approval_all_label("shell"), "all commands this session")
+    ut.assert_eq(chat.approval_all_label("bash ls"), "all commands this session")
+    // a read never asks, but the label stays sensible if it ever does
+    ut.assert_eq(chat.approval_all_label("read a.txt"), "all this session")
+    // the shell prompt row uses the command label
+    let rows = chat.approval_lines("shell", "", "", false, true, 20, true)
+    ut.assert_true("[a] all commands this session" in rows[rows.len() - 1])
 }
 
 @test

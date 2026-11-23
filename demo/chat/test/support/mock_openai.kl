@@ -1,0 +1,453 @@
+#!/usr/bin/env koala
+/*
+ * demo/chat — a mock OpenAI-compatible endpoint for the agent-loop tests.
+ *
+ * Koala has no threads, so a server and its client cannot share a process.
+ * This program is therefore started as a child process by a test: it binds
+ * loopback, writes the chosen port to --port-file, then serves requests
+ * until it is killed (or --max-requests is reached).
+ *
+ * The scripted replies come from a JSON file:
+ *
+ *     { "responses": [
+ *         { "content": "...", "finish_reason": "stop" },
+ *         { "content": "...", "stream": true, "chunks": ["a", "b"] },
+ *         { "status": 429, "error": "rate limited" }
+ *     ] }
+ *
+ * One entry per request, in order. Fields:
+ *   content        assistant text (default "")
+ *   finish_reason  "stop" / "length" / "tool_calls" (default "stop")
+ *   stream         true to answer as SSE chunks (default false)
+ *   chunks         the SSE deltas; without it the whole content is one chunk
+ *   status         HTTP status (default 200); non-200 answers an error body
+ *   error          the error message for a non-200 status
+ *   tool_calls     native tool calls the assistant asks for:
+ *                  [{ "id": "c1", "name": "Write", "arguments": {...} }];
+ *                  `arguments` may be an object or JSON text. A reply with
+ *                  calls finishes with "tool_calls" unless told otherwise.
+ *
+ * Every request body is appended as one line to --requests, so a test can
+ * assert the exact message sequence the agent sent.
+ *
+ * Usage:
+ *   koala demo/chat/test/support/mock_openai.kl \
+ *       --script SCRIPT.json --port-file PORT --requests REQUESTS.jsonl \
+ *       [--max-requests N] [--delay-ms N]
+ *
+ * `--delay-ms` waits before each SSE frame, so a pty test can press Ctrl-C
+ * while a reply is still streaming.
+ */
+
+import "std/fs"
+import "std/sys"
+import "std/time"
+import "koala/http" as http
+from "koala/json" import parse_file, Object, Array, String, Integer, Boolean, Null, Value
+
+/// One scripted tool call: the id, the function name and its argument
+/// JSON text.
+class MockToolCall {
+    let id str
+    let name str
+    let arguments str
+
+    pub func __init__(id str, name str, arguments str) {
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+    }
+}
+
+/// One scripted reply.
+class MockResponse {
+    let content str
+    let finish_reason str
+    let stream bool
+    let chunks list[str]
+    let status int
+    let error str
+    let calls list[MockToolCall]
+
+    pub func __init__(content str, finish_reason str, stream bool, chunks list[str], status int, error str, calls list[MockToolCall]) {
+        self.content = content
+        self.finish_reason = finish_reason
+        self.stream = stream
+        self.chunks = chunks
+        self.status = status
+        self.error = error
+        self.calls = calls
+    }
+}
+
+/// The SSE source of a streamed reply: the deltas, then `[DONE]`. With a
+/// non-zero `delay`, each frame is sent after that many milliseconds, so a
+/// pty test can press Ctrl-C while the stream is still running.
+class EventBody : http.Body {
+    let _frames list[str]
+    let _delay_ms int
+    var _next int = 0
+    var _sent_done bool = false
+    var _closed bool = false
+
+    pub func __init__(frames list[str], delay_ms int = 0) {
+        _frames = frames
+        _delay_ms = delay_ms
+    }
+
+    pub func read() bytes? {
+        if _closed { return nil }
+        if _next < _frames.len() {
+            let frame = _frames[_next]
+            _next += 1
+            if _delay_ms > 0 { time.sleep(time.Duration.from_millis(_delay_ms)) }
+            return ("data: " + frame + "\n\n").to_bytes()
+        }
+        if _sent_done { return nil }
+        _sent_done = true
+        return "data: [DONE]\n\n".to_bytes()
+    }
+
+    pub func close() { _closed = true }
+}
+/// The mock endpoint: scripted replies plus a request log.
+class Mock {
+    let srv http.Server
+    let responses list[MockResponse]
+    let log_path str
+    let max_requests int
+    // milliseconds to wait before each SSE frame; 0 sends it at once
+    let delay_ms int
+    var count int = 0
+
+    pub func __init__(srv http.Server, responses list[MockResponse], log_path str, max_requests int, delay_ms int = 0) {
+        self.srv = srv
+        self.responses = responses
+        self.log_path = log_path
+        self.max_requests = max_requests
+        self.delay_ms = delay_ms
+    }
+
+    pub func handle(req http.Request) http.Response {
+        let body = req.body().to_str()
+        _log_request(log_path, body)
+        if count >= responses.len() {
+            count += 1
+            return _error_response(500, "mock: no scripted response for request " + str(count))
+        }
+        let r = responses[count]
+        count += 1
+        if max_requests > 0 && count >= max_requests {
+            srv.close()
+        }
+        if r.status != 200 {
+            return _error_response(r.status, r.error)
+        }
+        // A real endpoint streams when the request asks for it, whatever the
+        // script says; `"stream": true` in the script forces SSE anyway.
+        if r.stream || _wants_stream(body) {
+            return http.Response.stream(200, "text/event-stream", EventBody(_frames(r), delay_ms))
+        }
+        return http.Response.json(200, _completion_json(r.content, r.finish_reason, r.calls))
+    }
+}
+
+/// True when the request body asked for a stream: the client's body has no
+/// spaces (`{"stream":true}`), so a plain substring is enough.
+func _wants_stream(body str) bool {
+    return "\"stream\":true" in body
+}
+
+/// `serve` takes a plain function value; lambdas cannot capture locals, so
+/// the handler reads the mock from this global.
+var g_mock Mock? = nil
+
+func handle_request(req http.Request) http.Response {
+    if let m = g_mock {
+        return m.handle(req)
+    }
+    return _error_response(500, "mock: not configured")
+}
+
+func main() {
+    let args = sys.args()
+    var script = ""
+    var port_file = ""
+    var log_path = ""
+    var max_requests = 0
+    var delay_ms = 0
+    var i = 1
+    while i < args.len() {
+        let a = args[i]
+        if a == "--script" && i + 1 < args.len() {
+            script = args[i + 1]
+            i += 2
+            continue
+        }
+        if a == "--port-file" && i + 1 < args.len() {
+            port_file = args[i + 1]
+            i += 2
+            continue
+        }
+        if a == "--requests" && i + 1 < args.len() {
+            log_path = args[i + 1]
+            i += 2
+            continue
+        }
+        if a == "--max-requests" && i + 1 < args.len() {
+            max_requests = args[i + 1].to_int()
+            i += 2
+            continue
+        }
+        if a == "--delay-ms" && i + 1 < args.len() {
+            delay_ms = args[i + 1].to_int()
+            i += 2
+            continue
+        }
+        print("mock_openai: unknown argument: " + a)
+        return
+    }
+    if script == "" || port_file == "" || log_path == "" {
+        print("usage: mock_openai.kl --script FILE --port-file FILE --requests FILE [--max-requests N]")
+        return
+    }
+
+    let responses = _load_script(script)
+    let srv = http.Server.listen("127.0.0.1:0")
+    if srv == nil {
+        print("mock_openai: cannot bind 127.0.0.1:0")
+        return
+    }
+    let server = srv
+    if !fs.write_str(port_file, str(server.port())) {
+        print("mock_openai: cannot write port file: " + port_file)
+        return
+    }
+    g_mock = Mock(server, responses, log_path, max_requests, delay_ms)
+    server.serve(handle_request)
+}
+
+/// Read the script file into replies. A malformed script is fatal: the
+/// mock exists to fail loudly, not to guess.
+func _load_script(path str) list[MockResponse] {
+    let out = list[MockResponse]()
+    let root = parse_file(path) as Object
+    if root == nil { return out }
+    if !("responses" in root) { return out }
+    let arr = root["responses"] as Array
+    if arr == nil { return out }
+    var i = 0
+    while i < arr.len() {
+        let obj = arr[i] as Object
+        if obj != nil {
+            out.append(_response_of(obj))
+        }
+        i += 1
+    }
+    return out
+}
+
+func _response_of(obj Object) MockResponse {
+    var chunks = list[str]()
+    if "chunks" in obj {
+        let arr = obj["chunks"] as Array
+        if arr != nil {
+            var i = 0
+            while i < arr.len() {
+                let v = arr[i]
+                if v is String { chunks.append(v.value) }
+                i += 1
+            }
+        }
+    }
+    let calls = _tool_calls_of(obj)
+    // A reply that asks for tools finishes with tool_calls unless the
+    // script says otherwise.
+    var finish = _opt_str(obj, "finish_reason", "")
+    if finish == "" {
+        if calls.len() > 0 { finish = "tool_calls" } else { finish = "stop" }
+    }
+    return MockResponse(_opt_str(obj, "content", ""),
+                        finish,
+                        _opt_bool(obj, "stream", false),
+                        chunks,
+                        _opt_int(obj, "status", 200),
+                        _opt_str(obj, "error", ""),
+                        calls)
+}
+
+/// The scripted `tool_calls` array: each entry names the call and gives its
+/// arguments either as JSON text or as an object.
+func _tool_calls_of(obj Object) list[MockToolCall] {
+    let out = list[MockToolCall]()
+    if !("tool_calls" in obj) { return out }
+    let arr = obj["tool_calls"] as Array
+    if arr == nil { return out }
+    var i = 0
+    while i < arr.len() {
+        let call = arr[i] as Object
+        if call != nil {
+            var args = ""
+            if "arguments" in call {
+                let v = call["arguments"]
+                if v is String {
+                    args = v.value
+                } else {
+                    args = v.to_json()
+                }
+            }
+            let id = _opt_str(call, "id", "call_" + str(i))
+            out.append(MockToolCall(id, _opt_str(call, "name", ""), args))
+        }
+        i += 1
+    }
+    return out
+}
+
+func _opt_str(obj Object, key str, def str) str {
+    if !(key in obj) { return def }
+    let v = obj[key]
+    if v is String { return v.value }
+    return def
+}
+
+func _opt_int(obj Object, key str, def int) int {
+    if !(key in obj) { return def }
+    let v = obj[key]
+    if v is Integer { return v.value }
+    return def
+}
+
+func _opt_bool(obj Object, key str, def bool) bool {
+    if !(key in obj) { return def }
+    let v = obj[key]
+    if v is Boolean { return v.value }
+    return def
+}
+
+/// Append one request body as one line; a test reads the file back.
+func _log_request(path str, body str) {
+    let f = fs.open(path, "a")
+    if f == nil { return }
+    let file = f
+    file.write_str(body)
+    file.write_str("\n")
+    file.close()
+}
+
+/// The non-streaming reply body the composer hands to `Response.json`.
+func _completion_json(content str, finish_reason str, calls list[MockToolCall]) str {
+    let root = Object()
+    root.add("id", String("mock-completion"))
+    root.add("object", String("chat.completion"))
+    root.add("created", Integer(0))
+    root.add("model", String("mock"))
+
+    let choices = Array()
+    let choice = Object()
+    choice.add("index", Integer(0))
+    let message = Object()
+    message.add("role", String("assistant"))
+    message.add("content", String(content))
+    if calls.len() > 0 {
+        let arr = Array()
+        for c in calls {
+            let f = Object()
+            f.add("name", String(c.name))
+            f.add("arguments", String(c.arguments))
+            let t = Object()
+            t.add("id", String(c.id))
+            t.add("type", String("function"))
+            t.add("function", f)
+            arr.add(t)
+        }
+        message.add("tool_calls", arr)
+    }
+    choice.add("message", message)
+    choice.add("finish_reason", String(finish_reason))
+    choices.add(choice)
+    root.add("choices", choices)
+    root.add("usage", _usage(10, 5))
+    return root.to_json()
+}
+
+/// The SSE frames of a reply: one chunk per text delta, then the tool calls
+/// — each opened by a chunk with its id and name, then its arguments in two
+/// fragments, as a real endpoint streams them — and a last chunk carrying
+/// the finish reason and the usage.
+func _frames(r MockResponse) list[str] {
+    let out = list[str]()
+    var deltas = r.chunks
+    if deltas.len() == 0 && r.content.len() > 0 {
+        deltas = list[str]()
+        deltas.append(r.content)
+    }
+    var i = 0
+    while i < deltas.len() {
+        out.append(_chunk_json(deltas[i], -1, "", "", "", Null(), Null()))
+        i += 1
+    }
+    var c = 0
+    while c < r.calls.len() {
+        let call = r.calls[c]
+        out.append(_chunk_json("", c, call.id, call.name, "", Null(), Null()))
+        let args = call.arguments
+        let cut = args.len() / 2
+        out.append(_chunk_json("", c, "", "", args.substr(0, cut), Null(), Null()))
+        out.append(_chunk_json("", c, "", "", args.substr(cut), Null(), Null()))
+        c += 1
+    }
+    out.append(_chunk_json("", -1, "", "", "", String(r.finish_reason), _usage(10, 5)))
+    return out
+}
+
+/// One chunk object: the text delta, and — when `index` is not negative —
+/// one tool call fragment at that index.
+func _chunk_json(delta str, index int, id str, name str, args str, finish Value, usage Value) str {
+    let root = Object()
+    root.add("id", String("mock-chunk"))
+    root.add("object", String("chat.completion.chunk"))
+    root.add("created", Integer(0))
+    root.add("model", String("mock"))
+
+    let choices = Array()
+    let choice = Object()
+    choice.add("index", Integer(0))
+    let d = Object()
+    d.add("content", String(delta))
+    if index >= 0 {
+        let calls = Array()
+        let tc = Object()
+        tc.add("index", Integer(index))
+        if id.len() > 0 { tc.add("id", String(id)) }
+        if id.len() > 0 { tc.add("type", String("function")) }
+        let f = Object()
+        if name.len() > 0 { f.add("name", String(name)) }
+        f.add("arguments", String(args))
+        tc.add("function", f)
+        calls.add(tc)
+        d.add("tool_calls", calls)
+    }
+    choice.add("delta", d)
+    choice.add("finish_reason", finish)
+    choices.add(choice)
+    root.add("choices", choices)
+    root.add("usage", usage)
+    return root.to_json()
+}
+
+func _usage(prompt int, completion int) Object {
+    let u = Object()
+    u.add("prompt_tokens", Integer(prompt))
+    u.add("completion_tokens", Integer(completion))
+    u.add("total_tokens", Integer(prompt + completion))
+    return u
+}
+
+func _error_response(status int, message str) http.Response {
+    let err = Object()
+    err.add("message", String(message))
+    let root = Object()
+    root.add("error", err)
+    return http.Response.json(status, root.to_json())
+}

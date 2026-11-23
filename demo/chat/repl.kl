@@ -3,6 +3,7 @@
  */
 
 import "std/fs"
+import "koala/datetime"
 import "koala/readline"
 import "koala/tui"
 
@@ -87,19 +88,33 @@ pub func prompt() str {
     return "> "
 }
 
-/// The /sessions table: the 1-based switch number, the name, the model and
-/// the message count, aligned into columns. The current session is marked
-/// and highlighted; a paused one gets `⏸`. Long names are elided so the
-/// table fits the transcript width.
+/// The /sessions table: the 1-based switch number, the name, the model, how
+/// many messages the chat and the agent hold (`12+34`), and when the record
+/// was last written, aligned into columns. The current session is marked
+/// and highlighted; a paused one gets `⏸`. Long names are elided and the
+/// trailing columns drop first so the table fits the transcript width.
 func _show_sessions(mgr SessionManager) {
     let rows = list[SessionRow]()
     for i in range(mgr.count()) {
         let s = mgr.at(i)
-        rows.append(SessionRow(i + 1, s.name(), s.current_model(), s.messages.len(), s.is_paused(), i == mgr.current_index()))
+        let (chat_n, agent_n) = s.message_counts()
+        rows.append(SessionRow(i + 1, s.name(), s.current_model(), chat_n, s.is_paused(),
+                               i == mgr.current_index(), agent_n, _last_active(mgr.store.mtime(s.id()))))
     }
     var cols = 78
     if let c = _chrome { cols = c.content_width() }
     for line in session_lines(rows, cols, plain_mode()) { emit(line) }
+    // files that could not be loaded are listed after the table, so a bad
+    // record is visible instead of just a startup warning
+    for b in mgr.broken() { emit(broken_session_line(b)) }
+}
+
+/// The `MM-DD HH:MM` of a record's last write, "" when the stat failed.
+func _last_active(ns int) str {
+    if ns <= 0 { return "" }
+    let iso = datetime.DateTime.from_timestamp_nanos(ns).to_str()
+    if iso.len() < 16 { return "" }
+    return iso.substr(5, 10) + " " + iso.substr(11, 16)
 }
 
 // ---- the agent-CLI layout: a boxed transcript, a boxed input area, and ----
@@ -323,7 +338,7 @@ func _draw_status() {
             left = c.screen.columns() - readline.width(status_event(_status_mode, "")) - 1
         }
         if left < 1 { left = 1 }
-        detail = s.status_line(left)
+        detail = s.status_line(left, _status_mode == "agent")
     }
     _write_status(status_event(_status_mode, detail))
 }
@@ -517,7 +532,8 @@ class _ChatDisplay : readline.DisplayMatchesHook {
 /// Ask the terminal user to approve one write/shell action. The callback is
 /// injected into `Agent`; it draws the command or diff, then reads one of
 /// y/a/n/d from the input box. Blank input and EOF deny. `d` expands the
-/// diff and asks again; `a` is handled by `Agent` as "all this session".
+/// diff and asks again; `a` is handled by `Agent` as "all of this kind for
+/// the rest of the session" (a shell approval does not approve edits).
 pub func request_approval(info str, body str, workdir str) str {
     let target = action_target(info, workdir)
     var old = ""
@@ -580,7 +596,7 @@ func _approval_input() str {
 /// work in both. The current session is persisted at the top of every
 /// turn, so each line's effects (and the last one before quitting) reach
 /// disk.
-func run_repl(mgr SessionManager, cfg Config) {
+func run_repl(mgr SessionManager, cfg Config, announce = "") {
     // False on the first run, when there is no history file yet.
     readline.read_history_file(cfg.history_file)
     readline.set_history_length(200)
@@ -604,6 +620,8 @@ func run_repl(mgr SessionManager, cfg Config) {
     }
 
     var mode = "chat"
+    // the mode /plan returns to when it is switched off
+    var plan_back = PERM_DEFAULT
     // A full frame clears the screen. It is only needed on the first frame
     // and after /clear; the ordinary turn only overwrites its own rows.
     var full = true
@@ -612,8 +630,13 @@ func run_repl(mgr SessionManager, cfg Config) {
     for line in startup_lines(cfg.model, chrome.content_width(), plain_mode()) {
         emit(line)
     }
+    if announce != "" { emit(announce) }
     while true {
         mgr.save_current()
+        // A stop point: the turn is over and the session is on disk, so the
+        // previous line's garbage (including the record just serialized) is
+        // collectable. This is what keeps a long session inside KOALA_GC_MAX.
+        settle_heap()
         let session = mgr.current_session()
         _status_mode = mode
         _status_session = session
@@ -671,6 +694,48 @@ func run_repl(mgr SessionManager, cfg Config) {
             _status_mode = mode
             let task = line.substr(7, line.len()).strip()
             if task != "" { session.agent(task) }
+            mgr.save_current()
+            continue
+        }
+        if line == "/continue" {
+            session.continue_agent()
+            mgr.save_current()
+            continue
+        }
+        if line == "/cancel" {
+            if !session.cancel_agent() { emit("(nothing to cancel)") }
+            mgr.save_current()
+            continue
+        }
+        if line == "/permissions" || line.starts_with("/permissions ") {
+            var arg = ""
+            if line.starts_with("/permissions ") { arg = line.substr(12, line.len()).strip() }
+            if arg == "" {
+                for l in permission_lines(session.permission(), session.cfg.agent_allow_tools, session.cfg.agent_deny_tools, session.cfg.agent_bash_deny) { emit(l) }
+            } else if session.set_permission_mode(arg) {
+                emit("(permission mode: " + session.permission() + ")")
+            } else {
+                emit("(unknown permission mode: " + arg + "; one of " + permission_modes_text() + ")")
+            }
+            continue
+        }
+        if line == "/plan" || line.starts_with("/plan ") {
+            var arg = ""
+            if line.starts_with("/plan ") { arg = line.substr(6, line.len()).strip().lower() }
+            if arg == "off" || arg == "exit" || arg == "done" {
+                if session.permission() == PERM_PLAN {
+                    session.set_permission_mode(plan_back)
+                    emit("(plan mode off; permission mode: " + session.permission() + ")")
+                } else {
+                    emit("(not in plan mode)")
+                }
+            } else if arg == "" || arg == "on" {
+                if session.permission() != PERM_PLAN { plan_back = session.permission() }
+                session.set_permission_mode(PERM_PLAN)
+                emit("(plan mode: the agent may only read; /plan off to execute)")
+            } else {
+                emit("(usage: /plan [off])")
+            }
             continue
         }
         if line == "/reset" {
@@ -714,12 +779,30 @@ func run_repl(mgr SessionManager, cfg Config) {
             }
             continue
         }
-        if line == "/resume" || line.starts_with("/resume ") {
-            let target = line.substr(7, line.len()).strip()
+        if line == "/unpause" || line.starts_with("/unpause ") {
+            let target = line.substr(8, line.len()).strip()
             var t str? = nil
             if target != "" { t = target }
             if let n = mgr.set_paused(t, false) {
-                emit("(resumed " + n + ")")
+                emit("(unpaused " + n + ": automatic compaction is back on)")
+            } else {
+                emit("no such session: " + target)
+            }
+            continue
+        }
+        if line == "/resume" || line.starts_with("/resume ") {
+            let target = line.substr(7, line.len()).strip()
+            if target == "" {
+                // with no argument, show the list and the way to pick one
+                _show_sessions(mgr)
+                emit("(usage: /resume N or /resume NAME)")
+                continue
+            }
+            if mgr.switch_to(target) {
+                let s = mgr.current_session()
+                let (chat_n, agent_n) = s.message_counts()
+                emit("(resumed " + s.name() + ": " + str(chat_n) + " chat + " + str(agent_n) +
+                     " agent messages, model " + s.current_model() + ")")
             } else {
                 emit("no such session: " + target)
             }
@@ -730,7 +813,7 @@ func run_repl(mgr SessionManager, cfg Config) {
             if name == "" {
                 emit("(usage: /rename NAME)")
             } else if mgr.rename(name) {
-                emit("(renamed to " + name + ")")
+                emit("(renamed to " + name + "; the file keeps its id)")
             } else {
                 emit("rename failed (name taken or invalid): " + name)
             }
@@ -791,7 +874,7 @@ func run_repl(mgr SessionManager, cfg Config) {
                 emit("(usage: /file PATH)")
             } else if session.is_blocked(path) {
                 emit("no access: " + path)
-            } else if let n = session.load_file(path) {
+            } else if let n = session.load_file(path, mode == "agent") {
                 emit("(loaded " + path + ", " + str(n) + " chars)")
             } else {
                 emit("cannot read: " + path)
@@ -802,7 +885,7 @@ func run_repl(mgr SessionManager, cfg Config) {
             let path = expand(line.substr(1, line.len()))
             if session.is_blocked(path) {
                 emit("no access: " + path)
-            } else if let n = session.load_file(path) {
+            } else if let n = session.load_file(path, mode == "agent") {
                 emit("(loaded " + path + ", " + str(n) + " chars)")
             } else {
                 emit("cannot read: " + path)
@@ -822,6 +905,9 @@ func run_repl(mgr SessionManager, cfg Config) {
         } else {
             session.ask(line)
         }
+        // save right away: an interrupt or a step limit at the end of this
+        // turn must survive a quit on the next prompt
+        mgr.save_current()
     }
 
     screen.leave()
@@ -859,6 +945,10 @@ pub func command_infos() list[CommandInfo] {
         CommandInfo("/file", "PATH", "load a file (or type @PATH)", "Files"),
         CommandInfo("/agent", "[TASK]", "enter agent mode, or run TASK now", "Agent"),
         CommandInfo("/chat", "", "return to Q&A mode", "Agent"),
+        CommandInfo("/continue", "", "resume the agent after the step limit", "Agent"),
+        CommandInfo("/cancel", "", "drop a turn a Ctrl-C interrupted", "Agent"),
+        CommandInfo("/permissions", "[MODE]", "show or switch what runs without asking", "Agent"),
+        CommandInfo("/plan", "[off]", "plan mode: the agent may only read", "Agent"),
         CommandInfo("/workdir", "[PATH]", "show or set the agent work dir", "Agent"),
         CommandInfo("/model", "[NAME]", "show or switch the model", "Model"),
         CommandInfo("/models", "", "list the endpoint's models", "Model"),
@@ -866,7 +956,8 @@ pub func command_infos() list[CommandInfo] {
         CommandInfo("/sessions", "", "list sessions", "Sessions"),
         CommandInfo("/switch", "N|NAME", "switch to another session", "Sessions"),
         CommandInfo("/pause", "[N|NAME]", "pause automatic compaction", "Sessions"),
-        CommandInfo("/resume", "[N|NAME]", "resume automatic compaction", "Sessions"),
+        CommandInfo("/unpause", "[N|NAME]", "resume automatic compaction", "Sessions"),
+        CommandInfo("/resume", "[N|NAME]", "restore a saved session (no argument lists them)", "Sessions"),
         CommandInfo("/rename", "NAME", "rename the current session", "Sessions"),
     ]
 }
@@ -1011,6 +1102,36 @@ pub func unknown_command(line str) str {
     return "(unknown command: " + name + "; /help lists commands)"
 }
 
+/// The `/permissions` report: the current mode, the table, and the config
+/// rules that override it. Rows stay inside 78 columns.
+pub func permission_lines(cur str, allow list[str], deny list[str], bash_deny list[str]) list[str] {
+    let out = list[str]()
+    out.append("permission mode: " + cur)
+    for m in permission_modes() {
+        var label = m
+        while readline.width(label) < 12 { label += " " }
+        var mark = "  "
+        if m == cur { mark = "* " }
+        out.append("  " + mark + label + "  " + permission_mode_desc(m))
+    }
+    out.append("  allow_tools: " + _list_or_none(allow))
+    out.append("  deny_tools: " + _list_or_none(deny))
+    out.append("  bash deny prefixes: " + _list_or_none(bash_deny))
+    out.append("/permissions MODE switches; /plan enters plan mode, /plan off leaves")
+    return out
+}
+
+/// `a, b` for a non-empty list, else `(none)`.
+func _list_or_none(items list[str]) str {
+    if items.len() == 0 { return "(none)" }
+    var out = ""
+    for i in items {
+        if out != "" { out += ", " }
+        out += i
+    }
+    return out
+}
+
 /// The grouped `/help` text: commands first, then keyboard shortcuts. It
 /// stays ASCII so pipes and dumb terminals need no fallback, and every row
 /// fits an 80-column terminal.
@@ -1026,7 +1147,8 @@ pub func help_lines() list[str] {
 
 /// Tab completion: the /commands for the first word, model names after
 /// "/model ", file paths after "/file " or a leading "@", directories after
-/// "/workdir ", and session names after "/switch ", "/pause " and "/resume ".
+/// "/workdir ", and session names after "/switch ", "/pause ", "/unpause "
+/// and "/resume ".
 /// No trailing space is added — commands are matched exactly and arguments
 /// are parsed as-is, so a stray space would break "/quit" or end up inside
 /// a model name or path.
@@ -1060,9 +1182,10 @@ class _ChatCompleter : readline.Completer {
         }
         let cmd = before.split(" ")[0]
         if cmd == "/model" { return _nth(_model_list(), text, state) }
+        if cmd == "/permissions" { return _nth(permission_modes(), text, state) }
         if cmd == "/file" { return _nth(_files(text), text, state) }
         if cmd == "/workdir" { return _nth(_dirs(text), text, state) }
-        if cmd == "/switch" || cmd == "/pause" || cmd == "/resume" { return _nth(mgr.names(), text, state) }
+        if cmd == "/switch" || cmd == "/pause" || cmd == "/unpause" || cmd == "/resume" { return _nth(mgr.names(), text, state) }
         return nil
     }
 

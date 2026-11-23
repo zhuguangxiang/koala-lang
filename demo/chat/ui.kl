@@ -297,7 +297,7 @@ pub func tool_start(step int, info str, plain = false) str {
 pub func tool_result(result str, max_lines = 20, plain = false) str {
     let lines = result.split("\n")
     let first = lines[0]
-    let ok = first.starts_with("exit 0") || first.starts_with("write ok:")
+    let ok = _result_ok(first)
     if ok {
         var mark = GLYPH_RESULT + " " + GLYPH_OK
         if plain { mark = "+" }
@@ -339,6 +339,19 @@ pub func tool_result(result str, max_lines = 20, plain = false) str {
         i += 1
     }
     return out
+}
+
+/// True when the first line of a result marks success: the shell's
+/// `exit 0`, or one of the tools' `ok:` lines.
+func _result_ok(first str) bool {
+    if first.starts_with("exit 0") { return true }
+    if first.starts_with("write ok:") { return true }
+    if first.starts_with("read ok:") { return true }
+    if first.starts_with("edit ok:") { return true }
+    if first.starts_with("glob ok:") { return true }
+    if first.starts_with("grep ok:") { return true }
+    if first.starts_with("todo ok:") { return true }
+    return false
 }
 
 /// The `tool_end` event: the result block shown after a tool finishes. It is
@@ -402,15 +415,30 @@ pub class SessionRow {
     pub let msgs int
     pub let paused bool
     pub let current bool
+    /// The agent conversation's message count; 0 when no agent has run.
+    pub let agent_msgs int
+    /// The record's last write as "MM-DD HH:MM"; "" hides the column.
+    pub let active str
 
-    pub func __init__(_number int, _name str, _model str, _msgs int, _paused bool, _current bool) {
+    pub func __init__(_number int, _name str, _model str, _msgs int, _paused bool, _current bool,
+                      _agent_msgs int = 0, _active str = "") {
         number = _number
         name = _name
         model = _model
         msgs = _msgs
         paused = _paused
         current = _current
+        agent_msgs = _agent_msgs
+        active = _active
     }
+}
+
+/// The message-count cell of a session row: the chat count, with the
+/// agent's after a `+` once the agent has run (`12+34`), so one column
+/// tells both histories apart.
+func _msgs_text(row SessionRow) str {
+    if row.agent_msgs > 0 { return str(row.msgs) + "+" + str(row.agent_msgs) }
+    return str(row.msgs)
 }
 
 /// The decimal digits in `n`, at least one.
@@ -436,6 +464,13 @@ func _pad_left(text str, cols int) str {
     return out
 }
 
+/// One footer line for a session file that could not be loaded: a `!` mark
+/// followed by the id and the reason. Anything after the mark is plain text,
+/// so `/sessions` and `/resume` can print it without terminal escapes.
+pub func broken_session_line(what str) str {
+    return "! " + what
+}
+
 /// The `/sessions` table: `● 1 main  auto  12 msgs`, one row per session.
 /// Names and models are elided on the right to fit `cols`, names first keep
 /// four columns when possible. The current row is bold cyan, the paused
@@ -450,15 +485,18 @@ pub func session_lines(rows list[SessionRow], cols int, plain = false) list[str]
     var msg_width = 1
     var max_name = 1
     var max_model = 1
+    var active_width = 0
     for row in rows {
         let nd = _digits(row.number)
         if nd > num_width { num_width = nd }
-        let md = _digits(row.msgs)
+        let md = readline.width(_msgs_text(row))
         if md > msg_width { msg_width = md }
         let nw = readline.width(row.name)
         if nw > max_name { max_name = nw }
         let mw = readline.width(row.model)
         if mw > max_model { max_model = mw }
+        let aw = readline.width(row.active)
+        if aw > active_width { active_width = aw }
     }
     // marker + space + number + space + name + 2 + model + 2 + msgs + " msgs"
     let full_fixed = 12 + num_width + msg_width
@@ -490,6 +528,11 @@ pub func session_lines(rows list[SessionRow], cols int, plain = false) list[str]
         }
         if name_width < 1 { name_width = 1 }
     }
+    // the last-active column is the first to go when the row is narrow
+    var with_active = false
+    if active_width > 0 {
+        if cols >= full_fixed + 8 + 2 + active_width { with_active = true }
+    }
     for row in rows {
         var mark = " "
         if row.paused {
@@ -505,7 +548,10 @@ pub func session_lines(rows list[SessionRow], cols int, plain = false) list[str]
             line += "  " + model
         }
         if with_msgs {
-            line += "  " + _pad_left(str(row.msgs), msg_width) + " msgs"
+            line += "  " + _pad_left(_msgs_text(row), msg_width) + " msgs"
+        }
+        if with_active {
+            line += "  " + readline.pad_text(elide_right(row.active, active_width, plain), active_width)
         }
         if row.current && !plain {
             line = "\x1b[1;36m" + line + "\x1b[0m"
@@ -807,6 +853,15 @@ pub func action_detail(info str, body str, plain = false) list[str] {
     return out
 }
 
+/// The `[a]` label for one approval. `a` covers the action's kind only, so
+/// allowing an edit does not silently allow a shell command.
+pub func approval_all_label(info str) str {
+    let kind = tool_kind(info)
+    if kind == "bash" { return "all commands this session" }
+    if kind == "write" || kind == "edit" { return "all edits this session" }
+    return "all this session"
+}
+
 /// The preview for one approval: a write's summary and diff, or the hint
 /// alone for a shell (its command is in `action_detail`). `show_diff` is
 /// false when the old file is too large to read safely.
@@ -837,7 +892,7 @@ pub func approval_lines(info str, body str, old_text str, old_exists bool, show_
     }
     var sep = " · "
     if plain { sep = " | " }
-    out.append("  [y] once" + sep + "[a] all this session" + sep + "[n] deny" + sep + "[d] full diff")
+    out.append("  [y] once" + sep + "[a] " + approval_all_label(info) + sep + "[n] deny" + sep + "[d] full diff")
     return out
 }
 

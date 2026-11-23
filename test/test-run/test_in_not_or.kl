@@ -1,0 +1,52 @@
+// RUN: koala %s | filecheck %s
+//
+// issue-130 (semantics): `!(k in x) || !(k2 in x)` must be true when either
+// key is absent. Covered on a plain dict, on a class `__contains__`, on a
+// container narrowed from an optional type (`let v = parse_str(s) as Object`
+// followed by a nil check, the shape used by demo/chat/tools.kl), and on the
+// correct form for a nullable container: unwrap it with '!' (`k in v!`).
+
+from "koala/json" import Object, String, parse_str
+
+func guard(a Object) bool {
+    return !("path" in a) || !("content" in a)
+}
+
+func narrowed(s str) bool {
+    let v = parse_str(s) as Object
+    if v == nil { return true }
+    let a = v
+    return !("path" in a) || !("content" in a)
+}
+
+func unwrapped(s str) bool {
+    let v = parse_str(s) as Object
+    return !("path" in v!) || !("content" in v!)
+}
+
+func main() {
+    // dict: one of the two keys is absent
+    let d = dict[str, str]()
+    d["a"] = "1"
+    print(!("a" in d) || !("b" in d))
+    // CHECK: true
+
+    // class with a user defined `__contains__`: only `path` is present
+    let o = Object()
+    o.add("path", String("a.txt"))
+    print(guard(o))
+    // CHECK-NEXT: true
+
+    // both keys present
+    o.add("content", String("body"))
+    print(guard(o))
+    // CHECK-NEXT: false
+
+    // container narrowed from `Object?`
+    print(narrowed("{\"path\": \"a.txt\"}"), narrowed("{\"path\": \"a.txt\", \"content\": \"body\"}"))
+    // CHECK-NEXT: true false
+
+    // nullable container unwrapped with '!': `k in v!`
+    print(unwrapped("{\"path\": \"a.txt\"}"), unwrapped("{\"path\": \"a.txt\", \"content\": \"body\"}"))
+    // CHECK-NEXT: true false
+}

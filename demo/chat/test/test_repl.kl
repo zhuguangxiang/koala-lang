@@ -81,13 +81,70 @@ func test_help_lines_cover_commands() {
 }
 
 @test
+func test_permission_commands_are_registered() {
+    let names = chat.command_names()
+    ut.assert_true("/permissions" in names)
+    ut.assert_true("/plan" in names)
+    ut.assert_true("/permissions" in chat.command_matches("/perm"))
+    ut.assert_true(chat.is_known_command("/permissions plan"))
+    ut.assert_true(chat.is_known_command("/plan off"))
+}
+
+@test
+func test_permission_lines() {
+    let none = list[str]()
+    let rows = chat.permission_lines("plan", none, none, none)
+    var joined = ""
+    for l in rows {
+        joined += l + "\n"
+        ut.assert_true(readline.width(l) <= 78)
+        ut.assert_false("\x1b" in l)
+    }
+    ut.assert_eq(rows[0], "permission mode: plan")
+    // every mode is listed, the current one is marked
+    ut.assert_true("* plan" in joined)
+    ut.assert_true("accept_edits" in joined)
+    ut.assert_true("bypass" in joined)
+    ut.assert_true("(none)" in joined)
+    ut.assert_true("/plan off" in joined)
+
+    // the config rules are echoed as given
+    let allow = list[str]()
+    allow.append("Read")
+    let deny = list[str]()
+    deny.append("Bash")
+    let prefixes = list[str]()
+    prefixes.append("rm")
+    let cfg_rows = chat.permission_lines("default", allow, deny, prefixes)
+    var text = ""
+    for l in cfg_rows { text += l + "\n" }
+    ut.assert_true("allow_tools: Read" in text)
+    ut.assert_true("deny_tools: Bash" in text)
+    ut.assert_true("bash deny prefixes: rm" in text)
+}
+
+@test
+func test_session_commands_are_registered() {
+    let names = chat.command_names()
+    ut.assert_true("/switch" in names)
+    ut.assert_true("/pause" in names)
+    ut.assert_true("/unpause" in names)
+    ut.assert_true("/resume" in names)
+    ut.assert_true(chat.is_known_command("/resume 2"))
+    ut.assert_true(chat.is_known_command("/unpause work"))
+    // /unpause has its own entry, so /pause is not its prefix
+    ut.assert_eq(chat.command_info("/unpause")!.desc, "resume automatic compaction")
+    ut.assert_true("saved session" in chat.command_info("/resume")!.desc)
+}
+
+@test
 func test_command_matches_are_fuzzy() {
     // An empty filter offers every command, in completion order.
     let all = chat.command_matches("/")
     let names = chat.command_names()
     ut.assert_eq(all.len(), names.len())
     for i in range(names.len()) { ut.assert_eq(all[i], names[i]) }
-    // Subsequence filtering: /se matches sessions, pause and resume.
+    // Subsequence filtering: /se matches sessions, pause, unpause and resume.
     let se = chat.command_matches("/se")
     ut.assert_true("/sessions" in se)
     ut.assert_true("/pause" in se)

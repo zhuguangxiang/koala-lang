@@ -1,0 +1,331 @@
+// RUN: koala %s --test
+
+// Tool calling: the rich message types, the request body that declares
+// tools, the assembly of streamed tool call fragments, and the parsing
+// of a non-streaming response.
+//
+// The streaming tests use the loopback trick of test_openai.kl: the
+// request head is read lazily, so one thread drives both ends.
+//
+// `create_tools` blocks on its response, so its test runs the client in
+// a child koala process while this file serves one canned reply.
+
+import "std/ut"
+import "std/os"
+import "std/fs"
+import "std/socket" as so
+import "koala/openai" as openai
+from "koala/json" import Object, String
+from "koala/http" import Server, Request, Response
+
+const _SSE_HEAD = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n"
+
+func _url(listener so.Listener) str {
+    return "http://127.0.0.1:" + str(listener.local_addr().port())
+}
+
+// Accept, read the request, write `response`, close the peer side.
+// Return the received request text.
+func _serve(listener so.Listener, response str) str {
+    let r = listener.accept()
+    let server = r.conn()!
+    let buf = bytes(65536)
+    let n = server.read(buf)
+    let req = buf[0:n].to_str()
+    server.write_str(response)
+    server.close()
+    return req
+}
+
+func _schema() Object {
+    let prop = Object()
+    prop.add("type", String("string"))
+    let props = Object()
+    props.add("path", prop)
+    let schema = Object()
+    schema.add("type", String("object"))
+    schema.add("properties", props)
+    return schema
+}
+
+// ---- the types ----
+
+@test
+func test_message_helpers() {
+    let user = openai.user_msg("hi")
+    ut.assert_eq(user.role, "user")
+    ut.assert_eq(user.content, "hi")
+    ut.assert_eq(user.tool_calls.len(), 0)
+    ut.assert_eq(user.tool_call_id, "")
+
+    let call = openai.ToolCall("call_1", "function", openai.FunctionCall("Write", "{}"))
+    let asst = openai.assistant_msg("", [call])
+    ut.assert_eq(asst.role, "assistant")
+    ut.assert_true(asst.has_tool_calls())
+    ut.assert_eq(asst.tool_calls[0].name(), "Write")
+
+    let result = openai.tool_msg("call_1", "wrote a.txt")
+    ut.assert_eq(result.role, "tool")
+    ut.assert_eq(result.tool_call_id, "call_1")
+    ut.assert_eq(result.content, "wrote a.txt")
+}
+
+@test
+func test_tool_call_args() {
+    let call = openai.ToolCall("c1", "function", openai.FunctionCall("Write", "{\"path\":\"a.txt\",\"n\":2}"))
+    let args = call.args() else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_eq(args.get_str("path"), "a.txt")
+    ut.assert_eq(args.get_int("n"), 2)
+
+    // The model may write something that is not JSON: nil, never a panic.
+    let bad = openai.ToolCall("c2", "function", openai.FunctionCall("Write", "{\"path\":"))
+    ut.assert_true(bad.args() == nil)
+    let not_obj = openai.ToolCall("c3", "function", openai.FunctionCall("Write", "[1,2]"))
+    ut.assert_true(not_obj.args() == nil)
+
+    let def = openai.ToolDef.of("Write", "Write a file", _schema())
+    ut.assert_eq(def.name(), "Write")
+    ut.assert_eq(def.type_, "function")
+    ut.assert_eq(def.function.description, "Write a file")
+}
+// ---- the request body ----
+
+@test
+func test_tools_request_body() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+
+    let call = openai.ToolCall("call_1", "function", openai.FunctionCall("Write", "{\"path\":\"a.txt\"}"))
+    let msgs = list[openai.CompletionMessage]()
+    msgs.append(openai.system_msg("be brief"))
+    msgs.append(openai.user_msg("write a file"))
+    msgs.append(openai.assistant_msg("", [call]))
+    msgs.append(openai.tool_msg("call_1", "wrote a.txt"))
+    let tools = [openai.ToolDef.of("Write", "Write a file", _schema())]
+
+    let stream = client.chat.completions.stream_tools("m", msgs, tools)
+    let req = _serve(listener, _SSE_HEAD + "data: [DONE]\n\n")
+
+    ut.assert_true(stream.ok())
+    // the tool declaration and the choice
+    ut.assert_true("\"tools\":[" in req)
+    ut.assert_true("\"tool_choice\":\"auto\"" in req)
+    ut.assert_true("\"type\":\"function\",\"function\":{\"name\":\"Write\"" in req)
+    ut.assert_true("\"description\":\"Write a file\"" in req)
+    ut.assert_true("\"parameters\":{\"type\":\"object\"" in req)
+    // the assistant turn that asked for the call: no empty content
+    ut.assert_true("{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\"" in req)
+    // the tool result
+    ut.assert_true("{\"role\":\"tool\",\"content\":\"wrote a.txt\",\"tool_call_id\":\"call_1\"}" in req)
+    // the plain turns keep sending content
+    ut.assert_true("{\"role\":\"system\",\"content\":\"be brief\"}" in req)
+    // still a streamed request
+    ut.assert_true("\"stream\":true" in req)
+    stream.close()
+    listener.close()
+}
+
+// A request with tools=[] must not declare any.
+@test
+func test_empty_tools_omits_field() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+    let stream = client.chat.completions.stream_tools("m", [openai.user_msg("hi")], list[openai.ToolDef]())
+    let req = _serve(listener, _SSE_HEAD + "data: [DONE]\n\n")
+
+    ut.assert_true(!("\"tools\"" in req))
+    ut.assert_true(!("\"tool_choice\"" in req))
+    ut.assert_true(stream.ok())
+    stream.close()
+    listener.close()
+}
+
+// ---- streamed tool calls ----
+
+// Two calls, the first with its arguments split across two chunks, plus
+// frames a proxy may inject: a null choices list, a wrong-typed
+// tool_calls field.
+const _TOOL_CHUNKS = "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"call_a\",\"type\":\"function\",\"function\":{\"name\":\"Write\",\"arguments\":\"{\\\"path\\\":\"}}]},\"finish_reason\":null}]}\n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\"a.txt\\\"}\"}}]},\"finish_reason\":null}]}\n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":1,\"id\":\"call_b\",\"type\":\"function\",\"function\":{\"name\":\"Bash\",\"arguments\":\"{\\\"cmd\\\":\\\"ls\\\"}\"}}]},\"finish_reason\":null}]}\n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":null,\"usage\":null}\n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":\"oops\"},\"finish_reason\":null}]}\n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n" +
+    "data: [DONE]\n\n"
+
+@test
+func test_stream_tools_assembles_calls() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+    let tools = [openai.ToolDef.of("Write", "Write a file", _schema())]
+    let stream = client.chat.completions.stream_tools("m", [openai.user_msg("hi")], tools)
+    _serve(listener, _SSE_HEAD + _TOOL_CHUNKS)
+
+    ut.assert_true(stream.ok())
+    var chunks = 0
+    var tool_chunks = 0
+    var tail_args = ""
+    for chunk in stream {
+        chunks += 1
+        if chunk.has_tool_delta() {
+            tool_chunks += 1
+            if chunk.tool_index == 0 && chunk.tool_name == "Write" {
+                ut.assert_eq(chunk.tool_id, "call_a")
+                ut.assert_eq(chunk.tool_args_delta, "{\"path\":")
+            }
+            if chunk.tool_index == 0 && chunk.tool_name == "" {
+                tail_args += chunk.tool_args_delta
+            }
+        }
+    }
+    ut.assert_eq(chunks, 6)
+    ut.assert_eq(tool_chunks, 3)
+    ut.assert_eq(tail_args, "\"a.txt\"}")
+    ut.assert_eq(stream.finish_reason(), "tool_calls")
+
+    let calls = stream.tool_calls()
+    ut.assert_eq(calls.len(), 2)
+    if calls.len() < 2 { return }
+    ut.assert_eq(calls[0].id, "call_a")
+    ut.assert_eq(calls[0].name(), "Write")
+    ut.assert_eq(calls[0].arguments(), "{\"path\":\"a.txt\"}")
+    ut.assert_eq(calls[1].id, "call_b")
+    ut.assert_eq(calls[1].name(), "Bash")
+    let args = calls[1].args() else {
+        ut.assert_true(false)
+        return
+    }
+    ut.assert_eq(args.get_str("cmd"), "ls")
+    stream.close()
+    listener.close()
+}
+
+// A stream with no tool calls reports none, and keeps the text delta.
+@test
+func test_stream_tools_without_calls() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+    let tools = [openai.ToolDef.of("Write", "w", _schema())]
+    let stream = client.chat.completions.stream_tools("m", [openai.user_msg("hi")], tools)
+    let body = "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n\n" +
+        "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n" +
+        "data: [DONE]\n\n"
+    _serve(listener, _SSE_HEAD + body)
+
+    var text = ""
+    for chunk in stream { text += chunk.delta }
+    ut.assert_eq(text, "Hello")
+    ut.assert_eq(stream.tool_calls().len(), 0)
+    ut.assert_eq(stream.finish_reason(), "stop")
+    stream.close()
+    listener.close()
+}
+// ---- non-streaming, in a child process ----
+
+const _BODY = "{\"id\":\"chatcmpl-1\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"m\"," +
+    "\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":null," +
+    "\"tool_calls\":[" +
+    "{\"id\":\"call_a\",\"type\":\"function\",\"function\":{\"name\":\"Write\",\"arguments\":\"{\\\"path\\\":\\\"a.txt\\\"}\"}}," +
+    "{\"id\":\"call_b\",\"type\":\"function\",\"function\":{\"name\":\"Bash\",\"arguments\":\"{\\\"cmd\\\":\\\"ls\\\"}\"}}" +
+    "]},\"finish_reason\":\"tool_calls\"}]," +
+    "\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":5,\"total_tokens\":14}}"
+
+const REQ_FILE = "/tmp/koala_openai_tools_req.json"
+
+// The client half: `create_tools` blocks, so it runs in a child process.
+const CLIENT = "import \"std/sys\"\n" +
+    "import \"koala/openai\" as openai\n" +
+    "from \"koala/json\" import Object, String\n" +
+    "func main() {\n" +
+    "    let schema = Object()\n" +
+    "    schema.add(\"type\", String(\"object\"))\n" +
+    "    let tools = [openai.ToolDef.of(\"Write\", \"Write a file\", schema)]\n" +
+    "    let msgs = [openai.user_msg(\"write a.txt\")]\n" +
+    "    let c = openai.Client(\"sk\", \"http://127.0.0.1:\" + sys.args()[1])\n" +
+    "    let r = c.chat.completions.create_tools(\"m\", msgs, tools)\n" +
+    "    if !r.ok() { print(\"ERR \" + r.error_message); return }\n" +
+    "    let msg = r.choices[0].message\n" +
+    "    var out = \"status=\" + str(r.status_code) + \" finish=\" + r.choices[0].finish_reason\n" +
+    "    out = out + \" calls=\" + str(msg.tool_calls.len()) + \" total=\" + str(r.usage.total_tokens)\n" +
+    "    var i = 0\n" +
+    "    while i < msg.tool_calls.len() {\n" +
+    "        let tc = msg.tool_calls[i]\n" +
+    "        out = out + \" [\" + tc.id + \" \" + tc.name() + \" \" + tc.arguments() + \"]\"\n" +
+    "        i += 1\n" +
+    "    }\n" +
+    "    print(out)\n" +
+    "}\n"
+
+// The request the server saw, so the body assertions can run after it
+// has been served.
+func _handle(req Request) Response {
+    fs.write_str(REQ_FILE, req.body().to_str())
+    return Response.of(200, "application/json", _BODY.to_bytes())
+}
+
+func spawn(script str, port int) (os.Process, str) {
+    let f = fs.make_temp_file("koala_openai_child", ".kl")!
+    fs.write_str(f, script)
+    let p = os.run("koala", [f.to_str(), str(port)])!
+    return (p, f.to_str())
+}
+
+func finish(p os.Process, path str) str {
+    let r = p.communicate(nil, 30.0)
+    fs.remove(path)
+    let (out, _) = r else {
+        p.kill()
+        p.wait()
+        return ""
+    }
+    return out.to_str()
+}
+
+@test
+func test_create_tools_parses_response() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let (p, path) = spawn(CLIENT, srv.port())
+    ut.assert_true(srv.serve_once(_handle))
+    let out = finish(p, path)
+    let req = fs.read_str(REQ_FILE)
+    fs.remove(REQ_FILE)
+    srv.close()
+
+    // the request declared the tool
+    ut.assert_true("\"tools\":[" in req)
+    ut.assert_true("\"tool_choice\":\"auto\"" in req)
+    ut.assert_true(!("\"stream\"" in req))
+
+    // the response carried two calls
+    ut.assert_true(out.starts_with("status=200 finish=tool_calls calls=2 total=14"))
+    ut.assert_true("[call_a Write {\"path\":\"a.txt\"}]" in out)
+    ut.assert_true("[call_b Bash {\"cmd\":\"ls\"}]" in out)
+}
+
+// A response with no choices must not blow up the caller.
+@test
+func test_empty_choices_is_not_fatal() {
+    let srv = Server.listen("127.0.0.1:0")!
+    let (p, path) = spawn(EMPTY_CLIENT, srv.port())
+    ut.assert_true(srv.serve_once(_handle_empty))
+    let out = finish(p, path)
+    srv.close()
+    ut.assert_true(out.starts_with("status=200 choices=0 content="))
+}
+
+func _handle_empty(req Request) Response {
+    let body = "{\"id\":\"c\",\"object\":\"chat.completion\",\"choices\":[],\"usage\":null}"
+    return Response.of(200, "application/json", body.to_bytes())
+}
+
+const EMPTY_CLIENT = "import \"std/sys\"\n" +
+    "import \"koala/openai\" as openai\n" +
+    "func main() {\n" +
+    "    let c = openai.Client(\"sk\", \"http://127.0.0.1:\" + sys.args()[1])\n" +
+    "    let r = c.chat.completions.create(\"m\", [openai.msg(\"user\", \"hi\")])\n" +
+    "    let out = \"status=\" + str(r.status_code) + \" choices=\" + str(r.choices.len())\n" +
+    "    print(out + \" content=\" + r.first_content())\n" +
+    "}\n"

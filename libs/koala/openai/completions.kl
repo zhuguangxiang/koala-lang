@@ -6,7 +6,7 @@
 import "koala/http" as http
 import "koala/sse" as sse
 from "koala/http" import Url
-from "koala/json" import parse_str, Object, Array, String, Integer, Float, Boolean, Value
+from "koala/json" import try_parse_str, Object, Array, String, Integer, Float, Boolean, Value
 
 /// The chat completions endpoint.
 ///
@@ -22,20 +22,31 @@ pub class Completions {
         _timeout_ms = timeout_ms
     }
 
-    /// Create a chat completion. Parameters match Python's create() signature order.
+    /// Create a chat completion from plain messages. Parameters match
+    /// Python's create() signature order.
     pub func create(model str, messages list[dict[str, str]], temperature float = 1.0, max_tokens int = 0, top_p float = 0.0, frequency_penalty float = 0.0, presence_penalty float = 0.0) ChatCompletion {
-        let path = _base_url.path() + "/chat/completions"
-        let url = Url(_base_url.scheme(), _base_url.host(), _base_url.port(), path)
-        let body = _build_json(model, messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty)
+        return create_tools(model, _plain(messages), list[ToolDef](), temperature, max_tokens, top_p, frequency_penalty, presence_penalty)
+    }
+
+    /// Create a chat completion with tool calling. `tools` declares what
+    /// the model may call; `tool_choice` is "auto", "none" or "required",
+    /// "" to leave it out. The returned choice's message carries the
+    /// calls in `tool_calls`, and `finish_reason` is "tool_calls".
+    pub func create_tools(model str, messages list[CompletionMessage], tools list[ToolDef], temperature float = 1.0, max_tokens int = 0, top_p float = 0.0, frequency_penalty float = 0.0, presence_penalty float = 0.0, tool_choice str = "auto") ChatCompletion {
+        let url = _endpoint()
+        let body = _build_body(model, messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, tools, tool_choice, false)
         let resp = _post(url, _api_key, body, _timeout_ms)
 
         if resp == nil {
             return _parse_completion(0, "", "transport failure: connect or read error")
         }
 
-        let status = resp.status()
-        let text = resp.body().to_str()
-        return _parse_completion(status, text, "")
+        return _parse_completion(resp.status(), resp.body().to_str(), "")
+    }
+
+    func _endpoint() Url {
+        let path = _base_url.path() + "/chat/completions"
+        return Url(_base_url.scheme(), _base_url.host(), _base_url.port(), path)
     }
 
     /// Create a streamed chat completion, as Python's
@@ -46,9 +57,15 @@ pub class Completions {
     /// `ChatStream.ok()` is false on a connect error, an HTTP error, or
     /// a response that is not an SSE stream.
     pub func stream(model str, messages list[dict[str, str]], temperature float = 1.0, max_tokens int = 0, top_p float = 0.0, frequency_penalty float = 0.0, presence_penalty float = 0.0) ChatStream {
-        let path = _base_url.path() + "/chat/completions"
-        let url = Url(_base_url.scheme(), _base_url.host(), _base_url.port(), path)
-        let body = _build_json(model, messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, true)
+        return stream_tools(model, _plain(messages), list[ToolDef](), temperature, max_tokens, top_p, frequency_penalty, presence_penalty)
+    }
+
+    /// Stream a chat completion with tool calling. Tool call fragments
+    /// arrive as `ChatChunk` tool deltas; `ChatStream.tool_calls()` is
+    /// the assembled result once the stream ends.
+    pub func stream_tools(model str, messages list[CompletionMessage], tools list[ToolDef], temperature float = 1.0, max_tokens int = 0, top_p float = 0.0, frequency_penalty float = 0.0, presence_penalty float = 0.0, tool_choice str = "auto") ChatStream {
+        let url = _endpoint()
+        let body = _build_body(model, messages, temperature, max_tokens, top_p, frequency_penalty, presence_penalty, tools, tool_choice, true)
 
         let headers = list[list[str]]()
         _hdr(headers, "Authorization", "Bearer " + _api_key)
@@ -60,20 +77,30 @@ pub class Completions {
         return ChatStream(es)
     }
 
-    func _build_json(model str, messages list[dict[str, str]], temperature float, max_tokens int, top_p float, frequency_penalty float, presence_penalty float, streaming bool = false) str {
+    func _build_body(model str, messages list[CompletionMessage], temperature float, max_tokens int, top_p float, frequency_penalty float, presence_penalty float, tools list[ToolDef], tool_choice str, streaming bool) str {
         let root = Object()
         root.add("model", String(model))
 
         let arr = Array()
         var i = 0
         while i < messages.len() {
-            let m = Object()
-            m.add("role", String(messages[i]["role"]))
-            m.add("content", String(messages[i]["content"]))
-            arr.add(m)
+            arr.add(_message_json(messages[i]))
             i += 1
         }
         root.add("messages", arr)
+
+        if tools.len() > 0 {
+            let tarr = Array()
+            var j = 0
+            while j < tools.len() {
+                tarr.add(_tool_json(tools[j]))
+                j += 1
+            }
+            root.add("tools", tarr)
+            if tool_choice.len() > 0 {
+                root.add("tool_choice", String(tool_choice))
+            }
+        }
 
         if temperature != 1.0 {
             root.add("temperature", Float(temperature))
@@ -101,11 +128,42 @@ pub class Completions {
     }
 }
 
+// The plain messages of `create`/`stream`, as rich messages.
+func _plain(messages list[dict[str, str]]) list[CompletionMessage] {
+    let out = list[CompletionMessage]()
+    var i = 0
+    while i < messages.len() {
+        out.append(CompletionMessage(messages[i]["role"], messages[i]["content"], list[ToolCall](), "", ""))
+        i += 1
+    }
+    return out
+}
+
+// One wire message: the message object from types.kl, so a request and a
+// saved session agree on the shape.
+func _message_json(m CompletionMessage) Object {
+    return message_to_object(m)
+}
+
+// One wire entry of `tools`.
+func _tool_json(t ToolDef) Object {
+    let o = Object()
+    o.add("type", String(t.type_))
+    let f = Object()
+    f.add("name", String(t.function.name))
+    f.add("description", String(t.function.description))
+    f.add("parameters", t.function.parameters)
+    o.add("function", f)
+    return o
+}
+
 /// The chunks of a streamed chat completion, an iterator: `for chunk in
 /// stream`. `ok()` is false when the request failed; `status_code()` and
 /// `error_message()` report, as on `ChatCompletion`. `usage()` is the
-/// usage of the last chunk that carried one. `close()` releases the
-/// connection before the stream ends.
+/// usage of the last chunk that carried one. `tool_calls()` is the tool
+/// calls assembled from the stream's fragments, complete once the
+/// stream ends; `finish_reason()` is the last reason the server gave.
+/// `close()` releases the connection before the stream ends.
 pub class ChatStream : Iterator[ChatChunk] {
     let _es sse.EventSource?
     var _it sse.SSEIter? = nil
@@ -114,6 +172,11 @@ pub class ChatStream : Iterator[ChatChunk] {
     var _usage Usage = Usage(0, 0, 0)
     var _ahead ChatChunk? = nil
     var _resolved bool = false
+    // Tool call fragments, one slot per `index`, opened on first sight.
+    var _tool_ids list[str] = list[str]()
+    var _tool_names list[str] = list[str]()
+    var _tool_args list[str] = list[str]()
+    var _finish str = ""
 
     func __init__(es sse.EventSource?) {
         _es = es
@@ -171,6 +234,25 @@ pub class ChatStream : Iterator[ChatChunk] {
     /// The usage of the last chunk that carried one (the final chunk).
     pub func usage() Usage { return _usage }
 
+    /// The tool calls the stream asked for, assembled from their
+    /// fragments. Complete once the stream ends; a call appears as soon
+    /// as its name has arrived.
+    pub func tool_calls() list[ToolCall] {
+        let out = list[ToolCall]()
+        var i = 0
+        while i < _tool_names.len() {
+            if _tool_names[i].len() > 0 {
+                out.append(ToolCall(_tool_ids[i], "function", FunctionCall(_tool_names[i], _tool_args[i])))
+            }
+            i += 1
+        }
+        return out
+    }
+
+    /// The last non-empty `finish_reason` the server sent ("stop",
+    /// "tool_calls", "length", ...), "" when it sent none.
+    pub func finish_reason() str { return _finish }
+
     /// Release the connection; the stream ends where it is.
     pub func close() {
         if let es = _es { es.response().close() }
@@ -204,31 +286,75 @@ pub class ChatStream : Iterator[ChatChunk] {
         loop {
             if let ev = _it.next() {
                 if ev.data == "[DONE]" { return nil }
-                let root = parse_str(ev.data) as Object
+                let data = try_parse_str(ev.data)
+                if data == nil { continue }
+                let root = data as Object
                 if root == nil { continue }
                 let id = _get_str(root, "id")
                 let mdl = _get_str(root, "model")
                 var delta = ""
                 var fr = ""
+                var t_index = -1
+                var t_id = ""
+                var t_name = ""
+                var t_args = ""
                 if let arr = _get_arr(root, "choices") {
                     if arr.len() > 0 {
                         if let c = arr.value[0] as Object {
+                            fr = _get_str(c, "finish_reason")
                             if let d = _get_obj(c, "delta") {
                                 delta = _get_str(d, "content")
+                                if let calls = _get_arr(d, "tool_calls") {
+                                    var j = 0
+                                    while j < calls.len() {
+                                        if let tc = calls.value[j] as Object {
+                                            let ci = _get_int(tc, "index")
+                                            let cid = _get_str(tc, "id")
+                                            var cname = ""
+                                            var cargs = ""
+                                            if let f = _get_obj(tc, "function") {
+                                                cname = _get_str(f, "name")
+                                                cargs = _get_str(f, "arguments")
+                                            }
+                                            _accum_tool(ci, cid, cname, cargs)
+                                            if j == 0 {
+                                                t_index = ci
+                                                t_id = cid
+                                                t_name = cname
+                                                t_args = cargs
+                                            }
+                                        }
+                                        j += 1
+                                    }
+                                }
                             }
-                            fr = _get_str(c, "finish_reason")
                         }
                     }
                 }
+                if fr.len() > 0 { _finish = fr }
                 var usage Usage? = nil
                 if let u = _get_obj(root, "usage") {
                     usage = Usage(_get_int(u, "prompt_tokens"), _get_int(u, "completion_tokens"), _get_int(u, "total_tokens"))
                 }
                 if let u = usage { _usage = u }
-                return ChatChunk(id, mdl, delta, fr, usage)
+                return ChatChunk(id, mdl, delta, fr, usage, t_index, t_id, t_name, t_args)
             }
             return nil
         }
+    }
+
+    // Append one tool call fragment to its slot, opening the slot on
+    // first sight of `idx`. A fragment may carry only arguments.
+    func _accum_tool(idx int, id str, name str, args str) {
+        if idx < 0 { return }
+        while _tool_ids.len() <= idx {
+            _tool_ids.append("")
+            _tool_names.append("")
+            _tool_args.append("")
+        }
+        if id.len() > 0 { _tool_ids[idx] = id }
+        if name.len() > 0 { _tool_names[idx] = name }
+        _tool_args[idx] = _tool_args[idx] + args
     }
 }
 

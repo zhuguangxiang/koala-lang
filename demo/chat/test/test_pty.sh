@@ -138,6 +138,71 @@ EOF
 
 check_pty_resize
 
+# Ctrl-C in the middle of a streamed reply: the run stops, the transcript
+# says how to carry on, and the process stays alive for /quit.
+check_pty_interrupt() {
+    local out="$TMP/out-intr"
+    local script="$TMP/intr-script.json"
+    local portfile="$TMP/intr-port"
+    local runner="$TMP/run-intr.sh"
+    # 40 frames at 100 ms: the stream outlives the Ctrl-C by seconds
+    local chunks=""
+    local i=0
+    while [[ $i -lt 40 ]]; do
+        if [[ -n "$chunks" ]]; then chunks+=","; fi
+        chunks+="\"chunk-$i \""
+        i=$((i + 1))
+    done
+    printf '{"responses":[{"stream":true,"chunks":[%s,"end"]}]}\n' "$chunks" > "$script"
+    "$KOALA_BIN" "$DEMO_DIR/chat/test/support/mock_openai.kl" \
+        --script "$script" --port-file "$portfile" \
+        --requests "$TMP/intr-requests.jsonl" --delay-ms 100 &
+    local mock=$!
+    local port=""
+    local n=0
+    while [[ -z "$port" && $n -lt 100 ]]; do
+        if [[ -s "$portfile" ]]; then port="$(cat "$portfile")"; fi
+        sleep 0.05
+        n=$((n + 1))
+    done
+    if [[ -z "$port" ]]; then
+        kill "$mock" 2>/dev/null || true
+        fail "pty interrupt: mock endpoint did not start"
+        return
+    fi
+    cat > "$TMP/config-intr.json" <<JSON
+{"model":"auto","base_url":"http://127.0.0.1:$port/v1","history_file":"$TMP/history","max_code_bytes":1000,"temperature":0.5,"max_tokens":100,"context_window":65536,"system_prompt":"s","stream_delay_ms":0}
+JSON
+    cat > "$runner" <<EOF
+#!/bin/sh
+stty rows 24 cols 80
+exec "\$KOALA_BIN" "\$CHAT" --config "$TMP/config-intr.json"
+EOF
+    chmod +x "$runner"
+    local ok=0
+    if ( cd "$TMP" && sleep 0.8; printf '/agent say something\r'; sleep 0.6; printf '\003'; sleep 0.6; printf '/quit\r' ) |
+        timeout 20 script -qec "$runner" "$out" >/dev/null 2>&1; then
+        ok=1
+    fi
+    kill "$mock" 2>/dev/null || true
+    wait "$mock" 2>/dev/null || true
+    if [[ "$ok" -ne 1 ]]; then
+        fail "pty interrupt: the run did not exit cleanly"
+        return
+    fi
+    if ! grep -aFq 'interrupted' "$out"; then
+        fail "pty interrupt: the transcript does not say the run was interrupted"
+        return
+    fi
+    if ! grep -aFq 'Chat with auto.' "$out"; then
+        fail "pty interrupt: the startup card is missing from the transcript"
+        return
+    fi
+    pass "pty Ctrl-C stopped the stream and the prompt came back"
+}
+
+check_pty_interrupt
+
 # A real pipe has no tty: no cursor escapes, boxes, or hint row.
 if ( cd "$TMP" && printf '/quit\n' | timeout 20 "$KOALA_BIN" "$CHAT" --config "$TMP/config.json" > "$TMP/non-tty.out" 2>&1 ); then
     if grep -aFq 'Chat with auto. |' "$TMP/non-tty.out" && ! grep -aFq $'\x1b' "$TMP/non-tty.out" && ! grep -aFq 'Enter send' "$TMP/non-tty.out"; then

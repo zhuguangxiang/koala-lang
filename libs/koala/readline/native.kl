@@ -29,3 +29,12 @@ func tty_suspend() {}
 /// Send SIGQUIT to the process group.
 @native
 func tty_quit() {}
+
+/// While watching, Ctrl-C only raises a flag instead of ending the
+/// program; off restores the fatal handler.
+@native
+func tty_interrupt_watch(on bool) {}
+
+/// True once when Ctrl-C arrived since the last call; reading it clears it.
+@native
+func tty_interrupt_taken() bool {}

@@ -7,8 +7,10 @@
 /// CPython's `readline` module.
 ///
 /// The editor is written in Koala; native code only switches the terminal
-/// to raw mode. `Editor` and `Terminal` are Koala's own: an `Editor` reads
-/// one line from a `Terminal`, the real one or a `MemoryTerminal` in tests.
+/// to raw mode and watches Ctrl-C for a program that owns the terminal
+/// outside the editor (see `watch_interrupt`). `Editor` and `Terminal` are
+/// Koala's own: an `Editor` reads one line from a `Terminal`, the real one
+/// or a `MemoryTerminal` in tests.
 
 import "std/os"
 
@@ -30,6 +32,20 @@ pub func input(prompt = "") str? = _editor.readline(prompt)
 /// Python's `getpass`: each character typed is drawn as `*`. Nil at the end
 /// of the input, "" on Ctrl-C. The line is never added to the history.
 pub func password(prompt = "") str? = _editor.password(prompt)
+
+/// Watch Ctrl-C while a long run owns the terminal: from now on SIGINT only
+/// raises a flag instead of ending the program, so a streaming request or a
+/// tool run can stop at its next checkpoint. `watch_interrupt(false)` puts
+/// the old behavior back — Ctrl-C restores the terminal and leaves the
+/// program. In raw mode (the editor) Ctrl-C is byte 3 and never signals, so
+/// typing a line is unaffected.
+pub func watch_interrupt(on bool) {
+    tty_interrupt_watch(on)
+}
+
+/// True once when Ctrl-C was pressed while `watch_interrupt(true)` is on.
+/// Reading it clears it, so one press stops one run.
+pub func interrupt_pending() bool = tty_interrupt_taken()
 
 /// Edit in a multi-row area: `row` / `col` is where the prompt starts, the
 /// area is `width` columns wide and `height` rows tall. The prompt is drawn

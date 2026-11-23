@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-from "koala/json" import parse_str, Object, Array, String, Integer, Null, Value
+from "koala/json" import try_parse_str, Object, Array, String, Integer, Null, Value
 
 // Internal response parsing. Public API shape is in types declared here;
 // construction logic is internal.
@@ -58,14 +58,105 @@ pub class Choice {
     }
 }
 
+/// The function a tool call names, with the arguments the model wrote.
+/// `arguments` is raw JSON text: use `ToolCall.args()` to parse it.
+pub class FunctionCall {
+    pub let name str
+    pub let arguments str
+
+    pub func __init__(name str, arguments str) {
+        self.name = name
+        self.arguments = arguments
+    }
+}
+
+/// One tool invocation asked for by the model, an element of
+/// `CompletionMessage.tool_calls`.
+pub class ToolCall {
+    pub let id str
+    pub let type_ str
+    pub let function FunctionCall
+
+    pub func __init__(id str, type_ str, function FunctionCall) {
+        self.id = id
+        self.type_ = type_
+        self.function = function
+    }
+
+    /// The function name, shorthand for `function.name`.
+    pub func name() str { return function.name }
+
+    /// The raw argument JSON, shorthand for `function.arguments`.
+    pub func arguments() str { return function.arguments }
+
+    /// The arguments parsed as a JSON object, nil when the model wrote
+    /// something that is not a JSON object.
+    pub func args() Object? {
+        let v = try_parse_str(arguments())
+        if v == nil { return nil }
+        return v as Object
+    }
+}
+
+/// A function declared in a request's `tools`.
+pub class FunctionDef {
+    pub let name str
+    pub let description str
+    pub let parameters Object
+
+    pub func __init__(name str, description str, parameters Object) {
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+    }
+}
+
+/// One entry of a request's `tools`: a function the model may call.
+///
+///     let schema = Object()
+///     // ... fill in JSON Schema ...
+///     let tools = [ToolDef.of("Write", "Write a file", schema)]
+pub class ToolDef {
+    pub let type_ str
+    pub let function FunctionDef
+
+    pub func __init__(type_ str, function FunctionDef) {
+        self.type_ = type_
+        self.function = function
+    }
+
+    /// A `"function"` tool, the only kind the chat API defines.
+    pub static func of(name str, description str, parameters Object) ToolDef {
+        return ToolDef("function", FunctionDef(name, description, parameters))
+    }
+
+    /// The function name, shorthand for `function.name`.
+    pub func name() str { return function.name }
+}
+
+/// A chat message, in both directions: what a request sends and what a
+/// response returns.
+///
+/// A plain turn carries `role` and `content`. An assistant turn that
+/// asks for tools carries `tool_calls`; each answer to a call is a
+/// `role: "tool"` message with `tool_call_id` set.
 pub class CompletionMessage {
     pub let role str
     pub let content str
+    pub let tool_calls list[ToolCall]
+    pub let tool_call_id str
+    pub let name str
 
-    pub func __init__(role str, content str) {
+    pub func __init__(role str, content str, tool_calls list[ToolCall], tool_call_id str, name str) {
         self.role = role
         self.content = content
+        self.tool_calls = tool_calls
+        self.tool_call_id = tool_call_id
+        self.name = name
     }
+
+    /// True when the model asked for at least one tool call.
+    pub func has_tool_calls() bool { return tool_calls.len() > 0 }
 }
 
 pub class Usage {
@@ -92,14 +183,32 @@ pub class ChatChunk {
     pub let delta str
     pub let finish_reason str
     pub let usage Usage?
+    /// The index of the tool call this chunk carries, -1 when it carries
+    /// none. The model may ask for several calls at once: the `index`
+    /// says which one the fragment belongs to.
+    pub let tool_index int
+    /// The call's id and function name, set on the chunk that opens it.
+    pub let tool_id str
+    pub let tool_name str
+    /// The next slice of that call's argument JSON; concatenate the
+    /// slices in arrival order to get the whole text, or use
+    /// `ChatStream.tool_calls()` once the stream ends.
+    pub let tool_args_delta str
 
-    pub func __init__(id str, model str, delta str, finish_reason str, usage Usage?) {
+    pub func __init__(id str, model str, delta str, finish_reason str, usage Usage?, tool_index int = -1, tool_id str = "", tool_name str = "", tool_args_delta str = "") {
         self.id = id
         self.model = model
         self.delta = delta
         self.finish_reason = finish_reason
         self.usage = usage
+        self.tool_index = tool_index
+        self.tool_id = tool_id
+        self.tool_name = tool_name
+        self.tool_args_delta = tool_args_delta
     }
+
+    /// True when the chunk carries a piece of a tool call.
+    pub func has_tool_delta() bool { return tool_index >= 0 }
 }
 
 // ---- internal: build ChatCompletion from raw JSON ----
@@ -114,28 +223,40 @@ func _parse_completion(status int, body str, transport_err str) ChatCompletion {
         return _error_completion(status, msg)
     }
 
-    let root = (parse_str(body) as Object)!
+    let v = try_parse_str(body)
+    if v == nil {
+        return _error_completion(status, "malformed JSON in the response body")
+    }
+    let root = v as Object
+    if root == nil {
+        return _error_completion(status, "the response body is not a JSON object")
+    }
     let rid = _get_str(root, "id")
     let obj = _get_str(root, "object")
     let created = _get_int(root, "created")
     let mdl = _get_str(root, "model")
 
     let choices = list[Choice]()
-    if "choices" in root {
-        let arr = root.get_array("choices")
+    if let arr = _get_arr(root, "choices") {
         var i = 0
         while i < arr.len() {
-            let c = arr.get_object(i)
-            let idx = _get_int(c, "index")
-            let fr = _get_str(c, "finish_reason")
-            var mrole = ""
-            var mcontent = ""
-            if "message" in c {
-                let m = c.get_object("message")
-                mrole = _get_str(m, "role")
-                mcontent = _get_str(m, "content")
+            if let c = arr.value[i] as Object {
+                let idx = _get_int(c, "index")
+                let fr = _get_str(c, "finish_reason")
+                var mrole = ""
+                var mcontent = ""
+                var tcid = ""
+                var mname = ""
+                var calls = list[ToolCall]()
+                if let m = _get_obj(c, "message") {
+                    mrole = _get_str(m, "role")
+                    mcontent = _get_str(m, "content")
+                    tcid = _get_str(m, "tool_call_id")
+                    mname = _get_str(m, "name")
+                    calls = _parse_tool_calls(m)
+                }
+                choices.append(Choice(idx, CompletionMessage(mrole, mcontent, calls, tcid, mname), fr))
             }
-            choices.append(Choice(idx, CompletionMessage(mrole, mcontent), fr))
             i += 1
         }
     }
@@ -143,8 +264,7 @@ func _parse_completion(status int, body str, transport_err str) ChatCompletion {
     var pt = 0
     var ct = 0
     var tt = 0
-    if "usage" in root {
-        let u = root.get_object("usage")
+    if let u = _get_obj(root, "usage") {
         pt = _get_int(u, "prompt_tokens")
         ct = _get_int(u, "completion_tokens")
         tt = _get_int(u, "total_tokens")
@@ -155,6 +275,30 @@ func _parse_completion(status int, body str, transport_err str) ChatCompletion {
 
 func _error_completion(status int, msg str) ChatCompletion {
     return ChatCompletion(status, "", "error", 0, "", list[Choice](), Usage(0, 0, 0), msg)
+}
+
+// `message.tool_calls`, empty when the field is absent, null or malformed.
+func _parse_tool_calls(m Object) list[ToolCall] {
+    let out = list[ToolCall]()
+    if let arr = _get_arr(m, "tool_calls") {
+        var i = 0
+        while i < arr.len() {
+            if let t = arr.value[i] as Object {
+                let id = _get_str(t, "id")
+                var kind = _get_str(t, "type")
+                if kind.len() == 0 { kind = "function" }
+                var fname = ""
+                var fargs = ""
+                if let f = _get_obj(t, "function") {
+                    fname = _get_str(f, "name")
+                    fargs = _get_str(f, "arguments")
+                }
+                out.append(ToolCall(id, kind, FunctionCall(fname, fargs)))
+            }
+            i += 1
+        }
+    }
+    return out
 }
 
 func _get_str(obj Object, k str) str {
@@ -183,11 +327,15 @@ func _get_arr(obj Object, k str) Array? {
 
 func _extract_error(body str) str {
     if body.len() == 0 { return "" }
-    let val = parse_str(body)
+    let val = try_parse_str(body)
+    if val == nil { return "" }
     let obj = val as Object
     if obj == nil { return "" }
     if !("error" in obj) { return "" }
-    let err = obj.get_object("error")
+    let err = obj["error"]
+    if !(err is Object) { return "" }
     if !("message" in err) { return "" }
-    return err.get_str("message")
+    let msg = err["message"]
+    if msg is String { return msg.value }
+    return ""
 }

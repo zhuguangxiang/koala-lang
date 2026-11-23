@@ -1,9 +1,9 @@
 # demo/chat 会话系统优化计划（对齐 Claude Code）
 
-> 状态：待实施
+> 状态：**已实施（M7，2026-11-22；2026-11-23 补齐 S4 与跨重启 pending）** — S0/S1/S2/S3/S4/S6 完成；S5 大部分完成（pending 已落盘，并发锁与写合并未做）。未落地项见 §13.1
 > 范围：`demo/chat` 的 `Session` / `SessionManager`：持久化、生命周期、活动上下文、恢复与测试
 > 关系：本计划细化 `agent_loop_plan.md` 的 **M7**；依赖 M1（safe JSON）与 M2（native tool loop），不替代 M0–M6
-> 结论：**需要优化**。当前实现能支撑单进程、短对话、手工恢复，但还不足以支撑 native tool calling、长任务、崩溃恢复和多窗口使用
+> 结论：**已优化（M7）**。会话层现在能支撑 native tool calling、原子保存与重启恢复，并有了稳定 id、`.current` 指针、`--new` / `--resume NAME`、坏文件可见化与跨重启的 pending（`/continue`、`/cancel`）；仍未解决：单一 conversation、并发锁、metadata sidecar（见 §13.1）
 
 ## 1. 结论与优先级
 
@@ -94,44 +94,36 @@ REPL 每轮输入前
 
 ## 4. 目标数据模型
 
-### 4.1 v2 记录（建议）
+### 4.1 v2 记录（已实施子集）
+
+实际写出的 v2 记录（`Session.to_record`）：
 
 ```json
 {
   "version": 2,
-  "id": "s-20261122-153045-1",
+  "id": "main",
   "name": "main",
-  "title": "修复 demo/chat 会话",
-  "created_at": 1790000000,
-  "updated_at": 1790000000,
-  "last_active_at": 1790000000,
   "model": "auto",
   "workdir": "/home/me/project",
   "paused": false,
-  "active_mode": "chat",
   "last_tokens": 42,
   "messages": [],
   "agent_messages": [],
-  "chat_last_tokens": 42,
-  "agent_last_tokens": 0,
-  "pending": null,
   "run_state": "idle",
-  "stats": {
-    "chat_messages": 0,
-    "agent_messages": 0,
-    "tool_calls": 0
-  }
+  "pending": { "mark": 1, "reason": "step limit" }
 }
 ```
 
+未实现的可选字段：`title`、`created_at`、`updated_at`/`last_active_at`（`/sessions` 用文件 mtime）、`active_mode`、`chat_last_tokens`/`agent_last_tokens`、`stats`；`pending` 只在 `run_state: pending` 时出现（见 §7.2）。
+
 兼容策略：
 
-- 没有 `version` 的记录按 **v1** 读取。
-- v1 的 `messages` 继续作为 chat 消息；`agent_messages` 继续作为 agent 消息。
-- v1 缺失的 `id` 用文件名（去掉 `.json`）补齐；缺失的时间戳用文件 mtime 或 0 补齐。
-- v1 缺失 `agent_messages` 视为空列表，不再整条拒绝。
-- 只有 `name/model/workdir` 等关键字段缺失或类型错误才拒绝；拒绝时记录警告并跳过，不阻塞启动。
-- 新记录写入 v2；旧记录在第一次成功保存时升级，不在只读加载时隐式改写。
+- 没有 `version` 的记录按 **v1** 读取。✅
+- v1 的 `messages` 继续作为 chat 消息；`agent_messages` 继续作为 agent 消息。✅
+- v1 缺失的 `id` 用文件名（去掉 `.json`）补齐；文件系统 mtime 提供“最近活动”。✅
+- v1 缺失 `agent_messages` 视为空列表，不再整条拒绝。✅
+- 只有 `name/model/workdir/paused/last_tokens/messages/agent_messages` 缺失或类型错误才拒绝；拒绝时记入 `SessionManager.broken()` 并跳过，不阻塞启动。✅
+- 新记录写入 v2；旧记录在第一次成功保存时升级（写入 `version`/`id`），只读加载不改写文件。✅
 
 ### 4.2 消息模型
 
@@ -163,12 +155,12 @@ REPL 每轮输入前
 
 `/sessions` 从 metadata 读取，不触发全量反序列化；只有 `/switch`、`/resume` 真正选中某个会话时才加载完整记录。
 
-### 4.4 当前会话指针
+### 4.4 当前会话指针（✅ 已实施）
 
-- 在 session 目录写 `.current`，内容是稳定 `id`（或一行 JSON：`{"id":"..."}`）。
-- 切换、新建、重命名后原子更新 `.current`。
-- 启动顺序：`--resume ID` > `--continue` > `.current` > 最近 `updated_at` > 新建 `main`。
-- 默认启动行为建议保持现有兼容：**没有参数时恢复最近活动会话**；另提供 `--new` 强制新建。若后续要严格对齐 Claude Code，可把默认改成新建，但需要单独确认。
+- 在 session 目录写 `.current`，内容是一行 JSON：`{"id":"..."}`；它是指针而不是记录，不以 `.json` 结尾，`/sessions` 不会列出。
+- 切换、新建、重命名、以及每次启动选定会话后原子更新 `.current`（`tmp` + rename，见 `SessionStore.write_current`）。
+- 启动顺序（已落地）：`--new` 强制新建 > `--resume NAME`（按 name 或 id）> `.current` > 最近 `mtime` > 新建 `main`。`--continue` 不改变选择，只把结果说出来。
+- 稳定 id 即文件名（`<id>.json`）：`/rename` 只改记录里的 `name`，文件与 `.current` 都不动；id 与 name 在 `/switch`、`/resume` 里同等可选。旧记录没有 `id` 时以文件名为准，并在第一次保存时写入 `version: 2` 与 `id`。
 
 ## 5. 存储与可靠性
 
@@ -184,13 +176,15 @@ REPL 每轮输入前
 
 `SessionManager.save_current()` 必须返回 `bool`，所有调用点检查并向用户显示 `(save failed: ...)`；不能静默丢数据。
 
-### 5.2 安全加载与坏文件隔离
+### 5.2 安全加载与坏文件隔离（部分实施）
 
-- 依赖 M1 的 `json.try_parse_str` / `try_parse_file`，不复制解析器。
-- `SessionStore.load()` 返回 `(record, error)` 或 `nil` + 原因；绝不 panic。
-- 解析失败：把文件重命名为 `<id>.corrupt.<timestamp>.json`，尝试 `.bak`；仍失败则跳过并警告。
-- 字段校验分层：关键字段失败 → 跳过；可选字段缺失 → 迁移默认值。
-- 目录不存在、权限错误、磁盘满都走可读错误路径。
+- 依赖 M1 的 `json.try_parse_str` / `try_parse_file`，不复制解析器。✅
+- `SessionStore.load()` 返回 JSON 对象或 nil；绝不 panic。✅
+- 坏文件跳过并警告，同时记入 `SessionManager.broken()`，`/sessions` 与 `/resume` 的空参数列表末尾以 `!` 行列出（`"id (not a JSON object)"` / `"id (malformed record)"`）。✅
+- `.current` 指向已删除的会话时，启动打印 `(warning: .current points at missing session ...)`，随后把指针修复到实际选中的会话。✅
+- 解析失败重命名为 `<id>.corrupt.<timestamp>.json` 并尝试 `.bak`：❌ 未做（坏文件留在原地，下次启动仍会提示）。
+- 字段校验分层：关键字段失败 → 跳过；可选字段缺失 → 迁移默认值。✅
+- 目录不存在、权限错误、磁盘满都走可读错误路径。✅
 
 ### 5.3 懒加载与 sidecar
 
@@ -230,23 +224,23 @@ REPL 每轮输入前
 | `/unpause [N\|NAME]` | 不存在（当前叫 `/resume`） | 解除暂停；补全与帮助同步 |
 | `/resume [ID\|NAME]` | 解除暂停 | 无参数列出历史会话；有参数恢复指定会话；不再表示 unpause |
 | `/continue` | 不存在 | 从 `pending`（step cap / interrupt）继续 agent loop；没有 pending 时给 usage |
-| `/new [NAME]` | 新建 | 新建稳定 id + 显示名；默认标题取首条用户消息 |
+| `/new [NAME]` | 新建 | 新建会话：id 即文件名（`NAME` 或时间戳，再取 `-2` 等后缀），显示名同 id；默认标题取首条用户消息未做 |
 | `/sessions` | 名称/模型/chat 数 | 当前、名称、模型、模式、chat/agent 消息数、最近活动、坏文件提示 |
-| `/switch N\|NAME` | 切换 | 保留；切换时懒加载完整 session，更新 `.current` |
-| `/rename NAME` | 移动文件 | 只改显示名，不改 `id`/文件名；查重 |
+| `/switch N\|NAME` | 切换 | 保留；按序号、显示名或 id 选中，更新 `.current` ✅ |
+| `/rename NAME` | 移动文件 | 只改显示名，不改 `id`/文件名；查重（含 id 冲突）✅ |
 | `/delete [ID\|NAME]` | 不存在 | P2：删除前确认；至少不允许删当前正在运行的 session |
 
 ### 6.3 启动参数
 
 ```text
 --config PATH        现有
---session-dir DIR    新增，默认 chat_sessions（兼容旧行为）
---new                强制新建会话
---continue           恢复最近活动会话（显式写法）
---resume ID          恢复指定会话
+--session-dir DIR    新增，默认 chat_sessions（兼容旧行为）— 未做，见 §13.1
+--new                强制新建会话 — ✅ 已做
+--continue           恢复最近活动会话（显式写法），打印恢复了哪个 — ✅ 已做
+--resume NAME        按 name 或 id 恢复指定会话 — ✅ 已做
 ```
 
-如果当前目录不是项目根，`--session-dir` 和 `workdir` 分开处理：session 目录存会话，`workdir` 存 agent 工作目录。
+已知会话时 `--resume` 优先于 `.current`；两者都缺省时退回最近的 `mtime`。如果当前目录不是项目根，`--session-dir` 和 `workdir` 要分开处理：session 目录存会话，`workdir` 存 agent 工作目录（`--session-dir` 尚未实现）。
 
 ## 7. 保存时机与 long-task 恢复
 
@@ -263,26 +257,21 @@ REPL 每轮输入前
 
 `Agent` 增加 `on_checkpoint func() bool` 回调（默认 no-op），由 `Session` 注入；只在消息列表真正变化时调用。这样 tool 轮不会等到任务结束才落盘。
 
-### 7.2 pending 与 run_state
+### 7.2 pending 与 run_state（✅ 已实施：字段与恢复）
 
 ```json
-"run_state": "idle | running | interrupted",
-"pending": {
-  "kind": "step_limit | interrupt | tool_boundary",
-  "step": 100,
-  "created_at": 1790000000
-}
+"run_state": "idle | pending",
+"pending": { "mark": 1, "reason": "interrupted | step limit" }
 ```
 
-- 开始一个 agent 任务：`run_state=running`。
-- 正常完成：`run_state=idle`、清空 pending。
-- step cap：`run_state=idle`、`pending.kind=step_limit`；提示 `(step limit reached; send /continue)`。
-- 用户 Ctrl-C：在安全边界保存 `run_state=interrupted`、`pending.kind=interrupt`；消息序列保持合法。
-- 启动时发现 `run_state=running`：视为上次异常退出，标记 `interrupted` 并提示 `/continue`。
-- `/continue`：
-  - `step_limit`：不再追加用户任务，继续同一 conversation 的 loop。
-  - `interrupt`：从最后一条完整消息继续；如果中断发生在 tool 执行中，先补一条“工具被中断”的 tool result，保证 tool 配对完整。
-- 没有 pending 时 `/continue` 不猜测，直接提示没有可继续的任务。
+- 记录只写两个状态：`idle`（上一轮正常结束，无 `pending`）与 `pending`（还有可继续的一轮）。
+- `reason` 只说停在哪儿：`interrupted`（Ctrl-C，`/cancel` 可丢弃）或 `step limit`（步数上限，只能 `/continue`）。
+- `mark` 是这一轮在 agent 消息数组里的起点，`/cancel` 用它截断；`/continue` 不需要它，直接从最后一条完整消息继续。
+- 保存时机：`run` / `resume` / `cancel` 之后 REPL 立即 `save_current()`，再叠加每轮开头的保存；中断后立刻 `/quit` 也不会丢 pending。
+- 启动时若记录是 `pending`：`restore_pending()` 重新武装中断状态，欢迎卡后提示 `(session 'x' has an unfinished turn: ...; /continue to resume, /cancel to drop it)`；`interrupted` 的 `/cancel` 在重启后仍有效。
+- 旧记录没有 `run_state` / `pending` 时按 `idle` 处理；`run_state=pending` 但 `pending` 缺失或类型错误也退回 `idle`，不 panic。
+- 没有 pending 时 `/continue` 不猜测（仍按原样提示“没有可继续的任务”）。
+- 未做：`run_state=running`（进程崩溃在 tool 中途的粗粒度标记）与 `pending.kind=tool_boundary`；当前只在安全边界记录。
 
 ### 7.3 checkpoint / rewind（P2）
 
@@ -294,14 +283,14 @@ REPL 每轮输入前
 
 ## 8. 里程碑
 
-### S0. 基线测试与契约确认（0.5 天，可先做）
+### S0. 基线测试与契约确认（0.5 天，可先做）— ✅ 已完成
 
 - 用临时 `session_dir` 锁定当前行为：新建、切换、rename、pause、重启选最近、字段错误跳过。
 - 补一个“malformed JSON 当前会 panic”的 reproducer（测试可以先标记为 expected failure，M1 后转正）。
 - 明确启动默认、`/reset` 范围、session 目录、是否统一 conversation 四个决策。
 - 验收：不改生产代码；测试只在 `/tmp` 下操作，绝不碰 `demo/chat_sessions/main.json`。
 
-### S1. 持久化 v2：安全、原子、可迁移（1–2 天，依赖 M1）
+### S1. 持久化 v2：安全、原子、可迁移（1–2 天，依赖 M1）— ✅ 已完成
 
 任务：
 
@@ -318,7 +307,7 @@ REPL 每轮输入前
 - 保存过程中模拟 rename 失败，原文件仍完整。
 - 旧 v1 记录能加载；新记录为 v2；不修改运行时 `main.json`。
 
-### S2. rich message 与 tool 历史持久化（1–2 天，依赖 M1/M2）
+### S2. rich message 与 tool 历史持久化（1–2 天，依赖 M1/M2）— ✅ 已完成（checkpoint 未做）
 
 任务：
 
@@ -334,7 +323,7 @@ REPL 每轮输入前
 - 一个 `Write → Bash → final` 的会话重启后，tool_calls/tool 结果完整，不会把工具历史当普通 user 文本。
 - compact 前后 tool 轮不被切断。
 
-### S3. 活动上下文与命令语义（1 天）
+### S3. 活动上下文与命令语义（1 天）— ✅ 已完成
 
 任务：
 
@@ -351,40 +340,40 @@ REPL 每轮输入前
 - chat 模式状态行显示 chat token，不再显示 agent 的 token。
 - `/help`、Tab 补全、`/sessions` 与命令实现一致。
 
-### S4. 会话生命周期与历史恢复（1–2 天）
+### S4. 会话生命周期与历史恢复（1–2 天）— ✅ 已完成（metadata sidecar 除外）
 
 任务：
 
-- 稳定 `id`（文件主键）与可改 `name`；`/rename` 不再移动文件。
-- `.current` 指针；`--new` / `--continue` / `--resume ID`。
-- `SessionMeta` sidecar；启动懒加载；`/sessions` 读 metadata。
-- `/resume` 选择器（无参数列表 + 编号/名称参数）；`/switch` 保留直达。
-- `/delete`（可选，P2）：确认、拒绝删当前运行中会话、清理 sidecar/temp/bak。
-- 旧文件没有 sidecar 时按需生成；不自动批量重写。
+- 稳定 `id`（文件主键）与可改 `name`；`/rename` 不再移动文件。✅
+- `.current` 指针；`--new` / `--continue` / `--resume NAME`。✅
+- `SessionMeta` sidecar；启动懒加载；`/sessions` 读 metadata。❌ 未做（见 §13.1）
+- `/resume` 选择器（无参数列表 + 编号/名称参数）；`/switch` 保留直达。✅
+- `/delete`（可选，P2）：确认、拒绝删当前运行中会话、清理 sidecar/temp/bak。❌ 未做（P2）
+- 旧文件没有 sidecar 时按需生成；不自动批量重写。❌ 未做（依赖 sidecar）
 
 验收：
 
-- 创建多个会话后重启，当前会话与 `.current` 一致；`/resume` 能选旧会话。
-- 只改显示名不会导致旧引用/checkpoint 失效。
-- 启动不加载所有正文（通过测试计数或大文件启动时间验证）。
+- 创建多个会话后重启，当前会话与 `.current` 一致；`/resume` 能选旧会话。✅（`test_current_pointer_wins_over_recency`、`test_current_pointer_skips_a_stale_id`；手工：`--resume 2026-11-23-033107 --continue` 落在该会话）
+- 只改显示名不会导致旧引用/checkpoint 失效。✅（`test_manager_rename_branches`、`test_rename_keeps_the_record_and_the_pointer`：文件仍是 `<id>.json`，记录 `name` 更新，`id` 不变）
+- 启动不加载所有正文（通过测试计数或大文件启动时间验证）。❌ 未做：仍是全量加载，sidecar 落地后再验。
 
-### S5. 长任务恢复、并发与性能（1–2 天）
+### S5. 长任务恢复、并发与性能（1–2 天）— 大部分完成（pending 已跨重启；并发锁与写合并未做）
 
 任务：
 
-- `run_state` / `pending` 写入与恢复；`/continue`。
-- Ctrl-C 在安全边界落盘；中断后消息序列合法。
-- 写入合并/去抖：同一轮多个 checkpoint 不重复写同一内容。
-- 可选 `.lock`：单写者；陈旧锁检测；冲突提示。
-- 可选 event log：如果全量快照在长会话中明显变慢，再评估 JSONL append + snapshot；不在第一版强行引入。
+- `run_state` / `pending` 写入与恢复；`/continue`。✅（`run_state: idle|pending` + `pending: {mark, reason}`；`Agent.restore_pending`；重启后 `/continue` 与 `/cancel` 仍有效）
+- Ctrl-C 在安全边界落盘；中断后消息序列合法。✅（中断前已把声明的 tool call 补成“未执行”的 tool result；`/cancel` 用持久化的 mark 截断）
+- 写入合并/去抖：同一轮多个 checkpoint 不重复写同一内容。❌ 未做（现在只在轮末与命令后保存，天然次数很少）
+- 可选 `.lock`：单写者；陈旧锁检测；冲突提示。❌ 未做
+- 可选 event log：如果全量快照在长会话中明显变慢，再评估 JSONL append + snapshot；不在第一版强行引入。❌ 未做（已决定不做）
 
 验收：
 
-- 模拟进程在 tool 中途退出，重启提示 interrupted，`/continue` 能继续且不产生孤立 tool 消息。
-- 两个进程同时打开同一会话，第二个得到明确提示而不是静默覆盖。
-- 长会话连续 100 次 checkpoint 的写放大可接受（目标：每轮只写变化后的快照，不重复写不变内容）。
+- 模拟进程在 tool 中途退出，重启提示 interrupted，`/continue` 能继续且不产生孤立 tool 消息。✅（手工：写一条 `run_state=pending, reason=interrupted` 的记录后重启，欢迎前提示未完成轮；`/cancel` 成功截断并保存为 `idle`）
+- 两个进程同时打开同一会话，第二个得到明确提示而不是静默覆盖。❌ 未做（无锁，后写者覆盖）
+- 长会话连续 100 次 checkpoint 的写放大可接受（目标：每轮只写变化后的快照，不重复写不变内容）。❌ 未做（没有 checkpoint 计数；每轮最多两次整快照写）
 
-### S6. 测试与硬化（贯穿）
+### S6. 测试与硬化（贯穿）— ✅ 已完成（针对已落地范围）
 
 - 单元：迁移、safe parse、原子写、rich roundtrip、metadata、稳定 id、current 指针、命令表。
 - E2E：mock LLM 下 `Write → Bash → final` 后重启恢复；`/resume`；`/continue`；坏文件启动；Ctrl-C 后重启。
@@ -392,6 +381,8 @@ REPL 每轮输入前
 - 回归：`cd demo && wombat test chat`；涉及 `libs/koala` 的 JSON/openai 改动后跑 `./build-std-koala.sh`；全量 `./test-debug.sh`。
 
 ## 9. 测试计划
+
+> 下列条目是计划稿；实际落地的用例名与覆盖范围以 `demo/chat/test/*.kl` 为准，汇总见 `agent_loop_plan.md` §4「M7 已落地/§7 单元测试」（`test_rich_agent_messages_survive_a_record`、`test_rich_messages_parse_partially`、`test_store_save_is_atomic`、`test_message_counts_chat_and_agent`、`test_load_file_agent_mode_goes_to_the_agent`、`test_status_line_reads_the_active_conversation_tokens`、`test_manager_rename_branches`、`test_rename_keeps_the_record_and_the_pointer`、`test_current_pointer_wins_over_recency`、`test_current_pointer_skips_a_stale_id`、`test_store_current_pointer_branches` 等）。锁 / pending / sidecar 相关用例随这些功能一起留到后续。
 
 ### 9.1 单元测试
 
@@ -401,8 +392,8 @@ REPL 每轮输入前
 - `test_restore_v2_rich_messages`：assistant tool_calls + tool result + name 完整 roundtrip。
 - `test_load_malformed_does_not_panic`：坏 JSON 被跳过，其他会话仍加载。
 - `test_save_atomic_failure_keeps_old`：目标不可写/rename 失败时旧文件不变，临时文件清理。
-- `test_meta_sidecar_and_current_pointer`：metadata 列表、`.current` 切换。
-- `test_rename_keeps_id`：只改显示名，文件名/id 不变。
+- `test_meta_sidecar_and_current_pointer`：metadata 列表、`.current` 切换。（指针部分已落：`test_store_current_pointer_branches`、`test_current_pointer_wins_over_recency`；sidecar 未做）
+- `test_rename_keeps_id`：只改显示名，文件名/id 不变。（已落：`test_manager_rename_branches`、`test_rename_keeps_the_record_and_the_pointer`）
 - `test_schema_rejects_invalid_role_or_tool_pair`：非法 role 拒绝；孤立 tool 保留并警告。
 
 `demo/chat/test/test_session.kl`：
@@ -462,17 +453,19 @@ bash demo/chat/test/test_pty.sh
 
 建议先建 `135`；`136` 必须等 M1/M2 的类型稳定，避免基于旧 `dict[str,str]` 写两遍。
 
-## 11. 建议执行顺序与最小交付
+> 2026-11-22 结论：`135`–`140` **没有单独建条目**，会话改造随 M7 一次性落地；实际建的是缺陷类条目（`126`–`131`），内容与本节的划分不同。后续若要跟踪 §13.1 的未落地项，再按 `issues/issues.summary.md` 页首的下一个可用编号新建。
 
-1. **S0** 基线测试与契约确认（现在可做，不改生产代码）。
-2. **M1** safe JSON + openai rich types（来自 `agent_loop_plan.md`）。
-3. **S1** 持久化 v2 + 原子写 + 迁移。
-4. **M2** Agent loop 重写。
-5. **S2** rich message 持久化 + checkpoint。
-6. **S3** 活动上下文与命令语义。
-7. **S4** 稳定性生命周期与 `/resume`。
-8. **S5** `/continue`、中断恢复、锁。
-9. **S6** 测试硬化。
+## 11. 建议执行顺序与最小交付（2026-11-22：1–9 全部按此顺序完成，S4/S5 为部分）
+
+1. **S0** 基线测试与契约确认（现在可做，不改生产代码）。✅
+2. **M1** safe JSON + openai rich types（来自 `agent_loop_plan.md`）。✅
+3. **S1** 持久化 v2 + 原子写 + 迁移。✅
+4. **M2** Agent loop 重写。✅
+5. **S2** rich message 持久化 + checkpoint。（rich 持久化 ✅；checkpoint 未做）
+6. **S3** 活动上下文与命令语义。✅
+7. **S4** 稳定性生命周期与 `/resume`。✅（稳定 id、`.current`、`--new`/`--resume`、`/resume`+`--continue` 全部落地；metadata sidecar 留到后续）
+8. **S5** `/continue`、中断恢复、锁。（pending 跨重启 ✅；并发锁与写合并未做）
+9. **S6** 测试硬化。✅
 
 **最小可交付（建议）**：S0 + S1 + S2 + S3。完成后应达到：
 
@@ -496,28 +489,40 @@ bash demo/chat/test/test_pty.sh
 - **并发锁**：Koala 标准库没有 `flock`，只能用 `open("x")` + PID 检测；陈锁误判需要保守处理。
 - **时间与排序**：UTC 时间字符串/epoch 的精度与本地时区显示要统一；排序以 `updated_at` 为准，不以文件名或 mtime。
 
-### 12.2 待确认决策
+### 12.2 待确认决策（2026-11-22 结论）
 
-1. **启动默认**：保持“恢复最近会话”（兼容现状），还是改成“默认新建，`--continue` 恢复最近”（更接近 Claude Code）？本文建议前者，同时提供 `--new`。
-2. **`/reset` 范围**：清 chat + agent 两个上下文（本文建议），还是只清当前模式？
-3. **session 目录**：继续 `chat_sessions/`（cwd），还是改为项目级/用户级目录？本文建议先用 `--session-dir` 可配置，默认不变。
-4. **是否合并 conversation**：本文建议暂缓，等 M2/M4 后按 endpoint 实测决定。
-5. **是否做 event log**：第一版不做；只有全量快照被证明是瓶颈时才做 JSONL append + snapshot。
+1. **启动默认**：保持“恢复会话”，但按 `.current` 指针而不是猜测的最近写入；`--new` 强制新建，`--resume NAME` 指定会话，`--continue` 只把结果说出来（打印恢复了哪个会话、两种消息条数与模型）。【已决并实施】
+2. **`/reset` 范围**：清 chat + agent 两个上下文（`Session.reset()` 清 `messages` 并丢弃 `_agent`）。【已决】
+3. **session 目录**：仍为 cwd 下的 `chat_sessions/`；`--session-dir` 未做。【未决，暂维持现状】
+4. **是否合并 conversation**：暂缓，留到 M8；当前两套历史分开持久化，`/file`、状态行、`/sessions` 按模式选择。【已决：本阶段不做】
+5. **是否做 event log**：不做；全量快照 + tmp/rename 原子写已够用。【已决：不做】
 
 ## 13. 验收清单
 
-- [ ] malformed session 文件不会导致启动 panic，其他会话正常可用。
-- [ ] 会话保存是原子写；保存失败有提示且旧文件完好。
-- [ ] v1 会话可加载并迁移到 v2；旧运行时文件不被自动改写。
-- [ ] rich message（tool_calls / tool_call_id / name）重启后完整。
-- [ ] agent 模式 `/file` 的内容下一轮 agent 请求可见。
-- [ ] chat/agent 状态行 token 分别正确。
-- [ ] `/clear` 只清屏；`/reset` 清当前 session 历史；`/unpause` 解除 pause；`/resume` 恢复历史。
-- [ ] `/sessions` 统计 chat + agent 消息并显示最近活动。
-- [ ] 稳定 id：`/rename` 不改文件名；`.current` 恢复正确。
-- [ ] step cap / Ctrl-C 后重启可 `/continue`，消息序列合法。
-- [ ] `wombat test chat`、`test_pty.sh`、`./test-debug.sh` 全绿。
-- [ ] 不修改 `demo/chat_sessions/main.json` 等运行时文件。
+- [x] malformed session 文件不会导致启动 panic，其他会话正常可用。（`_load_object` 跳过坏记录并警告；`message_from_object` 缺字段只损失该字段）
+- [x] 会话保存是原子写；保存失败有提示且旧文件完好。（`SessionStore.save` 写 `<name>.json.tmp` 再 rename，失败清临时文件并返回 false；`SessionManager._save` 连续失败只警告一次）
+- [x] v1 会话可加载并迁移到 v2；旧运行时文件不被自动改写。（旧 `{role, content}` 记录由 `message_from_object` 直接读入；无显式版本号，也不改写旧文件）
+- [x] rich message（tool_calls / tool_call_id / name）重启后完整。（`message_to_object` / `message_from_object` + `Agent.conversation_json()` / `restore_agent`）
+- [x] agent 模式 `/file` 的内容下一轮 agent 请求可见。（`Session.load_file(path, true)` → `Agent.add_context`）
+- [x] chat/agent 状态行 token 分别正确。（`Session.active_tokens` 单一来源，`status_line` 与 `/context` 都走它）
+- [x] `/clear` 只清屏；`/reset` 清当前 session 历史；`/unpause` 解除 pause；`/resume` 恢复历史。
+- [x] `/sessions` 统计 chat + agent 消息并显示最近活动。（`message_counts()` + `SessionStore.mtime()` → `12+34 msgs` / `MM-DD HH:MM`；`/rename` 之后按 id 取 mtime，最近活动列不会丢）
+- [x] 稳定 id：`/rename` 不改文件名；`.current` 恢复正确。（`Session._id` = 文件名，`to_record` 写 `version: 2` + `id`；`SessionStore.read_current/write_current`；`SessionManager._index` 同时认 id/name；`test_manager_rename_branches`、`test_rename_keeps_the_record_and_the_pointer`、`test_current_pointer_wins_over_recency`、`test_current_pointer_skips_a_stale_id` 覆盖；手工 `--new` / `--resume NAME` 已验证）
+- [x] 坏文件可见：启动警告之外，`/sessions`/`/resume` 末尾以 `! id (原因)` 列出坏记录，健康会话照常可用。（`SessionManager.broken()` + `ui.broken_session_line`；`test_broken_session_files_are_listed_not_fatal`、`test_broken_session_line_marks_the_file`）
+- [x] step cap / Ctrl-C 后重启可 `/continue`，消息序列合法。（`run_state`/`pending{mark,reason}` 写入记录，`restore_pending()` 在重启后重新武装；`test_native_step_limit_then_continue`、`test_interrupt_before_request_sends_nothing`、`test_pending_turn_survives_a_record`、`test_restore_interrupted_turn_can_still_cancel`；手工重启验证提示 + `/cancel`）
+- [x] `wombat test chat`、`test_pty.sh`、`./test-debug.sh` 全绿。（`wombat test chat` 10/10、`wombat test koala` 104/104、`test_pty.sh` 全通过；本轮 std 侧 `test_dial.kl` 由维护者单独确认）
+- [x] 不修改 `demo/chat_sessions/main.json` 等运行时文件。（本轮改动用 `/tmp` 下的临时目录验证；仓库里这两个文件此前已被运行时写过，见 §13.1）
+
+### 13.1 未落地项
+
+- metadata sidecar（`<id>.meta.json`）与启动懒加载：每次启动仍全量反序列化所有会话，`/sessions` 也是全量加载后的视图。
+- 坏文件归档（`.corrupt.<ts>.json`）与 `.bak` 兜底：现在坏文件留在原地，只在 `/sessions` 以 `!` 行提示；`.current` 失效只打印警告并修复。
+- 跨重启 pending 的粗粒度补充：`run_state=running`（进程在 tool 中途被杀）与 `pending.kind=tool_boundary` 未记；当前只在轮末与命令后保存。
+- `--session-dir` 启动参数（`--new` / `--resume NAME` 已做）。
+- 单一 conversation（chat = `tools=[]`）与 per-tool checkpoint / `/rewind`。
+- 并发锁（无 `flock`）、写合并/去抖与 event log。
+- `/delete`（P2）。
+- 运行时文件入库问题：`chat_sessions/会话.json`、`demo/chat_sessions/main.json` 被 git 跟踪，跑一次 chat 就会变脏，建议后续加 `.gitignore`（含 `.current`）。
 
 ## 14. 与 `agent_loop_plan.md` 的对应关系
 
@@ -527,6 +532,6 @@ bash demo/chat/test/test_pty.sh
 | S1 | M1 + M7 保存 | safe JSON 先由 M1 提供 |
 | S2 | M2 + M7 rich message | `tool_calls` 类型由 M1/M2 提供 |
 | S3 | M7 活动上下文/命令 | `/file`、token、`/reset`、`/unpause` |
-| S4 | M7 `/resume` | 稳定 id、current、metadata |
+| S4 | M7 `/resume` | 稳定 id、`.current`、`--new`/`--resume`、`/resume` 选择器；metadata sidecar 未做 |
 | S5 | M5 + M7 | interrupt、`/continue`、恢复 |
 | S6 | M0 + 全量测试 | mock E2E、pty、回归 |

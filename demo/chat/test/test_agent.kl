@@ -9,6 +9,7 @@
 
 import "std/ut"
 import "std/fs"
+import "std/gc"
 import "std/os"
 import "demo/chat"
 import "koala/openai" as openai
@@ -294,6 +295,26 @@ func test_agent_set_workdir() {
 }
 
 @test
+func test_agent_permission_mode_switch() {
+    let w = _work()
+    _write_config(ABASE + "/cfg.json", "")
+    let cfg = _cfg(ABASE + "/cfg.json")
+    let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w, true)
+    ut.assert_eq(a.permission(), "default")
+    ut.assert_false("Permission mode: plan" in a.conversation()[0]["content"])
+    ut.assert_true(a.set_permission_mode("plan"))
+    ut.assert_eq(a.permission(), "plan")
+    // the system prompt is refreshed, so the next request carries the ceiling
+    ut.assert_true("Permission mode: plan" in a.conversation()[0]["content"])
+    // an unknown mode is refused and changes nothing
+    ut.assert_false(a.set_permission_mode("nope"))
+    ut.assert_eq(a.permission(), "plan")
+    ut.assert_true(a.set_permission_mode("accept-edits"))
+    ut.assert_eq(a.permission(), "accept_edits")
+    ut.assert_false("Permission mode: plan" in a.conversation()[0]["content"])
+}
+
+@test
 func test_agent_run_error_smoke() {
     let w = _work()
     _write_config(ABASE + "/cfg.json", "")
@@ -323,6 +344,108 @@ func test_estimate_tokens() {
     // rounding up keeps a short message from counting as zero
     msgs.append({"role": "assistant", "content": "a"})
     ut.assert_eq(chat.estimate_tokens(msgs), 10)
+}
+
+@test
+func test_estimate_rich_tokens_counts_tool_fields() {
+    let msgs = list[openai.CompletionMessage]()
+    msgs.append(openai.CompletionMessage("system", "s", list[openai.ToolCall](), "", ""))
+    msgs.append(openai.CompletionMessage("user", "abcd", list[openai.ToolCall](), "", ""))
+    // text only: (1+3)/4+4 and (4+3)/4+4
+    ut.assert_eq(chat.estimate_rich_tokens(msgs), 10)
+    // a tool call's name and arguments count, not only the text
+    let calls = list[openai.ToolCall]()
+    calls.append(_tc("Bash", "{\"command\":\"ls -la\"}"))
+    msgs.append(openai.CompletionMessage("assistant", "", calls, "", ""))
+    // 4 + 20 bytes of name and arguments -> 6 tokens plus the overhead
+    ut.assert_eq(chat.estimate_rich_message_tokens(msgs[2]), 10)
+    // a tool result's id counts as well as its content
+    msgs.append(openai.CompletionMessage("tool", "0123456789", list[openai.ToolCall](), "c1", ""))
+    ut.assert_eq(chat.estimate_rich_message_tokens(msgs[3]), 7)
+    // the range form only sums what a request would add
+    ut.assert_eq(chat.estimate_rich_tokens_from(msgs, 2), 17)
+    ut.assert_eq(chat.estimate_rich_tokens_from(msgs, 4), 0)
+    ut.assert_eq(chat.estimate_rich_tokens_from(msgs, 99), 0)
+}
+
+/// A rich message with only text.
+func _rich(role str, content str) openai.CompletionMessage {
+    return openai.CompletionMessage(role, content, list[openai.ToolCall](), "", "")
+}
+
+/// A rich tool round: an assistant turn with `ids.len()` calls plus one
+/// result per call.
+func _append_round(msgs list[openai.CompletionMessage], ids list[str]) {
+    let calls = list[openai.ToolCall]()
+    for id in ids {
+        calls.append(openai.ToolCall(id, "function", openai.FunctionCall("Bash", "{}")))
+    }
+    msgs.append(openai.CompletionMessage("assistant", "", calls, "", ""))
+    for id in ids {
+        msgs.append(openai.CompletionMessage("tool", "exit 0", list[openai.ToolCall](), id, ""))
+    }
+}
+
+@test
+func test_rich_split_index_keeps_tool_turns() {
+    // a conversation too short to compact at all
+    ut.assert_false(chat.can_compact_rich(list[openai.CompletionMessage]()))
+    // sys, user, a1 + 3 results, a2 + 1 result: the last KEEP_RECENT
+    // messages would start inside a1's results
+    let msgs = list[openai.CompletionMessage]()
+    msgs.append(_rich("system", "s"))
+    msgs.append(_rich("user", "go"))
+    let first = list[str]()
+    first.append("c1")
+    first.append("c2")
+    first.append("c3")
+    _append_round(msgs, first)
+    let second = list[str]()
+    second.append("c4")
+    _append_round(msgs, second)
+    ut.assert_true(chat.can_compact_rich(msgs))
+    // the split moves back to the assistant turn, so no tool result is
+    // orphaned and no assistant turn loses its results
+    ut.assert_eq(chat.rich_split_index(msgs), 2)
+    ut.assert_true(msgs[2].role == "assistant")
+    ut.assert_eq(msgs[2].tool_calls.len(), 3)
+}
+
+@test
+func test_truncate_middle_keeps_ends() {
+    let s = "abcdefghijklmnopqrstuvwxyz"
+    ut.assert_true(chat.truncate_middle(s, 100) == s)
+    let cut = chat.truncate_middle(s, 12)
+    ut.assert_true(cut.starts_with("abcdefgh"))
+    ut.assert_true(cut.ends_with("wxyz"))
+    ut.assert_true("bytes omitted" in cut)
+    ut.assert_true(cut.len() < s.len() + 40)
+}
+
+@test
+func test_shrink_tool_results() {
+    let w = _work()
+    // context_window 4096 -> the compaction threshold is about 3276 tokens
+    _write_config(ABASE + "/cfg.json", "")
+    let cfg = _cfg(ABASE + "/cfg.json")
+    let msgs = list[openai.CompletionMessage]()
+    msgs.append(_rich("system", "s"))
+    msgs.append(_rich("user", "go"))
+    var big = "0123456789"
+    while big.len() < 40000 { big = big + big }
+    msgs.append(openai.CompletionMessage("tool", big, list[openai.ToolCall](), "c1", ""))
+    if let after = chat.shrink_tool_results(cfg, msgs) {
+        ut.assert_true(after < cfg.context_window * 80 / 100)
+    } else {
+        ut.assert_true(false)
+    }
+    ut.assert_true(msgs[2].content.len() < 5000)
+    ut.assert_true(msgs[2].tool_call_id == "c1")
+    ut.assert_true("bytes omitted" in msgs[2].content)
+    // nothing oversized: nothing to do
+    let small = list[openai.CompletionMessage]()
+    small.append(openai.CompletionMessage("tool", "exit 0", list[openai.ToolCall](), "c1", ""))
+    ut.assert_true(chat.shrink_tool_results(cfg, small) == nil)
 }
 
 // ---- action_target: one path rule for the guard, diff and write ----
@@ -366,4 +489,139 @@ func test_step_summary_shell_truncated() {
 @test
 func test_step_summary_single_line() {
     ut.assert_true(chat.step_summary("write ok: a.txt (5 bytes)") == "write ok: a.txt (5 bytes)")
+}
+
+// ---- native tools: declarations and the call -> action mapping ----
+
+/// A tool call the model might have written.
+func _tc(name str, args str) openai.ToolCall {
+    return openai.ToolCall("c1", "function", openai.FunctionCall(name, args))
+}
+
+@test
+func test_agent_tools_declares_the_core_set() {
+    let tools = chat.agent_tools()
+    ut.assert_eq(tools.len(), 7)
+    ut.assert_eq(tools[0].name(), "Read")
+    ut.assert_eq(tools[1].name(), "Write")
+    ut.assert_eq(tools[2].name(), "Edit")
+    ut.assert_eq(tools[3].name(), "Bash")
+    ut.assert_eq(tools[4].name(), "Glob")
+    ut.assert_eq(tools[5].name(), "Grep")
+    ut.assert_eq(tools[6].name(), "TodoWrite")
+    // each names its required arguments
+    ut.assert_true("path" in tools[0].function.parameters.get_object("properties"))
+    ut.assert_true("content" in tools[1].function.parameters.get_object("properties"))
+    ut.assert_true("old_string" in tools[2].function.parameters.get_object("properties"))
+    ut.assert_true("command" in tools[3].function.parameters.get_object("properties"))
+    ut.assert_true("pattern" in tools[4].function.parameters.get_object("properties"))
+    ut.assert_true("pattern" in tools[5].function.parameters.get_object("properties"))
+    ut.assert_true("todos" in tools[6].function.parameters.get_object("properties"))
+}
+
+@test
+func test_tool_action_write() {
+    let action = chat.tool_action("Write", _tc("Write", "{\"path\": \"a.txt\", \"content\": \"hi\"}")) else {
+        ut.assert_true(false)
+        return
+    }
+    let (info, body) = action
+    ut.assert_eq(info, "write a.txt")
+    ut.assert_eq(body, "hi")
+}
+
+@test
+func test_tool_action_names_are_case_insensitive() {
+    let a = chat.tool_action("write", _tc("write", "{\"path\": \"b.txt\", \"content\": \"\"}")) else {
+        ut.assert_true(false)
+        return
+    }
+    let (a_info, a_body) = a
+    ut.assert_eq(a_info, "write b.txt")
+    ut.assert_eq(a_body, "")
+    let b = chat.tool_action("bash", _tc("bash", "{\"command\": \"echo hi\"}")) else {
+        ut.assert_true(false)
+        return
+    }
+    let (b_info, b_body) = b
+    ut.assert_eq(b_info, "shell")
+    ut.assert_eq(b_body, "echo hi")
+}
+
+@test
+func test_tool_action_rejects_bad_calls() {
+    // unknown tool name
+    ut.assert_true(chat.tool_action("Frob", _tc("Frob", "{}")) == nil)
+    // malformed argument JSON never panics
+    ut.assert_true(chat.tool_action("Write", _tc("Write", "{not json")) == nil)
+    // a missing required argument
+    ut.assert_true(chat.tool_action("Write", _tc("Write", "{\"path\": \"a.txt\"}")) == nil)
+    // an empty path or command
+    ut.assert_true(chat.tool_action("Write", _tc("Write", "{\"path\": \"  \", \"content\": \"x\"}")) == nil)
+    ut.assert_true(chat.tool_action("Bash", _tc("Bash", "{\"command\": \"   \"}")) == nil)
+    // non-object JSON
+    ut.assert_true(chat.tool_action("Bash", _tc("Bash", "[1,2]")) == nil)
+}
+
+@test
+func test_tool_names_lists_available() {
+    ut.assert_true("Write" in chat.tool_names())
+    ut.assert_true("Bash" in chat.tool_names())
+}
+
+// ---- heap settle (settle_heap / gc.collect at the stop points) ----
+
+/// Allocate `n` short-lived strings and use them, so the loop cannot be
+/// optimized away: the counter must clear the settle threshold so the next
+/// `settle_heap()` really collects. Returns the total length, for an assert.
+func _churn(n int) int {
+    var acc = 0
+    for i in range(n) {
+        let s = "abc" + str(i)
+        acc += s.len()
+    }
+    return acc
+}
+
+@test
+func test_settle_heap_collects_after_churn() {
+    gc.collect()
+    let before = gc.get_stats()["collections"].to_int()
+    // four blocks per iteration: the int's text, the concatenation and the
+    // two tuples `range` yields
+    ut.assert_true(_churn(200_000) > 0)
+    let (allocated, _, _) = gc.get_count()
+    // well past the 50k-block threshold settle_heap uses
+    ut.assert_true(allocated > 100_000)
+    chat.settle_heap()
+    let (left, _, _) = gc.get_count()
+    ut.assert_true(left < 10_000)
+    ut.assert_eq(gc.get_stats()["collections"].to_int(), before + 1)
+}
+
+@test
+func test_settle_heap_skips_a_quiet_turn() {
+    // a fresh collection zeroes the counter, so the next stop point must not
+    // pay for another full mark & sweep
+    gc.collect()
+    let before = gc.get_stats()["collections"].to_int()
+    chat.settle_heap()
+    ut.assert_eq(gc.get_stats()["collections"].to_int(), before)
+}
+
+@test
+func test_settle_heap_keeps_the_live_conversation() {
+    let w = _work()
+    _write_config(ABASE + "/cfg.json", "")
+    let cfg = _cfg(ABASE + "/cfg.json")
+    let a = chat.Agent(openai.Client("sk", "http://127.0.0.1:1/v1"), cfg, w, true)
+    a.add_context("kept across a collection")
+    ut.assert_true(_churn(200_000) > 0)
+    chat.settle_heap()
+    // everything the Agent holds is reachable from the stack or a module
+    // global, so a collection in the middle of a session must not touch it
+    let conv = a.conversation()
+    ut.assert_eq(conv.len(), 2)
+    ut.assert_eq(conv[1]["content"], "kept across a collection")
+    ut.assert_eq(a.permission(), "default")
 }

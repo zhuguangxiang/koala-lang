@@ -72,13 +72,38 @@ func test_config_all_fields() {
     ut.assert_true(cfg.system_prompt == "s")
     ut.assert_eq(cfg.no_access_dirs.len(), 0)
     ut.assert_eq(cfg.stream_delay_ms, 40)
-    ut.assert_eq(cfg.agent_max_steps, 20)
+    ut.assert_eq(cfg.agent_max_steps, 100)
+    // the permission model defaults: default mode, no extra config rules
+    ut.assert_eq(cfg.agent_permission_mode, "default")
+    ut.assert_eq(cfg.agent_allow_tools.len(), 0)
+    ut.assert_eq(cfg.agent_deny_tools.len(), 0)
+    ut.assert_eq(cfg.agent_bash_deny.len(), 0)
+}
+
+@test
+func test_config_permission_fields() {
+    _fresh()
+    let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", " +
+               "\"history_file\": \"/tmp/h\", \"max_code_bytes\": 1000, " +
+               "\"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, " +
+               "\"system_prompt\": \"s\", \"agent_permission_mode\": \"accept-edits\", " +
+               "\"agent_allow_tools\": [\"Read\", \"Grep\"], " +
+               "\"agent_deny_tools\": [\"Bash\"], \"agent_bash_deny\": [\"rm\", \"sudo\"]}"
+    let cfg = _config_of(CFGBASE + "/perm.json", json)
+    // the alias spelling is folded into the canonical name
+    ut.assert_eq(cfg.agent_permission_mode, "accept_edits")
+    ut.assert_eq(cfg.agent_allow_tools.len(), 2)
+    ut.assert_eq(cfg.agent_allow_tools[0], "Read")
+    ut.assert_eq(cfg.agent_deny_tools.len(), 1)
+    ut.assert_eq(cfg.agent_deny_tools[0], "Bash")
+    ut.assert_eq(cfg.agent_bash_deny.len(), 2)
+    ut.assert_eq(cfg.agent_bash_deny[1], "sudo")
 }
 
 @test
 func test_config_agent_max_steps() {
     _fresh()
-    // an explicit value overrides the 20-step default
+    // an explicit value overrides the 100-step default
     let json = "{\"model\": \"auto\", \"base_url\": \"http://127.0.0.1:1/v1\", \"history_file\": \"/tmp/h\", \"max_code_bytes\": 1000, \"temperature\": 0.5, \"max_tokens\": 100, \"context_window\": 4096, \"system_prompt\": \"s\", \"agent_max_steps\": 7}"
     let cfg = _config_of(CFGBASE + "/steps.json", json)
     ut.assert_eq(cfg.agent_max_steps, 7)

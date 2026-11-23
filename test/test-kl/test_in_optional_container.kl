@@ -1,0 +1,41 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+//
+// issue-130: `in` requires a concrete container type, so an optional container
+// (`str?`, `Object?`) is a type error, not a compiler crash (an optional type
+// spec keeps sym_id = -1, parse_in() used to abort on ASSERT(container_ts_sym)).
+// The correct form unwraps the container first: `"a" in s!`.
+
+from "koala/json" import Object, parse_str
+
+func in_str_optional(s str?) bool {
+    return "a" in s
+    // CHECK: optional container type is not allowed in 'in' operator.
+}
+
+func in_param(o Object?) bool {
+    return !("path" in o)
+    // CHECK: optional container type is not allowed in 'in' operator.
+}
+
+func in_cast_result(s str) bool {
+    let a = parse_str(s) as Object
+    return "path" in a
+    // CHECK: optional container type is not allowed in 'in' operator.
+}
+
+// a narrowed container is fine
+func in_narrowed_ok(o Object?) bool {
+    if o == nil { return false }
+    return "path" in o
+}
+
+// the root fix: unwrap the container with '!'
+func in_unwrapped_ok(s str?) bool {
+    return "a" in s!
+}
+
+func in_unwrapped_ok2(o Object?) bool {
+    return "path" in o!
+}
+
+// CHECK-NOT: error:

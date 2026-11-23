@@ -8,12 +8,22 @@
 /// Configuration:
 ///   All settings come from config.json in the working directory, or from
 ///   the file named by `--config PATH` (the command-line option wins over
-///   $CHAT_CONFIG); there are no built-in defaults, so the file and every
-///   field are required. A template lives at demo/chat/config.json.
+///   $CHAT_CONFIG). Every core field is required; the optional agent fields
+///   (no_access_dirs, stream_delay_ms, agent_max_steps,
+///   agent_tool_timeout_ms, agent_max_tool_output_bytes,
+///   agent_permission_mode, agent_allow_tools, agent_deny_tools,
+///   agent_bash_deny) have defaults and may be omitted. Config in
+///   config.kl documents each one.
 ///   The API key is NOT in config: it comes from $OPENAI_COMPAT_API_KEY,
 ///   or is entered at startup when unset.
-///   context_window sets the model's token budget; when a request reaches
-///   80% of it, older history is auto-summarized (compaction) to fit.
+///   context_window sets the model's token budget. The agent checks the
+///   next request's size before every call: the last request's actual
+///   prompt tokens plus the messages its tool results appended. At 80% of
+///   the window it summarizes the older turns (compaction), never splitting
+///   a tool call from its results, then truncates any single oversized tool
+///   result (head and tail kept, with an omission marker) so the request
+///   fits. A failed or empty summary is reported and the history is kept
+///   as is, never replaced with a blank summary.
 ///   Compaction prints a dim `↺ context compacted 18.2k → 4.1k tokens`
 ///   line: the left value is the last request's actual prompt size, the
 ///   right one is an estimate of the new context until the next request
@@ -25,33 +35,83 @@
 ///   be intercepted).
 ///   Example: "no_access_dirs": ["secret", "/home/me/.config/Qoder"]
 ///
+/// Memory: the collector only runs when asked (allocating past KOALA_GC_MAX,
+///   1 GiB by default, is a panic, not a collection), so the chat settles the
+///   heap at its stop points — between two agent steps, at the end of a turn,
+///   after /cancel or /compact, and at the top of the input loop — whenever
+///   enough was allocated since the last collection. That is what lets a
+///   session stay open for hours instead of growing toward the limit.
+///
 /// Modes: starts in chat mode (single-shot Q&A). /agent switches to agent
-///   mode, where each plain line runs the coding loop (write/compile/run
-///   until done); /chat switches back. The input prompt is `> ` and the
+///   mode, where each plain line runs the coding loop: the model calls the
+///   Write and Bash tools it is offered, the harness approves and runs each
+///   call and feeds the result back, until the model answers without a tool
+///   call; an endpoint that rejects tools falls back to the fenced
+///   write/shell/done protocol. Hitting the step cap says so, and
+///   /continue resumes with the conversation intact. /chat switches back.
+///   The reply streams: text appears line by line as it arrives, and a tool
+///   call is shown only once its arguments are complete. Ctrl-C while the
+///   agent runs stops it at its next checkpoint: the partial reply is kept
+///   with an `[interrupted by the user]` marker, a tool call that had not
+///   run is answered as interrupted so the message sequence stays valid,
+///   and the REPL says `/continue` to resume or `/cancel` to drop the turn.
+///   A Ctrl-C while a shell command runs reaches the command too (same
+///   process group), so it stops as well.
+///   The input prompt is `> ` and the
 ///   status row carries the [chat] / [agent] badge.
 ///   The agent works in the current directory by default; /workdir PATH
 ///   switches it (it persists across /reset and across tasks). Before it
 ///   writes a file or runs a shell command, the agent shows the target or
 ///   command (a write also gets a coloured line diff) and asks
 ///   `Apply [y/a/n/d] (default n)`: y approves once, a approves every later
-///   action in this session, n denies and tells the model why, d expands the
+///   action of the same kind in this session (allowing edits does not allow
+///   shell commands), n denies and tells the model why, d expands the
 ///   full diff and asks again. Blank input, EOF and anything unrecognised
 ///   deny, so a stray Enter never changes a file.
-/// Sessions: conversations are saved as sessions in chat_sessions/ (one
-///   JSON file each), and the most recently modified one resumes at
-///   startup. /new [NAME] starts a new session (auto-named with a
-///   timestamp), /sessions lists them, /switch N|NAME switches, /pause
-///   [N|NAME] freezes a session's automatic compaction (/resume undoes
-///   it; manual /compact still works), /rename NAME renames the current
-///   one. A record with missing or mistyped fields is skipped at startup
-///   with a warning; one with malformed JSON panics like a bad
-///   config.json.
+///   The permission mode decides what asks at all: default (read-only runs,
+///   write/edit/bash ask), accept_edits (write/edit run, bash asks), plan
+///   (read-only only, changes denied) and bypass (everything runs).
+///   agent_permission_mode sets the start mode; /permissions shows or
+///   switches it, /plan enters plan mode and /plan off leaves it. Optional
+///   agent_allow_tools / agent_deny_tools name tool kinds to skip or always
+///   refuse (deny wins over every mode), and agent_bash_deny lists shell
+///   command prefixes that never run. The prefix list is a guardrail, not a
+///   sandbox: `x && rm -rf /` does not start with `rm`.
+/// Sessions: conversations are saved as sessions in chat_sessions/, one
+///   `<id>.json` per session whose file name is the session's stable id;
+///   `.current` names the session to resume; `--resume NAME` picks another
+///   saved one (by name or id) and `--new` starts a fresh one instead. `--continue`
+///   says which one came back. A save goes through a
+///   temporary file and a rename, so a crash never leaves half a record,
+///   and a failing disk warns once instead of once per turn. The agent's
+///   conversation is saved with its tool structure (`tool_calls`,
+///   `tool_call_id`, `name`), so a restart keeps the tool rounds intact; a
+///   record written by an older build (plain role/content) still loads.
+///   /new [NAME] starts a new session (auto-named with a timestamp),
+///   /sessions lists them (chat+agent message counts and when each was last
+///   written), /switch N|NAME switches, /resume N|NAME restores a saved one
+///   (/resume without an argument lists them), /pause [N|NAME] freezes a
+///   session's automatic compaction and /unpause [N|NAME] brings it back
+///   (manual /compact still works while paused), /rename NAME changes the
+///   current session's display name only (its id, and so its file, stays
+///   the same). A record with missing or mistyped fields, or with
+///   malformed JSON, is skipped at startup with a warning and listed as
+///   `! id (reason)` under the /sessions table. A turn that was interrupted
+///   or hit the step cap is saved as `run_state: pending` with its start
+///   mark, so /continue and /cancel still work after a restart (a restart
+///   announces the unfinished turn).
 /// Commands (both modes): /help lists commands and shortcuts; /quit /exit
 ///   Ctrl-D leave, /reset clears the conversation, /clear clears the screen,
 ///   /compact summarizes old history now, /context shows window size and
-///   usage, /file PATH (or @PATH) loads a file, /model shows or switches the
+///   usage, /file PATH (or @PATH) loads a file into the active
+///   conversation — the chat history in chat mode, the agent's conversation
+///   in agent mode, so the next task sees it — /model shows or switches the
 ///   model (/model NAME), /models lists the endpoint's models, /workdir shows
-///   or sets the agent's working directory (/workdir PATH). Paths may start
+///   or sets the agent's working directory (/workdir PATH), /permissions
+///   shows or switches the tool permission mode (/permissions MODE) and
+///   /plan enters plan mode (/plan off leaves it). In agent mode /continue
+///   asks again after the step cap or an interrupt, and /cancel drops the
+///   turn an interrupt left half done. Paths may start
 ///   with ~ for the home directory. Tab completes the /commands (a fuzzy
 ///   filter such as /mdl, with a grouped panel of one-line descriptions),
 ///   model names after /model, paths after /file, directories after /workdir,
@@ -88,7 +148,9 @@
 ///   config.kl   — Config (from config.json) and resolve_key
 ///   session.kl  — Session: conversation, model selection, model listing
 ///   sessions.kl — the session store and manager (chat_sessions/)
-///   agent.kl    — Agent: the model-driven write/shell/done tool loop
+///   agent.kl    — Agent: the model-driven tool loop (native + fenced)
+///   tools.kl    — the seven tools: schemas, parsing, execution
+///   permission.kl — what runs, what asks, what is refused (four modes)
 ///   compact.kl  — context compaction (summarize old history near the limit)
 ///   ui.kl       — pure transcript/tool/user/error formatting (no terminal I/O)
 ///   repl.kl     — the input loop, commands, and terminal I/O
@@ -99,8 +161,64 @@ import "koala/openai" as openai
 func main() {
     let cfg = Config(_config_flag())
     let key = resolve_key()
+    // sessions.kl reads the `.current` pointer (id) after --continue and
+    // --resume: a fresh pointer wins over recency, a stale one is repaired.
     let mgr = SessionManager(openai.Client(key, cfg.base_url), cfg, key)
-    run_repl(mgr, cfg)
+    // --new starts a fresh session instead of resuming .current; --resume
+    // picks a saved one by name or id (it wins over .current)
+    if _has_flag("--new") {
+        mgr.new(nil)
+    } else {
+        let want = _flag_value("--resume")
+        if want != nil && !mgr.switch_to(want!) {
+            emit("(warning: no saved session '" + want! + "'; resumed '" +
+                 mgr.current_session().name() + "')")
+        }
+    }
+    var announce = ""
+    if _has_flag("--continue") && !_has_flag("--new") {
+        // The manager already made the .current session current (recent
+        // writes when the pointer is stale); --continue asks for it out
+        // loud, with what came back.
+        let s = mgr.current_session()
+        let (chat_n, agent_n) = s.message_counts()
+        announce = "(continued '" + s.name() + "': " + str(chat_n) + " chat + " + str(agent_n) +
+                   " agent messages, model " + s.current_model() + "; /sessions lists them all)"
+    }
+    // a turn that was interrupted (or hit the step cap) before the process
+    // ended is still resumable: say so instead of leaving it silent
+    let open = mgr.current_session().pending_reason()
+    if open != "" {
+        emit("(session '" + mgr.current_session().name() + "' has an unfinished turn: " + open +
+             "; /continue to resume, /cancel to drop it)")
+    }
+    run_repl(mgr, cfg, announce)
+}
+
+/// True when the command line carries `flag`.
+func _has_flag(flag str) bool {
+    let a = sys.args()
+    var i = 1
+    while i < a.len() {
+        if a[i] == flag { return true }
+        i += 1
+    }
+    return false
+}
+
+/// The value after `flag` on the command line, or nil when the flag is
+/// absent or is the last argument.
+func _flag_value(flag str) str? {
+    let a = sys.args()
+    var i = 1
+    while i < a.len() {
+        if a[i] == flag {
+            if i + 1 >= a.len() { return nil }
+            return a[i + 1]
+        }
+        i += 1
+    }
+    return nil
 }
 
 /// The config file named by `--config PATH` on the command line, or nil.

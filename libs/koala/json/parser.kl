@@ -27,41 +27,98 @@ pub class Parser {
     var pos = 0
     var depth = 0
 
+    /// True once a syntax error has been met. Parsing never panics on a
+    /// syntax error, it only records the first message here, so that a
+    /// caller can choose between [`parse`](#parse) and
+    /// [`try_parse`](#try_parse).
+    var failed = false
+
+    /// The message of the first syntax error, empty if none.
+    var err_msg = ""
+
     /// Create a parser for the source text `src`.
     pub func __init__(src str) {
         self.src = src
     }
 
+    /// Return true once a syntax error has been met.
+    pub func is_failed() bool = failed
+
+    /// Return the message of the first syntax error, or an empty string
+    /// if the parse succeeded.
+    pub func error_message() str = err_msg
+
     /// Parse the whole source text and return the root value.
     ///
     /// Errors
     ///
-    /// Panic if the source text is not valid JSON.
+    /// Panic if the source text is not valid JSON. Use
+    /// [`try_parse`](#try_parse) to get `nil` instead.
     pub func parse() Value {
+        let v = try_parse()
+        if failed {
+            panic(err_msg)
+        }
+        return v!
+    }
+
+    /// Parse the whole source text and return the root value, or `nil`
+    /// if the source text is not valid JSON.
+    ///
+    /// The message of the first syntax error is kept, see
+    /// [`error_message`](#error_message).
+    pub func try_parse() Value? {
         skip_ws()
+        if failed {
+            return nil
+        }
         let v = parse_value()
         skip_ws()
-        if pos < src.len() {
-            panic("Unexpected trailing content in JSON input")
+        if !failed && pos < src.len() {
+            fail("Unexpected trailing content in JSON input")
+        }
+        if failed {
+            return nil
         }
         return v
     }
 
+    /// Record `msg` as the message of the first syntax error.
+    func fail(msg str) {
+        if !failed {
+            failed = true
+            err_msg = msg
+        }
+    }
+
     /// Parse one value at the current position.
+    ///
+    /// Returns [`Null`](#null) once a syntax error has been met, the
+    /// error itself is recorded by [`fail`](#fail).
     func parse_value() Value {
+        if failed {
+            return Null()
+        }
         if pos >= src.len() {
-            panic("Unexpected end of JSON input")
+            fail("Unexpected end of JSON input")
+            return Null()
         }
 
         let ch = src[pos]
         if ch == "{" {
             enter_nested()
+            if failed {
+                return Null()
+            }
             let obj = parse_object()
             depth -= 1
             return obj
         }
         if ch == "[" {
             enter_nested()
+            if failed {
+                return Null()
+            }
             let arr = parse_array()
             depth -= 1
             return arr
@@ -85,6 +142,8 @@ pub class Parser {
     }
 
     /// Parse a `{...}` object at the current position.
+    ///
+    /// Returns the pairs read so far once a syntax error has been met.
     func parse_object() Object {
         let obj = Object()
         pos += 1 // consume the '{'
@@ -99,29 +158,40 @@ pub class Parser {
         while !done {
             skip_ws()
             if pos >= src.len() {
-                panic("Unexpected end of JSON input")
+                fail("Unexpected end of JSON input")
+                return obj
             }
             if src[pos] != "\"" {
-                panic("Expected a string key in JSON object")
+                fail("Expected a string key in JSON object")
+                return obj
             }
             let key = parse_string()
+            if failed {
+                return obj
+            }
 
             skip_ws()
             if pos >= src.len() {
-                panic("Unexpected end of JSON input")
+                fail("Unexpected end of JSON input")
+                return obj
             }
             if src[pos] != ":" {
-                panic("Expected ':' after a key in JSON object")
+                fail("Expected ':' after a key in JSON object")
+                return obj
             }
             pos += 1
 
             skip_ws()
             let value = parse_value()
+            if failed {
+                return obj
+            }
             obj.add(key, value)
 
             skip_ws()
             if pos >= src.len() {
-                panic("Unexpected end of JSON input")
+                fail("Unexpected end of JSON input")
+                return obj
             }
             let ch = src[pos]
             if ch == "," {
@@ -130,13 +200,16 @@ pub class Parser {
                 pos += 1
                 done = true
             } else {
-                panic("Expected ',' or '}' in JSON object")
+                fail("Expected ',' or '}' in JSON object")
+                return obj
             }
         }
         return obj
     }
 
     /// Parse a `[...]` array at the current position.
+    ///
+    /// Returns the elements read so far once a syntax error has been met.
     func parse_array() Array {
         let arr = Array()
         pos += 1 // consume the '['
@@ -151,11 +224,15 @@ pub class Parser {
         while !done {
             skip_ws()
             let value = parse_value()
+            if failed {
+                return arr
+            }
             arr.add(value)
 
             skip_ws()
             if pos >= src.len() {
-                panic("Unexpected end of JSON input")
+                fail("Unexpected end of JSON input")
+                return arr
             }
             let ch = src[pos]
             if ch == "," {
@@ -164,21 +241,25 @@ pub class Parser {
                 pos += 1
                 done = true
             } else {
-                panic("Expected ',' or ']' in JSON array")
+                fail("Expected ',' or ']' in JSON array")
+                return arr
             }
         }
         return arr
     }
 
     /// Parse a double-quoted string at the current position.
+    ///
+    /// Returns the text read so far once a syntax error has been met.
     func parse_string() str {
         pos += 1 // consume the opening quote
 
         let buf = Buffer()
         var done = false
-        while !done {
+        while !done && !failed {
             if pos >= src.len() {
-                panic("Unterminated string in JSON input")
+                fail("Unterminated string in JSON input")
+                break
             }
 
             let ch = src[pos]
@@ -190,7 +271,8 @@ pub class Parser {
                 parse_escape(buf)
             } else {
                 if ch < " " {
-                    panic("Unescaped control character in JSON string")
+                    fail("Unescaped control character in JSON string")
+                    break
                 }
                 buf.write_str(ch)
                 pos += 1
@@ -202,8 +284,12 @@ pub class Parser {
     /// Parse the escape sequence at the current position and write the
     /// decoded text to `buf`.
     func parse_escape(buf Buffer) {
+        if failed {
+            return
+        }
         if pos >= src.len() {
-            panic("Unexpected end of JSON input")
+            fail("Unexpected end of JSON input")
+            return
         }
 
         let ch = src[pos]
@@ -227,7 +313,7 @@ pub class Parser {
         } else if ch == "u" {
             parse_unicode_escape(buf)
         } else {
-            panic("Invalid escape sequence in JSON string")
+            fail("Invalid escape sequence in JSON string")
         }
     }
 
@@ -238,20 +324,28 @@ pub class Parser {
     /// pair is decoded as a single code point above the basic plane.
     func parse_unicode_escape(buf Buffer) {
         let unit = parse_hex4()
+        if failed {
+            return
+        }
         if unit >= 0xD800 && unit <= 0xDBFF {
             // A high surrogate, the low surrogate must follow.
             if pos + 1 >= src.len() || src[pos] != "\\" || src[pos + 1] != "u" {
-                panic("Invalid surrogate pair in JSON string")
+                fail("Invalid surrogate pair in JSON string")
+                return
             }
             pos += 2
             let low = parse_hex4()
+            if failed {
+                return
+            }
             if low < 0xDC00 || low > 0xDFFF {
-                panic("Invalid surrogate pair in JSON string")
+                fail("Invalid surrogate pair in JSON string")
+                return
             }
             write_codepoint(buf, 0x10000 + (unit - 0xD800) * 0x400 + (low - 0xDC00))
         } else if unit >= 0xDC00 && unit <= 0xDFFF {
             // A low surrogate without a high surrogate.
-            panic("Invalid surrogate pair in JSON string")
+            fail("Invalid surrogate pair in JSON string")
         } else {
             write_codepoint(buf, unit)
         }
@@ -262,13 +356,15 @@ pub class Parser {
     func parse_hex4() int {
         var value = 0
         var i = 0
-        while i < 4 {
+        while i < 4 && !failed {
             if pos >= src.len() {
-                panic("Unexpected end of JSON input")
+                fail("Unexpected end of JSON input")
+                return -1
             }
             let digit = hex_value(src[pos])
             if digit < 0 {
-                panic("Invalid \\u escape in JSON string")
+                fail("Invalid \\u escape in JSON string")
+                return -1
             }
             value = value * 16 + digit
             pos += 1
@@ -324,7 +420,8 @@ pub class Parser {
         // The integer part is either a single '0' or a non-zero digit
         // followed by more digits.
         if pos >= src.len() || !is_digit(src[pos]) {
-            panic("Invalid JSON number")
+            fail("Invalid JSON number")
+            return Null()
         }
         if src[pos] == "0" {
             pos += 1
@@ -341,7 +438,8 @@ pub class Parser {
             is_float = true
             pos += 1
             if pos >= src.len() || !is_digit(src[pos]) {
-                panic("Invalid JSON number")
+                fail("Invalid JSON number")
+                return Null()
             }
             while pos < src.len() && is_digit(src[pos]) {
                 pos += 1
@@ -356,7 +454,8 @@ pub class Parser {
                 pos += 1
             }
             if pos >= src.len() || !is_digit(src[pos]) {
-                panic("Invalid JSON number")
+                fail("Invalid JSON number")
+                return Null()
             }
             while pos < src.len() && is_digit(src[pos]) {
                 pos += 1
@@ -372,13 +471,13 @@ pub class Parser {
 
     /// Count one more level of object or array nesting.
     ///
-    /// Errors
-    ///
-    /// Panic if the nesting would go deeper than `MAX_DEPTH`.
+    /// Records a syntax error if the nesting would go deeper than
+    /// `MAX_DEPTH`, so that a hostile document cannot run the process out
+    /// of stack.
     func enter_nested() {
         depth += 1
         if depth > MAX_DEPTH {
-            panic("JSON nesting too deep")
+            fail("JSON nesting too deep")
         }
     }
 
@@ -408,7 +507,8 @@ pub class Parser {
     func expect_word(word str) {
         let end = pos + word.len()
         if end > src.len() || src.substr(pos, end) != word {
-            panic("Invalid JSON literal")
+            fail("Invalid JSON literal")
+            return
         }
         pos = end
     }

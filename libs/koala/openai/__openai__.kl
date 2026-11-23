@@ -3,9 +3,127 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+from "koala/json" import Object, Array, String
+
 /// Create a message dict compatible with the OpenAI messages format.
 ///
 /// This is syntactic sugar for `{"role": role, "content": content}`.
 pub func msg(role str, content str) dict[str, str] {
     return {"role": role, "content": content}
+}
+
+// ---- rich messages, for create_tools/stream_tools ----
+
+/// A `role: "user"` message.
+pub func user_msg(content str) CompletionMessage {
+    return CompletionMessage("user", content, list[ToolCall](), "", "")
+}
+
+/// A `role: "system"` message.
+pub func system_msg(content str) CompletionMessage {
+    return CompletionMessage("system", content, list[ToolCall](), "", "")
+}
+
+/// An assistant turn: its text, plus the tool calls it asked for.
+pub func assistant_msg(content str, calls list[ToolCall]) CompletionMessage {
+    return CompletionMessage("assistant", content, calls, "", "")
+}
+
+/// The `role: "tool"` answer to the call `call_id`.
+pub func tool_msg(call_id str, content str) CompletionMessage {
+    return CompletionMessage("tool", content, list[ToolCall](), call_id, "")
+}
+
+// ---- message <-> JSON object ----
+//
+// One shape for both directions: what a request sends and what a saved
+// session stores. `message_from_object` is the inverse and never panics, so
+// a hand-edited or older record loads with whatever fields survived.
+
+/// One message as the JSON object the wire (and a saved session) uses:
+/// `role` and `content`, plus `tool_calls`, `tool_call_id` and `name` when
+/// they carry something. An assistant turn that only calls tools has no
+/// text, so its `content` is left out rather than sent as "".
+pub func message_to_object(m CompletionMessage) Object {
+    let o = Object()
+    o["role"] = String(m.role)
+    if m.content.len() > 0 || m.tool_calls.len() == 0 {
+        o["content"] = String(m.content)
+    }
+    if m.tool_calls.len() > 0 {
+        let calls = Array()
+        for c in m.tool_calls { calls.append(tool_call_to_object(c)) }
+        o["tool_calls"] = calls
+    }
+    if m.tool_call_id.len() > 0 { o["tool_call_id"] = String(m.tool_call_id) }
+    if m.name.len() > 0 { o["name"] = String(m.name) }
+    return o
+}
+
+/// The message `o` describes, or nil when it carries no string `role`.
+/// Every other field is optional and defaults to empty, so a plain
+/// `{role, content}` record from an older save loads as a plain message
+/// and a misspelled tool field costs only that field.
+pub func message_from_object(o Object) CompletionMessage? {
+    if !("role" in o) { return nil }
+    let role = o.get("role")!
+    if !(role is String) { return nil }
+    let calls = list[ToolCall]()
+    if "tool_calls" in o {
+        let raw = o.get("tool_calls")!
+        if raw is Array {
+            for e in raw.value {
+                if e is Object {
+                    if let c = tool_call_from_object(e) { calls.append(c) }
+                }
+            }
+        }
+    }
+    return CompletionMessage(role.value, _message_str(o, "content"), calls,
+                             _message_str(o, "tool_call_id"), _message_str(o, "name"))
+}
+
+/// One `tool_calls` entry as JSON, the inverse of tool_call_from_object.
+pub func tool_call_to_object(c ToolCall) Object {
+    let o = Object()
+    o["id"] = String(c.id)
+    o["type"] = String(c.type_)
+    let f = Object()
+    f["name"] = String(c.function.name)
+    f["arguments"] = String(c.function.arguments)
+    o["function"] = f
+    return o
+}
+
+/// The tool call `o` describes, or nil when it names no function. A saved
+/// call without an id keeps "" — the pairing check then simply misses it.
+pub func tool_call_from_object(o Object) ToolCall? {
+    var name = ""
+    var args = ""
+    if "function" in o {
+        let f = o.get("function")!
+        if f is Object {
+            name = _message_str(f, "name")
+            args = _message_str(f, "arguments")
+        }
+    }
+    if name == "" { return nil }
+    var type_ = "function"
+    if "type" in o {
+        let t = o.get("type")!
+        if t is String {
+            if t.value != "" { type_ = t.value }
+        }
+    }
+    return ToolCall(_message_str(o, "id"), type_, FunctionCall(name, args))
+}
+
+/// The string field `key` of a message object, or "" when it is absent or
+/// not a string: a saved message must never panic on a bad field.
+func _message_str(o Object, key str) str {
+    if key in o {
+        let v = o.get(key)!
+        if v is String { return v.value }
+    }
+    return ""
 }

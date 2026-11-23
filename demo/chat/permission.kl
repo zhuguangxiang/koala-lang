@@ -1,0 +1,148 @@
+/*
+ * demo/chat — the permission model: which tool calls run, which ask, which
+ * the harness refuses.
+ *
+ * One decision function, used by both the native and the fenced protocol,
+ * so a mode cannot be bypassed by the fallback. The answer is one of:
+ *
+ *   allow  run it without asking
+ *   ask    ask the user (y/a/n); the approver is injected by the UI
+ *   deny   never run it; the model gets a structured refusal
+ *
+ * The modes match Claude Code's observable semantics:
+ *
+ *   default       read-only tools run; write/edit/bash ask
+ *   accept_edits  write/edit run; bash still asks
+ *   plan          read-only tools only; write/edit/bash are denied
+ *   bypass        everything runs (config-gated; NOT a sandbox)
+ *
+ * `agent_deny_tools` wins over every mode, `agent_bash_deny` blocks shell
+ * commands by prefix even in `bypass` (a prefix is all it is: `a && rm -rf`
+ * or `sh -c ...` is not caught, so this is a guardrail, not a sandbox),
+ * and `agent_allow_tools` skips the question for the kinds it names, except
+ * in plan mode where read-only stays the ceiling.
+ *
+ * Nothing here panics: the mode and the tool names come from config and
+ * from a model.
+ */
+
+/// The default mode: read-only tools run, changes ask first.
+pub let PERM_DEFAULT = "default"
+
+/// Writes and edits run without asking; shell commands still ask.
+pub let PERM_ACCEPT_EDITS = "accept_edits"
+
+/// Read-only tools only; every change is refused.
+pub let PERM_PLAN = "plan"
+
+/// Everything runs without asking; only for a controlled environment.
+pub let PERM_BYPASS = "bypass"
+
+/// The mode names, in the order /permissions lists them.
+pub func permission_modes() list[str] {
+    return [PERM_DEFAULT, PERM_ACCEPT_EDITS, PERM_PLAN, PERM_BYPASS]
+}
+
+/// The mode names as `a, b, c`, for usage and config error messages.
+pub func permission_modes_text() str {
+    var out = ""
+    for m in permission_modes() {
+        if out != "" { out += ", " }
+        out += m
+    }
+    return out
+}
+
+/// The canonical mode name for `mode`, or "" when it is not a mode.
+/// Case-insensitive, and the common spellings `accept-edits`, `acceptEdits`
+/// and `edits` are folded into `accept_edits`.
+pub func normalize_permission_mode(mode str) str {
+    let m = mode.strip().lower()
+    if m == "accept-edits" || m == "acceptedits" || m == "edits" { return PERM_ACCEPT_EDITS }
+    for known in permission_modes() {
+        if known == m { return known }
+    }
+    return ""
+}
+
+/// A one-line description of `mode`, for /permissions and the help text.
+pub func permission_mode_desc(mode str) str {
+    if mode == PERM_ACCEPT_EDITS { return "write/edit run; shell asks" }
+    if mode == PERM_PLAN { return "read-only tools only; changes denied" }
+    if mode == PERM_BYPASS { return "everything runs (not a sandbox)" }
+    return "read-only tools run; write/edit/shell ask"
+}
+
+/// The tool kind of an action (`write x.txt` -> "write"), or "" when it is
+/// not a tool action. Names are matched case-insensitively, so `Read` and
+/// `read` are the same kind.
+pub func tool_kind(info str) str {
+    let i = info.strip().lower()
+    if i == "read" || i.starts_with("read ") { return "read" }
+    if i == "write" || i.starts_with("write ") { return "write" }
+    if i == "edit" || i.starts_with("edit ") { return "edit" }
+    if i == "shell" || i == "sh" || i == "bash" { return "bash" }
+    if i.starts_with("shell ") || i.starts_with("bash ") { return "bash" }
+    if i == "glob" || i.starts_with("glob ") { return "glob" }
+    if i == "grep" || i.starts_with("grep ") { return "grep" }
+    if i == "todo" || i == "todowrite" { return "todo" }
+    if i.starts_with("todo ") { return "todo" }
+    if i == "done" { return "done" }
+    return ""
+}
+
+/// True for the kinds that never change anything: their calls always run.
+pub func is_read_only_kind(kind str) bool {
+    return kind == "read" || kind == "glob" || kind == "grep" || kind == "todo" || kind == "done"
+}
+
+/// True when `tools` (config names such as `Read`, `bash` or `TodoWrite`)
+/// names `kind`.
+pub func names_kind(tools list[str], kind str) bool {
+    if kind == "" { return false }
+    for name in tools {
+        if tool_kind(name) == kind { return true }
+    }
+    return false
+}
+
+/// The prefix in `prefixes` that `body` starts with, or nil. Blank prefixes
+/// are ignored; the shell body is stripped so leading spaces do not slip a
+/// command past the list.
+pub func bash_deny_prefix(body str, prefixes list[str]) str? {
+    let cmd = body.strip()
+    if cmd == "" { return nil }
+    for p in prefixes {
+        let needle = p.strip()
+        if needle == "" { continue }
+        if cmd.starts_with(needle) { return needle }
+    }
+    return nil
+}
+
+/// The decision for one tool call: (allow|ask|deny, reason). The reason is
+/// "" for allow/ask and a short clause for deny.
+pub func permission_decision(mode str, kind str, body str, allow list[str], deny list[str], bash_deny list[str]) (str, str) {
+    // an explicit deny list is the strongest rule: even bypass respects it
+    if names_kind(deny, kind) { return ("deny", "agent_deny_tools lists " + kind) }
+    // plan mode is a ceiling: allow_tools cannot lift it. An unknown kind
+    // is left to run_action, which reports it as a bad call.
+    if mode == PERM_PLAN && kind != "" && !is_read_only_kind(kind) {
+        return ("deny", "plan mode allows only read-only tools (Read, Glob, Grep, TodoWrite)")
+    }
+    if kind == "bash" {
+        if let hit = bash_deny_prefix(body, bash_deny) {
+            return ("deny", "the command starts with '" + hit + "' (agent_bash_deny)")
+        }
+    }
+    // nothing to guard: read-only kinds, the fenced `done`, and actions
+    // this harness does not know (run_action reports those)
+    if is_read_only_kind(kind) || kind == "" { return ("allow", "") }
+    if names_kind(allow, kind) { return ("allow", "") }
+    if mode == PERM_BYPASS { return ("allow", "") }
+    if mode == PERM_ACCEPT_EDITS && (kind == "write" || kind == "edit") { return ("allow", "") }
+    return ("ask", "")
+}
+
+/// What the model is told when the harness refused a call in plan mode.
+pub let PLAN_DENIAL = "The harness denied this call: plan mode allows only Read, Glob, Grep and TodoWrite, so nothing was executed. Do not retry it; reply with a short plan in plain text and ask the user to leave plan mode (/plan off) before making changes."

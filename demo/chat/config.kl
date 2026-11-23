@@ -4,17 +4,24 @@
  * There are no built-in defaults: config.json (in the working directory,
  * or the file named by $CHAT_CONFIG, or the path given as --config PATH)
  * must exist and provide every field except `no_access_dirs`,
- * `stream_delay_ms` and `agent_max_steps`, which are optional: an absent
- * `no_access_dirs` is empty, an absent `stream_delay_ms` is 40, and an
- * absent `agent_max_steps` is 20. Precedence: the --config
- * path, then $CHAT_CONFIG, then config.json in the working directory.
+ * `stream_delay_ms`, `agent_max_steps`, `agent_tool_timeout_ms`,
+ * `agent_max_tool_output_bytes`, `agent_permission_mode`,
+ * `agent_allow_tools`, `agent_deny_tools` and `agent_bash_deny`, which are
+ * optional: an absent `no_access_dirs` is empty, an absent
+ * `stream_delay_ms` is 40, an absent `agent_max_steps` is 100, an absent
+ * `agent_tool_timeout_ms` is 120000, an absent
+ * `agent_max_tool_output_bytes` is 32000, an absent
+ * `agent_permission_mode` is `default`, and the three tool lists are empty.
+ * An unrecognised mode name is a fatal error. Precedence: the
+ * --config path, then $CHAT_CONFIG, then config.json in the working
+ * directory.
  * The API key is deliberately NOT config — see resolve_key().
  */
 
 import "std/fs"
 import "std/os"
 import "koala/readline"
-from "koala/json" import parse_file, Object, Float, Integer, Array, String
+from "koala/json" import try_parse_file, Object, Float, Integer, Array, String
 
 /// Runtime configuration. Every field is required and comes from
 /// config.json; a missing file or field is a fatal error.
@@ -34,9 +41,33 @@ pub class Config {
     /// line-by-line effect is visible to the eye. Optional; 40 when the
     /// field is absent; 0 disables the pause.
     pub let stream_delay_ms int
-    /// The agent loop's model->tool round cap. Optional; 20 when the
-    /// field is absent.
+    /// The agent loop's model->tool round cap. Optional; 100 when the
+    /// field is absent. A cap is a safety net: hitting it says so and
+    /// /continue resumes with the context intact.
     pub let agent_max_steps int
+    /// Milliseconds a Bash tool call may run before it is killed. Optional;
+    /// 120000 (two minutes) when the field is absent.
+    pub let agent_tool_timeout_ms int
+    /// Bytes kept per output stream (stdout, stderr) of a Bash tool call;
+    /// the rest goes to a temp log named in the result. Optional; 32000
+    /// when the field is absent. Read/Edit/Glob/Grep use it as their output
+    /// budget too.
+    pub let agent_max_tool_output_bytes int
+    /// The tool permission mode: `default` (read-only runs, changes ask),
+    /// `accept_edits` (write/edit run, shell asks), `plan` (read-only only)
+    /// or `bypass` (everything runs). Optional; `default` when the field is
+    /// absent. Switchable at runtime with /permissions.
+    pub let agent_permission_mode str
+    /// Tool names that skip the approval question, e.g. ["Read", "Grep"].
+    /// Optional; empty when absent. Plan mode still caps them at read-only.
+    pub let agent_allow_tools list[str]
+    /// Tool names that are always refused, in every mode (even `bypass`).
+    /// Optional; empty when absent.
+    pub let agent_deny_tools list[str]
+    /// Shell command prefixes that are always refused, e.g. ["rm", "sudo"].
+    /// Optional; empty when absent. A prefix match on the stripped command —
+    /// a guardrail, not a sandbox: `x && rm -rf /` does not start with `rm`.
+    pub let agent_bash_deny list[str]
 
     /// Build the configuration. `path` names the config file explicitly
     /// (the --config command-line option); nil (or "") falls back to
@@ -53,7 +84,17 @@ pub class Config {
         system_prompt = _str(obj, "system_prompt")
         no_access_dirs = _strs(obj, "no_access_dirs")
         stream_delay_ms = _opt_int(obj, "stream_delay_ms", 40)
-        agent_max_steps = _opt_int(obj, "agent_max_steps", 20)
+        agent_max_steps = _opt_int(obj, "agent_max_steps", 100)
+        agent_tool_timeout_ms = _opt_int(obj, "agent_tool_timeout_ms", 120_000)
+        agent_max_tool_output_bytes = _opt_int(obj, "agent_max_tool_output_bytes", 32_000)
+        let mode = normalize_permission_mode(_opt_str(obj, "agent_permission_mode", PERM_DEFAULT))
+        if mode == "" {
+            panic("config field 'agent_permission_mode' must be one of: " + permission_modes_text())
+        }
+        agent_permission_mode = mode
+        agent_allow_tools = _strs(obj, "agent_allow_tools")
+        agent_deny_tools = _strs(obj, "agent_deny_tools")
+        agent_bash_deny = _strs(obj, "agent_bash_deny")
     }
 }
 
@@ -83,8 +124,12 @@ func _load_object(path str?) Object {
     if !fs.is_file(p) {
         panic("config file not found: " + p + " (create config.json or set $CHAT_CONFIG)")
     }
-    let root = parse_file(p)
-    if root is Object { return root }
+    let root = try_parse_file(p)
+    if root == nil {
+        panic("config file is not valid JSON: " + p)
+    }
+    let v = root
+    if v is Object { return v }
     panic("config file must contain a JSON object: " + p)
 }
 
@@ -103,6 +148,15 @@ func _int(obj Object, key str) int {
 /// An optional integer field, `def` when absent.
 func _opt_int(obj Object, key str, def int) int {
     if key in obj { return obj.get_int(key) }
+    return def
+}
+
+/// An optional string field, `def` when absent or not a string.
+func _opt_str(obj Object, key str, def str) str {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is String { return v.value }
+    }
     return def
 }
 

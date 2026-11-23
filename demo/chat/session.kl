@@ -8,7 +8,7 @@ import "std/time"
 import "koala/readline"
 import "koala/openai" as openai
 from "koala/http" import Url, Request, Client
-from "koala/json" import parse_str, Object, String, Integer, Boolean, Array
+from "koala/json" import try_parse_str, Object, String, Integer, Boolean, Array
 
 /// An ordered conversation of OpenAI-format messages, starting with a
 /// system prompt. Session owns the message list, the turn-taking with the
@@ -19,9 +19,16 @@ pub class Session {
     let cfg Config
     let key str
     var _name str
+    // the storage id: the record's file name (`<id>.json`). /rename only
+    // changes the display name, so the id is what a save writes to and what
+    // the .current pointer stores.
+    var _id str
     var paused bool
     var model str
     var workdir str
+    // the tool permission mode for this session's agent; /permissions and
+    // /plan switch it, and a new or restored Agent inherits it
+    var permission_mode str
     let messages list[dict[str, str]]
     var _agent Agent?
     var _last_tokens int
@@ -34,9 +41,11 @@ pub class Session {
         cfg = _cfg
         key = _key
         _name = name
+        _id = name
         paused = false
         model = _cfg.model
         workdir = os.getcwd()
+        permission_mode = _cfg.agent_permission_mode
         messages = list[dict[str, str]]()
         _agent = nil
         _last_tokens = 0
@@ -50,6 +59,13 @@ pub class Session {
 
     /// Rename the session (used by /rename).
     pub func set_name(n str) { _name = n }
+
+    /// The stable storage id: the record's file name without ".json". A save
+    /// writes `<id>.json`, and /rename never changes it.
+    pub func id() str { return _id }
+
+    /// Set the storage id (used when a restored record's id is missing).
+    pub func set_id(i str) { _id = i }
 
     /// Freeze automatic compaction for this session; manual /compact still
     /// works. The live agent, if any, is paused with it.
@@ -67,19 +83,60 @@ pub class Session {
     /// True while the session is paused.
     pub func is_paused() bool { return paused }
 
+    /// The session's tool permission mode.
+    pub func permission() str { return permission_mode }
+
+    /// Switch the permission mode; false when `mode` is not a mode name.
+    /// A live agent is switched with it, so the next call obeys the new
+    /// decision table immediately.
+    pub func set_permission_mode(mode str) bool {
+        let m = normalize_permission_mode(mode)
+        if m == "" { return false }
+        permission_mode = m
+        if let a = _agent { a.set_permission_mode(m) }
+        return true
+    }
+
     /// The persisted record of this session.
     pub func to_record() Object {
         let o = Object()
+        o["version"] = Integer(2)
+        o["id"] = String(_id)
         o["name"] = String(_name)
         o["model"] = String(model)
         o["workdir"] = String(workdir)
         o["paused"] = Boolean(paused)
         o["last_tokens"] = Integer(_last_tokens)
         o["messages"] = _msgs(messages)
-        var am = list[dict[str, str]]()
-        if let a = _agent { am = a.conversation() }
-        o["agent_messages"] = _msgs(am)
+        var am = Array()
+        if let a = _agent { am = a.conversation_json() }
+        o["agent_messages"] = am
+        o["run_state"] = String(run_state())
+        if let a = _agent {
+            let why = a.pending_reason()
+            if why != "" {
+                let p = Object()
+                p["mark"] = Integer(a.pending_mark())
+                p["reason"] = String(why)
+                o["pending"] = p
+            }
+        }
         return o
+    }
+
+    /// "pending" while the agent holds a turn /continue can resume (step
+    /// limit or Ctrl-C), "idle" otherwise.
+    pub func run_state() str {
+        if let a = _agent {
+            if a.pending_reason() != "" { return "pending" }
+        }
+        return "idle"
+    }
+
+    /// "" when no agent turn is unfinished, else why it stopped.
+    pub func pending_reason() str {
+        if let a = _agent { return a.pending_reason() }
+        return ""
     }
 
     /// Clear the conversation back to the single system message, and drop
@@ -91,23 +148,37 @@ pub class Session {
         _last_tokens = 0
     }
 
+    /// (chat messages, agent messages) — the agent side is 0 until it has
+    /// run, and /sessions shows both so a long agent task is visible.
+    pub func message_counts() (int, int) {
+        var am = 0
+        if let a = _agent { am = a.message_count() }
+        return (messages.len(), am)
+    }
+
     /// The model currently in use.
     pub func current_model() str { return model }
 
     /// Switch the model used for subsequent turns.
     pub func set_model(name str) { model = name }
 
-    /// Load `path` into the conversation as a user message. Return the
-    /// number of characters added, or nil when the file cannot be read or
-    /// is inside a no-access directory.
+    /// Load `path` into the conversation as a user message: the chat history,
+    /// or the agent's conversation when `is_agent` (so an agent task started
+    /// later in the same session sees the file). Return the number of
+    /// characters added, or nil when the file cannot be read or is inside a
+    /// no-access directory.
     /// The fence and the path line are what make the model quote locations
     /// back well.
-    pub func load_file(path str) int? {
+    pub func load_file(path str, is_agent bool = false) int? {
         if path_blocked(path, workdir, cfg.no_access_dirs) { return nil }
         if !fs.is_file(path) { return nil }
         let text = fs.read_str(path, cfg.max_code_bytes)
         let content = "File: " + path + "\n```\n" + text + "\n```\n"
-        messages.append({"role": "user", "content": content})
+        if is_agent {
+            _ensure_agent().add_context(content)
+        } else {
+            messages.append({"role": "user", "content": content})
+        }
         return content.len()
     }
 
@@ -177,15 +248,43 @@ pub class Session {
     /// Agent persists across calls so follow-up tasks keep the conversation
     /// and the working directory; /reset drops it.
     pub func agent(task str) {
+        _ensure_agent().run(task, model)
+    }
+
+    /// The live agent, created and wired to the UI on first use: the
+    /// approver, the permission mode and the paused flag all come from this
+    /// session, so a restored or freshly made Agent cannot bypass them.
+    func _ensure_agent() Agent {
+        if let a = _agent { return a }
+        let a = Agent(client, cfg, workdir)
+        a.set_approver(request_approval)
+        a.set_permission_mode(permission_mode)
+        a.set_paused(paused)
+        _agent = a
+        return a
+    }
+
+    /// Continue the active agent task after the step cap (/continue): the
+    /// conversation is kept, only a new request is made.
+    pub func continue_agent() {
         if let a = _agent {
-            a.run(task, model)
+            a.resume(model)
         } else {
-            let a = Agent(client, cfg, workdir)
-            a.set_approver(request_approval)
-            a.set_paused(paused)
-            _agent = a
-            a.run(task, model)
+            emit("(no agent task to continue)")
         }
+    }
+
+    /// /cancel: drop the turn an interrupt left half done, including its user
+    /// message, so the conversation is what it was before the task. False
+    /// when nothing was interrupted.
+    pub func cancel_agent() bool {
+        if let a = _agent {
+            if a.cancel() {
+                emit("(cancelled the interrupted turn)")
+                return true
+            }
+        }
+        return false
     }
 
     /// The last executed tool action and its full observation, for Ctrl-O.
@@ -216,12 +315,9 @@ pub class Session {
 
     /// Show the context window size and last usage ratio (/context).
     pub func show_context(is_agent bool) {
-        var used = _last_tokens
         var which = "chat"
-        if is_agent {
-            which = "agent"
-            if let a = _agent { used = a.last_tokens() } else { used = 0 }
-        }
+        if is_agent { which = "agent" }
+        let used = active_tokens(is_agent)
         let window = cfg.context_window
         let tenths = used * 1000 / window
         let pct = str(tenths / 10) + "." + str(tenths % 10) + "%"
@@ -268,17 +364,34 @@ pub class Session {
         return _branch_name
     }
 
+    /// Prompt tokens of the active conversation: the agent's in agent mode
+    /// (0 before its first request), the chat's otherwise. /context and the
+    /// status row both read this, so the two can never disagree.
+    pub func active_tokens(is_agent bool) int {
+        if is_agent {
+            if let a = _agent { return a.last_tokens() }
+            return 0
+        }
+        return _last_tokens
+    }
+
     /// One line for the status row: model, work dir (with its git branch),
-    /// and token usage. With `cols > 0` the work dir is elided from the
-    /// left to fit, so the useful tail survives in a narrow terminal.
-    pub func status_line(cols = 0) str {
-        var used = 0
-        if let a = _agent { used = a.last_tokens() }
+    /// and token usage of the active conversation — the agent's when
+    /// `is_agent`, the chat's otherwise. With `cols > 0` the work dir is
+    /// elided from the left to fit, so the useful tail survives in a narrow
+    /// terminal.
+    pub func status_line(cols = 0, is_agent bool = false) str {
+        let used = active_tokens(is_agent)
         let window = cfg.context_window
         let tenths = used * 1000 / window
         let pct = str(tenths / 10) + "." + str(tenths % 10) + "%"
         let branch_name = branch()
-        let tail = " | tokens " + str(used) + "/" + str(window) + " (" + pct + ")"
+        var tail = " | tokens " + str(used) + "/" + str(window) + " (" + pct + ")"
+        // TodoWrite keeps its list in memory; show the progress when there is one
+        let tstat = todo_status()
+        if tstat != "" { tail = tail + " | " + tstat }
+        // the permission mode is only worth the row when it is not the default
+        if permission_mode != PERM_DEFAULT { tail = tail + " | perm " + permission_mode }
         var suffix = ""
         if branch_name != "" { suffix = " (" + branch_name + ")" }
         let full = "model=" + model + " | dir=" + workdir + suffix + tail
@@ -310,11 +423,13 @@ pub class Session {
         let status = resp.status()
         resp.close()
         if status != 200 { return nil }
-        let root = parse_str(buf.to_str())
-        if root is Object {
-            if "data" in root {
+        let root = try_parse_str(buf.to_str())
+        if root == nil { return nil }
+        let v = root
+        if v is Object {
+            if "data" in v {
                 let out = list[str]()
-                for item in root.get_array("data").value {
+                for item in v.get_array("data").value {
                     if item is Object {
                         if "id" in item { out.append(item.get_str("id")) }
                     }
@@ -341,21 +456,42 @@ pub func restore_session(client openai.Client, cfg Config, key str, obj Object) 
     let workdir = _field_str(obj, "workdir")
     let paused = _field_bool(obj, "paused")
     let tokens = _field_int(obj, "last_tokens")
+    // v2 writes both; a v1 record has neither, and its id is the file name.
+    let id = _field_str(obj, "id")
     let msgs = _field_msgs(obj, "messages")
-    let amsgs = _field_msgs(obj, "agent_messages")
+    let amsgs = _field_array(obj, "agent_messages")
     if name == nil || model == nil || workdir == nil || paused == nil || tokens == nil || msgs == nil || amsgs == nil {
         return nil
     }
     let s = Session(client, cfg, key, name!)
+    if id != nil { s.set_id(id) }
     s.model = model!
     s.workdir = workdir!
     s.paused = paused!
     s._last_tokens = tokens!
     s.messages.clear()
     for m in msgs! { s.messages.append(m) }
-    if amsgs!.len() > 0 {
+    if amsgs!.value.len() > 0 {
         s._agent = restore_agent(client, cfg, workdir!, amsgs!, paused!)
-        if let a = s._agent { a.set_approver(request_approval) }
+        if let a = s._agent {
+            a.set_approver(request_approval)
+            a.set_permission_mode(s.permission_mode)
+            // a turn cut short before the process ended: /continue resumes
+            // it, and /cancel still knows where it began
+            let state = _field_str(obj, "run_state")
+            let pending = _field_obj(obj, "pending")
+            if let st = state {
+                if let p = pending {
+                    if st == "pending" {
+                        let mark = _field_int(p, "mark")
+                        let reason = _field_str(p, "reason")
+                        if mark != nil {
+                            if reason != nil { a.restore_pending(mark, reason) }
+                        }
+                    }
+                }
+            }
+        }
     }
     return s
 }
@@ -409,6 +545,26 @@ func _field_msgs(obj Object, key str) list[dict[str, str]]? {
             }
             return out
         }
+    }
+    return nil
+}
+
+/// The JSON-array field `key`, or nil when absent or not an array. The
+/// elements are validated lazily by restore_agent: an old record holds
+/// {role, content} objects, a new one also holds the tool fields.
+func _field_array(obj Object, key str) Array? {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is Array { return v }
+    }
+    return nil
+}
+
+/// The object field `key`, or nil when absent or not an object.
+func _field_obj(obj Object, key str) Object? {
+    if key in obj {
+        let v = obj.get(key)!
+        if v is Object { return v }
     }
     return nil
 }

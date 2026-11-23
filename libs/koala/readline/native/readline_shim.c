@@ -87,6 +87,18 @@ static void fatal_signal(int sig)
     raise(sig);
 }
 
+// Ctrl-C while a program watches for it: only a flag, never an exit, so a
+// streaming request or a long tool run can be stopped where it is. Set from
+// the handler, so it is sig_atomic_t and nothing else runs there.
+static volatile sig_atomic_t g_int_flag = 0;
+static int g_int_watch = 0;
+
+static void interrupt_signal(int sig)
+{
+    (void)sig;
+    g_int_flag = 1;
+}
+
 static void install_fatal_handlers(void)
 {
     if (g_handlers_installed) return;
@@ -204,6 +216,51 @@ static TValue _tty_quit(TValue *self, TValue *args, int nargs)
     return nil_value;
 }
 
+// func tty_interrupt_watch(on bool)
+//
+// While watching, Ctrl-C (SIGINT) only raises a flag instead of ending the
+// program, so a long run can stop where it is; the flag is read with
+// tty_interrupt_taken. Off puts the fatal handler back: Ctrl-C restores the
+// terminal and leaves the program, as before.
+static TValue _tty_interrupt_watch(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int on = kl_arg_bool(0);
+
+    // SIGINT is one of the fatal signals, so its slot exists once the
+    // fatal handlers are installed; watchers need that state too.
+    install_fatal_handlers();
+    if (on) {
+        if (g_int_watch) return nil_value;
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = interrupt_signal;
+        sigemptyset(&sa.sa_mask);
+        sigaction(SIGINT, &sa, NULL);
+        g_int_watch = 1;
+    } else if (g_int_watch) {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = fatal_signal;
+        sigemptyset(&sa.sa_mask);
+        sigaction(SIGINT, &sa, NULL);
+        g_int_watch = 0;
+    }
+    return nil_value;
+}
+
+// func tty_interrupt_taken() bool
+//
+// True when Ctrl-C arrived since the last call; reading it clears it, so
+// one press wakes one wait loop.
+static TValue _tty_interrupt_taken(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    if (!g_int_flag) return bool_value(0);
+    g_int_flag = 0;
+    return bool_value(1);
+}
+
 /// Entry point called by the runtime after `dlopen("libkoala_readline.so")`.
 void readline_native_lib_init(NativeLib *lib)
 {
@@ -213,4 +270,6 @@ void readline_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "tty_quit_key", _tty_quit_key);
     kl_reg_func(lib, "tty_suspend", _tty_suspend);
     kl_reg_func(lib, "tty_quit", _tty_quit);
+    kl_reg_func(lib, "tty_interrupt_watch", _tty_interrupt_watch);
+    kl_reg_func(lib, "tty_interrupt_taken", _tty_interrupt_taken);
 }

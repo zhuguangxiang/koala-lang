@@ -1,0 +1,197 @@
+// RUN: koala %s --test
+
+// The safe entry points: `try_parse_str` and `try_parse_file` report a
+// syntax error as `nil` instead of panicking. `parse_str` and
+// `parse_file` keep panicking, with the same messages as before.
+
+import "koala/json"
+import "std/fs"
+import "std/ut"
+
+func _is_nil(v json.Value?) bool {
+    if v == nil {
+        return true
+    }
+    return false
+}
+
+// ---------------------------------------------------------------------------
+// try_parse_str: valid input
+// ---------------------------------------------------------------------------
+
+@test
+func test_try_parse_str_object() {
+    let v = json.try_parse_str("{\"a\":[1,2]}")
+    ut.assert_false(_is_nil(v))
+    let obj = (v! as json.Object)!
+    ut.assert_eq(obj.get_array("a").len(), 2)
+}
+
+@test
+func test_try_parse_str_null_is_not_nil() {
+    let v = json.try_parse_str("null")
+    ut.assert_false(_is_nil(v), "a JSON null is a value, not an error")
+    ut.assert_eq(v!.to_json(), "null")
+}
+
+@test
+func test_try_parse_str_scalar() {
+    let v = json.try_parse_str(" 1.5 ")
+    ut.assert_false(_is_nil(v))
+    ut.assert_eq(v!.to_json(), "1.5")
+}
+
+// ---------------------------------------------------------------------------
+// try_parse_str: invalid input
+// ---------------------------------------------------------------------------
+
+@test
+func test_try_parse_str_empty() {
+    ut.assert_true(_is_nil(json.try_parse_str("")))
+}
+
+@test
+func test_try_parse_str_truncated_object() {
+    ut.assert_true(_is_nil(json.try_parse_str("{")))
+}
+
+@test
+func test_try_parse_str_truncated_array() {
+    ut.assert_true(_is_nil(json.try_parse_str("[1,2")))
+}
+
+@test
+func test_try_parse_str_missing_value() {
+    ut.assert_true(_is_nil(json.try_parse_str("{\"a\":}")))
+}
+
+@test
+func test_try_parse_str_trailing_comma() {
+    ut.assert_true(_is_nil(json.try_parse_str("[1,]")))
+}
+
+@test
+func test_try_parse_str_trailing_content() {
+    ut.assert_true(_is_nil(json.try_parse_str("{} {}")))
+}
+
+@test
+func test_try_parse_str_unterminated_string() {
+    ut.assert_true(_is_nil(json.try_parse_str("\"abc")))
+}
+
+@test
+func test_try_parse_str_bad_escape() {
+    ut.assert_true(_is_nil(json.try_parse_str("\"a\\q\"")))
+}
+
+@test
+func test_try_parse_str_bad_unicode_escape() {
+    ut.assert_true(_is_nil(json.try_parse_str("\"\\uZZZZ\"")))
+}
+
+@test
+func test_try_parse_str_lone_high_surrogate() {
+    ut.assert_true(_is_nil(json.try_parse_str("\"\\uD800\"")))
+}
+
+@test
+func test_try_parse_str_lone_low_surrogate() {
+    ut.assert_true(_is_nil(json.try_parse_str("\"\\uDC00\"")))
+}
+
+@test
+func test_try_parse_str_control_character() {
+    ut.assert_true(_is_nil(json.try_parse_str("\"a\tb\"")))
+}
+
+@test
+func test_try_parse_str_bad_number() {
+    ut.assert_true(_is_nil(json.try_parse_str("12x")))
+}
+
+@test
+func test_try_parse_str_bad_literal() {
+    ut.assert_true(_is_nil(json.try_parse_str("nul")))
+}
+
+@test
+func test_try_parse_str_too_deep() {
+    var s = ""
+    var i = 0
+    while i < 100 {
+        s += "["
+        i += 1
+    }
+    ut.assert_true(_is_nil(json.try_parse_str(s)))
+}
+
+// ---------------------------------------------------------------------------
+// error_message
+// ---------------------------------------------------------------------------
+
+@test
+func test_error_message_of_failed_parse() {
+    let p = json.Parser("{")
+    let v = p.try_parse()
+    ut.assert_true(p.is_failed())
+    ut.assert_eq(p.error_message(), "Unexpected end of JSON input")
+}
+
+@test
+func test_error_message_of_good_parse() {
+    let p = json.Parser("{}")
+    let v = p.try_parse()
+    ut.assert_false(p.is_failed())
+    ut.assert_eq(p.error_message(), "")
+}
+
+// ---------------------------------------------------------------------------
+// try_parse_file
+// ---------------------------------------------------------------------------
+
+@test
+func test_try_parse_file() {
+    let path = "/tmp/kl_json_safe_test.json"
+    fs.write_str(path, "{\"port\":8080}\n")
+
+    let v = json.try_parse_file(path)
+    ut.assert_false(_is_nil(v))
+    let obj = (v! as json.Object)!
+    ut.assert_eq(obj.get_int("port"), 8080)
+
+    fs.remove(path)
+}
+
+@test
+func test_try_parse_file_missing() {
+    let v = json.try_parse_file("/tmp/kl_json_safe_no_such_file.json")
+    ut.assert_true(_is_nil(v))
+}
+
+@test
+func test_try_parse_file_bad_content() {
+    let path = "/tmp/kl_json_safe_bad.json"
+    fs.write_str(path, "{\"a\":")
+    ut.assert_true(_is_nil(json.try_parse_file(path)))
+    fs.remove(path)
+}
+
+// ---------------------------------------------------------------------------
+// the panicking entry points are unchanged
+// ---------------------------------------------------------------------------
+
+@should_panic("Unexpected end of JSON input")
+func test_parse_str_still_panics() {
+    let v = json.parse_str("{")
+}
+
+@should_panic("Unexpected trailing content in JSON input")
+func test_parse_str_trailing_still_panics() {
+    let v = json.parse_str("{} {}")
+}
+
+@should_panic("Invalid JSON literal")
+func test_parse_str_bad_literal_still_panics() {
+    let v = json.parse_str("nul")
+}

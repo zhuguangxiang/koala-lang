@@ -42,6 +42,50 @@ pub func parse_str(s str) Value {
     return parser.parse()
 }
 
+/// Parse the JSON text `s` and return its root value, or `nil` if `s` is
+/// not valid JSON.
+///
+/// Unlike [`parse_str`](#parse_str), this never panics, so it suits
+/// untrusted input such as the `arguments` of a tool call produced by a
+/// model.
+pub func try_parse_str(s str) Value? {
+    let parser = Parser(s)
+    return parser.try_parse()
+}
+
+/// Parse the JSON file at `path` and return its root value, or `nil` if
+/// the file cannot be opened or its content is not valid JSON.
+///
+/// Unlike [`parse_file`](#parse_file), this never panics.
+pub func try_parse_file(path str) Value? {
+    let f = open(path, "r")
+    if f == nil {
+        return nil
+    }
+
+    // Read the whole file in chunks; `read` returns 0 at EOF and a
+    // negative value on error.
+    let chunk = bytes(8192)
+    let acc = Buffer(8192)
+
+    var failed = false
+    loop {
+        let n = f.read(chunk)
+        if n < 0 {
+            failed = true
+            break
+        }
+        if n == 0 { break } // EOF
+        acc.write(chunk.view(0, n))
+    }
+    f.close()
+
+    if failed {
+        return nil
+    }
+    return try_parse_str(acc.to_str())
+}
+
 /// Parse the JSON text `s` and return its root as an [`Object`](#object).
 ///
 /// Errors

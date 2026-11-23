@@ -227,3 +227,68 @@ func test_stream_null_fields() {
     stream.close()
     listener.close()
 }
+
+// A frame that is not valid JSON must be skipped, not fatal: proxies
+// inject comment lines and an endpoint may truncate a chunk.
+const _BROKEN_CHUNKS = "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"He\"},\"finish_reason\":null}]}\n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\n\n" +
+    "data: {\"id\":\"c1\" \n\n" +
+    "data: {\"id\":\"c1\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"llo\"},\"finish_reason\":\"stop\"}]}\n\n" +
+    "data: [DONE]\n\n"
+
+@test
+func test_stream_malformed_chunk_skipped() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+    let stream = client.chat.completions.stream("m", [openai.msg("user", "hi")])
+    _serve(listener, _SSE_HEAD + _BROKEN_CHUNKS)
+
+    ut.assert_true(stream.ok())
+    var text = ""
+    var finish = ""
+    var chunks = 0
+    for chunk in stream {
+        chunks += 1
+        text += chunk.delta
+        if chunk.finish_reason.len() > 0 { finish = chunk.finish_reason }
+    }
+    ut.assert_eq(chunks, 2)
+    ut.assert_eq(text, "Hello")
+    ut.assert_eq(finish, "stop")
+    stream.close()
+    listener.close()
+}
+
+// An error body of an unexpected shape (here a number where the message
+// is a string) must not blow up the caller: the message falls back to the
+// HTTP status.
+@test
+func test_stream_http_error_odd_body() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+    let stream = client.chat.completions.stream("m", [openai.msg("user", "hi")])
+    let body = "{\"error\": {\"message\": 42}}"
+    _serve(listener, "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: " + str(body.len()) + "\r\n\r\n" + body)
+
+    ut.assert_true(!stream.ok())
+    ut.assert_eq(stream.status_code(), 500)
+    ut.assert_eq(stream.error_message(), "HTTP 500")
+    stream.close()
+    listener.close()
+}
+
+// A non-JSON error body is just as harmless.
+@test
+func test_stream_http_error_non_json_body() {
+    let listener = so.listen("127.0.0.1:0", nil)!
+    let client = openai.Client("sk-test", _url(listener))
+    let stream = client.chat.completions.stream("m", [openai.msg("user", "hi")])
+    let body = "<html>gateway timeout</html>"
+    _serve(listener, "HTTP/1.1 504 Gateway Timeout\r\nContent-Type: text/html\r\nContent-Length: " + str(body.len()) + "\r\n\r\n" + body)
+
+    ut.assert_true(!stream.ok())
+    ut.assert_eq(stream.status_code(), 504)
+    ut.assert_eq(stream.error_message(), "HTTP 504")
+    stream.close()
+    listener.close()
+}

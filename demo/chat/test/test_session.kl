@@ -13,6 +13,7 @@ import "std/os"
 import "demo/chat"
 import "koala/readline"
 import "koala/openai" as openai
+from "koala/json" import Object
 
 const SBASE = "/tmp/koala_chat_sesstest"
 
@@ -48,6 +49,18 @@ func test_model_selection() {
 }
 
 @test
+func test_status_line_shows_todo_progress() {
+    let s = _session()
+    ut.assert_false("todo " in s.status_line())
+    chat.todo_tool("{\"todos\":[{\"content\":\"a\",\"status\":\"completed\"},{\"content\":\"b\"}]}")
+    ut.assert_true("| todo 1/2" in s.status_line())
+    // the progress is part of the tail, so a narrow row still shows it
+    ut.assert_true("todo 1/2" in s.status_line(20))
+    // leave the shared list empty for the other status-line tests
+    chat.todo_tool("{\"todos\":[]}")
+}
+
+@test
 func test_status_line_shape() {
     let s = _session()
     let line = s.status_line()
@@ -55,6 +68,24 @@ func test_status_line_shape() {
     ut.assert_true("dir=" in line)
     ut.assert_true("tokens 0/" in line)
     ut.assert_true("(0.0%)" in line)
+}
+
+@test
+func test_session_permission_mode() {
+    let s = _session()
+    ut.assert_eq(s.permission(), "default")
+    ut.assert_false("| perm " in s.status_line())
+    ut.assert_true(s.set_permission_mode("plan"))
+    ut.assert_eq(s.permission(), "plan")
+    // a non-default mode is shown in the status row
+    ut.assert_true("| perm plan" in s.status_line())
+    // an unknown name is refused and the mode is unchanged
+    ut.assert_false(s.set_permission_mode("nope"))
+    ut.assert_eq(s.permission(), "plan")
+    ut.assert_true(s.set_permission_mode("accept-edits"))
+    ut.assert_eq(s.permission(), "accept_edits")
+    ut.assert_true(s.set_permission_mode("DEFAULT"))
+    ut.assert_false("| perm " in s.status_line())
 }
 
 @test
@@ -104,6 +135,27 @@ func test_load_file() {
 }
 
 @test
+func test_load_file_agent_mode_goes_to_the_agent() {
+    let s = _session()
+    let n = s.load_file(SBASE + "/note.txt", true)
+    ut.assert_true(n != nil)
+    ut.assert_gt(n!, 0)
+    let rec = s.to_record()
+    // the chat history is untouched
+    ut.assert_eq(rec.get_array("messages").value.len(), 1)
+    // the agent conversation holds the file, ready for the next task
+    let am = rec.get_array("agent_messages").value
+    ut.assert_gt(am.len(), 1)
+    let last = am[am.len() - 1] as Object
+    ut.assert_eq(last!.get_str("role"), "user")
+    ut.assert_true(last!.get_str("content").starts_with("File: " + SBASE + "/note.txt"))
+    // chat mode keeps going to the chat history
+    let m = s.load_file(SBASE + "/note.txt")
+    ut.assert_true(m != nil)
+    ut.assert_eq(s.to_record().get_array("messages").value.len(), 2)
+}
+
+@test
 func test_ask_transport_failure() {
     let s = _session()
     // the failed turn is rolled back internally and false is returned;
@@ -150,4 +202,12 @@ func test_agent_run_smoke() {
     let s = _session()
     // an unreachable endpoint: the loop reports the error and returns
     s.agent("do it")
+}
+
+@test
+func test_continue_agent_without_task() {
+    let s = _session()
+    // /continue before any agent task: it says so and makes no request
+    s.continue_agent()
+    ut.assert_true(s.tool_output() == nil)
 }

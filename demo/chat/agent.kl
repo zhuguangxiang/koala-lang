@@ -1,26 +1,96 @@
 /*
  * demo/chat — the coding agent: a model-driven tool-use loop.
  *
- * /agent (agent mode) runs the loop: the model emits one action per turn
- * (write a file, run a shell command, or finish), the harness executes it
- * and feeds the result back, until the model emits "done" or the step cap
- * (config agent_max_steps, default 20) is hit. One Agent persists across
- * tasks so follow-ups keep context.
+ * /agent (agent mode) runs the loop: the model answers, and when it asks
+ * for tools the harness approves and executes every call, feeds each
+ * result back as a `role: "tool"` message, and requests again — until the
+ * model answers without a tool call. That is the native protocol (`tools`
+ * in the request). An endpoint that rejects it falls back to the older
+ * fenced write/shell/done protocol for the rest of that Agent's life.
+ *
+ * Native turns are streamed: the text is shown line by line as it arrives
+ * and a tool call is only used once its arguments are complete. Ctrl-C
+ * stops the run at its next checkpoint (a chunk boundary, or between two
+ * calls): the partial text is kept with a marker, every call that did not
+ * run is answered with an interrupted `tool` result, and the conversation
+ * stays valid for /continue. raw-mode Ctrl-C (the editor) is byte 3 and
+ * never reaches the signal path, so typing a line is unaffected.
+ *
+ * The step cap (config agent_max_steps, default 100) is a safety net, not
+ * a stop condition: hitting it says so and /continue resumes with the
+ * conversation intact. One Agent persists across tasks so follow-ups keep
+ * context.
+ *
+ * The heap is settled at every stop point (`settle_heap`): the collector
+ * never runs on its own, it only panics once the used size reaches
+ * KOALA_GC_MAX, so a long session collects explicitly between two steps, at
+ * the end of a turn, after a turn is dropped or compacted, and at the top of
+ * the REPL loop — as long as enough was allocated since the last collection.
  */
 
 import "std/fs"
+import "std/gc"
 import "std/os"
+import "std/time"
 import "koala/openai" as openai
+import "koala/readline"
+from "koala/json" import Array, Object
 
-/// The agent system prompt: a fenced-block action protocol. Blocks rather
-/// than JSON because the JSON parser panics on malformed input and Koala
-/// has no try/catch; blocks are parsed with string ops and never panic.
-const AGENT_PROMPT = "You are an autonomous coding agent in a command-line chat. Complete the user's task by writing files and running shell commands, step by step, until it is done.\n\nEmit EXACTLY ONE fenced action block per turn, and nothing else. The info string after the opening ``` names the action:\n\nWrite a file (info 'write <path>', body = the full file content):\n```write hello.c\n#include <stdio.h>\nint main(void) { printf(\"hello\\n\"); return 0; }\n```\n\nRun a shell command (info 'shell', body = the command; compile and run here):\n```shell\ngcc hello.c -o hello && ./hello\n```\n\nFinish (info 'done', body = your final message to the user):\n```done\nCompiled and ran successfully.\n```\n\nRules: one block per turn. After each action you receive its result (exit code, stdout, stderr). For a C program: write the .c file, compile with gcc, run the binary, and confirm BOTH compile and run succeed (exit 0) before 'done'. On failure, read the error, fix it, and retry. For a plain question needing no tools, reply with a single 'done' block containing your answer. The conversation persists across tasks, so use earlier context for follow-ups."
+/// The native agent system prompt: call the declared tools, never imitate
+/// a call in prose or in a fenced block.
+const AGENT_PROMPT = "You are an autonomous coding agent in a command-line chat. Complete the user's task by calling the tools declared in this request: Read reads a file with line numbers, Glob finds paths by pattern, Grep searches file contents, Edit replaces an exact string in a file, Write creates or overwrites a file, Bash runs a shell command, TodoWrite keeps the task list. Never describe a tool call in prose and never emit a fenced code block as an action: call the tool.\n\nWork in small verifiable steps. Find code with Glob and Grep, Read a file before changing it, prefer Edit over Write, keep paths inside the work directory, and when a call fails read the error, fix the cause, and retry instead of guessing. For a C program: write the .c file, compile it with gcc, run the binary, and confirm BOTH compile and run succeed (exit 0) before answering.\n\nWhen the task is done, answer in plain text with no tool call — that ends the turn. For a plain question that needs no tools, just answer. The conversation persists across tasks, so use earlier context for follow-ups."
+
+/// How the no-access directories are announced, in both prompts.
+const NO_ACCESS_NOTE = "\n\nNever read, write, list, or run commands that touch anything under these directories (relative ones are relative to the working directory):"
+
+/// Appended to the native prompt in plan mode: the model is told the
+/// ceiling up front, so it proposes instead of retrying refused calls.
+const PLAN_MODE_NOTE = "\n\nPermission mode: plan. Only read-only tools (Read, Glob, Grep, TodoWrite) run; Write, Edit and Bash are refused by the harness. Investigate with read-only tools, then answer with a short plan and ask the user to leave plan mode (/plan off) before making changes."
+
+/// The fallback system prompt: the fenced-block action protocol, used only
+/// when the endpoint rejects native tools. Blocks rather than JSON because
+/// they are parsed with string ops and never panic.
+const FENCED_PROMPT = "You are an autonomous coding agent in a command-line chat. Complete the user's task by writing files and running shell commands, step by step, until it is done.\n\nEmit EXACTLY ONE fenced action block per turn, and nothing else. The info string after the opening ``` names the action:\n\nWrite a file (info 'write <path>', body = the full file content):\n```write hello.c\n#include <stdio.h>\nint main(void) { printf(\"hello\\n\"); return 0; }\n```\n\nRun a shell command (info 'shell', body = the command; compile and run here):\n```shell\ngcc hello.c -o hello && ./hello\n```\n\nFinish (info 'done', body = your final message to the user):\n```done\nCompiled and ran successfully.\n```\n\nRules: one block per turn. After each action you receive its result (exit code, stdout, stderr). For a C program: write the .c file, compile with gcc, run the binary, and confirm BOTH compile and run succeed (exit 0) before 'done'. On failure, read the error, fix it, and retry. For a plain question needing no tools, reply with a single 'done' block containing your answer. The conversation persists across tasks, so use earlier context for follow-ups."
 
 /// The default approver: deny everything. `repl.kl` injects the interactive
 /// one; tests and any other caller stay safe by default.
 pub func deny_action(info str, body str, workdir str) str {
     return "n"
+}
+
+/// The `tool` observation for a call the user interrupted before it ran: the
+/// model is told so, and the protocol keeps its `assistant` -> `tool` pair.
+pub const INTERRUPTED_OBSERVATION = "interrupted by the user before it ran; it did not run. Wait for the user's next message."
+
+/// The assistant text of an interrupted stream: what arrived, then a marker
+/// that says the reply was cut short, so the model does not read a half
+/// sentence as an answer.
+const INTERRUPTED_MARK = "\n\n[interrupted by the user]"
+
+func _interrupted_text(text str) str {
+    let body = text.strip()
+    if body == "" { return "[interrupted by the user]" }
+    return body + INTERRUPTED_MARK
+}
+
+/// What one streamed assistant turn produced: the request's status (200
+/// once the stream opened), the text collected so far, the tool calls
+/// assembled from their fragments, the last chunk's usage, and whether a
+/// Ctrl-C stopped the stream. A failed request keeps its status and message
+/// so the loop handles it exactly like a non-streamed one.
+class Turn {
+    var status int = 0
+    var message str = ""
+    var text str = ""
+    var calls list[openai.ToolCall] = list[openai.ToolCall]()
+    var finish str = ""
+    var prompt_tokens int = 0
+    var total_tokens int = 0
+    var interrupted bool = false
+
+    func __init__() {}
+
+    func ok() bool { return status == 200 }
 }
 
 /// A coding agent. Owns a persistent conversation (seeded with the agent
@@ -31,30 +101,92 @@ pub class Agent {
     let client openai.Client
     let cfg Config
     var workdir str
-    let messages list[dict[str, str]]
+    /// The conversation in rich form: text, tool calls and tool results all
+    /// keep their protocol fields, so the loop can send them back verbatim.
+    let messages list[openai.CompletionMessage]
     var paused bool
     var _last_tokens int
+    // how many messages the last request carried, so the next one's size is
+    // _last_tokens plus whatever was appended since
+    var _sent_len int
+    // messages.len() right after the last compaction: no new messages means
+    // compacting again would only churn
+    var _compacted_len int
     // the last executed action and its full observation, kept for Ctrl-O
     var _last_tool_action str
     var _last_tool_result str
+    // false once the endpoint rejected tools and this agent fell back to
+    // the fenced write/shell/done protocol
+    var _native bool
+    // the permission mode (default/accept_edits/plan/bypass) for this
+    // agent; /permissions and /plan switch it at runtime
+    var permission_mode str
     // ask before a write or shell action; the answer is y/a/n (d is handled
     // by the callback itself). The default denies, so an Agent built without
     // a UI cannot make changes by accident.
     var approver func(str, str, str) str = { |info, body, workdir| "n" }
-    var allow_all bool
+    // the tool kinds the user answered `a` for; `a` covers the same kind
+    // only, so allowing an edit does not allow a shell command
+    var _allow_kinds list[str]
+    // the message count the current turn started at: /cancel drops back to it
+    var _turn_mark int = 0
+    // true when a Ctrl-C stopped the current or the last turn
+    var _interrupted_turn bool = false
+    // "" when the last turn finished; "interrupted" or "step limit" when it
+    // stopped at a point /continue can pick up. Written to the session
+    // record so a restart can still resume or cancel the turn.
+    var _pending_reason str = ""
+    // decides an interrupt without a terminal: tests and other front ends
+    // set it with set_interrupt_probe. `_probe_on` keeps the default path
+    // (ask the terminal) free of a call
+    var _interrupt_probe func() bool = { || false }
+    var _probe_on bool = false
 
     pub func __init__(_client openai.Client, _cfg Config, _workdir str, quiet bool = false) {
         client = _client
         cfg = _cfg
         workdir = _workdir
-        messages = list[dict[str, str]]()
+        messages = list[openai.CompletionMessage]()
         paused = false
         _last_tokens = 0
+        _sent_len = 0
+        _compacted_len = 0
         _last_tool_action = ""
         _last_tool_result = ""
-        allow_all = false
-        messages.append({"role": "system", "content": agent_prompt(cfg.no_access_dirs)})
+        _native = true
+        permission_mode = cfg.agent_permission_mode
+        _allow_kinds = list[str]()
+        _turn_mark = 0
+        _interrupted_turn = false
+        _probe_on = false
+        messages.append(openai.system_msg(_prompt_text()))
         if !quiet { emit(notice("(agent work dir: " + workdir + ")", plain_mode())) }
+    }
+
+    /// The current permission mode name.
+    pub func permission() str { return permission_mode }
+
+    /// Switch the permission mode (normalized name); false when `mode` is
+    /// not one of them. The system prompt is refreshed so a plan-mode agent
+    /// knows the ceiling before its next request.
+    pub func set_permission_mode(mode str) bool {
+        let m = normalize_permission_mode(mode)
+        if m == "" { return false }
+        permission_mode = m
+        // `a` was granted under the old mode; entering plan drops it
+        if m == PERM_PLAN { _allow_kinds.clear() }
+        if messages.len() > 0 {
+            if messages[0].role == "system" { messages[0] = openai.system_msg(_prompt_text()) }
+        }
+        return true
+    }
+
+    /// The system prompt for the current protocol and permission mode.
+    func _prompt_text() str {
+        if !_native { return fenced_prompt(cfg.no_access_dirs, workdir) }
+        var p = agent_prompt(cfg.no_access_dirs, workdir)
+        if permission_mode == PERM_PLAN { p += PLAN_MODE_NOTE }
+        return p
     }
 
     /// Replace the default "deny everything" approver with the terminal
@@ -70,8 +202,42 @@ pub class Agent {
     /// True while the agent is paused.
     pub func is_paused() bool { return paused }
 
-    /// The agent's own conversation (for session persistence).
-    pub func conversation() list[dict[str, str]] { return messages }
+    /// The conversation flattened to plain {role, content} pairs, which is
+    /// what the fenced protocol sends (it has no tool messages).
+    pub func conversation() list[dict[str, str]] {
+        let out = list[dict[str, str]]()
+        for m in messages {
+            let d = dict[str, str]()
+            if m.role == "tool" {
+                d["role"] = "user"
+                d["content"] = "[tool result] " + m.content
+            } else {
+                d["role"] = m.role
+                d["content"] = m.content
+            }
+            out.append(d)
+        }
+        return out
+    }
+
+    /// The conversation with its full tool structure, as the JSON array a
+    /// session record stores: `role`/`content` plus `tool_calls`,
+    /// `tool_call_id` and `name`. A restored agent gets it back verbatim,
+    /// so the `assistant(tool_calls) -> tool` pairing survives a restart.
+    pub func conversation_json() Array {
+        let out = Array()
+        for m in messages { out.append(openai.message_to_object(m)) }
+        return out
+    }
+
+    /// How many messages the conversation holds (/sessions counts them).
+    pub func message_count() int { return messages.len() }
+
+    /// Append a `role: user` message the conversation keeps, without running a
+    /// turn: /file and @PATH hand the agent a file for the next task.
+    pub func add_context(text str) {
+        messages.append(openai.user_msg(text))
+    }
 
     /// True once this agent has executed a tool action in this process.
     pub func has_tool_output() bool { return _last_tool_result != "" }
@@ -93,72 +259,488 @@ pub class Agent {
     }
 
     /// Run the agent loop on `task` with `model`, printing each step and the
-    /// final answer. Appends to the persistent conversation.
+    /// final answer. Appends to the persistent conversation. A failed turn
+    /// is rolled back to where it started, so a retry begins clean; a turn
+    /// the user interrupted stays, and is resumable with /continue.
     pub func run(task str, model str) {
-        messages.append({"role": "user", "content": task})
-        var step = 0
-        while step < cfg.agent_max_steps {
-            step += 1
-            show_busy("Thinking")
-            let resp = client.chat.completions.create(model, messages, cfg.temperature, cfg.max_tokens)
-            hide_busy()
-            if !resp.ok() {
-                messages.pop()
-                emit(http_error(resp.status_code, resp.error_message, plain_mode()))
-                return
-            }
-            let text = resp.choices[0].message.content
-            messages.append({"role": "assistant", "content": text})
-            _last_tokens = resp.usage.prompt_tokens
-            if !paused {
-                if let after = maybe_compact(client, model, cfg, messages, resp.usage.prompt_tokens) {
-                    _last_tokens = after
-                }
-            }
-
-            let block = parse_block(text)
-            if block == nil {
-                messages.append({"role": "user", "content": "No action block found. Emit exactly one fenced block: write, shell, or done."})
-                continue
-            }
-            let (info, body) = block
-            if info == "done" || info.starts_with("done ") {
-                emit("bot> " + body.strip())
-                return
-            }
-            emit(tool_start(step, info, plain_mode()))
-            for line in action_detail(info, body, plain_mode()) { emit(line) }
-            if _needs_approval(info, body) {
-                if _ask_approval(info, body) != "y" {
-                    emit(tool_end("permission denied by user", 20, plain_mode()))
-                    var what = info
-                    if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
-                        what += ": " + body.strip()
-                    }
-                    messages.append({"role": "user", "content": "The user denied permission for this action:\n" + what + "\nDo not run it. Choose a different approach, or ask the user what to do."})
-                    continue
-                }
-            }
-            if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
-                show_busy("Running " + _command_label(body))
-            }
-            let result = run_action(info, body, workdir, cfg.no_access_dirs)
-            _last_tool_action = info
-            _last_tool_result = result
-            hide_busy()
-            // the model gets the full observation; the screen gets a tool
-            // block: the action before it runs, then a one-line result (or
-            // the stderr tail when it fails)
-            emit(tool_end(result, 20, plain_mode()))
-            messages.append({"role": "user", "content": result})
-        }
-        emit(notice("(step limit " + str(cfg.agent_max_steps) + " reached; stopping)", plain_mode()))
+        let mark = messages.len()
+        _turn_mark = mark
+        _interrupted_turn = false
+        _pending_reason = ""
+        messages.append(openai.user_msg(task))
+        _drive(mark, model)
     }
 
-    /// True when this action changes something and is allowed to run: a
-    /// write with a path outside the no-access list, or a non-empty shell
-    /// command. A malformed or blocked action skips the question and lets
-    /// `run_action` report the error.
+    /// /continue: keep the conversation and ask the model again, without a
+    /// new user message. Used after the step cap or an interruption.
+    pub func resume(model str) {
+        if messages.len() == 0 { return }
+        let mark = messages.len()
+        _turn_mark = mark
+        _interrupted_turn = false
+        _pending_reason = ""
+        _drive(mark, model)
+    }
+
+    /// Run one turn with Ctrl-C watched: while the terminal is not in raw
+    /// mode (the editor is off), SIGINT stops the run at its next checkpoint
+    /// instead of ending the program. A failed request rolls the turn back.
+    func _drive(mark int, model str) {
+        _interrupted_turn = false
+        readline.watch_interrupt(true)
+        let ok = _loop(model)
+        readline.watch_interrupt(false)
+        if !ok {
+            _truncate(mark)
+            _turn_mark = messages.len()
+            _pending_reason = ""
+        }
+        // the turn is over: its stream is closed and its buffers are garbage
+        settle_heap()
+    }
+
+    /// /cancel: drop the turn an interrupt left half done, including its user
+    /// message, so the next task starts from the conversation before it.
+    /// Returns false when no turn was interrupted.
+    pub func cancel() bool {
+        if !_interrupted_turn { return false }
+        _truncate(_turn_mark)
+        _turn_mark = messages.len()
+        _sent_len = messages.len()
+        _compacted_len = messages.len()
+        _interrupted_turn = false
+        _pending_reason = ""
+        // the dropped turn's messages are garbage now
+        settle_heap()
+        return true
+    }
+
+    /// True when a Ctrl-C stopped the current or the last turn.
+    pub func was_interrupted() bool { return _interrupted_turn }
+
+    /// "" when the last turn finished, else why it stopped: "interrupted"
+    /// (Ctrl-C) or "step limit". /continue can pick it up again.
+    pub func pending_reason() str { return _pending_reason }
+
+    /// Where the unfinished turn began — the mark /cancel truncates to.
+    pub func pending_mark() int { return _turn_mark }
+
+    /// Re-arm the unfinished-turn state from a saved session record, so
+    /// /continue and /cancel work after a restart.
+    pub func restore_pending(mark int, reason str) {
+        if reason == "" { return }
+        if mark < 0 { return }
+        _turn_mark = mark
+        _pending_reason = reason
+        _interrupted_turn = reason == "interrupted"
+    }
+
+    /// Decide interrupts with `f` (`true` stops the run) instead of reading
+    /// the terminal. Tests and front ends without a terminal use it; the
+    /// real Ctrl-C path stays the default.
+    pub func set_interrupt_probe(f func() bool) {
+        _interrupt_probe = f
+        _probe_on = true
+    }
+
+    /// One task's model->tool rounds. Returns false when a request failed
+    /// outright (the caller rolls the turn back); hitting the step cap is a
+    /// normal, resumable stop and returns true.
+    func _loop(model str) bool {
+        var step = 0
+        var fallback_tried = false
+        var overflow_tried = false
+        while true {
+            if step >= cfg.agent_max_steps {
+                _pending_reason = "step limit"
+                emit(notice("(step limit " + str(cfg.agent_max_steps) + " reached; send /continue to keep going)", plain_mode()))
+                return true
+            }
+            step += 1
+            // a Ctrl-C that arrived between steps stops the run here, before
+            // another request goes out
+            if _interrupted() {
+                _stop_interrupted(0)
+                return true
+            }
+            // Check the size before each request: the last usage plus what the
+            // turn's tool results appended. A huge observation is handled here,
+            // before it is ever sent - compacting mid-turn could strand a tool
+            // call without its result.
+            _compact_before_request(model)
+            _sent_len = messages.len()
+            var finished = false
+            if _native {
+                let turn = _stream_native(model)
+                if !turn.ok() {
+                    let status = turn.status
+                    let message = turn.message
+                    if status == 400 && _looks_like_overflow(message) && !overflow_tried {
+                        overflow_tried = true
+                        if let after = compact_rich_now(client, model, cfg, messages, _last_tokens) {
+                            _last_tokens = after
+                            _sent_len = messages.len()
+                            _compacted_len = messages.len()
+                            step -= 1
+                            continue
+                        }
+                    }
+                    if status == 400 && !fallback_tried {
+                        fallback_tried = true
+                        _switch_to_fenced()
+                        step -= 1
+                        continue
+                    }
+                    emit(http_error(status, message, plain_mode()))
+                    return false
+                }
+                _last_tokens = turn.prompt_tokens
+                if turn.interrupted {
+                    // keep what arrived (marked) and drop the half-assembled
+                    // calls: they never ran, so answering them would be a lie
+                    messages.append(openai.assistant_msg(turn.text, list[openai.ToolCall]()))
+                    _stop_interrupted(0)
+                    return true
+                }
+                // the text is already on screen, line by line, as it streamed
+                finished = _step_answer(step, turn.text, turn.calls, turn.finish, true)
+            } else {
+                show_busy("Thinking")
+                let resp = _request(model)
+                hide_busy()
+                if !resp.ok() {
+                    emit(http_error(resp.status_code, resp.error_message, plain_mode()))
+                    return false
+                }
+                if resp.choices.len() == 0 {
+                    emit(error_event("the endpoint returned no choices", plain_mode()))
+                    return false
+                }
+                _last_tokens = resp.usage.prompt_tokens
+                finished = _step_fenced(step, resp.choices[0])
+            }
+            if finished { return true }
+            // Between two steps the turn's JSON, HTTP and tool-output buffers
+            // are garbage, and the next request allocates again: settle here,
+            // where no stream is open, so a long run does not creep toward
+            // KOALA_GC_MAX.
+            settle_heap()
+            // the next iteration's pre-request check looks at the tool results
+            // this turn appended, so no separate check is needed here
+        }
+    }
+
+/// One request in the native protocol, streamed: text deltas are shown
+    /// line by line as they arrive, and tool calls are assembled from their
+    /// fragments by `index`, so nothing half-written is ever displayed.
+    /// A rate limit or server error is retried twice, as in the plain path.
+    func _stream_native(model str) Turn {
+        var tries = 0
+        while true {
+            let turn = _stream_once(model)
+            if turn.ok() { return turn }
+            if (turn.status == 429 || turn.status >= 500) && tries < 2 {
+                tries += 1
+                time.sleep(time.Duration.from_millis(200 * tries))
+                continue
+            }
+            return turn
+        }
+    }
+
+    /// Read one streamed native request to its end or to a Ctrl-C. The usage
+    /// and the tool calls are only complete once the stream has no more
+    /// chunks, so they are read after the loop.
+    func _stream_once(model str) Turn {
+        let turn = Turn()
+        show_busy("Thinking")
+        let stream = client.chat.completions.stream_tools(model, messages, agent_tools(), cfg.temperature, cfg.max_tokens)
+        if !stream.ok() {
+            hide_busy()
+            turn.status = stream.status_code()
+            turn.message = stream.error_message()
+            stream.close()
+            return turn
+        }
+        hide_busy()
+        var pending = ""
+        var shown = false
+        while stream.has_next() {
+            // a Ctrl-C ends the stream here, at a chunk boundary
+            if _interrupted() {
+                turn.interrupted = true
+                break
+            }
+            // a resize may arrive between two chunks; re-lay out first
+            poll_resize()
+            let chunk = stream.next_strict()
+            if chunk.delta.len() == 0 { continue }
+            turn.text += chunk.delta
+            pending += chunk.delta
+            let lines = pending.split("\n")
+            var i = 0
+            while i < lines.len() - 1 {
+                if !shown {
+                    emit("bot> " + lines[i])
+                    shown = true
+                } else {
+                    emit(lines[i])
+                }
+                // the same pacing chat mode uses, so both read the same way
+                _pace(cfg.stream_delay_ms)
+                i += 1
+            }
+            pending = lines[lines.len() - 1]
+        }
+        // the tail after the last newline, if any
+        if pending.len() > 0 {
+            if shown {
+                emit(pending)
+            } else {
+                emit("bot> " + pending)
+            }
+            _pace(cfg.stream_delay_ms)
+        }
+        turn.calls = stream.tool_calls()
+        turn.finish = stream.finish_reason()
+        let usage = stream.usage()
+        turn.prompt_tokens = usage.prompt_tokens
+        turn.total_tokens = usage.total_tokens
+        turn.status = 200
+        stream.close()
+        if turn.interrupted {
+            turn.calls = list[openai.ToolCall]()
+            turn.text = _interrupted_text(turn.text)
+        }
+        return turn
+    }
+
+    /// True when the user stopped the run since the last check: the injected
+    /// probe first (tests, front ends without a terminal), then the terminal.
+    func _interrupted() bool {
+        if _probe_on && _interrupt_probe() { return true }
+        return readline.interrupt_pending()
+    }
+
+    /// Say that the turn was stopped and how to carry on, once per
+    /// interrupted turn. `skipped` is how many tool calls never ran.
+    func _stop_interrupted(skipped int) {
+        _interrupted_turn = true
+        _pending_reason = "interrupted"
+        var why = "(interrupted; send /continue to resume, /cancel to drop this turn)"
+        if skipped > 0 {
+            why = "(interrupted; " + str(skipped) + " tool call(s) did not run; /continue to resume, /cancel to drop this turn)"
+        }
+        emit(notice(why, plain_mode()))
+    }
+    /// Keep the next request inside the window: summarize older turns and
+    /// truncate oversized tool output when the last usage plus what was
+    /// appended since then reaches the threshold. Runs at the top of every
+    /// iteration, i.e. right after a turn's tool results, so a huge
+    /// observation is handled before it is sent.
+    func _compact_before_request(model str) {
+        if paused { return }
+        if messages.len() <= _compacted_len { return }
+        if let after = compact_before_request(client, model, cfg, messages, _last_tokens, _sent_len) {
+            _last_tokens = after
+            _sent_len = messages.len()
+            _compacted_len = messages.len()
+        }
+    }
+
+    /// One request, retrying a rate limit or server error twice with a
+    /// short backoff. Auth and validation errors go straight back.
+    func _request(model str) openai.ChatCompletion {
+        var tries = 0
+        while true {
+            let resp = _request_once(model)
+            if resp.ok() { return resp }
+            let status = resp.status_code
+            if (status == 429 || status >= 500) && tries < 2 {
+                tries += 1
+                time.sleep(time.Duration.from_millis(200 * tries))
+                continue
+            }
+            return resp
+        }
+    }
+
+    /// One request in the current protocol.
+    func _request_once(model str) openai.ChatCompletion {
+        if _native {
+            return client.chat.completions.create_tools(model, messages, agent_tools(), cfg.temperature, cfg.max_tokens)
+        }
+        return client.chat.completions.create(model, conversation(), cfg.temperature, cfg.max_tokens)
+    }
+
+    /// Handle one native assistant turn. `shown` says whether its text is
+    /// already on screen (a streamed turn is). Returns true when the turn is
+    /// over: a plain answer, or a run the user interrupted.
+    func _step_answer(step int, text str, calls list[openai.ToolCall], finish str, shown bool) bool {
+        messages.append(openai.assistant_msg(text, calls))
+        if finish == "length" {
+            emit(notice("(the reply was truncated: finish_reason=length)", plain_mode()))
+        }
+        if finish == "content_filter" {
+            emit(error_event("the model stopped on a content filter", plain_mode()))
+            return true
+        }
+        if calls.len() == 0 {
+            if !shown {
+                let body = text.strip()
+                if body != "" { emit("bot> " + body) }
+            }
+            return true
+        }
+        return _run_calls(step, calls)
+    }
+
+    /// Run one turn's tool calls in order, answering each with a `tool`
+    /// message. A Ctrl-C before a call answers that call and every call after
+    /// it as interrupted instead of running them, so the `assistant` ->
+    /// `tool` pairing always holds. Returns true when the turn stopped early.
+    func _run_calls(step int, calls list[openai.ToolCall]) bool {
+        var i = 0
+        while i < calls.len() {
+            if _interrupted() {
+                let skipped = calls.len() - i
+                while i < calls.len() {
+                    messages.append(openai.tool_msg(calls[i].id, INTERRUPTED_OBSERVATION))
+                    i += 1
+                }
+                _stop_interrupted(skipped)
+                return true
+            }
+            // several calls in one turn run one after another, in order, so
+            // the conversation stays deterministic
+            _run_call(step, calls[i])
+            i += 1
+        }
+        // a Ctrl-C during the last call: its result is in, and the turn ends
+        if _interrupted() {
+            _stop_interrupted(0)
+            return true
+        }
+        return false
+    }
+
+    /// Handle one fallback turn, the fenced write/shell/done protocol.
+    func _step_fenced(step int, choice openai.Choice) bool {
+        let text = choice.message.content
+        messages.append(openai.assistant_msg(text, list[openai.ToolCall]()))
+        if choice.finish_reason == "length" {
+            emit(notice("(the reply was truncated: finish_reason=length)", plain_mode()))
+        }
+        if choice.finish_reason == "content_filter" {
+            emit(error_event("the model stopped on a content filter", plain_mode()))
+            return true
+        }
+        let block = parse_block(text)
+        if block == nil {
+            messages.append(openai.user_msg("No action block found. Emit exactly one fenced block: write, shell, or done."))
+            return false
+        }
+        let (info, body) = block
+        if info == "done" || info.starts_with("done ") {
+            emit("bot> " + body.strip())
+            return true
+        }
+        let (_, observation) = _do_action(step, info, body)
+        messages.append(openai.user_msg(observation))
+        return false
+    }
+
+    /// Execute one native tool call and answer it with a `tool` message that
+    /// carries the call's id, so the protocol stays paired even on failure.
+    func _run_call(step int, call openai.ToolCall) {
+        let action = tool_action(call.name(), call)
+        if action == nil {
+            let observation = "ERROR: cannot call '" + call.name() + "' with arguments " + call.arguments() + "; available tools: " + tool_names()
+            emit(tool_start(step, call.name(), plain_mode()))
+            emit(tool_end(observation, 20, plain_mode()))
+            messages.append(openai.tool_msg(call.id, observation))
+            return
+        }
+        let (info, body) = action
+        let (_, observation) = _do_action(step, info, body)
+        messages.append(openai.tool_msg(call.id, observation))
+    }
+
+    /// Show, approve and run one action. Returns (ran, observation): a
+    /// denied action does not run and its observation tells the model so.
+    func _do_action(step int, info str, body str) (bool, str) {
+        emit(tool_start(step, info, plain_mode()))
+        for line in action_detail(info, body, plain_mode()) { emit(line) }
+        if info.starts_with("edit ") {
+            for line in edit_preview(body) { emit(line) }
+        }
+        let (verdict, why) = permission_decision(permission_mode, tool_kind(info), body, cfg.agent_allow_tools, cfg.agent_deny_tools, cfg.agent_bash_deny)
+        var decision = verdict
+        // a malformed or no-access action skips the question: run_action
+        // reports the real error, and asking first would only mislead
+        if decision == "ask" && !_needs_approval(info, body) { decision = "allow" }
+        if decision == "deny" {
+            emit(tool_end("permission denied: " + why, 20, plain_mode()))
+            return (false, _denied_observation(info, why))
+        }
+        if decision == "ask" {
+            if !_ask_approval(info, body) {
+                emit(tool_end("permission denied by user", 20, plain_mode()))
+                return (false, "permission denied by user for " + info + ". Do not run it. Choose a different approach, or ask the user what to do.")
+            }
+        }
+        if _is_shell(info) {
+            show_busy("Running " + _command_label(body))
+        }
+        let result = run_action(info, body, workdir, cfg.no_access_dirs, cfg.agent_tool_timeout_ms, cfg.agent_max_tool_output_bytes)
+        _last_tool_action = info
+        _last_tool_result = result
+        hide_busy()
+        // the model gets the full observation; the screen gets a tool
+        // block: the action before it runs, then a one-line result (or
+        // the stderr tail when it fails)
+        emit(tool_end(result, 20, plain_mode()))
+        return (true, result)
+    }
+
+    /// Drop everything appended after `mark` (a failed turn's messages).
+    func _truncate(mark int) {
+        while messages.len() > mark { messages.pop() }
+    }
+
+    /// True when a 400 looks like a context-window overflow: compacting may
+    /// make room, so it is worth one retry.
+    func _looks_like_overflow(message str) bool {
+        let m = message.lower()
+        return ("context" in m) || ("too long" in m) || ("maximum" in m)
+    }
+
+    /// The endpoint rejected `tools`: switch this agent to the fenced
+    /// protocol for good (the request already carries the task, so the loop
+    /// just retries with the fallback prompt).
+    func _switch_to_fenced() {
+        _native = false
+        // the fenced protocol has no read-only tools, so plan mode would
+        // deadlock the loop; fall back to the configured-safe default mode
+        if permission_mode == PERM_PLAN {
+            permission_mode = PERM_DEFAULT
+            emit(notice("(plan mode needs native tools; permission mode reset to default)", plain_mode()))
+        }
+        if messages.len() > 0 {
+            messages[0] = openai.system_msg(_prompt_text())
+        }
+        emit(notice("(this endpoint rejected tools; using the fenced write/shell/done protocol)", plain_mode()))
+    }
+
+    /// True when `info` names the shell action (any of its spellings).
+    func _is_shell(info str) bool {
+        return info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ")
+    }
+
+    /// True when this action is well formed and inside the work tree, so an
+    /// `ask` decision is worth interrupting the user for. A malformed or
+    /// no-access action skips the question and lets `run_action` report the
+    /// error.
     func _needs_approval(info str, body str) bool {
         if info.starts_with("write") {
             let target = action_target(info, workdir)
@@ -166,44 +748,87 @@ pub class Agent {
             if path_blocked(target, workdir, cfg.no_access_dirs) { return false }
             return true
         }
-        if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
+        if info.starts_with("edit ") {
+            let target = resolve_tool_path(info.substr(5).strip(), workdir)
+            if path_blocked(target, workdir, cfg.no_access_dirs) { return false }
+            return true
+        }
+        if _is_shell(info) {
             return body.strip() != ""
         }
         return false
     }
 
-    /// Ask the injected approver, remembering `a` for the rest of this
-    /// Agent's life. Anything except `y`/`a` is a denial, so a misbehaving
-    /// or missing UI can never approve an action by accident.
-    func _ask_approval(info str, body str) str {
-        if allow_all { return "y" }
+    /// Ask the injected approver; `a` remembers the action's kind for the
+    /// rest of this Agent's life. Anything except `y`/`a` is a denial, so a
+    /// misbehaving or missing UI can never approve an action by accident.
+    func _ask_approval(info str, body str) bool {
+        let kind = tool_kind(info)
+        if kind in _allow_kinds { return true }
         let answer = approver(info, body, workdir)
         if answer == "a" {
-            allow_all = true
-            return "y"
+            _allow_kinds.append(kind)
+            return true
         }
-        if answer == "y" { return "y" }
-        return "n"
+        return answer == "y"
+    }
+
+    /// What the model is told when the harness, not the user, refused a
+    /// call: plan mode gets its fixed text, a config rule gets the clause.
+    func _denied_observation(info str, why str) str {
+        if permission_mode == PERM_PLAN && tool_kind(info) != "" && !is_read_only_kind(tool_kind(info)) {
+            return PLAN_DENIAL
+        }
+        return "permission denied by the harness for " + info + ": " + why + ". Do not retry it; choose a different approach, or ask the user what to do."
     }
 
     /// Manually compact the agent conversation (/compact).
     pub func compact(model str) {
-        if let after = compact_now(client, model, cfg, messages, _last_tokens) {
+        if let after = compact_rich_now(client, model, cfg, messages, _last_tokens) {
             _last_tokens = after
+            _sent_len = messages.len()
+            _compacted_len = messages.len()
         }
+        // the summarized turns and the summary's own buffers are garbage
+        settle_heap()
     }
 
     /// Prompt tokens used by the last request (/context).
     pub func last_tokens() int { return _last_tokens }
 }
 
-/// Rebuild an Agent from a persisted conversation: no fresh system prompt,
-/// no work-dir announcement, the paused flag restored. The caller injects
-/// the approver again, so a restored Agent cannot bypass the UI.
-pub func restore_agent(_client openai.Client, _cfg Config, _workdir str, msgs list[dict[str, str]], _paused bool) Agent {
+/// Net allocations (allocations minus frees since the last collection) that
+/// justify a full collection at a stop point. Small enough to bound a long
+/// session, large enough that a quiet turn pays nothing: a full mark & sweep
+/// depends on the live heap, not on how much became garbage.
+pub const SETTLE_BLOCKS = 50_000
+
+/// Settle the heap at a stop point: collect once enough was allocated since
+/// the last collection. The collector never runs on its own — `gc_alloc_block`
+/// only panics when the used size would exceed KOALA_GC_MAX (1 GiB by
+/// default) — so the chat has to collect itself for a long session to keep
+/// working. Call it only where nothing is live except what the stack and the
+/// module globals reach: between two steps, at the end of a turn, after a turn
+/// was dropped or compacted, and at the top of the REPL loop.
+pub func settle_heap() {
+    let (count, _, _) = gc.get_count()
+    if count >= SETTLE_BLOCKS { gc.collect() }
+}
+
+/// Rebuild an Agent from a persisted conversation, read as the JSON array a
+/// session record stores (see `conversation_json`). No fresh system prompt,
+/// no work-dir announcement, the paused flag restored. A record written
+/// before rich messages holds plain {role, content} objects and loads the
+/// same way; an element that is not a message object is skipped. The caller
+/// injects the approver again, so a restored Agent cannot bypass the UI.
+pub func restore_agent(_client openai.Client, _cfg Config, _workdir str, msgs Array, _paused bool) Agent {
     let a = Agent(_client, _cfg, _workdir, true)
     a.messages.clear()
-    for m in msgs { a.messages.append(m) }
+    for e in msgs.value {
+        if e is Object {
+            if let m = openai.message_from_object(e) { a.messages.append(m) }
+        }
+    }
     a.set_paused(_paused)
     return a
 }
@@ -235,12 +860,26 @@ pub func parse_block(text str) (str, str)? {
     return nil
 }
 
-/// The agent system prompt; with no-access directories configured, the
-/// model is told to stay out of them. Shell commands cannot be blocked by
-/// the harness, so this is the only guard there.
-pub func agent_prompt(blocked list[str]) str {
-    if blocked.len() == 0 { return AGENT_PROMPT }
-    var p = AGENT_PROMPT + "\n\nNever read, write, list, or run commands that touch anything under these directories (relative ones are relative to the working directory):"
+/// The native agent system prompt, with the work directory, platform and
+/// the no-access directories spelled out. Shell commands cannot be blocked
+/// by the harness, so the prompt is the only guard there.
+pub func agent_prompt(blocked list[str], workdir = "") str {
+    return _prompt_with(AGENT_PROMPT, blocked, workdir)
+}
+
+/// The fallback system prompt (fenced write/shell/done blocks), with the
+/// same work-dir and no-access context.
+pub func fenced_prompt(blocked list[str], workdir = "") str {
+    return _prompt_with(FENCED_PROMPT, blocked, workdir)
+}
+
+func _prompt_with(base str, blocked list[str], workdir str) str {
+    var p = base
+    if workdir != "" {
+        p += "\n\nWork directory: " + workdir + " (relative paths resolve there). Platform: " + os.platform() + "."
+    }
+    if blocked.len() == 0 { return p }
+    p += NO_ACCESS_NOTE
     for d in blocked {
         p += "\n- " + d
     }
@@ -277,9 +916,11 @@ pub func action_target(info str, workdir str) str? {
     return fs.Path(target).normalize().to_str()
 }
 
-/// Execute a write/shell action in `workdir` and return the observation to
-/// feed back to the model.
-pub func run_action(info str, body str, workdir str, blocked list[str]) str {
+/// Execute one action in `workdir` and return the observation to feed back
+/// to the model. Shell commands are killed after `timeout_ms` and each
+/// stream is capped at `max_bytes` (the full text goes to a temp log whose
+/// path the model is told).
+pub func run_action(info str, body str, workdir str, blocked list[str], timeout_ms = 120_000, max_bytes = 32_000) str {
     if info.starts_with("write") {
         let path = info.substr(5).strip()
         let target = action_target(info, workdir)
@@ -293,16 +934,77 @@ pub func run_action(info str, body str, workdir str, blocked list[str]) str {
         }
         return "write failed: " + path
     }
+    if info.starts_with("read") {
+        let path = info.substr(4).strip()
+        if path == "" { return "ERROR: read: missing path" }
+        return read_tool(path, body, workdir, blocked, max_bytes)
+    }
+    if info.starts_with("edit") {
+        let path = info.substr(4).strip()
+        if path == "" { return "ERROR: edit: missing path" }
+        return edit_tool(path, body, workdir, blocked)
+    }
+    if info.starts_with("glob") {
+        let pattern = info.substr(4).strip()
+        if pattern == "" { return "ERROR: glob: missing pattern" }
+        return glob_tool(pattern, body, workdir, blocked)
+    }
+    if info.starts_with("grep") {
+        let pattern = info.substr(4).strip()
+        if pattern == "" { return "ERROR: grep: missing pattern" }
+        return grep_tool(pattern, body, workdir, blocked)
+    }
+    if info == "todo" { return todo_tool(body) }
     if info == "shell" || info == "sh" || info == "bash" || info.starts_with("shell ") {
         let cmd = body.strip()
         if cmd == "" { return "shell: empty command" }
-        let r = os.output("sh", ["-c", cmd], workdir)
-        if r == nil { return "shell: cannot start: " + cmd }
-        let (code, out, err) = r
+        let p = os.run("sh", ["-c", cmd], workdir) else { return "shell: cannot start: " + cmd }
+        let r = p.communicate(nil, float(timeout_ms) / 1000.0)
+        if r == nil {
+            // a timeout leaves the child running and the pipes open
+            p.kill()
+            p.wait()
+            return "shell: timeout after " + str(timeout_ms) + "ms: " + cmd
+        }
+        let (ob, eb) = r
+        let code = p.wait() else { return "shell: cannot wait: " + cmd }
+        let (out, out_dropped) = _cap_output(ob.to_str(), max_bytes)
+        let (err, err_dropped) = _cap_output(eb.to_str(), max_bytes)
         var s = "exit " + str(code)
         if out.strip() != "" { s += "\nstdout:\n" + out.strip() }
         if err.strip() != "" { s += "\nstderr:\n" + err.strip() }
+        if out_dropped > 0 || err_dropped > 0 {
+            s += "\n(output capped at " + str(max_bytes) + " bytes per stream, " + str(out_dropped + err_dropped) + " bytes omitted"
+            if let log = _write_output_log(cmd, ob.to_str(), eb.to_str()) {
+                s += "; full output: " + log
+            }
+            s += ")"
+        }
         return s
     }
     return "unknown action: " + info
+}
+
+/// `s` cut to about `budget` bytes, keeping the head and the tail; the
+/// second value is how many bytes were dropped.
+func _cap_output(s str, budget int) (str, int) {
+    var cap = budget
+    if cap < 200 { cap = 200 }
+    if s.len() <= cap { return (s, 0) }
+    let head = cap / 2
+    let tail = cap - head
+    let dropped = s.len() - cap
+    let cut = s.substr(0, head) + "\n... (" + str(dropped) + " bytes omitted) ...\n" + s.substr(s.len() - tail)
+    return (cut, dropped)
+}
+
+/// Write the uncapped shell output to a temp file and return its path, so
+/// the model can read what was capped; nil when the file cannot be written.
+func _write_output_log(cmd str, out str, err str) str? {
+    let path = fs.make_temp_file("koala-shell-", ".log") else { return nil }
+    var text = "$ " + cmd + "\n"
+    if out != "" { text += "--- stdout ---\n" + out }
+    if err != "" { text += "--- stderr ---\n" + err }
+    if !fs.write_str(path, text) { return nil }
+    return path.to_str()
 }

@@ -19,3 +19,5 @@ examples/**/*.klc
 bench/*.klc
 .vscode/*.json
 libs/koala.std.tar
+demo/.chat_history
+demo/chat_sessions/main.json
