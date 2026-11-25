@@ -1,5 +1,0 @@
-[package]
-name = "koala/csv"
-version = "0.1.0"
-dependencies = []
-natives = []

@@ -1,5 +1,0 @@
-[package]
-name = "koala/icmp"
-version = "0.1.0"
-dependencies = []
-natives = []

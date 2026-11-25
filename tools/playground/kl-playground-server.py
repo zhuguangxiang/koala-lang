@@ -101,7 +101,7 @@ class PlaygroundHandler(BaseHTTPRequestHandler):
         # Set up environment
         import os
         env = os.environ.copy()
-        env["KOALA_PATH"] = f"{project_root}/libs/std/dist/:{project_root}/libs/koala/dist/:{project_root}/test/:{project_root}/"
+        env["KOALA_PATH"] = f"{project_root}/libs/std/dist/:{project_root}/test/:{project_root}/"
 
         # Write code to temp file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".kl", delete=False) as f:

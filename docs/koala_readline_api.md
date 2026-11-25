@@ -35,7 +35,7 @@ Two complete examples are in `demo/`:
 - `readline_demo.kl` has a colored prompt, a history kept between runs, Tab
   completion of the commands and history numbers, and a startup hook that
   pre-fills the line.
-- `sqlite3_demo.kl shell` is a to-do list shell, with `koala/cli` parsing each
+- `sqlite3_demo.kl shell` is a to-do list shell, with `std/argparse` parsing each
   line and a completer for its commands.
 
 ## Contents

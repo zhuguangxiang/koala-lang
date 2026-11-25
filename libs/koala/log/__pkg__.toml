@@ -1,5 +1,0 @@
-[package]
-name = "koala/log"
-version = "0.1.0"
-dependencies = []
-natives = []

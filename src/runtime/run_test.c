@@ -313,9 +313,17 @@ static int kl_run_tests(Object *_m)
 int koala_test_file(char *path)
 {
     Object *m = kl_load_module(path);
-    if (m) return kl_run_tests(m);
-    fprintf(stderr, "koala: failed to load module '%s'\n", path);
-    return -1;
+    if (!m) {
+        fprintf(stderr, "koala: failed to load module '%s'\n", path);
+        return -1;
+    }
+
+    if (kl_has_load_error()) {
+        fprintf(stderr, "koala: cannot test '%s': native library failed to load\n", path);
+        return -1;
+    }
+
+    return kl_run_tests(m);
 }
 
 #ifdef __cplusplus

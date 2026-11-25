@@ -4,7 +4,7 @@
 // RUN: koalac %s --cgen --dump=code | filecheck %s --check-prefix=CODE
 
 import "test_pkg/pkg_generic_method"
-import "koala/math"
+import "std/math"
 
 type IntFn = func(int) int
 
@@ -47,7 +47,7 @@ func pass_function(x int) int { return apply(increment, x) }
 // NOOPT: %0 = global_get @native_fn func(float64)float64
 // NOOPT-NEXT: %1 = call %0 func(float64)float64, %x float64
 // NOOPT-LABEL: func @direct_native(%x float64) float64 {
-// NOOPT: %0 = call @sqrt [path = 'koala/math'], %x float64
+// NOOPT: %0 = call @sqrt [path = 'std/math'], %x float64
 // NOOPT-LABEL: func @pass_function(%x int64) int64 {
 // NOOPT: %0 = call @apply, @increment func(int64)int64, %x int64
 // NOOPT-LABEL: func @__init__() <NO-TYPE> {
@@ -103,7 +103,7 @@ func pass_function(x int) int { return apply(increment, x) }
 // LIR: %0 = global_get @native_fn func(float64)float64
 // LIR: %2 = call %0 func(float64)float64, nargs=1
 // LIR-LABEL: --- IR Dump After isel [@direct_native] ---
-// LIR: %1 = call @sqrt [path = 'koala/math'], nargs=1
+// LIR: %1 = call @sqrt [path = 'std/math'], nargs=1
 // LIR-LABEL: --- IR Dump After isel [@pass_function] ---
 // LIR: %0 = local func(int64)int64 [fixedslot = 0(next)]
 // LIR-NEXT: load_func %0 func(int64)int64, @increment func(int64)int64
@@ -151,4 +151,4 @@ func pass_function(x int) int { return apply(increment, x) }
 // CODE-LABEL: Constant Pool:
 // CODE-NEXT: Import Table:
 // CODE-NEXT: [000] func test_pkg/pkg_generic_method::pass, slot_index: 11
-// CODE-NEXT: [001] func koala/math::sqrt, slot_index: 12
+// CODE-NEXT: [001] func std/math::sqrt, slot_index: 12

@@ -6,7 +6,7 @@
  */
 
 import "std/sys"
-import "koala/cli"
+import "koala/argparse"
 import "koala/wombat" as wb
 
 const VERSION = "0.5.0"
@@ -20,13 +20,13 @@ pub func main() {
 
 /// The parser of `wombat` and of each of its commands.
 class Commands {
-    let wombat cli.ArgumentParser
-    let sub cli.SubParsers
+    let wombat argparse.ArgumentParser
+    let sub argparse.SubParsers
 
     func __init__() {
         let description = "wombat " + VERSION + " — build system & package manager"
         let epilog = "Run `wombat help <command>` for details."
-        wombat = cli.ArgumentParser(prog="wombat", description=description, epilog=epilog)
+        wombat = argparse.ArgumentParser(prog="wombat", description=description, epilog=epilog)
         wombat.add_argument("-V", "--version", action="version", version="wombat " + VERSION)
         sub = wombat.add_subparsers(dest="command", metavar="<command>")
 
@@ -61,7 +61,7 @@ class Commands {
         run.add_argument("target", help="What to run")
         run.add_argument("--no-jit", action="store_true",
                          help="Run with the JIT disabled (sets KOALA_JIT=0 for the program)")
-        run.add_argument("args", nargs=cli.REMAINDER, help="Arguments for the program")
+        run.add_argument("args", nargs=argparse.REMAINDER, help="Arguments for the program")
 
         let test_epilog = "targets:\n" +
                           "  (no target)   Test every directory package and ws/test/\n" +
@@ -73,7 +73,7 @@ class Commands {
                           "it is only run from a workspace root."
         let test = sub.add_parser("test", help="Run tests for the current workspace or package",
                                   epilog=test_epilog,
-                                  formatter_class=cli.RawDescriptionHelpFormatter)
+                                  formatter_class=argparse.RawDescriptionHelpFormatter)
         test.add_argument("target", nargs="?", default=".", help="What to test")
         test.add_argument("--no-jit", action="store_true",
                           help="Run every test with the JIT disabled (sets KOALA_JIT=0)")
@@ -145,12 +145,12 @@ func dispatch(argv list[str]) int {
 }
 
 // The str value of `name`, which has a default or is required.
-func _value(args cli.Namespace, name str) str {
+func _value(args argparse.Namespace, name str) str {
     return (args.get(name)! as str)!
 }
 
 // The bool value of a store_true flag.
-func _flag(args cli.Namespace, name str) bool {
+func _flag(args argparse.Namespace, name str) bool {
     return (args.get(name)! as bool)!
 }
 

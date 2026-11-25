@@ -92,12 +92,18 @@ static void kl_run_main(Object *_m)
 int koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);
-    if (m) {
-        kl_run_main(m);
-        return 0;
+    if (!m) {
+        fprintf(stderr, "koala: failed to load module '%s'\n", path);
+        return -1;
     }
-    fprintf(stderr, "koala: failed to load module '%s'\n", path);
-    return -1;
+
+    if (kl_has_load_error()) {
+        fprintf(stderr, "koala: cannot run '%s': native library failed to load\n", path);
+        return -1;
+    }
+
+    kl_run_main(m);
+    return 0;
 }
 
 static void load_modules(void)

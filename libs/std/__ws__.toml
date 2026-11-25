@@ -13,5 +13,5 @@ packages = [
     "prelude",
     "collections",
     "socket",
-    "itertools",
+    "math",
 ]

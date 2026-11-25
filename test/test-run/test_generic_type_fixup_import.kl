@@ -1,7 +1,7 @@
 // RUN: mkdir -p %t.dir && koalac %S/../inputs/generic_type_fixup_dep.kl --cgen --write-klc --package-name=generic_type_fixup_dep -o %t.dir/generic_type_fixup_dep.klc
-// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koalac %s --cgen --write-klc -o %t.dir/main.klc
-// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
-// RUN: env KOALA_JIT=0 KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koalac %s --cgen --write-klc -o %t.dir/main.klc
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_JIT=0 KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koala %t.dir/main.klc | filecheck %s
 
 import "generic_type_fixup_dep" as dep
 

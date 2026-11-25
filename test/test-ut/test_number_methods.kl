@@ -13,7 +13,7 @@
 //     use top-level ceil/floor/round and math.sqrt/isnan/isinf instead.
 
 import "std/ut"
-import "koala/math"
+import "std/math"
 
 // -----------------------------------------------------------------------------
 // pow: int64 instantiation (binary exponentiation, wrapping overflow)

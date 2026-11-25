@@ -10,7 +10,7 @@ tokens for the same input and settings, its `debug` trace included.
 |---------|-----------|-------------|
 | `koala/shlex` | `std/io`, `std/fs`, `std/sys` | none |
 
-A typical use is the step before `koala/cli` in an interactive loop: the
+A typical use is the step before `std/argparse` in an interactive loop: the
 shell splits a program's command line, but a line read from the user has to be
 split by the program.
 

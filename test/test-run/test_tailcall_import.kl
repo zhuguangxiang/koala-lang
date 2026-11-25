@@ -1,7 +1,7 @@
 // RUN: mkdir -p %t.dir && koalac %S/../inputs/function_values_dep.kl --cgen --write-klc --package-name=function_values_dep -o %t.dir/function_values_dep.klc
-// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koalac %s --opt --tail-call --cgen --write-klc -o %t.dir/main.klc --dump=code | filecheck %s --check-prefix=CODE
-// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
-// RUN: env KOALA_JIT=0 KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koalac %s --opt --tail-call --cgen --write-klc -o %t.dir/main.klc --dump=code | filecheck %s --check-prefix=CODE
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_JIT=0 KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koala %t.dir/main.klc | filecheck %s
 // A tail call to a function of another module switches the module of the reused frame.
 
 import "function_values_dep"

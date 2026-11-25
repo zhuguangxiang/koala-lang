@@ -711,7 +711,8 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
             ASSERT(parent && parent->kind == SYM_PACKAGE);
             exp->ir_val = klr_add_ext_klass(MOD, parent->name, kls_sym->instance_ts, sym->name);
         } else {
-            exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
+            ASSERT(sym->ir_val);
+            exp->ir_val = sym->ir_val;
         }
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;

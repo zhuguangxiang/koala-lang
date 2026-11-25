@@ -4,7 +4,7 @@
 // Named Koala and native functions as locals, arguments, returns and globals.
 
 import "test_pkg/pkg_generic_method"
-import "koala/math"
+import "std/math"
 
 type IntFn = func(int) int
 

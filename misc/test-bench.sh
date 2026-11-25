@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 # Set KOALA_PATH to find standard libraries
-export KOALA_PATH="libs/std/dist/:libs/koala/dist/:test/:"
+export KOALA_PATH="libs/std/dist/:test/:"
 
 for test_file in test/test-bench/*.kl; do
     if [ -f "$test_file" ]; then

@@ -13,24 +13,21 @@
 extern "C" {
 #endif
 
-#define ITEM_RT_CONST  0
-#define ITEM_IMPORT    1
-#define ITEM_LINK      2
-#define ITEM_CODE      3
-#define ITEM_BYTECODE  4
-#define ITEM_CONST     5
-#define ITEM_VAR       6
-#define ITEM_CONST_VAR 7
-#define ITEM_FUNC      8
-#define ITEM_CLASS     9
-#define ITEM_LINEINFO  10
-#define ITEM_ENUM      11
+#define ITEM_RT_CONST    0
+#define ITEM_IMPORT      1
+#define ITEM_LINK        2
+#define ITEM_CODE        3
+#define ITEM_BYTECODE    4
+#define ITEM_CONST       5
+#define ITEM_VAR         6
+#define ITEM_CONST_VAR   7
+#define ITEM_FUNC        8
+#define ITEM_CLASS       9
+#define ITEM_LINEINFO    10
+#define ITEM_ENUM        11
 #define ITEM_INLINE_SITE 12
 #define ITEM_INLINE_PC   13
 #define ITEM_MAX         14
-
-/* Same layout as KOALA_VERSION: major 24-31, minor 8-23, patch 0-7. */
-#define KLC_ENUM_METADATA_VERSION ((0 << 24) | (30 << 8) | 0)
 
 typedef struct _KlcFile {
     char *path;

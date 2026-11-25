@@ -1,6 +1,0 @@
-[package]
-name = "koala/tui"
-version = "0.1.0"
-description = "Terminal TUI: alt-screen, row layout, scrolling views and a pinned input line"
-dependencies = ["koala/readline"]
-natives = []

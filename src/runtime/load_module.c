@@ -21,6 +21,11 @@ extern "C" {
 
 Object *kl_load_module(char *path);
 
+/* set when a 'link' library fails to load; the launcher must exit non-zero on it. */
+static int _load_failed;
+
+int kl_has_load_error(void) { return _load_failed; }
+
 static TValue *get_global_var(Object *m, char *name)
 {
     ModuleObject *mo = (ModuleObject *)m;
@@ -228,20 +233,26 @@ static const char *native_suffix(void)
 #endif
 }
 
+/* 'link "xx"' must load and export <pkg>_native_lib_init; natives that are
+ * merely unimplemented get 'not_impl' (DESIGN §7.1). */
 static void _load_native(ModuleObject *mo, char *name, char *pkg_name)
 {
-    char buf[256];
-    snprintf(buf, sizeof(buf), "lib%s%s", name, native_suffix());
+    char libname[256];
+    snprintf(libname, sizeof(libname), "lib%s%s", name, native_suffix());
 
     char *filename = NULL;
-    if (!str_equal(name, "koala")) filename = buf;
+    if (!str_equal(name, "koala")) filename = libname;
 
     void *handle = dlopen(filename, RTLD_LAZY | RTLD_LOCAL);
     if (!handle) {
-        fprintf(stderr, "Failed to load %s: %s\n", buf, dlerror());
+        char *err = dlerror();
+        if (!err) err = "unknown error";
+        fprintf(stderr, "error: failed to load native library '%s': %s\n", libname, err);
+        _load_failed = 1;
         return;
     }
 
+    char buf[256];
     char *slash = strrchr(pkg_name, '/');
     snprintf(buf, sizeof(buf), "%s_native_lib_init", slash ? slash + 1 : pkg_name);
 
@@ -249,7 +260,13 @@ static void _load_native(ModuleObject *mo, char *name, char *pkg_name)
     InitFunc init_func = dlsym(handle, buf);
 
     if (!init_func) {
-        fprintf(stderr, "Cannot find init function %s: %s\n", buf, dlerror());
+        char *err = dlerror();
+        if (!err) err = "unknown error";
+        const char *libdesc = libname;
+        if (!filename) libdesc = "the main program";
+        fprintf(stderr, "error: native library '%s' has no init function '%s': %s\n",
+                libdesc, buf, err);
+        _load_failed = 1;
         dlclose(handle);
         return;
     }

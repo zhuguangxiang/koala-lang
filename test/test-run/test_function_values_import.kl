@@ -1,6 +1,6 @@
 // RUN: mkdir -p %t.dir && koalac %S/../inputs/function_values_dep.kl --cgen --write-klc --package-name=function_values_dep -o %t.dir/function_values_dep.klc
-// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koalac %s --cgen --write-klc -o %t.dir/main.klc
-// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/../../libs/koala/dist:%S/.. koala %t.dir/main.klc | filecheck %s
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koalac %s --cgen --write-klc -o %t.dir/main.klc
+// RUN: env KOALA_PATH=%t.dir:%S/../../libs/std/dist:%S/.. koala %t.dir/main.klc | filecheck %s
 
 import "function_values_dep"
 

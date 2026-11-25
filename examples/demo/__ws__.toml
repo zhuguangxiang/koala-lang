@@ -1,0 +1,29 @@
+[workspace]
+name = "demo"
+version = "0.1.0"
+packages = ["math", "text", "app"]
+
+[[package]]
+file = "extra.kl"
+name = "demo/extra"
+version = "0.1.0"
+dependencies = ["demo/math"]
+natives = []
+
+[[native]]
+name = "demo_ws_native"
+sources = ["native/ws_native.c"]
+includes = [
+    "../../include/common",
+    "../../include/runtime",
+]
+cflags = ["-O2"]
+
+[[native]]
+name = "demo_ws_native2"
+sources = ["native/ws_native2.c"]
+includes = [
+    "../../include/common",
+    "../../include/runtime",
+]
+cflags = ["-O2"]

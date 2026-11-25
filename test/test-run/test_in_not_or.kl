@@ -2,25 +2,47 @@
 //
 // issue-130 (semantics): `!(k in x) || !(k2 in x)` must be true when either
 // key is absent. Covered on a plain dict, on a class `__contains__`, on a
-// container narrowed from an optional type (`let v = parse_str(s) as Object`
-// followed by a nil check, the shape used by demo/chat/tools.kl), and on the
-// correct form for a nullable container: unwrap it with '!' (`k in v!`).
+// container narrowed from an optional type (`let v = parse_obj(...) as Obj`
+// followed by a nil check), and on the correct form for a nullable container:
+// unwrap it with '!' (`k in v!`). The fixture is local, so only std is needed.
 
-from "koala/json" import Object, String, parse_str
+trait Value {}
 
-func guard(a Object) bool {
+class Text : Value {}
+
+class Obj : Value {
+    let data = dict[str, str]()
+
+    func __contains__(key str) bool = key in data
+
+    func add(key str, value str) {
+        data[key] = value
+    }
+}
+
+// A non-`Obj` result makes the `as Obj` cast yield nil, like a JSON document
+// whose root is not an object.
+func parse_obj(path str, content str) Value {
+    if path == "" { return Text() }
+    let o = Obj()
+    o.add("path", path)
+    if content != "" { o.add("content", content) }
+    return o
+}
+
+func guard(a Obj) bool {
     return !("path" in a) || !("content" in a)
 }
 
-func narrowed(s str) bool {
-    let v = parse_str(s) as Object
+func narrowed(path str, content str) bool {
+    let v = parse_obj(path, content) as Obj
     if v == nil { return true }
     let a = v
     return !("path" in a) || !("content" in a)
 }
 
-func unwrapped(s str) bool {
-    let v = parse_str(s) as Object
+func unwrapped(path str, content str) bool {
+    let v = parse_obj(path, content) as Obj
     return !("path" in v!) || !("content" in v!)
 }
 
@@ -32,21 +54,21 @@ func main() {
     // CHECK: true
 
     // class with a user defined `__contains__`: only `path` is present
-    let o = Object()
-    o.add("path", String("a.txt"))
+    let o = Obj()
+    o.add("path", "a.txt")
     print(guard(o))
     // CHECK-NEXT: true
 
     // both keys present
-    o.add("content", String("body"))
+    o.add("content", "body")
     print(guard(o))
     // CHECK-NEXT: false
 
-    // container narrowed from `Object?`
-    print(narrowed("{\"path\": \"a.txt\"}"), narrowed("{\"path\": \"a.txt\", \"content\": \"body\"}"))
+    // container narrowed from `Obj?`
+    print(narrowed("a.txt", ""), narrowed("a.txt", "body"))
     // CHECK-NEXT: true false
 
     // nullable container unwrapped with '!': `k in v!`
-    print(unwrapped("{\"path\": \"a.txt\"}"), unwrapped("{\"path\": \"a.txt\", \"content\": \"body\"}"))
+    print(unwrapped("a.txt", ""), unwrapped("a.txt", "body"))
     // CHECK-NEXT: true false
 }

@@ -46,7 +46,7 @@ L0  koala/webview   系统 webview 薄包装 —— HTML 是其本质，高级�
 | 函数值一等公民：`type Handler = func(Event)`，可存字段、可传参；但**不能做泛型型参**（`dict[int, Handler]` 报 "type argument must be a class/trait type"，实测） | 手册函数类型节 + U1 实测 | handler 存在 widget 自身（`Button._handler`），不做 App 内注册表（§5.3） |
 | 泛型不变：`dict[str,str]` 不 assignable 到 `dict[str,any]` | webview v1.1 实测 | 协议层统一 `json.Value` 承载，不用裸 dict 字面量传参 |
 | `koala/json`：`parse_str/loads`、`Object/Array` 构建器、`dumps` | libs/koala/json/__json__.kl | 命令/事件序列化的现成工具 |
-| wombat build 只产出 `.klc` 与 `.so`，**无资产拷贝机制** | libs/koala/wombat/build.kl | runtime.html/js/css 无法随 dist 分发为独立文件 |
+| wombat build 只产出 `.klc` 与 `.so`，**无资产拷贝机制** | libs/std/wombat/build.kl | runtime.html/js/css 无法随 dist 分发为独立文件 |
 | 无 `__file__`/模块路径 API，无 include_str 类嵌入语法 | 手册 + src 检索 | 运行时无法定位"包安装目录"→ **runtime 以字符串常量嵌入 .kl**（§4.3） |
 | 无线程/协程；webview 页面加载异步；eval_sync 对象结果是 `[object Object]` | webview v1.1 | 单泵循环；mount 后 poll 至就绪；回传一律 `JSON.stringify` |
 | `time.Duration/Instant`、`datetime.now()` 可用 | std/time、koala/datetime | 定时器与 demo 时钟不需要 JS |

@@ -1,30 +1,41 @@
 // RUN: ! koalac %s 2>&1 | filecheck %s
 //
 // issue-130: `in` requires a concrete container type, so an optional container
-// (`str?`, `Object?`) is a type error, not a compiler crash (an optional type
+// (`str?`, `Obj?`) is a type error, not a compiler crash (an optional type
 // spec keeps sym_id = -1, parse_in() used to abort on ASSERT(container_ts_sym)).
 // The correct form unwraps the container first: `"a" in s!`.
+// The fixture is local, so only std is needed.
 
-from "koala/json" import Object, parse_str
+trait Value {}
+
+class Obj : Value {
+    let data = dict[str, str]()
+
+    func __contains__(key str) bool = key in data
+}
+
+func parse_obj(s str) Value {
+    return Obj()
+}
 
 func in_str_optional(s str?) bool {
     return "a" in s
     // CHECK: optional container type is not allowed in 'in' operator.
 }
 
-func in_param(o Object?) bool {
+func in_param(o Obj?) bool {
     return !("path" in o)
     // CHECK: optional container type is not allowed in 'in' operator.
 }
 
 func in_cast_result(s str) bool {
-    let a = parse_str(s) as Object
+    let a = parse_obj(s) as Obj
     return "path" in a
     // CHECK: optional container type is not allowed in 'in' operator.
 }
 
 // a narrowed container is fine
-func in_narrowed_ok(o Object?) bool {
+func in_narrowed_ok(o Obj?) bool {
     if o == nil { return false }
     return "path" in o
 }
@@ -34,7 +45,7 @@ func in_unwrapped_ok(s str?) bool {
     return "a" in s!
 }
 
-func in_unwrapped_ok2(o Object?) bool {
+func in_unwrapped_ok2(o Obj?) bool {
     return "path" in o!
 }
 

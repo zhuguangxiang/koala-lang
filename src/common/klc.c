@@ -1843,15 +1843,13 @@ KlcFile *read_klc_file(char *path, int rt)
         read_funcs(klc, klc->objs + ITEM_FUNC);
         read_classes(klc, klc->objs + ITEM_CLASS);
         read_lineinfos(klc, klc->objs + ITEM_LINEINFO);
-        if (klc->version >= KLC_ENUM_METADATA_VERSION) {
-            if (rt) {
-                skip_enums(klc);
-            } else {
-                read_enums(klc, klc->objs + ITEM_ENUM);
-            }
-            read_inline_sites(klc, klc->objs + ITEM_INLINE_SITE);
-            read_inline_pcs(klc, klc->objs + ITEM_INLINE_PC);
+        if (rt) {
+            skip_enums(klc);
+        } else {
+            read_enums(klc, klc->objs + ITEM_ENUM);
         }
+        read_inline_sites(klc, klc->objs + ITEM_INLINE_SITE);
+        read_inline_pcs(klc, klc->objs + ITEM_INLINE_PC);
     }
 
     KlcConst *k = klc_get_const(klc, klc->pkg_path_index);

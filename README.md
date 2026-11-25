@@ -15,7 +15,7 @@ It is built on three non‑negotiable principles:
 
 ## A taste of Koala
 
-Every example below is runnable — they live in [`demo/`](demo): `koala demo/tour.kl`, `demo/generics.kl`, `demo/traits.kl`, `demo/lambdas.kl`.
+Every example below is runnable — they live in [`examples/`](examples) and only use the standard library: `koala examples/tour.kl`, `examples/generics.kl`, `examples/traits.kl`, `examples/lambdas.kl`. The rest of `examples/` is `func_type.kl` and `simple_algo.kl`; `examples/demo/` is the workspace/native demo workspace.
 
 ```kl
 // Generics with trait bounds — the type argument is inferred at the call site.
@@ -191,7 +191,7 @@ wombat doc                # generate documentation
 wombat clean              # remove build artifacts
 ```
 
-Run `wombat help <command>` for details. See the [wombat API reference](docs/koala_wombat_api.md).
+Run `wombat help <command>` for details. See the [wombat API reference](docs/std_wombat_api.md).
 
 ## Performance
 

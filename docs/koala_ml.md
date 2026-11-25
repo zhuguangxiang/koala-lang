@@ -67,7 +67,7 @@ Rust 式的 native 核心/语言薄壳分层。不引入任何外部数值库（
 
 ### 3.1 已具备
 
-- **标量数学齐全**：`libs/koala/math/__math__.kl` 有 exp/log/sqrt/pow/isclose 等，
+- **标量数学齐全**：`libs/std/math/__math__.kl` 有 exp/log/sqrt/pow/isclose 等，
   sigmoid、代价函数的逐元素内核可直接复用。
 - **运算符重载钩子**：dunder 机制（手册 §Operator Overloading），
   `list.kl` 已实现 `__add__/__iadd__/__getitem__/__setitem__/__getslice__/__setslice__`。
@@ -95,7 +95,7 @@ Rust 式的 native 核心/语言薄壳分层。不引入任何外部数值库（
 ### 3.2 缺口
 
 - **全库无 ndarray/matrix/linalg**（grep 证实）。
-- `koala/random` 无 `normal/gauss/randn`（权重初始化、数据生成需要）。
+- `std/random` 无 `normal/gauss/randn`（权重初始化、数据生成需要）。
 - 无绘图包（turtle 是教育向，非 ML 绘图）。
 - 无矩阵乘运算符：lexer 中 `@` 仅作装饰器 token。**v1 用 `dot/matmul` 方法规避，不加语法**。
 - JIT v1 仅覆盖 int/float/bool 算术，list 索引循环走 VM ——
@@ -227,7 +227,7 @@ Tensor = {
 
 `exp log log2 log10 sqrt abs square sign maximum minimum clip floor ceil round`
 + 三角函数（复用 math 的 C 实现）。
-标量版已在 `koala/math`，Tensor 版是同一内核的循环包装，避免两份实现。
+标量版已在 `std/math`，Tensor 版是同一内核的循环包装，避免两份实现。
 
 ### 4.9 归约
 
@@ -255,7 +255,7 @@ Tensor = {
 
 ### 4.12 随机数
 
-`koala/random` 补齐（独立于 Tensor，先行小改动）：
+`std/random` 补齐（独立于 Tensor，先行小改动）：
 - `normal(mu=0.0, sigma=1.0)`（Box-Muller 或 Ziggurat）、`randn` 别名语义对齐 np；
 - Tensor 侧：`Tensor.randn(shape)`、`Tensor.rand(shape)`、`Tensor.randint(low, high, shape)`，
   共享 `random.seed()` 的全局状态（课程要求可复现）。
@@ -711,7 +711,7 @@ ARM Ethos-U、Rockchip/华为等各自 SDK），**不做逐厂商直连**，分�
 
 - `koala/openai`：远程 LLM API 客户端（本地引擎落地后可做 loopback 对照）。
 - `koala/http` + `koala/sse`：足以对外提供 OpenAI 兼容的流式推理端点。
-- `koala/json`、`koala/sqlite3`、`koala/random`（采样）、Tensor（logits 运算）。
+- `koala/json`、`koala/sqlite3`、`std/random`（采样）、Tensor（logits 运算）。
 
 #### 11.10.3 推理引擎选型
 

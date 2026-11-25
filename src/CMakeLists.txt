@@ -116,7 +116,6 @@ set(KOALA_SHARED_SOURCES
     modules/sys.c
     modules/gc.c
     modules/math.c
-    modules/random.c
     modules/collections.c
     objects/collections/bitsetobj.c
     objects/collections/stackobj.c
@@ -158,12 +157,30 @@ install(TARGETS koala DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
 install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 install(TARGETS koala_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 
-install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
-    DESTINATION koala-${KOALA_VERSION_MAIN}/include
+# Static common library (utf8 etc.) for standalone native C tests, so they
+# link the installation instead of compiling sources from this checkout.
+install(TARGETS koala_common DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
+
+# Generated version header, installed alongside the other public headers so
+# native packages can read KOALA_VERSION from the toolchain.
+install(FILES ${PROJECT_BINARY_DIR}/include/version.h
+    DESTINATION koala-${KOALA_VERSION_MAIN}/include/koala)
+
+# Public headers for native package development (koala-libs). Installed
+# under include/koala/ so external packages depend on the toolchain, not
+# on this source tree. Compiler-only headers are excluded.
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/common
+    DESTINATION koala-${KOALA_VERSION_MAIN}/include/koala
     FILES_MATCHING
     PATTERN "*.h"
-    PATTERN "koala_lex.h" EXCLUDE
-    PATTERN "koala_yacc.h" EXCLUDE)
+    PATTERN "codebuffer.h" EXCLUDE
+    PATTERN "dominance.h" EXCLUDE
+    PATTERN "gvn.h" EXCLUDE
+    PATTERN "queue.h" EXCLUDE)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/runtime
+    DESTINATION koala-${KOALA_VERSION_MAIN}/include/koala
+    FILES_MATCHING PATTERN "*.h")
 
 # install(TARGETS koala_dump DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 

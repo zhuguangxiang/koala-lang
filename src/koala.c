@@ -69,9 +69,15 @@ static void setup_default_koala_path(void)
     if (BUF_LEN(path) > 0) buf_write_char(&path, ':');
     buf_write_str(&path, "./");
 
+    // Standard library sits next to libkoala.so in <prefix>/lib; third-party
+    // packages live in <prefix>/lib/koala-packages (Python-like layout).
     buf_write_char(&path, ':');
     buf_write_str(&path, BUF_STR(exe));
-    buf_write_str(&path, "/../lib/koala-lib/");
+    buf_write_str(&path, "/../lib/");
+
+    buf_write_char(&path, ':');
+    buf_write_str(&path, BUF_STR(exe));
+    buf_write_str(&path, "/../lib/koala-packages/");
 
     FINI_BUF(exe);
 

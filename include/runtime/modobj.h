@@ -158,6 +158,8 @@ void kl_init_module_stbl(void);
 void kl_fini_module_stbl(void);
 Object *kl_find_module(char *path);
 Object *kl_load_module(char *path);
+/* non-zero when a 'link' library failed to load: the launcher must not run the module */
+int kl_has_load_error(void);
 void kl_dump_module(Object *m);
 
 /* global mock registry ("pkg::name" or "pkg::Class::method" -> stub object),
