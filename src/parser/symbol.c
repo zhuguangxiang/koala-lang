@@ -226,6 +226,7 @@ static void __symbol_free(Symbol *sym)
         }
         case SYM_ENUM: {
             vector_fini(&((EnumSymbol *)sym)->members);
+            vector_fini(&((EnumSymbol *)sym)->bases);
             ASSERT(!sym->stbl);
             break;
         }
@@ -437,6 +438,8 @@ EnumSymbol *stbl_add_enum(HashMap *stbl, char *name, int flags)
     } else {
         sym->flags = flags;
         vector_init(&sym->members, sizeof(EnumMemberSym));
+        /* filled in by enum_add_root_bases(), the enum cannot declare a trait itself */
+        vector_init_ptr(&sym->bases);
         add_to_global(sym);
     }
 

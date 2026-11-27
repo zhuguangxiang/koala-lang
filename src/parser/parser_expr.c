@@ -2910,6 +2910,50 @@ static void parse_enum_name(ParserState *ps, DotExpr *dot, EnumSymbol *esym)
     exp->ts = fn->ts;
 }
 
+/* the methods of the root traits an enum conforms to, implemented by its int64 runtime value */
+static int is_enum_root_method(char *name)
+{
+    return str_equal(name, "hash") || str_equal(name, "fmt");
+}
+
+/*
+ * `c.hash()` / `c.fmt(f)` of an enum: the value is an int64 in the IR, so the call uses the
+ * int64 method with this enum value as its receiver:
+ *
+ *     c.hash()  ->  int64.hash(c)
+ *     c.fmt(f)  ->  int64.fmt(c, f)
+ *
+ * The dot is kept: emit_ir_dot() hands the receiver to emit_ir_call(), which prepends it as
+ * `self` for an ordinary method call.
+ */
+static void parse_enum_root_method(ParserState *ps, DotExpr *dot, EnumSymbol *esym)
+{
+    Expr *exp = (Expr *)dot;
+    char *name = dot->id.name;
+
+    if (dot->opt_or_bang != DOT_NORMAL) {
+        kl_error(dot->id.loc, "enum method '%s' can't use `!.` or `?.`", name);
+        return;
+    }
+
+    if (exp->ctx != EXPR_CTX_CALL) {
+        kl_error(dot->id.loc, "enum method '%s' can only be called, e.g. 'c.%s(...)'", name, name);
+        return;
+    }
+
+    /* the implementation lives in int64, the underlying type of the enum */
+    Symbol *kls_sym = get_symbol_by_id(int64_type_spec()->sym_id);
+    Symbol *fn = NULL;
+    if (kls_sym && kls_sym->kind == SYM_CLASS) fn = stbl_get(kls_sym->stbl, name);
+    if (!fn || fn->kind != SYM_FUNC) {
+        kl_error(dot->id.loc, "'%s' is not found for enum '%s'", name, esym->name);
+        return;
+    }
+
+    exp->sym = fn;
+    exp->ts = fn->ts;
+}
+
 static void parse_enum_member(ParserState *ps, DotExpr *dot, EnumSymbol *enum_sym)
 {
     Expr *exp = (Expr *)dot;
@@ -2963,20 +3007,27 @@ static void parse_dot_inner(ParserState *ps, Expr *exp)
     if (!lhs->ts) return;
 
     if (lhs->sym && lhs->sym->kind == SYM_ENUM) {
+        EnumSymbol *esym = (EnumSymbol *)lhs->sym;
         if (str_equal(dot->id.name, "name"))
-            parse_enum_name(ps, dot, (EnumSymbol *)lhs->sym);
+            parse_enum_name(ps, dot, esym);
+        else if (is_enum_root_method(dot->id.name))
+            parse_enum_root_method(ps, dot, esym);
         else
-            parse_enum_member(ps, dot, (EnumSymbol *)lhs->sym);
+            parse_enum_member(ps, dot, esym);
         return;
     }
 
     if (type_is_enum(lhs->ts)) {
+        EnumSymbol *esym = (EnumSymbol *)get_symbol_by_id(lhs->ts->sym_id);
         if (str_equal(dot->id.name, "name")) {
-            parse_enum_name(ps, dot, (EnumSymbol *)get_symbol_by_id(lhs->ts->sym_id));
+            parse_enum_name(ps, dot, esym);
             return;
         }
-        kl_error(lhs->loc, "enum '%s' has no members.",
-                 ((Symbol *)get_symbol_by_id(lhs->ts->sym_id))->name);
+        if (is_enum_root_method(dot->id.name)) {
+            parse_enum_root_method(ps, dot, esym);
+            return;
+        }
+        kl_error(lhs->loc, "enum '%s' has no members.", esym->name);
         return;
     }
 
@@ -4608,8 +4659,17 @@ static void parse_binary(ParserState *ps, Expr *exp)
         // compared at runtime by their own __eq__ / __ne__ (irgen emits a plain compare)
         if (is_auto_trait_func(ps, fn)) {
             if (!type_spec_compatible(lhs_op_ts, rhs_op_ts)) {
-                kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
-                         get_binary_op_str(op), type_spec_friendly_name(sym->name));
+                BUF(buf1);
+                type_spec_print(lhs_op_ts, &buf1);
+                BUF(buf2);
+                type_spec_print(rhs_op_ts, &buf2);
+                kl_error(bin->op_loc,
+                         "argument type mismatch for operator '%s' of type '%s'. expected "
+                         "'%s', but got '%s'.",
+                         get_binary_op_str(op), type_spec_friendly_name(sym->name), BUF_STR(buf1),
+                         BUF_STR(buf2));
+                FINI_BUF(buf1);
+                FINI_BUF(buf2);
                 return;
             }
             exp->ts = bool_type_spec();
@@ -4650,12 +4710,17 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     TypeSpec *arg_ts = arg_info->ts;
     if (!type_spec_compatible(arg_ts, rhs_op_ts)) {
-        kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
-                 get_binary_op_str(op), type_spec_friendly_name(sym->name));
-        log_info("expected type:");
-        log_type_spec(arg_ts);
-        log_info("actual type:");
-        log_type_spec(rhs_op_ts);
+        BUF(buf1);
+        type_spec_print(arg_ts, &buf1);
+        BUF(buf2);
+        type_spec_print(rhs_op_ts, &buf2);
+        kl_error(bin->op_loc,
+                 "argument type mismatch for operator '%s' of type '%s'. expected '%s', but "
+                 "got '%s'.",
+                 get_binary_op_str(op), type_spec_friendly_name(sym->name), BUF_STR(buf1),
+                 BUF_STR(buf2));
+        FINI_BUF(buf1);
+        FINI_BUF(buf2);
         return;
     }
 

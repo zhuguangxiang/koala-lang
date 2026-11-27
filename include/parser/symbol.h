@@ -172,6 +172,12 @@ typedef struct _EnumSymbol {
     SYMBOL_HEAD
     /* EnumMemberSym */
     Vector members;
+    /*
+     * ->TypeSpec: Printable, Hashable and Equatable[E], added by the compiler. An enum cannot
+     * declare a trait itself, and these are not written to the .klc file: an importer adds
+     * them again when the enum is loaded, see enum_add_root_bases().
+     */
+    Vector bases;
 } EnumSymbol;
 
 typedef struct _KlassSymbol {

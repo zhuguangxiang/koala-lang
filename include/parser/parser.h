@@ -277,6 +277,9 @@ int check_intf_methods(ParserModule *pm);
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args,
                                      ParserModule *pm);
 
+/* add Printable, Hashable and Equatable[E] to an enum, see parser.c */
+void enum_add_root_bases(EnumSymbol *sym, HashMap *stbl, ParserModule *pm);
+
 #define SPECIALIZED_NAME_PREFIX "__koala_respecialized_"
 
 void add_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps);

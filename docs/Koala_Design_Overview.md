@@ -84,7 +84,19 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **无 box/unbox**：实现层不存在装箱机制——值类型进入普适 `any` / 泛型容器无需变身。对照：Java autoboxing（隐藏分配 + Integer 缓存陷阱）、C# struct 装箱、Kotlin Int-as-Any 装箱、Go interface{} 装箱。"普适 any + 泛型"与"零装箱"通常互斥，Koala 两者兼得，是 VM / 表示层的工程成就。
 - 零装箱同时是"无隐藏特性"原则的直接推论（装箱即隐藏分配、隐藏身份变化），也是基准性能的贡献项。
 
-### 2.6 枚举 `enum`（设计已定，未实现，计划见 `Koala_TODO.md` §78）
+### 2.6 枚举 `enum`（设计目标：class 单例；当前实现：int64，见下方「已实现部分」）
+
+> **已实现部分（2026-11-27）**：当前实现走的是**编译期 `TYPE_ENUM`、运行时 int64**（下表「放弃的方案」第一行），
+> 而不是下面的 class 单例模型。据此已落地的规则：
+>
+> - enum **不能**声明 bases（`enum E : Printable {}` 是语法错误），也没有自定义方法。
+> - 编译器给每个 enum 固定加上 `Printable`、`Hashable`、`Equatable[E]`（与 class 自动根 trait 一致，
+>   **故意没有 `Comparable`**），所以 `[T : Equatable]` 泛型约束、`dict[E, V]`、trait 变量都可用；
+>   `c.hash()` / `c.fmt(f)` 复用 int64 的实现，`c.name()` 返回成员名。
+> - 这三个 trait 直接取自 `std/builtin`，用户同名的 trait 遮不住它们（class 会被遮住）。
+> - 不写进 `.klc`：enum 导入时由 `load_enums()` 重新生成，klc 格式与 VM 不变，旧 klc 仍可用。
+> - 打印 enum 输出**整数**（运行时是 int64），要名字显式调 `c.name()`。
+> - 已知漏洞：`let x Comparable[int] = C.RED` 仍能通过（int64 回退导致），见 `issues/issue-134.md`。
 
 **定位**：enum 是一组固定的、具名的常量，成员**不带数据**。成员要带数据时用 `sealed trait` + class
 （`Koala_TODO.md` §55）。两者只共用一处逻辑：`switch` 判断成员集合是否封闭。

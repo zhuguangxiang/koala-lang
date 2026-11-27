@@ -1,0 +1,46 @@
+// RUN: koala %s | filecheck %s
+// A class that declares Hashable/Printable itself does not get a second copy of them. The
+// declared trait keeps its place at the front, so the bases are ordered as if both were added
+// automatically and the lro does not change.
+
+class Both : Printable & Hashable {
+    pub func fmt(f Formatter) {
+        f.write_str("Both")
+    }
+
+    pub func hash() int {
+        return 7
+    }
+}
+
+class HashOnly : Hashable {
+    pub func hash() int {
+        return 8
+    }
+}
+
+class PrintOnly : Printable {
+    pub func fmt(f Formatter) {
+        f.write_str("PrintOnly")
+    }
+}
+
+class Plain {}
+
+func main() {
+    let b = Both()
+    print(b, b.hash(), b == b, b != Both())
+    // CHECK: Both 7 true true
+
+    print(HashOnly().hash(), PrintOnly())
+    // CHECK-NEXT: 8 PrintOnly
+
+    print(typeof(b).lro())
+    // CHECK-NEXT: [any, Printable, Hashable, Equatable]
+    print(typeof(HashOnly()).lro())
+    // CHECK-NEXT: [any, Printable, Hashable, Equatable]
+    print(typeof(PrintOnly()).lro())
+    // CHECK-NEXT: [any, Printable, Hashable, Equatable]
+    print(typeof(Plain()).lro())
+    // CHECK-NEXT: [any, Printable, Hashable, Equatable]
+}

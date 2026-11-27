@@ -97,3 +97,16 @@ func enum_errors() {
     a.foo()
     // CHECK: enum 'A' has no members.
 }
+
+func cmp[T : Comparable](v T) {
+}
+
+func enum_trait_errors() {
+    // an enum conforms to Printable, Hashable and Equatable[E], but not to Comparable
+    cmp(A.X)
+    // CHECK: type argument 'A' does not satisfy constraint on type parameter 'T'
+
+    // Equatable[E] is parameterized by the enum itself
+    let eb Equatable[B] = A.X
+    // CHECK: Types of two sides are not matched.
+}

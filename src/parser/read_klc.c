@@ -668,6 +668,9 @@ static void load_enums(LoadContext *ctx)
             EnumMemberSym member = { member_name->sval, value->value };
             vector_push_back(&sym->members, &member);
         }
+
+        /* the root traits are implied by the enum, so they are not in the .klc file */
+        enum_add_root_bases(sym, ctx->stbl, ctx->pm);
     }
 }
 

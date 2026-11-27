@@ -1,0 +1,75 @@
+// RUN: koala %s | filecheck %s
+// RUN: env KOALA_JIT=0 koala %s | filecheck %s
+// Every enum conforms to Printable, Hashable and Equatable[E], as a class does, except that
+// an enum cannot declare a trait itself: the three are always added, and nothing else.
+
+import "test_pkg/enum_cross"
+
+enum Color {
+    RED,
+    GREEN = 5,
+    BLUE,
+}
+
+func same[T : Equatable](a T, b T) bool {
+    return a == b
+}
+
+func diff[T : Equatable](a T, b T) bool {
+    return a != b
+}
+
+func hsh[T : Hashable](v T) int {
+    return v.hash()
+}
+
+func show[T : Printable](v T) {
+    print(v)
+}
+
+func holds(v Equatable[Color]) bool {
+    return true
+}
+
+func main() {
+    print(Color.RED == Color.RED, Color.RED != Color.GREEN, Color.RED == Color.BLUE)
+    // CHECK: true true false
+
+    print(same(Color.GREEN, Color.GREEN), diff(Color.GREEN, Color.BLUE))
+    // CHECK-NEXT: true true
+
+    // an imported enum is complete too: its traits are added again when the .klc is loaded
+    print(same(enum_cross.Proto.MAX, enum_cross.Proto.MAX))
+    // CHECK-NEXT: true
+    print(diff(enum_cross.Proto.ICMP, enum_cross.Proto.TCP))
+    // CHECK-NEXT: true
+
+    // trait typed variables
+    let p Printable = Color.GREEN
+    let h Hashable = Color.BLUE
+    show(p)
+    // CHECK-NEXT: 5
+    print(h.hash() == int(Color.BLUE).hash())
+    // CHECK-NEXT: true
+
+    // Equatable[E] is the third trait: '==' compiles on an enum only because of it
+    let e Equatable[Color] = Color.RED
+    print(holds(e), holds(Color.RED))
+    // CHECK-NEXT: true true
+
+    print(hsh(Color.GREEN) == int(Color.GREEN).hash())
+    // CHECK-NEXT: true
+    print(hsh(enum_cross.Proto.TCP) == int(enum_cross.Proto.TCP).hash())
+    // CHECK-NEXT: true
+
+    // hash() on the value itself is the int64 one
+    print(Color.BLUE.hash() == int(Color.BLUE).hash())
+    // CHECK-NEXT: true
+
+    // and an enum can be a dict key
+    let d = dict[Color, str]()
+    d[Color.RED] = "red"
+    d[Color.GREEN] = "green"
+    print(d[Color.RED], d[Color.GREEN], d.len())
+    // CHECK-NEXT: red green 2
+}

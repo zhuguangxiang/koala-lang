@@ -1,0 +1,8 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// An enum cannot declare a trait: it always conforms to Printable, Hashable and
+// Equatable[E], so there is no bases clause in the syntax.
+
+enum WithBase : Printable {
+    A,
+}
+// CHECK: syntax error

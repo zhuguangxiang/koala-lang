@@ -1,0 +1,31 @@
+// RUN: koala %s | filecheck %s
+
+// A trait-typed value takes part in '==' / '!=' through its '__eq__' / '__ne__' slot.
+// The right-hand side keeps the type declared by the trait ('Equatable[T].__eq__(other T)'),
+// so it must be a concrete 'T', not a trait value (see test_kl/test_trait_instance_operand.kl).
+
+class P {}
+
+// a conforming type carries the same 'P', the call is dispatched through the itable
+class Q : Equatable[P] {
+    func __eq__(other P) bool {
+        return true
+    }
+
+    func __ne__(other P) bool {
+        return false
+    }
+}
+
+func main() {
+    let p = P()
+
+    // the builtin 'Equatable[P]' of a class compares by reference
+    let e1 Equatable[P] = p
+    print(e1 == p, e1 != p)
+    // CHECK: true false
+
+    let e2 Equatable[P] = Q()
+    print(e2 == p, e2 != p)
+    // CHECK-NEXT: true false
+}

@@ -2,8 +2,17 @@
 
 ← 返回 [问题列表](issues.summary.md)
 
-- [ ] 未修复 —— 方案 C 已讨论确认，按用户指示暂不实施，未改任何源码
-- [ ] 待拍板：Printable 打印整数还是成员名
+- [x] 已修复 —— 每个 enum 自动实现 `Printable`、`Hashable`、`Equatable[E]`（无 `Comparable`）
+- [x] 泛型约束：`[T : Equatable]` / `[T : Hashable]` / `[T : Printable]` 接受本地与跨包 enum
+- [x] 值上转：`let p Printable = c`、`let h Hashable = c`、`let e Equatable[C] = c` 通过
+- [x] 方法：`c.hash()` / `c.fmt(f)` 复用 int64 实现，`c.name()` 保持原样；打字后仍报错
+- [x] 已拍板：Printable 打印整数（方案 a），成员名显式 `c.name()`
+- [x] 附带完成：class 手写 `Printable`/`Hashable` 不再被重复追加，`bases` 前两位顺序不变
+- [x] 回归：`test/test-run/test_enum_traits.kl`、`test_enum_traits_shadow.kl`、`test_class_root_traits_dedup.kl`，报错用例并入 `test_enum_errors.kl` / `test_enum_name_errors.kl`，新增 `test_enum_base_syntax_error.kl`
+- [x] 验证：`./build-debug.sh`、`./test-debug.sh`（639/639）、`libs/std/build-and-test.sh`（含 `KOALA_JIT=0`）
+
+> 已知遗留（另立 issue）：`let x Comparable[int] = C.RED` 仍能通过 → [issue-134](issue-134.md)；
+> `Equatable[T]` 类型变量不能参与 `==`（class 同样如此）→ [issue-135](issue-135.md)
 
 ---
 
@@ -78,39 +87,41 @@ enum 的 `==`/`!=` 本身**已支持**（parser_expr.c:4500 专门处理），�
 </details>
 
 <details>
-<summary><b>📋 方案 C 实施步骤（已讨论，未动手）</b></summary>
+<summary><b>📋 方案 C 实施步骤（已实施）</b></summary>
 
-1. `include/parser/symbol.h`：`EnumSymbol` 加 `Vector bases`；`symbol.c` 的 `stbl_add_enum` 初始化、释放处（~227 行）`vector_fini`。
-2. 新增 `enum_add_root_bases(EnumSymbol *, ParserModule *)`：从 `pm->builtin` 取 `Printable`/`Hashable`，用 `find_or_add_instance` 生成 `Equatable[E]` 实例。调用点：`parser.c` `_add_enum` 和 `read_klc.c` `load_enums`。注意 builtin 必须先加载（`init_parser` 里 `load_builtin_module` 先于用户包；编译 builtin 自身时 `pm->builtin = pm->stbl`，需防 trait 尚未声明，找不到就跳过）。`instance_ts` 走 `klass_type_spec` 全局 intern，跨模块指针同一，`type_spec_compatible` 顶部 `dst == src` 即命中。
-3. `parser.c` `_diff_kind_compatible_check`：src 是 enum 时先 `_base_compatible(dst, &enum->bases)`，失败再回退 int64。`check_generic_bound` 不用改。值上转 trait 时 IR 源类型已是 int64，走现有 int64 itable 路径（需实测确认）。
-4. `parser_expr.c` `parse_dot_inner` enum 分支：除 `name` 外支持 `hash`/`fmt`/`__eq__`/`__ne__`，方法到 int64 类符号表找，接收者按 int64 处理；`__eq__`/`__ne__` 参数必须是同一 enum，挡住 `c.__eq__(5)`。
-5. 测试：新增 `test/test-run/test_enum_traits.kl`（本地/跨包 enum 的 `ut.assert_eq`/`assert_ne`、自定义 `[T : Equatable]`/`[T : Hashable]`/`[T : Printable]`、`Equatable[C]`/`Hashable`/`Printable` 变量、`c.hash() == int(c).hash()`，并入 test2.kl 场景）；test-kl 报错用例：`[T : Comparable]` 传 enum、`Equatable[D]` 接收 `C`、`c.__eq__(5)`。
-6. 验证：`./build-debug.sh`、`./test-debug.sh`、`./build-std-koala.sh`；文档更新 `docs/Koala_TODO.md` §78、`docs/Koala_Design_Overview.md` §2.6。
+1. `include/parser/symbol.h`：`EnumSymbol` 加 `Vector bases`；`symbol.c` 的 `stbl_add_enum` 里 `vector_init_ptr`，`SYM_ENUM` 释放处 `vector_fini`。
+2. 新增 `enum_add_root_bases(EnumSymbol *, HashMap *stbl, ParserModule *pm)`（`parser.c`，紧接 `add_root_equatable`）：从 `pm->builtin` **直接取符号**（不按名字在当前作用域查找，所以用户同名 trait 遮不住），`Printable`/`Hashable` 取 `instance_ts`；`Equatable` 用 `find_or_add_instance(stbl, Equatable, [sym->ts], pm)` 生成 `Equatable[E]`。顺序固定 `Printable, Hashable, Equatable[E]`。`pm->builtin == NULL` 时直接返回（编译 std/builtin 自身、trait 尚未声明）。调用点：`_add_enum` 末尾、`read_klc.c` 的 `load_enums` 末尾。
+3. `parser.c` `_diff_kind_compatible_check`：src 是 `TYPE_ENUM` 时先 `_base_compatible(dst, &enum->bases)`，失败再回退 int64。`check_generic_bound` 未改。
+4. `parser_expr.c` `parse_dot_inner` 的两个 enum 分支：新增 `parse_enum_root_method()`，`hash`/`fmt` 到 int64 类符号表取方法符号后**保留 dot**（`exp->sym`/`exp->ts` 换成 int64 的实现），由 `emit_ir_dot` 把接收者作为 `self` 交给 `emit_ir_call`，不再改写实参列表。`__eq__`/`__ne__` 无需处理：显式调用本来就被 dunder 规则挡住。
+5. 附带修：`add_root_traits` 增加 `take_declared_base()`，class 手写的 `Printable`/`Hashable` 从原位取出后放回队首，`bases` 仍是 `[Printable, Hashable, ...用户 trait..., Equatable[K]]`（`compute_pip` 走 `bases[0]`、`add_root_equatable` 用 `root_traits = 2` 的假设不变）。klc 里写出的 bases 因此不再有重复项，**std 库需要重编**。
+6. 测试与验证见上方清单；`docs/Koala_Design_Overview.md` §2.6 补了「已实现」说明。
 
 </details>
 
 <details>
-<summary><b>❓ 待拍板：Printable 打印什么</b></summary>
+<summary><b>❓ Printable 打印什么（已拍板：方案 a）</b></summary>
 
 运行时 enum 是 int64，泛型（类型擦除）、`any`、`Printable` 变量、`format("{}", e)` 拿到的都是 int64，打印整数；`assert_eq` 失败信息也是整数。
 
-- **a（讨论中推荐）**：保持打印整数，与 `test_enum_basic.kl` 现有约定（"print shows the underlying int64 value"）一致，要名字显式 `c.name()`。
-- **b**：打印成员名。运行时必须能识别 enum（单独运行时类型或装箱对象），等于回到设计文档「enum 是 final class 单例」方案，涉及 VM/IR/klc，**工作量大一个量级**。
+- **a（已采用）**：打印整数，与 `test_enum_basic.kl` 现有约定（"print shows the underlying int64 value"）一致，要名字显式 `c.name()`。
+- **b（未采用）**：打印成员名。运行时必须能识别 enum（单独运行时类型或装箱对象），等于回到设计文档「enum 是 final class 单例」方案，涉及 VM/IR/klc，**工作量大一个量级**。
 
 </details>
 
 <details>
-<summary><b>⚠️ 既有漏洞（本次不处理，仅记录）</b></summary>
+<summary><b>⚠️ 既有漏洞（本次不处理，另立 issue）</b></summary>
 
 因 int64 回退，`let x Equatable[int] = C.RED`、`let y Comparable[int] = C.RED` 现在**都能通过**。
 
-堵漏需去掉 enum→int64 隐式转换中 trait 目标的路径，会影响 `let i int = c` 等现有用法，**单独讨论**。
+堵漏需去掉 enum→int64 隐式转换中 trait 目标的路径，会影响 `let i int = c` 等现有用法，**单独讨论** → [issue-134](issue-134.md)。
 
 </details>
 
 <details>
 <summary><b>🕐 记录状态</b></summary>
 
-2026-11-22 发现于 test2.kl（跨包 enum + ut.assert_eq）。方案 C（含 Hashable/Printable）已讨论确认，**按用户指示暂不实施，未改任何源码**，等待明确指令。
+2026-11-22 发现于 test2.kl（跨包 enum + ut.assert_eq）。方案 C（含 Hashable/Printable）讨论确认。
+
+2026-11-27 实施完成：enum 的 bases 由编译器固定生成（`Printable, Hashable, Equatable[E]`，不写 klc、导入时重生成）、`_diff_kind_compatible_check` 认 enum 的 bases、`hash`/`fmt` 复用 int64 实现；顺带修掉 class 重复追加 `Printable`/`Hashable` 的问题。全量回归 639/639，std 库（含 `KOALA_JIT=0`）全通。
 
 </details>

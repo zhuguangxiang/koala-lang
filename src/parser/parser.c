@@ -589,8 +589,17 @@ static int _optional_compatible_check(TypeSpec *dst, TypeSpec *src)
  */
 static int _diff_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
 {
-    /* enum -> int is allowed only for int64, its underlying type */
-    if (src->kind == TYPE_ENUM) return type_spec_compatible(dst, int64_type_spec());
+    /* an enum conforms to its root traits: Printable, Hashable and Equatable[E] */
+    if (src->kind == TYPE_ENUM) {
+        Symbol *src_sym = get_symbol_by_id(src->sym_id);
+        if (src_sym && src_sym->kind == SYM_ENUM &&
+            _base_compatible(dst, &((EnumSymbol *)src_sym)->bases)) {
+            return 1;
+        }
+
+        /* enum -> int is allowed only for int64, its underlying type */
+        return type_spec_compatible(dst, int64_type_spec());
+    }
 
     /* nothing but a valid literal(checked by parse_lit_int) converts to an enum */
     if (dst->kind == TYPE_ENUM) return 0;
@@ -3588,6 +3597,33 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
     }
 }
 
+/*
+ * Take the trait `name` the user declared out of the base list, so a class that names it
+ * itself is not given a second copy:
+ *
+ *     class A : Printable & Hashable {}    // no 'Printable'/'Hashable' is added
+ *
+ * Only a bare name refers to the std/builtin trait, `pkg.Printable` is a different one.
+ * Returns NULL when it is not declared.
+ */
+static TypeSpec *take_declared_base(KlassDeclStmt *kls, char *name)
+{
+    if (!kls->bases) return NULL;
+
+    TypeSpec *ts;
+    vector_foreach(ts, kls->bases) {
+        if (!ts || ts->kind != TYPE_UNRESOLVED) continue;
+        if (ts->unresolved.pkg.name) continue;
+        if (!str_equal(ts->unresolved.name.name, name)) continue;
+
+        TypeSpec *declared = NULL;
+        vector_remove(kls->bases, i__, &declared);
+        return declared;
+    }
+
+    return NULL;
+}
+
 /* add root contract traits (Hashable/Printable), see add_root_equatable() for Equatable */
 static void add_root_traits(ParserState *ps, KlassDeclStmt *kls)
 {
@@ -3595,18 +3631,29 @@ static void add_root_traits(ParserState *ps, KlassDeclStmt *kls)
 
     if (!kls->bases) kls->bases = vector_create_ptr();
 
+    /*
+     * A declared trait is re-used in place, so the bases keep the same order as when both are
+     * added automatically: add_root_equatable() relies on the two root traits coming first and
+     * compute_pip() walks the first base only.
+     */
     TypeIdent name = { 0 };
     TypeSpec *ts;
 
-    name.name = "Hashable";
-    ts = unresolved_type_spec(NULL, name, NULL);
+    ts = take_declared_base(kls, "Hashable");
+    if (!ts) {
+        name.name = "Hashable";
+        ts = unresolved_type_spec(NULL, name, NULL);
+        log_info("add Hashable to class '%s' automatically", kls->id.name);
+    }
     vector_push_front(kls->bases, &ts);
-    log_info("add Hashable to class '%s' automatically", kls->id.name);
 
-    name.name = "Printable";
-    ts = unresolved_type_spec(NULL, name, NULL);
+    ts = take_declared_base(kls, "Printable");
+    if (!ts) {
+        name.name = "Printable";
+        ts = unresolved_type_spec(NULL, name, NULL);
+        log_info("add Printable to class '%s' automatically", kls->id.name);
+    }
     vector_push_front(kls->bases, &ts);
-    log_info("add Printable to class '%s' automatically", kls->id.name);
 }
 
 static KlassSymbol *_get_base_sym(TypeSpec *base_ts)
@@ -3856,6 +3903,53 @@ static void add_root_equatable(ParserState *ps, KlassDeclStmt *kls)
     int root_traits = 2;
     vector_insert(&sym->bases, root_traits, &base_ts);
     log_info("add Equatable to class '%s' automatically", kls->id.name);
+}
+
+/*
+ * Add the root contract traits of an enum: Printable, Hashable and Equatable[E], see
+ * add_root_traits() and add_root_equatable() for the class counterparts.
+ *
+ * Unlike a class, an enum cannot declare a trait itself, so the same three are always added
+ * and always in this order. There is no Comparable: an enum can only be tested for equality.
+ *
+ * The traits come from std/builtin directly instead of being looked up by name in the current
+ * scope, so a user trait that shadows the name hides them from a class, but not from an enum.
+ *
+ * They are not written to the .klc file. Every enum implies exactly these, so an importer adds
+ * them again in load_enums(): the instance_ts of a trait is interned by klass_type_spec(), so
+ * both sides end up with the same pointer and type_spec_compatible() matches them directly.
+ */
+void enum_add_root_bases(EnumSymbol *sym, HashMap *stbl, ParserModule *pm)
+{
+    /* while std/builtin itself is compiled the traits may not be declared yet, it has no enum */
+    HashMap *builtin = pm->builtin;
+    if (!builtin) return;
+
+    char *roots[] = { "Printable", "Hashable" };
+    for (int i = 0; i < (int)(sizeof(roots) / sizeof(roots[0])); i++) {
+        Symbol *trait = stbl_get(builtin, roots[i]);
+        if (!trait || trait->kind != SYM_TRAIT) continue;
+
+        TypeSpec *base_ts = ((KlassSymbol *)trait)->instance_ts;
+        vector_push_back(&sym->bases, &base_ts);
+        log_info("add %s to enum '%s' automatically", roots[i], sym->name);
+    }
+
+    Symbol *equatable = stbl_get(builtin, "Equatable");
+    if (!equatable || equatable->kind != SYM_TRAIT) return;
+
+    /* Equatable[E], E is the enum itself */
+    Vector tp_args;
+    vector_init_ptr(&tp_args);
+    TypeSpec *self_ts = sym->ts;
+    vector_push_back(&tp_args, &self_ts);
+    InstanceSymbol *inst_sym = find_or_add_instance(stbl, equatable, &tp_args, pm);
+    vector_fini(&tp_args);
+    if (!inst_sym) return;
+
+    TypeSpec *base_ts = inst_sym->instance_ts;
+    vector_push_back(&sym->bases, &base_ts);
+    log_info("add Equatable to enum '%s' automatically", sym->name);
 }
 
 static int klass_declares_func(KlassDeclStmt *kls, char *name)
@@ -5394,6 +5488,9 @@ static Symbol *_add_enum(ParserState *ps, HashMap *stbl, EnumDeclStmt *e)
         overflow = (val == INT64_MAX);
         next = overflow ? 0 : val + 1;
     }
+
+    /* an enum always conforms to Printable, Hashable and Equatable[E] */
+    enum_add_root_bases(sym, ps->pm->stbl, ps->pm);
 
     return (Symbol *)sym;
 }

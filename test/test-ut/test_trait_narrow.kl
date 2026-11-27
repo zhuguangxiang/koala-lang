@@ -1,52 +1,108 @@
 // RUN: koala --test %s
 
 from "std/ut" import assert_eq
-import "koala/toml"
 
 // `Table.data` holds `Value` (the root trait), and `get` returns that
 // trait. So recovering the concrete `Table` class requires an `is`/`as`
 // narrowing — the exact shape exercised in test2.kl, whose narrow + unbox
 // used to crash isel with `NYI()`.
+//
+// The trait/class hierarchy is declared locally so this test only depends
+// on `std`, not on any external package.
+
+trait Value {
+    func to_toml() str
+}
+
+class String : Value {
+    pub let value str
+
+    pub func __init__(value str) {
+        self.value = value
+    }
+
+    pub func to_toml() str { return value }
+}
+
+class Integer : Value {
+    pub let value int
+
+    pub func __init__(value int) {
+        self.value = value
+    }
+
+    pub func to_toml() str { return str(value) }
+}
+
+class Table : Value {
+    pub let data = dict[str, Value]()
+
+    pub func __init__() {}
+
+    pub func add(key str, value Value) {
+        data[key] = value
+    }
+
+    pub func add_table(key str) Table {
+        let sub = Table()
+        data[key] = sub
+        return sub
+    }
+
+    pub func get(key str) Value {
+        return data[key]
+    }
+
+    pub func keys() list[str] {
+        let out = list[str]()
+        for k in data.keys() {
+            out.append(k)
+        }
+        return out
+    }
+
+    pub func to_toml() str { return "table" }
+}
 
 // Build a table whose values mix scalar values and a nested table.
-func build_root() toml.Table {
-    let root = toml.Table()
-    root.add("count", toml.Integer(7))
-    root.add("name", toml.String("koala"))
+func build_root() Table {
+    let root = Table()
+    root.add("count", Integer(7))
+    root.add("name", String("koala"))
     let sub = root.add_table("settings")
-    sub.add("on", toml.Integer(1))
-    sub.add("verbosity", toml.Integer(3))
+    sub.add("on", Integer(1))
+    sub.add("verbosity", Integer(3))
     return root
 }
 
 // trait -> class narrowing: access the narrowed class member directly.
-func narrow_member(v toml.Value) int {
-    if v is toml.Table {
+func narrow_member(v Value) int {
+    if v is Table {
         return v.data.len()
     }
     return -1
 }
 
 // trait -> class narrowing followed by an explicit 'as'.
-func narrow_then_as(v toml.Value) int {
-    if v is toml.Table {
-        let t = v as toml.Table
+func narrow_then_as(v Value) int {
+    if v is Table {
+        let t = v as Table
         return t.data.len()
     }
     return -1
 }
 
 // Early-return narrowing via the negated check.
-func narrow_early_return(v toml.Value) int {
-    if !(v is toml.Table) {
+func narrow_early_return(v Value) int {
+    if !(v is Table) {
         return -1
     }
     return v.data.len()
 }
 
 // No narrowing: 'as' yields an optional and needs a nil check.
-func no_narrow_as(v toml.Value) int {
-    let t = v as toml.Table
+func no_narrow_as(v Value) int {
+    let t = v as Table
     if t != nil {
         return t.data.len()
     }
@@ -54,12 +110,12 @@ func no_narrow_as(v toml.Value) int {
 }
 
 // The exact test2.kl shape: loop + `if !(v is T) { continue }` + `v as T`.
-func sum_table_keys(root toml.Table) int {
+func sum_table_keys(root Table) int {
     var n = 0
     for k in root.keys() {
         let v = root.get(k)
-        if !(v is toml.Table) { continue }
-        let t = v as toml.Table
+        if !(v is Table) { continue }
+        let t = v as Table
         n = n + t.data.len()
     }
     return n

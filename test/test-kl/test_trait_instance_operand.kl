@@ -1,0 +1,17 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// 'e == e' on a trait value: '__eq__' declares 'other T', so the right-hand side must be the
+// concrete 'T' and not the trait value itself (operator traits are not dyn-compatible, the same
+// holds for Rust). The diagnostic names the expected and the actual type instead of a bare
+// 'argument type mismatch'.
+
+class P {}
+
+func main() {
+    let e1 Equatable[P] = P()
+    print(e1 == e1)
+    // CHECK: argument type mismatch for operator '==' of type 'Equatable[{{.*}}P]'. expected '{{.*}}P', but got '{{.*}}Equatable[{{.*}}P]'.
+
+    print(e1 != e1)
+    // CHECK: argument type mismatch for operator '!=' of type 'Equatable[{{.*}}P]'. expected '{{.*}}P', but got '{{.*}}Equatable[{{.*}}P]'.
+}

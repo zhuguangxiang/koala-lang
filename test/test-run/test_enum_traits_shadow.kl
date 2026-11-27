@@ -1,0 +1,23 @@
+// RUN: koala %s | filecheck %s
+// An enum reads Printable, Hashable and Equatable from std/builtin directly: a user trait that
+// shadows one of the names hides it from a class, but not from an enum.
+
+trait Equatable {
+    func f() int
+}
+
+enum Color {
+    RED,
+    GREEN = 5,
+}
+
+func main() {
+    // the user trait requires an 'f()' the enum cannot implement, so these only compile
+    // because the traits of an enum come from std/builtin
+    print(Color.RED == Color.RED)
+    // CHECK: true
+    print(Color.GREEN.hash() == int(Color.GREEN).hash())
+    // CHECK-NEXT: true
+    print(Color.GREEN)
+    // CHECK-NEXT: 5
+}

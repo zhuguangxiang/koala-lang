@@ -14,6 +14,10 @@
 
 ---
 
+## 28. enum 未实现 Equatable/Hashable/Printable，泛型约束检查失败
+
+- [x] 已修复：enum 自动实现 `Printable`/`Hashable`/`Equatable[E]`（无 `Comparable`），泛型约束、trait 变量、`hash()`/`fmt()`、跨包全部通过；顺带去掉 class 手写这两个 trait 的重复追加 → [详情](issue-28.md)
+
 ## 125. `let-else` 与 `panic()` 作终结语句：遗留项（已结案）
 
 - [x] 已结案：`let-else` 已实现；panic 落空边决定不做、`unreachable()` 已纳入终结判定 → [详情](issue-125.md)

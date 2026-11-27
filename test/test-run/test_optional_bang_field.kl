@@ -2,14 +2,29 @@
 
 // (expr as Type)!.field: `as` produces an optional, `!.` unwraps it and
 // reads the field, extracted from test1.kl.
-import "koala/toml"
+//
+// The trait/class pair is declared locally so this test only depends on
+// `std`, not on any external package.
+trait Value {
+    func to_toml() str
+}
 
-func get_tom_value() toml.Value {
-    return toml.String("hello")
+class String : Value {
+    pub let value str
+
+    pub func __init__(value str) {
+        self.value = value
+    }
+
+    pub func to_toml() str { return value }
+}
+
+func get_tom_value() Value {
+    return String("hello")
 }
 
 func as_bang_field() str {
-    return (get_tom_value() as toml.String)!.value
+    return (get_tom_value() as String)!.value
 }
 
 func main() {

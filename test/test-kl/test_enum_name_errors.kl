@@ -1,5 +1,6 @@
 // RUN: ! koalac %s 2>&1 | filecheck %s
-// name() is the only method on an enum value: 0 arguments, call-only, normal dot.
+// name(), hash() and fmt() are the only methods on an enum value: 0/1 arguments, call-only,
+// normal dot.
 
 enum Color { RED, GREEN = 5 }
 
@@ -23,6 +24,21 @@ func main() {
 
     print(c!.name())
     // CHECK: enum member can't use `!.` or `?.`
+
+    print(c.hash(1))
+    // CHECK: too many arguments in function call
+
+    let g = c.hash
+    // CHECK: enum method 'hash' can only be called
+
+    print(Color.hash())
+    // CHECK: enum 'Color' has no member 'hash'
+
+    print(c!.hash())
+    // CHECK: enum method 'hash' can't use `!.` or `?.`
+
+    print(c.fmt)
+    // CHECK: enum method 'fmt' can only be called
 
     let o Color? = Color.RED
     print(o!.name())
