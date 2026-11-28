@@ -18,9 +18,11 @@ extern "C" {
  */
 typedef struct _TupleObject {
     OBJECT_HEAD
-    /* maybe shared by slices */
-    Storage storage;
-    /* elements are storage.values[start, end) */
+    /* a GC_KIND_VALUES block, maybe shared by slices; NULL if empty */
+    TValue *values;
+    /* number of values in the block */
+    size_t size;
+    /* elements are values[start, end) */
     size_t start;
     size_t end;
 } TupleObject;
@@ -28,7 +30,7 @@ typedef struct _TupleObject {
 extern TypeObject tuple_type;
 #define IS_TUPLE(ob) IS_TYPE((ob), &tuple_type)
 
-#define TUPLE_ITEMS(x) (((TupleObject *)(x))->storage.values + ((TupleObject *)(x))->start)
+#define TUPLE_ITEMS(x) (((TupleObject *)(x))->values + ((TupleObject *)(x))->start)
 #define TUPLE_SIZE(x)  (((TupleObject *)(x))->end - ((TupleObject *)(x))->start)
 
 Object *kl_new_tuple(TValue *items, int count);

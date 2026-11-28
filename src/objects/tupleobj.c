@@ -58,11 +58,12 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
     return TUPLE_ITEMS(tuple)[index];
 }
 
-static Object *tuple_new_view(Storage storage, size_t start, size_t end)
+static Object *tuple_new_view(TValue *values, size_t size, size_t start, size_t end)
 {
     TupleObject *x = gc_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &tuple_type, 0);
-    x->storage = storage;
+    x->values = values;
+    x->size = size;
     x->start = start;
     x->end = end;
     return (Object *)x;
@@ -86,22 +87,22 @@ static TValue _tuple_getslice(TValue *self, TValue *args, int nargs)
     // step == 1, share the elements of the source tuple
     if (step == 1) {
         size_t base = tuple->start;
-        return obj_value(tuple_new_view(tuple->storage, base + start, base + end));
+        return obj_value(tuple_new_view(tuple->values, tuple->size, base + start, base + end));
     }
 
-    // step != 1, copy elements to a new storage
-    Storage storage = { gc_alloc_values((int)count), (size_t)count };
+    // step != 1, copy elements to a new values block
+    TValue *values = gc_alloc_values((int)count);
     TValue *src = TUPLE_ITEMS(tuple);
     for (int64_t i = 0; i < count; i++) {
-        storage.values[i] = src[start + i * step];
+        values[i] = src[start + i * step];
     }
-    return obj_value(tuple_new_view(storage, 0, count));
+    return obj_value(tuple_new_view(values, (size_t)count, 0, (size_t)count));
 }
 
 static void tuple_mark(Object *self)
 {
     TupleObject *tuple = (TupleObject *)self;
-    if (tuple->storage.values) gc_mark(tuple->storage.values);
+    if (tuple->values) gc_mark(tuple->values);
 }
 
 static MethodDef tuple_methods[] = {
@@ -125,13 +126,12 @@ TypeObject tuple_type = {
 
 Object *kl_new_tuple(TValue *items, int count)
 {
-    Storage storage = { NULL, 0 };
+    TValue *values = NULL;
     if (count > 0) {
-        storage.values = gc_alloc_values(count);
-        storage.size = count;
-        memcpy(storage.values, items, count * sizeof(TValue));
+        values = gc_alloc_values(count);
+        memcpy(values, items, count * sizeof(TValue));
     }
-    return tuple_new_view(storage, 0, count);
+    return tuple_new_view(values, (size_t)count, 0, (size_t)count);
 }
 
 /* a perm tuple for the const pool; its items must be perm (or values) too */
@@ -139,12 +139,12 @@ Object *kl_new_perm_tuple(TValue *items, int count)
 {
     TupleObject *x = gc_alloc_perm_obj(x, 0);
     INIT_OBJECT_HEAD(x, &tuple_type, 0);
-    x->storage.values = NULL;
-    x->storage.size = 0;
+    x->values = NULL;
+    x->size = 0;
     if (count > 0) {
-        x->storage.values = gc_alloc_perm_values(count);
-        x->storage.size = count;
-        memcpy(x->storage.values, items, count * sizeof(TValue));
+        x->values = gc_alloc_perm_values(count);
+        x->size = count;
+        memcpy(x->values, items, count * sizeof(TValue));
     }
     x->start = 0;
     x->end = count;

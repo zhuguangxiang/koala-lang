@@ -53,14 +53,6 @@ typedef struct _TValue {
     };
 } TValue;
 
-/* a GC_KIND_VALUES block, maybe shared by several objects (e.g. slices) */
-typedef struct _Storage {
-    /* NULL if empty */
-    TValue *values;
-    /* number of values in the block */
-    size_t size;
-} Storage;
-
 /*---------------------------------------------------------------------------+
  |   Tag Constants                                                           |
  +---------------------------------------------------------------------------*/
