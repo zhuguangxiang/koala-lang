@@ -570,14 +570,39 @@ accept heterogeneous inputs without overloading or `any`:
 ```kl
 pub func __init__(s str | bytes) {}                          // str accepts bytes too
 pub func open(path_or_fd str | int, mode = "r") File? {}     // a path or an open descriptor
-
-var v int | str = 0
-v = "hello"      // also fine
 ```
 
 Every member of a union must be a final class — traits are never allowed as union members. Since
 all Koala classes are final by construction, the constraint is naturally satisfiable; it simply
 keeps unions concrete and statically checkable.
+
+| Member | Allowed |
+| --- | --- |
+| a class: `int`, `str`, `Dog` | yes |
+| a generic class: `Box[int]`, `list[str]`, `Box[int?]` | yes |
+| a generic class of a type parameter: `Box[T]`, `list[T]` | yes |
+| a tuple: `(int, str)` | yes |
+| a trait, an enum, `any` | no |
+| a type parameter itself: `T` | no |
+| an optional: `int?` | no — make the whole union optional: `(int \| str)?` |
+| a union, a function type | no |
+
+A member that uses a type parameter takes it from its owner. In a method the class's (or the
+trait's) type parameter is bound by the instance; in a generic function it is inferred from the
+member the argument is:
+
+```kl
+class Tensor[T] {
+    func add(rhs Tensor[T] | float64) Tensor[T] { ... }   // on Tensor[float32]: Tensor[float32] | float64
+}
+
+func kind[T](x Box[T] | int) str { ... }
+kind(Box("a"))      // T is str
+kind(3)             // error: cannot infer type parameter 'T', write kind[str](3)
+```
+
+A union is written as a parameter type only: not as a variable, field, return or type argument
+type.
 
 A union-typed value must be narrowed before use: comparing values of different static types
 (such as `1 == "abc"`) is a compile error, and the value must be narrowed to a member type before
@@ -1344,8 +1369,8 @@ error, because `(Dog, int)` is not `(Animal, int)`.
 
 ### Inferring Type Arguments
 
-Type arguments are inferred from the arguments of the call, never from the expected type.
-When the inferred type is not the one you want, write the type argument:
+Type arguments are inferred from the arguments of the call first. When the inferred type is not
+the one you want, write the type argument:
 
 ```kl
 func make[T](x T) list[T] = [x]
@@ -1354,6 +1379,37 @@ let a Foo[Animal] = Foo(Dog())                  // error: Foo(Dog()) is a Foo[Do
 let b = Foo[Animal](Dog())                      // ok
 let c list[Animal] = make(Dog())                // error: make(Dog()) is a list[Dog]
 let d = make[Animal](Dog())                     // ok
+```
+
+A type parameter of a function that **no argument gives** is inferred from the **expected type**:
+the type the call result goes to. The expected type comes from a typed variable, an assignment,
+a parameter (positional or keyword), a field or a `return`:
+
+```kl
+func empty[U](n int) list[U] = list[U]()
+func take(xs list[float32]) int = xs.len()
+
+let a list[float32] = empty(3)                  // U is float32
+var b list[str] = empty(0)
+b = empty(5)                                    // U is str
+take(empty(3))                                  // U is float32
+func names() list[str] { return empty(0) }      // U is str
+
+let z Tensor = Tensor.zeros(3, 4)               // U is float32
+```
+
+- The arguments come first: the expected type only fills in the type parameters they leave out.
+  It never changes a type parameter an argument gives, and never overrides an explicit type
+  argument (`let d list[float32] = empty[int](3)` is an error).
+- A class constructor is not inferred this way: `Foo(...)` takes its type arguments from the
+  `__init__` arguments only.
+- When there is no expected type, or it is `any`, or it does not fit the return type, the call
+  is an error:
+
+```kl
+let e = empty(3)                                // error: cannot infer type parameter 'U'
+let f any = empty(3)                            // error: cannot infer type parameter 'U'
+print(empty(3))                                 // error: print takes `...any`
 ```
 
 All the arguments that give the same type parameter must have the same type. The compiler does not

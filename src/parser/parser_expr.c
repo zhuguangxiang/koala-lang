@@ -1007,6 +1007,7 @@ int expr_needs_infer(Expr *exp)
 {
     if (!exp || exp->ts) return 0;
     if (lambda_needs_infer(exp)) return 1;
+    if (exp->kind == EXPR_CALL_KIND && ((CallExpr *)exp)->wait_expected) return 1;
 
     Expr *e;
     switch (exp->kind) {
@@ -1030,6 +1031,9 @@ int expr_needs_infer(Expr *exp)
             }
             return 0;
 
+        case EXPR_KW_KIND:
+            return expr_needs_infer(((KeyWordExpr *)exp)->value);
+
         default:
             return 0;
     }
@@ -1052,6 +1056,9 @@ static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i
     for (int i = i__; i < param_size; i++) {
         ArgInfo *arg = vector_get(params, i);
         if (!strcmp(arg->name, kw->key.name)) {
+            resolve_as_expected(ps, kw->value, arg->ts);
+            if (!kw->value->ts) return;
+            kw->ts = kw->value->ts;
             parse_literal_as_expected(ps, kw->value, arg->ts);
             if (check_int_to_enum(ps, kw->loc, arg->ts, kw->value->ts)) return;
             if (!type_spec_compatible(arg->ts, kw->value->ts)) {
@@ -1086,6 +1093,8 @@ static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int 
                 return;
             }
             log_info("kw-param: '%s', check value passed by positional argument", arg->name);
+            resolve_as_expected(ps, e, arg->ts);
+            if (!e->ts) return;
             parse_literal_as_expected(ps, e, arg->ts);
             if (check_int_to_enum(ps, e->loc, arg->ts, e->ts)) {
                 // reported
@@ -1343,6 +1352,7 @@ static void check_call_args_kw(Vector *params, Vector *exprs, ParserState *ps, L
         KeyWordExpr *kw = (KeyWordExpr *)e;
         ArgInfo *arg = vector_get(params, find_param_by_name(params, kw->key.name));
         if (check_arg_type(ps, arg, kw->value) < 0) return;
+        kw->ts = kw->value->ts;
     }
 
     if (valist_index >= 0 && npos > valist_index) {
@@ -1352,6 +1362,13 @@ static void check_call_args_kw(Vector *params, Vector *exprs, ParserState *ps, L
             log_info("param '%s' is var-arg, check the positional tail", arg->name);
             int next_j = 0;
             check_valist_arg(ps, src, exprs, valist_index, &next_j);
+        } else {
+            /* a call waiting for its expected type gets `any`, see check_call_args */
+            for (int j = valist_index; j < npos; j++) {
+                Expr *va_exp = vector_get(exprs, j);
+                resolve_as_expected(ps, va_exp, src);
+                if (!va_exp->ts) return;
+            }
         }
     }
 }
@@ -1422,6 +1439,14 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 if (type_is_any(src)) {
                     log_info("param '%s' is var-arg of type 'any', no check for var-arg type",
                              arg->name);
+                    /* a call waiting for its expected type gets `any`, and reports what it
+                       cannot infer */
+                    for (int j = i__; j < vector_size(exprs); j++) {
+                        Expr *va_exp = vector_get(exprs, j);
+                        if (va_exp->kind == EXPR_KW_KIND) break;
+                        resolve_as_expected(ps, va_exp, src);
+                        if (!va_exp->ts) return;
+                    }
                 } else {
                     int next_j = 0;
                     check_valist_arg(ps, src, exprs, i__, &next_j);
@@ -1558,6 +1583,16 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
         }
         TypeSpec *ret = instance_type_spec(ts->proto_type.ret, origin, sym, ps);
         inst_ts = func_type_spec_intern(args, ret);
+    } else if (ts->kind == TYPE_UNION) {
+        // a member may use the class's type parameter, e.g. `G[T] | float64` on G[float32]
+        Vector *args = vector_create_ptr();
+        TypeSpec *arg;
+        vector_foreach(arg, ts->union_type.args) {
+            if (!arg) continue;
+            TypeSpec *inst_arg = instance_type_spec(arg, origin, sym, ps);
+            vector_push_back(args, &inst_arg);
+        }
+        inst_ts = union_type_spec_intern(args);
     } else {
         inst_ts = ts;
     }
@@ -2008,8 +2043,7 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
                 // the same type parameter may be bound by several parameters,
                 // e.g. __init__(k K, d dict[K, V]) or __init__(k K, v K).
                 if (!type_spec_compatible(info->real, real)) {
-                    kl_error(e->loc, "generic type '%s' is inferred as '%s', but got '%s'",
-                             info->name, info->real->signature, real->signature);
+                    report_tp_conflict(ps, e->loc, info->name, info->real, real);
                     hashmap_fini(&map, __tpinfo_free__, NULL);
                     vector_destroy(result);
                     return NULL;
@@ -2433,6 +2467,8 @@ static void parse_call(ParserState *ps, Expr *exp)
         return;
     }
 
+    call->wait_expected = 0;
+
     Expr *arg;
     vector_foreach(arg, call->args) {
         if (!arg) continue;
@@ -2442,7 +2478,10 @@ static void parse_call(ParserState *ps, Expr *exp)
            in, and a composite literal forwards it to the lambdas nested inside */
         Expr *value = (arg->kind == EXPR_KW_KIND) ? ((KeyWordExpr *)arg)->value : arg;
         if (expr_needs_infer(value)) continue;
+        /* a generic call may take its type parameters from the parameter type, the same way */
+        if (value->kind == EXPR_CALL_KIND) ((CallExpr *)value)->may_wait = 1;
         parser_visit_expr(ps, arg);
+        if (expr_needs_infer(value)) continue;
         if (!arg->ts) return;
     }
 
@@ -4735,6 +4774,9 @@ static void parse_keyword(ParserState *ps, Expr *exp)
     KeyWordExpr *kw = (KeyWordExpr *)exp;
     Expr *e = kw->value;
     e->ctx = EXPR_CTX_LOAD;
+    /* a generic call may take its type parameters from the parameter type, see parse_call */
+    if (e->kind == EXPR_CALL_KIND && kw->expected == NULL) ((CallExpr *)e)->may_wait = 1;
+    e->expected = kw->expected;
     parser_visit_expr(ps, e);
     if (!e->ts) return;
     exp->ts = e->ts;
@@ -5632,6 +5674,9 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     /* clang-format on */
 
     handlers[exp->kind](ps, exp);
+
+    /* an expression waiting for its expected type is parsed again when that type is known */
+    if (expr_needs_infer(exp)) return;
 
     if (!exp->ts && exp->ctx != EXPR_CTX_STORE) {
         if (ps->errors == 0) {

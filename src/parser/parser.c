@@ -4367,8 +4367,14 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
        the type on to the lambdas nested inside it */
     int deferred = op == OP_ASSIGN && expr_needs_infer(rhs);
 
+    /* a generic call may take its type parameters from the assigned variable, the same way */
+    if (op == OP_ASSIGN && rhs->kind == EXPR_CALL_KIND) ((CallExpr *)rhs)->may_wait = 1;
+
     rhs->ctx = EXPR_CTX_LOAD;
-    if (!deferred) parser_visit_expr(ps, rhs);
+    if (!deferred) {
+        parser_visit_expr(ps, rhs);
+        if (op == OP_ASSIGN && expr_needs_infer(rhs)) deferred = 1;
+    }
 
     if (op == OP_ASSIGN) {
         log_info("simple assignment detected.");

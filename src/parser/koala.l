@@ -312,7 +312,6 @@ ELSE_NEXT   {ELSE_SKIP}*"else"[^A-Za-z0-9_]
 "tuple"     { YY_RETURN(TUPLE);     }
 "type"      { YY_RETURN(TYPE);      }
 "range"     { YY_RETURN(RANGE);     }
-"array"     { YY_RETURN(ARRAY);     }
 
 "{"[ \t]*"||" { YY_RETURN(LAMBDA_START_OR); }
 "{"[ \t]*"|"  { YY_RETURN(LAMBDA_START);    }

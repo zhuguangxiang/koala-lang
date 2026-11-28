@@ -73,7 +73,7 @@ KEYWORDS = {
     "int8", "int16", "int32", "int64", "int",
     "float16", "float32", "float64", "bfloat16", "float",
     "bool", "str", "bytes", "any", "list", "dict", "hashset", "tuple",
-    "type", "range", "array",
+    "type", "range", "Tensor",
 }
 VALUE_KEYWORDS = {"self", "true", "false", "nil"}
 

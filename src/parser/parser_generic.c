@@ -54,6 +54,102 @@ static TpInfo *get_tpinfo(HashMap *map, char *name)
 static int infer_tp_from_type(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
                               char *tp_owner_name, Loc loc, ParserState *ps);
 
+/* a type parameter is bound twice with two different types, report both readable type names */
+void report_tp_conflict(ParserState *ps, Loc loc, char *name, TypeSpec *inferred, TypeSpec *got)
+{
+    BUF(inferred_buf);
+    BUF(got_buf);
+    type_spec_print(inferred, &inferred_buf);
+    type_spec_print(got, &got_buf);
+    kl_error(loc, "generic type '%s' is inferred as '%s', but got '%s'.", name,
+             BUF_STR(inferred_buf), BUF_STR(got_buf));
+    FINI_BUF(got_buf);
+    FINI_BUF(inferred_buf);
+}
+
+static Symbol *generic_ref_origin_sym(TypeSpec *ts, ParserModule *pm);
+
+static int has_uninferred_tp(HashMap *map, Vector *tps)
+{
+    TypeParamSymbol *tp_sym;
+    vector_foreach(tp_sym, tps) {
+        if (!tp_sym) continue;
+        if (!get_tpinfo(map, tp_sym->name)) return 1;
+    }
+    return 0;
+}
+
+/* a type with no type variable at all, e.g. `list[float32]`, but not `list[T]` */
+static int type_is_closed(TypeSpec *ts)
+{
+    if (!ts) return 0;
+    if (ts->kind == TYPE_GENERIC_VAR) return 0;
+    if (ts->kind == TYPE_GENERIC_REF) return !tps_are_generic(ts->generic_ref.args);
+    if (ts->kind == TYPE_OPTIONAL) return type_is_closed(ts->opt.src);
+    if (ts->kind == TYPE_PROTO || ts->kind == TYPE_UNION) return 0;
+    return 1;
+}
+
+/* every type variable in 'ts' is a type parameter of 'owner', so 'ts' can bind them */
+static int type_vars_owned_by(TypeSpec *ts, char *owner)
+{
+    if (!ts) return 0;
+    if (ts->kind == TYPE_GENERIC_VAR) return str_equal(ts->generic_var.owner, owner);
+    if (ts->kind == TYPE_GENERIC_REF) {
+        TypeSpec *arg;
+        vector_foreach(arg, ts->generic_ref.args) {
+            if (!arg) continue;
+            if (!type_vars_owned_by(arg, owner)) return 0;
+        }
+        return 1;
+    }
+    if (ts->kind == TYPE_OPTIONAL) return type_vars_owned_by(ts->opt.src, owner);
+    if (ts->kind == TYPE_PROTO || ts->kind == TYPE_UNION) return 0;
+    return 1;
+}
+
+/*
+ * A type parameter that no argument gives is inferred from the type the call result goes to:
+ * a typed variable, an assignment, a parameter or a `return`, e.g.
+ *
+ *     func make[U](n int) list[U]
+ *     let a list[float32] = make(3)       // U is float32
+ *
+ * The arguments come first, the expected type only fills in what they leave. Returns 0 when
+ * nothing more is inferred (the caller reports what is missing), -1 when the call waits for
+ * the expected type: it is parsed again when that type is known.
+ */
+static int infer_tp_from_expected(HashMap *map, FuncSymbol *fn_sym, CallExpr *call_exp,
+                                  ParserState *ps)
+{
+    TypeSpec *expected = call_exp->expected;
+    TypeSpec *ret = fn_sym->ret;
+
+    if (!expected) {
+        if (!call_exp->may_wait) return 0;
+        log_info("call of '%s' waits for its expected type", fn_sym->name);
+        call_exp->wait_expected = 1;
+        return -1;
+    }
+
+    if (!type_is_closed(expected)) return 0;
+    if (!ret || !type_vars_owned_by(ret, fn_sym->name)) return 0;
+
+    // `Box[U]` goes into a `Box?`: it binds against `Box`
+    if (expected->kind == TYPE_OPTIONAL && ret->kind != TYPE_OPTIONAL) expected = expected->opt.src;
+
+    // a return type of another class is a type mismatch, reported by the caller of the call
+    if (ret->kind == TYPE_GENERIC_REF) {
+        Symbol *origin = generic_ref_origin_sym(ret, ps->pm);
+        if (!origin || !find_matched_tp_args(origin, expected, ps)) return 0;
+    }
+
+    log_info("infer type parameters of '%s' from the expected type:", fn_sym->name);
+    log_type_spec(expected);
+    if (!infer_tp_from_type(map, ret, expected, fn_sym->name, call_exp->loc, ps)) return -1;
+    return 0;
+}
+
 Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
                            ParserState *ps)
 {
@@ -114,8 +210,7 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
             TpInfo *info = get_tpinfo(&map, ts->generic_var.name);
             if (info) {
                 if (!type_spec_compatible(info->real, exp->ts)) {
-                    kl_error(call_exp->loc, "generic type '%s' is inferred as '%s', but got '%s'",
-                             info->name, info->real->signature, exp->ts->signature);
+                    report_tp_conflict(ps, call_exp->loc, info->name, info->real, exp->ts);
                     goto error;
                 }
             } else {
@@ -131,18 +226,33 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
             continue;
         }
 
-        if (ts->kind == TYPE_PROTO) {
-            log_info("param '%s' is proto '%s'", arg->name, ts->signature);
+        if (ts->kind == TYPE_PROTO || ts->kind == TYPE_UNION) {
+            log_info("param '%s' is '%s'", arg->name, ts->signature);
             if (!infer_tp_from_type(&map, ts, exp->ts, tp_owner_name, call_exp->loc, ps))
                 goto error;
             continue;
         }
 
         if (ts->kind == TYPE_VA_LIST) {
-            // var-arg must be last one parameter.
+            /* var-arg is the last parameter: every remaining positional argument is
+               matched against its element type, e.g. `...U` with (1.0, 2.0) infers U */
             log_info("param '%s' is var-arg", arg->name);
-            NYI();
+            int nargs = vector_size(call_args);
+            for (int j = i__; j < nargs; j++) {
+                Expr *va_exp = vector_get(call_args, j);
+                if (!va_exp || va_exp->kind == EXPR_KW_KIND) continue;
+                if (!va_exp->ts) continue;
+                if (!infer_tp_from_type(&map, ts->va_list.src, va_exp->ts, tp_owner_name,
+                                        call_exp->loc, ps))
+                    goto error;
+            }
+            break;
         }
+    }
+
+    if (!cls_sym && has_uninferred_tp(&map, tps)) {
+        int ret = infer_tp_from_expected(&map, fn_sym, call_exp, ps);
+        if (ret < 0) goto error;
     }
 
     TypeParamSymbol *tp_sym;
@@ -150,8 +260,13 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
         if (!tp_sym) continue;
         TpInfo *info = get_tpinfo(&map, tp_sym->name);
         if (!info) {
-            kl_error(call_exp->loc, "cannot infer type parameter '%s' for class '%s'.",
-                     tp_sym->name, tp_owner_name);
+            if (cls_sym) {
+                kl_error(call_exp->loc, "cannot infer type parameter '%s' for class '%s'.",
+                         tp_sym->name, tp_owner_name);
+            } else {
+                kl_error(call_exp->loc, "cannot infer type parameter '%s' for function '%s'.",
+                         tp_sym->name, tp_owner_name);
+            }
             goto error;
         }
         // TODO: check if info->real is compatible with tp_sym->bound
@@ -393,6 +508,30 @@ Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps)
  * infer the bindings. Generic vars, generic refs and nested protos are handled
  * recursively; a concrete type carries nothing to infer.
  */
+/*
+ * A union parameter binds its type parameters from the member the argument is, e.g.
+ * `x G[T] | int` with a G[str] argument infers T as str. An argument of a concrete member,
+ * here an int, gives nothing: the type parameter is left to the other arguments, the
+ * expected type or an explicit type argument.
+ */
+static int infer_tp_from_union(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                               char *tp_owner_name, Loc loc, ParserState *ps)
+{
+    TypeSpec *member;
+    vector_foreach(member, param_ts->union_type.args) {
+        if (!member || member->kind != TYPE_GENERIC_REF) continue;
+        if (!tps_are_generic(member->generic_ref.args)) continue;
+
+        Symbol *origin = generic_ref_origin_sym(member, ps->pm);
+        if (!origin || !find_matched_tp_args(origin, arg_ts, ps)) continue;
+
+        log_info("union param '%s' matched arg type '%s' by member '%s'", param_ts->signature,
+                 arg_ts->signature, member->signature);
+        return infer_tp_from_generic_ref(map, member, arg_ts, tp_owner_name, loc, ps);
+    }
+    return 1;
+}
+
 static int infer_tp_from_type(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
                               char *tp_owner_name, Loc loc, ParserState *ps)
 {
@@ -404,8 +543,7 @@ static int infer_tp_from_type(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts
         TpInfo *info = get_tpinfo(map, param_ts->generic_var.name);
         if (info) {
             if (!type_spec_compatible(info->real, arg_ts)) {
-                kl_error(loc, "generic type '%s' is inferred as '%s', but got '%s'", info->name,
-                         info->real->signature, arg_ts->signature);
+                report_tp_conflict(ps, loc, info->name, info->real, arg_ts);
                 return 0;
             }
         } else {
@@ -416,6 +554,10 @@ static int infer_tp_from_type(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts
 
     if (param_ts->kind == TYPE_GENERIC_REF) {
         return infer_tp_from_generic_ref(map, param_ts, arg_ts, tp_owner_name, loc, ps);
+    }
+
+    if (param_ts->kind == TYPE_UNION) {
+        return infer_tp_from_union(map, param_ts, arg_ts, tp_owner_name, loc, ps);
     }
 
     if (param_ts->kind == TYPE_PROTO) {

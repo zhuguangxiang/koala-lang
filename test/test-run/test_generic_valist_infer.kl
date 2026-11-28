@@ -1,0 +1,41 @@
+// RUN: koala %s | filecheck %s
+// A generic function, or a generic static method, infers its type parameter
+// from a var-arg parameter `...U`: every remaining argument is matched against U.
+
+class Box[T] {
+    var n int
+    pub func __init__(n int) { self.n = n }
+    pub static func of[U](xs ...U) Box[U] { return Box[U](xs.len()) }
+    pub static func zeros[U](shape ...int) Box[U] { return Box[U](shape.len()) }
+}
+
+func count[U](xs ...U) int { return xs.len() }
+
+func first[U](x U, rest ...U) U { return x }
+
+func main() {
+    // static generic method, U inferred from the var-args
+    let a = Box.of(1.0, 2.0, 3.0)
+    let a1 Box[float64] = a
+    print(a1.n)
+    // CHECK: 3
+
+    // U given explicitly, no var-arg passed
+    let e = Box.of[int]()
+    print(e.n)
+    // CHECK: 0
+
+    // U cannot be inferred from `...int`, so it is given explicitly
+    let z = Box.zeros[float32](3, 4)
+    let z1 Box[float32] = z
+    print(z1.n)
+    // CHECK: 2
+
+    // module-level generic function
+    print(count(1, 2, 3, 4))
+    // CHECK: 4
+
+    // U is bound by the first parameter and checked against the var-args
+    print(first("a", "b", "c"))
+    // CHECK: a
+}

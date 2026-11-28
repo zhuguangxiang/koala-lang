@@ -289,7 +289,6 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %token FLOAT64
 %token BFLOAT16
 
-%token ARRAY
 %token BOOL
 %token STRING
 %token BYTES
@@ -401,11 +400,9 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<expr> assign_left_expr
 
 %type<type_spec> base_type
-%type<type_spec> array_type
 %type<type_spec> optional_type
 %type<type_spec> param_type
 %type<type_spec> type
-%type<type_spec> type_opt
 %type<type_spec> list_type
 %type<type_spec> map_type
 %type<type_spec> set_type
@@ -451,7 +448,6 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<vec> call_arg_list
 %type<vec> call_kw_arg_list
 %type<vec> id_list
-%type<vec> int_lit_list
 %type<vec> annot_param_list
 
 %token<sval> ID
@@ -493,7 +489,7 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %destructor { free_tp_list($$); } type_param_list const_tp_list tp_decl_list
 %destructor { free_param_list($$); } param_list id_type_arg_list kw_arg_list lambda_params
 %destructor { free_ident_type_list($$); } tuple_decl_list
-%destructor { vector_destroy($$); } id_as_list id_list int_lit_list
+%destructor { vector_destroy($$); } id_as_list id_list
 %destructor { mm_free($$); } <enum_member>
 %destructor {
     EnumMember *m;
@@ -974,17 +970,6 @@ optional_type
     ;
 
 base_type
-    : type_opt
-    {
-        $$ = $1;
-    }
-    | array_type
-    {
-        $$ = $1;
-    }
-    ;
-
-type_opt
     : type
     {
         $$ = $1;
@@ -1130,76 +1115,6 @@ list_type
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
-    }
-    ;
-
-array_type
-    : ARRAY '[' type ',' int_lit_list ']'
-    {
-        NAME_ID(id, "array", loc(@1));
-        Vector *args = vector_create_ptr();
-        vector_push_back(args, &$3);
-        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
-        $$ = unresolved_type_spec(&mod, id, args);
-        // $$->unresolved.shapes = $5;
-        vector_destroy($5);
-        type_spec_loc($$, lloc(@1, @6));
-    }
-    | '[' int_lit_list ']' type
-    {
-        NAME_ID(id, "array", loc(@1));
-        Vector *args = vector_create_ptr();
-        vector_push_back(args, &$4);
-        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
-        $$ = unresolved_type_spec(&mod, id, args);
-        // $$->unresolved.shapes = $2;
-        vector_destroy($2);
-        type_spec_loc($$, lloc(@1, @4));
-    }
-    | ARRAY '[' error ']'
-    {
-        kl_error(loc(@3), "expected a type and an integer literal list.");
-        yy_clear_ok;
-        $$ = NULL;
-    }
-    ;
-
-int_lit_list
-    : INT_LITERAL
-    {
-        $$ = vector_create(sizeof(int));
-        if ($1 < 0) {
-            kl_error(loc(@1), "expected a non-negative integer literal.");
-            yy_clear_ok;
-        } else {
-            vector_push_back($$, &$1);
-        }
-    }
-    | '_'
-    {
-        $$ = vector_create(sizeof(int));
-        int wildcard = -1;
-        vector_push_back($$, &wildcard);
-    }
-    | int_lit_list ',' INT_LITERAL
-    {
-        $$ = $1;
-        if ($3 < 0) {
-            kl_error(loc(@3), "expected a non-negative integer literal.");
-            yy_clear_ok;
-        } else {
-            vector_push_back($$, &$3);
-        }
-    }
-    | int_lit_list ',' '_'
-    {
-        $$ = $1;
-        int wildcard = -1;
-        vector_push_back($$, &wildcard);
-    }
-    | int_lit_list ','
-    {
-        $$ = $1;
     }
     ;
 
@@ -3214,12 +3129,12 @@ expr
     {
         $$ = $1;
     }
-    | coalesce_expr IS type_opt
+    | coalesce_expr IS base_type
     {
         $$ = expr_from_is_expr($1, loc(@2), $3);
         expr_set_loc($$, lloc(@1, @3));
     }
-    | coalesce_expr AS type_opt
+    | coalesce_expr AS base_type
     {
         $$ = expr_from_as_expr($1, loc(@2), $3);
         expr_set_loc($$, lloc(@1, @3));
@@ -3874,10 +3789,6 @@ atom_expr
     {
         $$ = expr_from_type($1);
         expr_set_loc($$, loc(@1));
-    }
-    | ARRAY
-    {
-        $$ = NULL;
     }
     | lambda_expr
     {

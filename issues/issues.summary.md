@@ -5,7 +5,7 @@
 
 > **已完成归档**：整条 issue 的全部功能完成后，索引段从这里移到 [`issues.done.md`](issues.done.md)（链接不变）；未完成的一律留本页。
 
-> **下一个可用编号：`136`** —— `1`–`29` 是历史编号（源自已归档删档的旧问题清单，原文见 git 历史），新条目**一律从 `50` 起顺序分配**，不与历史编号冲突。
+> **下一个可用编号：`137`** —— `1`–`29` 是历史编号（源自已归档删档的旧问题清单，原文见 git 历史），新条目**一律从 `50` 起顺序分配**，不与历史编号冲突。
 
 **格式约定**
 
@@ -251,10 +251,6 @@
 
 - [ ] 未修复：`irgen.c:912: Not Yet Implemented` → [详情](issue-79.md)
 
-## 80. union 成员里可以含类型参数
-
-- [ ] 未修复：`check_union_subtypes` 只看成员本身 → [详情](issue-80.md)
-
 ## 81. `T` 不能透过 `Box[T?]` 形参推断
 
 - [ ] 未修复：`T?` 无法与 `int?` 匹配 → [详情](issue-81.md)
@@ -466,3 +462,7 @@
 ## 135. `Equatable[T]` 类型的变量不能参与 `==` / `!=`
 
 - [ ] 部分完成：已定位（`Equatable[T].__eq__(other T)` 的实参是 `T`，拒绝 `e == e` 是对的，语义=itable 动态分派）；已把报错补成 `expected 'P', but got 'Equatable[P]'`，新增 2 个用例；enum 分支待看 → [详情](issue-135.md)
+
+## 136. 本模块泛型实例上的 `is` / `as` 生成自导入，报 circular dependency
+
+- [ ] 已定位未修复：`emit_ir_is` / `emit_ir_as` 用了 `InstanceSymbol` 的空 `ir_val`，代码生成把本模块类登记成导入；修法是改用 `switch_target_klass_ir` → [详情](issue-136.md)

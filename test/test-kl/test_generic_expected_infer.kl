@@ -1,0 +1,29 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Inferring a type parameter from the expected type: without one, or with an
+// expected type that does not fit, the call is an error.
+
+func make[U](n int) list[U] {
+    return list[U]()
+}
+
+func main() {
+    // no expected type
+    let a = make(3)
+    // CHECK: cannot infer type parameter 'U' for function 'make'.
+
+    // `any` gives nothing to infer from
+    let b any = make(3)
+    // CHECK: cannot infer type parameter 'U' for function 'make'.
+
+    // an `any` var-arg is no expected type either
+    print(make(3))
+    // CHECK: cannot infer type parameter 'U' for function 'make'.
+
+    // the expected type is not a list
+    let c int = make(3)
+    // CHECK: cannot infer type parameter 'U' for function 'make'.
+
+    // explicit type arguments are not overridden by the expected type
+    let d list[float32] = make[int](3)
+    // CHECK: Types of two sides are not matched.
+}

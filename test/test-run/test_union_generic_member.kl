@@ -1,0 +1,69 @@
+// RUN: koala %s | filecheck %s
+// A union member may be a generic class that uses a type parameter: of the class
+// in a method, of the trait in a trait method, of the function in a generic function.
+// An optional type argument inside a member is allowed, e.g. `Box[int?] | str`.
+
+class G[T] {
+    var v T
+    func __init__(v T) { self.v = v }
+
+    // `T` of the member is the class's: `G[float32] | float64` on G[float32]
+    func add(rhs G[T] | float64) str {
+        if rhs is float64 { return "scalar" }
+        return "tensor"
+    }
+}
+
+// `T` of the member is the trait's
+trait Shapes[T] {
+    func uni(x list[T] | bool) int
+}
+
+class S : Shapes[str] {
+    pub func uni(x list[str] | bool) int {
+        if x is bool { return 1 }
+        return 2
+    }
+}
+
+class GenericShapes[K] : Shapes[K] {
+    pub func uni(x list[K] | bool) int {
+        if x is bool { return 3 }
+        return 4
+    }
+}
+
+// `T` of the member is the function's, inferred from the member the argument is
+func kind[T](x G[T] | int) str {
+    if x is int { return "int" }
+    return "g"
+}
+
+func pick[T](x G[T] | int, y T) T { return y }
+
+// an optional type argument inside a member
+func opt_arg(x G[int?] | str) str {
+    if x is str { return "str" }
+    return "g"
+}
+
+func main() {
+    let a = G[float32](1.0)
+    print(a.add(2.0), a.add(a))
+    // CHECK: scalar tensor
+
+    let s Shapes[str] = S()
+    print(s.uni(["x"]), s.uni(true))
+    // CHECK: 2 1
+    let g Shapes[int] = GenericShapes[int]()
+    print(g.uni([1]), g.uni(false))
+    // CHECK: 4 3
+
+    print(kind(G("a")), kind(G[str]("b")), kind[str](3))
+    // CHECK: g g int
+    print(pick(G(1), 5), pick(3, "s"))
+    // CHECK: 5 s
+
+    print(opt_arg(G[int?](nil)), opt_arg("a"))
+    // CHECK: g str
+}

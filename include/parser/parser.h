@@ -267,6 +267,7 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
                            ParserState *ps);
 int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
                               char *tp_owner_name, Loc loc, ParserState *ps);
+void report_tp_conflict(ParserState *ps, Loc loc, char *name, TypeSpec *inferred, TypeSpec *got);
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
                                   ParserState *ps);
 int tps_are_generic(Vector *tp_args);

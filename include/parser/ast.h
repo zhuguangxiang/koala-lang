@@ -330,6 +330,11 @@ typedef struct _CallExpr {
     Expr *lhs;
     Vector *args;
     int done;
+    /* the call is an argument or the right side of an assignment: its type parameters may be
+       inferred from the parameter or variable type, which is known only after it is parsed */
+    int may_wait;
+    /* set when the type parameters need that type: the call is parsed again with it */
+    int wait_expected;
 } CallExpr;
 
 Expr *expr_from_call(Expr *lhs, Vector *args);

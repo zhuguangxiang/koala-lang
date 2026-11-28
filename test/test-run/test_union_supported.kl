@@ -1,0 +1,99 @@
+// RUN: koala %s | filecheck %s
+// What a union type supports today. A union is written only as a parameter type,
+// its members are classes, and it is narrowed with `is` before use.
+
+class Dog {
+    pub func name() str { return "dog" }
+}
+
+class Box[T] {
+    var v T
+    func __init__(v T) { self.v = v }
+}
+
+// builtin classes
+func builtin(x int | str) str = if x is int { "int" } else { "str" }
+
+// a user class, narrowed to call its method
+func user_class(x Dog | int) str {
+    if x is Dog { return x.name() }
+    return "int"
+}
+
+// a generic class with a concrete type argument
+func generic_class(x Box[int] | str) str {
+    if x is Box[int] { return "box" }
+    return "str"
+}
+
+// builtin generic classes, three members
+func containers(x list[str] | dict[str, int] | int) int {
+    if x is list[str] { return 1 }
+    if x is dict[str, int] { return 2 }
+    return 3
+}
+
+// the whole union optional
+func optional_union(x (int | str)?) str {
+    if x == nil { return "nil" }
+    return "value"
+}
+
+// a literal narrows to the first member that can hold it
+func narrow_literal(x uint8 | bytes) int {
+    if x is uint8 { return 1 }
+    return 2
+}
+
+func float_member(x float64 | str) int {
+    if x is float64 { return 1 }
+    return 2
+}
+
+// a tuple member
+func tuple_member(x (int, str) | int) int {
+    if x is int { return 2 }
+    return 1
+}
+
+// an exhaustive `switch` on the members
+func switch_members(x bool | Box[str] | int) str {
+    switch x {
+        case is bool: return "bool"
+        case is Box[str]: return "box"
+        case is int: return "int"
+    }
+}
+
+// a default value
+func with_default(x int | str = 1) str = if x is int { "int" } else { "str" }
+
+// a method parameter
+class Printer {
+    pub func show(x int | str) str = if x is int { "int" } else { "str" }
+}
+
+func main() {
+    print(builtin(1), builtin("a"))
+    // CHECK: int str
+    print(user_class(Dog()), user_class(3))
+    // CHECK: dog int
+    print(generic_class(Box[int](1)), generic_class(Box(2)), generic_class("s"))
+    // CHECK: box box str
+    print(containers(["a"]), containers({"a": 1}), containers(5))
+    // CHECK: 1 2 3
+    print(optional_union(nil), optional_union(1), optional_union("a"))
+    // CHECK: nil value value
+    print(narrow_literal(97), narrow_literal('a'), narrow_literal(b"x"))
+    // CHECK: 1 1 2
+    print(float_member(1.5), float_member("x"))
+    // CHECK: 1 2
+    print(tuple_member((1, "a")), tuple_member(3))
+    // CHECK: 1 2
+    print(switch_members(true), switch_members(Box("a")), switch_members(7))
+    // CHECK: bool box int
+    print(with_default(), with_default("a"))
+    // CHECK: int str
+    print(Printer().show(1), Printer().show("a"))
+    // CHECK: int str
+}

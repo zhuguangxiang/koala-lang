@@ -1,0 +1,67 @@
+// RUN: koala %s | filecheck %s
+// A type parameter that no argument gives is inferred from the type the call
+// result goes to: a typed variable, an assignment, a parameter or a `return`.
+
+func make[U](n int) list[U] {
+    let xs = list[U]()
+    return xs
+}
+
+func pair[A, B](a A) (A, list[B]) { return (a, list[B]()) }
+
+func take(xs list[float32]) int { return xs.len() }
+
+func take_kw(n int, xs list[str]) int { return n + xs.len() }
+
+func ret() list[int] { return make(1) }
+
+func ret_opt() list[bool]? { return make(2) }
+
+class Box {
+    var items list[str]
+    func __init__() { items = make(0) }
+}
+
+func main() {
+    // a typed variable
+    let a list[float32] = make(3)
+    a.append(1.5)
+    print(a)
+    // CHECK: [1.5]
+
+    // an assignment
+    var b list[str] = make(0)
+    b = make(5)
+    b.append("x")
+    print(b)
+    // CHECK: [x]
+
+    // a parameter, positional and keyword
+    print(take(make(3)))
+    // CHECK: 0
+    print(take_kw(1, make(2)), take_kw(2, xs = make(2)), take_kw(xs = make(2), n = 3))
+    // CHECK: 1 2 3
+
+    // a return, also into an optional
+    print(ret().len(), ret_opt() == nil)
+    // CHECK: 0 false
+
+    // a field
+    let box = Box()
+    box.items.append("k")
+    print(box.items)
+    // CHECK: [k]
+
+    // the arguments give A, the expected type gives B
+    let p (int, list[str]) = pair(7)
+    let (x, ys) = p
+    ys.append("y")
+    print(x, ys)
+    // CHECK: 7 [y]
+
+    // explicit type arguments still win
+    let c = make[int](1)
+    c.append(2)
+    print(c)
+    // CHECK: [2]
+}

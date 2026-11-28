@@ -1,0 +1,38 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Inferring a type parameter through a var-arg parameter: an error is
+// reported when it cannot be inferred or the var-args disagree.
+
+class Box[T] {
+    var n int
+    pub func __init__(n int) { self.n = n }
+    pub static func zeros[U](shape ...int) Box[U] { return Box[U](shape.len()) }
+}
+
+func count[U](xs ...U) int { return xs.len() }
+
+func main() {
+    // U does not appear in any parameter
+    let a = Box.zeros(3, 4)
+    // CHECK: cannot infer type parameter 'U' for function 'zeros'.
+
+    // no var-arg passed, U has nothing to be inferred from
+    let b = count()
+    // CHECK: cannot infer type parameter 'U' for function 'count'.
+
+    // the var-args disagree on U
+    let c = count(1, "a")
+    // CHECK: generic type 'U' is inferred as 'int64', but got 'str'.
+
+    // a conflict in a class constructor and in a nested generic parameter
+    let d = Pair(1, "x")
+    // CHECK: generic type 'K' is inferred as 'int64', but got 'str'.
+    first_of(1, ["x"])
+    // CHECK: generic type 'U' is inferred as 'int64', but got 'str'.
+}
+
+class Pair[K] {
+    var k K
+    pub func __init__(a K, b K) { self.k = a }
+}
+
+func first_of[U](x U, xs list[U]) {}
