@@ -1,0 +1,31 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Generic type-parameter defaults, loaded from this package's klc by
+// test-kl/test_type_param_default_import.kl.
+
+pub class Box[T, U = int] {
+    pub let a T
+    pub let b U
+
+    pub func __init__(_a T, _b U) {
+        a = _a
+        b = _b
+    }
+}
+
+// The default is a closed generic_ref (list[int]); loading it exercises the
+// FIXUP_TP_DEFAULT path in read_klc.c.
+pub class Bag[T = list[int]] {
+    pub let items T
+
+    pub func __init__(x T) {
+        items = x
+    }
+}
+
+pub func pair[A, B = int](a A, b B) B {
+    return b
+}

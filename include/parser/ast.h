@@ -542,9 +542,11 @@ typedef struct _TypeParamDecl {
         Vector *bound;
         TypeSpec *const_type;
     };
+    // default type argument, NULL if none (TP_DECL_NORMAL only)
+    TypeSpec *dfl_ts;
 } TypeParamDecl;
 
-TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound);
+TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound, TypeSpec *dfl);
 TypeParamDecl *const_type_param_new(Loc loc, Ident id, TypeSpec *type);
 TypeParamDecl *infer_type_param_new(Loc loc, Ident id);
 

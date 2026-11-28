@@ -100,6 +100,16 @@ static inline char *__vector_offset(Vector *vec, int index)
 /* expand the vector if needed */
 int __maybe_expand(Vector *vec, int extra);
 
+/* WARNING: despite its name, this is NOT a pure capacity reserve (unlike C++
+ * std::vector::reserve, which leaves size unchanged). It also grows the logical
+ * size by `size`, exposing `size` new zero/NULL-initialized slots — i.e. a
+ * zero-filled resize-grow, not a capacity hint.
+ *
+ * Misusing it as a capacity hint leaves NULL slots behind: a later vector_set
+ * below `size` overwrites in place without filling the tail, and downstream
+ * copies that skip NULL (e.g. type_spec_vec_copy) silently drop those slots.
+ * For capacity only, use __maybe_expand; to append real elements, use
+ * vector_push_back / vector_set. */
 static inline void vector_reserve(Vector *vec, int size)
 {
     __maybe_expand(vec, size);

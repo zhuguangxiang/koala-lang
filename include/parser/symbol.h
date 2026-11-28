@@ -123,6 +123,8 @@ typedef struct _TypeParamSymbol {
         // constant type
         TypeSpec *const_type;
     };
+    // default type argument, NULL if none (TP_NORMAL only)
+    TypeSpec *dfl_ts;
 } TypeParamSymbol;
 
 typedef struct _ArgInfo {

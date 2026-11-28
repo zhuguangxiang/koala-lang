@@ -1095,6 +1095,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        tp_args = fill_tp_defaults(&kls_sym->tps, tp_args, ps, sym);
         if (vector_size(&kls_sym->tps) != vector_size(tp_args)) {
             if (strcmp(sym->name, "tuple")) {
                 // don't check tuple type paramaters
@@ -1824,6 +1825,7 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         } else {
             ASSERT(tp->which == TP_DECL_NORMAL);
             tp_sym->which = TP_NORMAL;
+            tp_sym->dfl_ts = tp->dfl_ts;
         }
         vector_push_back(&fn_sym->tps, &tp_sym);
     }
@@ -3387,6 +3389,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
         } else {
             ASSERT(tp->which == TP_DECL_NORMAL);
             tp_sym->which = TP_NORMAL;
+            tp_sym->dfl_ts = tp->dfl_ts;
         }
         vector_push_back(&kls_sym->tps, &tp_sym);
     }
@@ -3531,6 +3534,7 @@ static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
 
     // parse type parameter's bounds
     int index = 0;
+    int seen_default = 0;
     TypeParamSymbol *tp_sym;
 
     TypeParamDecl *tp;
@@ -3541,6 +3545,11 @@ static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
         index++;
 
         if (tp->which == TP_DECL_INFER) {
+            if (seen_default) {
+                kl_error(tp->id.loc,
+                         "infer type parameter '%s' cannot follow a parameter with a default",
+                         tp->id.name);
+            }
             continue;
         }
 
@@ -3553,25 +3562,57 @@ static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
             continue;
         }
 
-        if (vector_empty(tp->bound)) continue;
+        // defaults must be trailing: once one appears, the rest need one too
+        if (seen_default && !tp->dfl_ts) {
+            kl_error(tp->id.loc,
+                     "type parameter '%s' without a default cannot follow one with a default",
+                     tp->id.name);
+        }
+        if (tp->dfl_ts) seen_default = 1;
 
-        if (vector_size(tp->bound) > 1) {
-            kl_error(tp->id.loc, "type parameter '%s' can only have one bound", tp->id.name);
+        // the unresolved default was stored at registration; only a resolved one is kept
+        TypeSpec *dfl_decl = tp->dfl_ts;
+        tp_sym->dfl_ts = NULL;
+
+        if (!vector_empty(tp->bound)) {
+            if (vector_size(tp->bound) > 1) {
+                kl_error(tp->id.loc, "type parameter '%s' can only have one bound", tp->id.name);
+                continue;
+            }
+
+            Vector *vec = &tp_sym->bound;
+            TypeSpec *ts;
+            vector_foreach(ts, tp->bound) {
+                if (!ts) continue;
+                int r = parse_bound_or_base(ps, ts, &tp->id, sym->name, 0, NULL);
+                if (r) continue;
+                ts = resolve_type(ps, ts);
+                assert(ts);
+                r = check_type(ps, ts);
+                assert(r);
+                vector_push_back(vec, &ts);
+            }
+        }
+
+        if (!dfl_decl) continue;
+
+        TypeSpec *dfl = resolve_type(ps, dfl_decl);
+        if (!dfl) continue;
+        if (!check_type(ps, dfl)) continue;
+
+        // V1: the default is a closed type, it cannot reference type parameters
+        if (!type_is_closed(dfl)) {
+            kl_error(tp->loc, "default type of '%s' must not reference type parameters",
+                     tp->id.name);
             continue;
         }
 
-        Vector *vec = &tp_sym->bound;
-        TypeSpec *ts;
-        vector_foreach(ts, tp->bound) {
-            if (!ts) continue;
-            int r = parse_bound_or_base(ps, ts, &tp->id, sym->name, 0, NULL);
-            if (r) continue;
-            ts = resolve_type(ps, ts);
-            assert(ts);
-            r = check_type(ps, ts);
-            assert(r);
-            vector_push_back(vec, &ts);
+        if (!check_type_constraints(&tp_sym->bound, dfl)) {
+            kl_error(tp->loc, "default type of '%s' does not satisfy its bound", tp->id.name);
+            continue;
         }
+
+        tp_sym->dfl_ts = dfl;
     }
 }
 

@@ -1,0 +1,27 @@
+// RUN: koalac %s --cgen --write-klc -o %t.klc && koala %t.klc | filecheck %s
+
+// Type-parameter defaults must survive the klc round-trip: the importer fills
+// missing trailing type args from the defaults loaded out of the package klc.
+import "test_pkg/pkg_tp_default"
+
+func main() {
+    // partial constructor index: U filled from the loaded default (int)
+    let b = pkg_tp_default.Box[str]("s", 7)
+    print(b.b)
+
+    // partial type annotation: U filled from the loaded default
+    let c pkg_tp_default.Box[str] = pkg_tp_default.Box[str, int]("x", 3)
+    print(c.b)
+
+    // partial func type-arg index: B filled from the loaded default (int)
+    print(pkg_tp_default.pair[str]("s", 9))
+
+    // bare all-default annotation: T filled from the loaded generic_ref default
+    let g pkg_tp_default.Bag = pkg_tp_default.Bag[list[int]](list[int]())
+    print(g.items.len())
+}
+
+// CHECK: 7
+// CHECK-NEXT: 3
+// CHECK-NEXT: 9
+// CHECK-NEXT: 0

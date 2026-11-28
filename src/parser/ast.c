@@ -690,13 +690,14 @@ Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int which, Expr *e)
     return (Stmt *)s;
 }
 
-TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound)
+TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound, TypeSpec *dfl)
 {
     TypeParamDecl *tp = mm_alloc_obj(tp);
     tp->loc = loc;
     tp->id = id;
     tp->which = TP_DECL_NORMAL;
     tp->bound = bound;
+    tp->dfl_ts = dfl;
     return tp;
 }
 

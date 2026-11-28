@@ -16,6 +16,7 @@ extern "C" {
 typedef enum {
     FIXUP_UNKNOWN,
     FIXUP_TP_BOUND,
+    FIXUP_TP_DEFAULT,
     FIXUP_FUNC_PARAM,
     FIXUP_FUNC_RET,
     FIXUP_KLASS_BASE,
@@ -250,6 +251,12 @@ static void __do_fixup(Vector *fixups, LoadContext *ctx)
                 fixup_type_spec(ts_ptr, ctx);
                 break;
             }
+            case FIXUP_TP_DEFAULT: {
+                TypeParamSymbol *tp = (TypeParamSymbol *)entry->owner;
+                TypeSpec **ts_ptr = &tp->dfl_ts;
+                fixup_type_spec(ts_ptr, ctx);
+                break;
+            }
             case FIXUP_FUNC_PARAM: {
                 ArgInfo *arg = entry->owner;
                 TypeSpec **ts_ptr = &arg->ts;
@@ -327,6 +334,23 @@ static void load_type_params(Vector *tps, Vector *result, Symbol *owner, LoadCon
                 add_fixup_entry(&entry, ts, ctx);
             } else if (ts->kind == TYPE_MANGLED) {
                 UNREACHABLE();
+            }
+        }
+
+        // add the default type (dfl_index 0 = none); a closed default may still
+        // need fixup (e.g. list[float32] or a concrete generic instance)
+        if (tp->dfl_index) {
+            KlcConst *dfl_k = klc_get_const(ctx->klc, tp->dfl_index);
+            TypeSpec *dfl = type_spec_from_str(dfl_k->sval);
+            tp_sym->dfl_ts = dfl;
+            if (ts_need_fixup(dfl)) {
+                FixupEntry entry = {
+                    .kind = FIXUP_TP_DEFAULT,
+                    .owner = (Symbol *)tp_sym,
+                    .index = 0,
+                    .scope = owner,
+                };
+                add_fixup_entry(&entry, dfl, ctx);
             }
         }
     }

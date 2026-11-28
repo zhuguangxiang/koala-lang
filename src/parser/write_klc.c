@@ -114,6 +114,10 @@ static void write_meta_func(FuncSymbol *fn_sym, KlcKlass *klass, KlcFile *klc)
 
         KlcTypeParam *klc_tp = klc_func_add_tp(fn, tp->name);
         klc_tp->which = (int8_t)tp->which;
+        if (tp->dfl_ts) {
+            int dfl_len = strlen(tp->dfl_ts->signature);
+            klc_tp->dfl_index = klc_add_str(klc, tp->dfl_ts->signature, dfl_len);
+        }
 
         TypeSpec *_ts;
         vector_foreach(_ts, &tp->bound) {
@@ -232,6 +236,10 @@ static void write_meta_klass(KlassSymbol *kls_sym, KlcFile *klc)
 
         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
         klc_tp->which = (int8_t)tp->which;
+        if (tp->dfl_ts) {
+            int dfl_len = strlen(tp->dfl_ts->signature);
+            klc_tp->dfl_index = klc_add_str(klc, tp->dfl_ts->signature, dfl_len);
+        }
         TypeSpec *_ts;
         vector_foreach(_ts, &tp->bound) {
             if (!_ts) continue;

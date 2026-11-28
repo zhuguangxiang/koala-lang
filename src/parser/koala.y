@@ -2201,12 +2201,22 @@ type_param_decl
     : ID
     {
         Ident id = {$1, loc(@1)};
-        $$ = type_param_new(loc(@1), id, NULL);
+        $$ = type_param_new(loc(@1), id, NULL, NULL);
     }
     | ID ':' klass_list
     {
         Ident id = {$1, loc(@1)};
-        $$ = type_param_new(lloc(@1, @3), id, $3);
+        $$ = type_param_new(lloc(@1, @3), id, $3, NULL);
+    }
+    | ID '=' base_type
+    {
+        Ident id = {$1, loc(@1)};
+        $$ = type_param_new(lloc(@1, @3), id, NULL, $3);
+    }
+    | ID ':' klass_list '=' base_type
+    {
+        Ident id = {$1, loc(@1)};
+        $$ = type_param_new(lloc(@1, @5), id, $3, $5);
     }
     | INFER ID
     {

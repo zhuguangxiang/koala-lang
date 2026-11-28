@@ -4,7 +4,7 @@
 > （编号从 `issues/issues.summary.md` 页首取），统一处理时把下面各条迁进去。
 >
 > 当前进度：Tensor 已迁出 builtin，成为独立包 `koala/torch`（见下 §0）。
-> 核心全量回归 646/646 通过，`koala-libs/koala/torch/test/test_tensor.kl` 13/13 通过。
+> 核心全量回归 650/650 通过，`koala-libs/koala/torch/test/test_tensor.kl` 14/14 通过。
 
 ---
 
@@ -210,19 +210,20 @@ storage 已在 `koala/torch`，`storage_used()` 放 `torch` 最顺；放 `std/gc
 
 ### 13. 工厂调用不写 `[float32]` 也不写标注时，推不出元素类型
 
-- [ ] 待定方案（迁包后 B 已出局：编译器里不再有任何 Tensor 特判）
+- [x] 已解决：采用方案 A（语言级默认类型实参 `[U = float32]`），7 个工厂全部改为 `[U = float32]`（见下「解决」）
 
-现状（迁包后实测）：
+现状（迁包后实测；7 个工厂已是 `koala/torch` 的**顶层函数**，不再是 `Tensor` 的 static 方法，
+统一 PyTorch 风格：`import "koala/torch"` 后 `torch.zeros(...)`、`torch.Tensor[float32]`）：
 
 | 写法 | 结果 |
 | --- | --- |
-| `let t Tensor[float32] = Tensor.zeros(2, 3)` | ✅ 从标注推 U |
-| `let t = Tensor.zeros[float32](2, 3)` | ✅ |
-| `let t = Tensor.zeros(2, 3)` | ❌ `cannot infer type parameter 'U' for function 'zeros'` |
-| `print(Tensor.zeros(2, 3))` | ❌ 同上 |
-| `let t Tensor = Tensor.zeros(2, 3)` | ❌ `'Tensor' is not found`（关键字已删，裸 `Tensor` 不再等于 `Tensor[float32]`） |
+| `let t torch.Tensor[float32] = torch.zeros(2, 3)` | ✅ 从标注推 U |
+| `let t = torch.zeros[float32](2, 3)` | ✅ |
+| `let t = torch.zeros(2, 3)` | ❌ `cannot infer type parameter 'U' for function 'zeros'` |
+| `print(torch.zeros(2, 3))` | ❌ 同上 |
+| `let t torch.Tensor = torch.zeros(2, 3)` | ❌ `Type argument mismatch: 'Tensor' expects 1 argument(s)`（裸 `torch.Tensor` 不再等于 `Tensor[float32]`） |
 
-7 个工厂带 `let t Tensor[float32] =` 标注都正常，测试见 `test_tensor_infer_from_annotation`
+7 个工厂带 `let t torch.Tensor[float32] =` 标注都正常，测试见 `test_tensor_infer_from_annotation`
 （原 `test_tensor_default_dtype`，迁包后改名）。
 
 根因不变：`type_param_decl` 只有 `ID` / `ID : klass_list` / `INFER ID`，
@@ -235,6 +236,27 @@ storage 已在 `koala/torch`，`storage_used()` 放 `torch` 最顺；放 `std/gc
   与「编译器不认识 Tensor」一致——默认值写在 `torch/tensor.kl` 里，不在编译器里。
 - ~~B：在推断回退里对 `Tensor` 的元素类型参数特判默认 float32~~ **已出局**：本轮已把 Tensor 的
   全部编译器特判删除，再加硬编码与该决定冲突。
-- C：维持现状，必须写 `let t Tensor[float32] = ...` 或 `Tensor.zeros[float32](...)`，文档写清楚。
+- C：维持现状，必须写 `let t torch.Tensor[float32] = ...` 或 `torch.zeros[float32](...)`，文档写清楚。
 - D：包级门面函数（`torch.zeros(...)` 直接返回 `Tensor[float32]`），把默认 dtype 放在库里而不是语言里，
-  与文档规划的 `koala/np` 门面同路。
+  与文档规划的 `koala/np` 门面同路。工厂已移到顶层（`torch.zeros` 形式已就位），但仍带 `[U]`；
+  D 的剩余工作是再去掉 `[U]`、固定返回 `Tensor[float32]`。
+
+**解决（2026-11-28，方案 A）**：语言级默认类型实参 `[U = float32]` 已实现（koala-lang
+步骤 1–5：语法 `type_param_default`、`TypeParamDecl.dfl_ts`、符号/推断回退、klc 序列化与
+`FIXUP_TP_DEFAULT`、版本 +1；核心回归 650/650）。`koala/torch` 的 7 个工厂
+（`zeros`/`ones`/`full`/`arange`/`linspace`/`from_list`/`scalar`）全部改为 `[U = float32]`。
+
+上表原 ❌ 的前两种写法现在可用：
+
+| 写法 | 结果 |
+| --- | --- |
+| `let t = torch.zeros(2, 3)` | ✅ 默认 U=float32 |
+| `print(torch.zeros(2, 3))` | ✅ |
+| `let t torch.Tensor = torch.zeros(2, 3)` | 仍 ❌（裸 `Tensor` 需 1 个类型实参，与默认值无关） |
+
+新增测试 `test_tensor_default_dtype`（7 工厂无标注/无类型实参），torch 包 14/14（JIT + 无 JIT）。
+koala-libs 全量重建（31 包，新 klc 格式）并 `install.sh` 重装；已安装版本实测
+`torch.zeros(2, 3)` → `Tensor[2, 3]([[0, 0, 0], [0, 0, 0]])`。
+
+注：默认类型实参作用于**泛型函数/类的类型参数推断**，不会给裸使用的泛型类自动补实参，
+故裸 `torch.Tensor`（无类型实参）仍报错；写 `Tensor[float32]` 标注或直接 `torch.zeros(...)` 均正常。

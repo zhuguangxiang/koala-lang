@@ -1,0 +1,21 @@
+// RUN: not koalac %s | filecheck %s
+
+// Without a default on the trailing parameter, a partial type-arg list is still
+// an arity error (defaults only fill parameters that actually declare one).
+
+class Baz[T, U] {
+    pub let a T
+    pub let b U
+
+    pub func __init__(_a T, _b U) {
+        a = _a
+        b = _b
+    }
+}
+
+func main() {
+    let x = Baz[str]("s", 7)
+    print(x.b)
+}
+
+// CHECK: type 'Baz' expects 2 type arguments, but 1 were provided.

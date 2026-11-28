@@ -268,6 +268,11 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
 int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
                               char *tp_owner_name, Loc loc, ParserState *ps);
 void report_tp_conflict(ParserState *ps, Loc loc, char *name, TypeSpec *inferred, TypeSpec *got);
+
+/* a type with no type variable at all, e.g. `list[float32]`, but not `list[T]` */
+int type_is_closed(TypeSpec *ts);
+/* fill omitted trailing type arguments from the parameters' defaults (see definition) */
+Vector *fill_tp_defaults(Vector *tps, Vector *tp_args, ParserState *ps, Symbol *owner);
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
                                   ParserState *ps);
 int tps_are_generic(Vector *tp_args);

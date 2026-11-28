@@ -80,7 +80,7 @@ static int has_uninferred_tp(HashMap *map, Vector *tps)
 }
 
 /* a type with no type variable at all, e.g. `list[float32]`, but not `list[T]` */
-static int type_is_closed(TypeSpec *ts)
+int type_is_closed(TypeSpec *ts)
 {
     if (!ts) return 0;
     if (ts->kind == TYPE_GENERIC_VAR) return 0;
@@ -260,6 +260,14 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
         if (!tp_sym) continue;
         TpInfo *info = get_tpinfo(&map, tp_sym->name);
         if (!info) {
+            // no argument and no expected type gives it: fall back to the default
+            if (tp_sym->dfl_ts) {
+                log_info("type parameter '%s' of '%s' takes its default type:", tp_sym->name,
+                         tp_owner_name);
+                log_type_spec(tp_sym->dfl_ts);
+                vector_push_back(result, &tp_sym->dfl_ts);
+                continue;
+            }
             if (cls_sym) {
                 kl_error(call_exp->loc, "cannot infer type parameter '%s' for class '%s'.",
                          tp_sym->name, tp_owner_name);
@@ -1234,6 +1242,40 @@ void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserSta
         /* intern consumes arg_types; sym->ts must be pool-owned like other funcs */
         fn_sym->ts = func_type_spec_intern(arg_types, ret_type);
     }
+}
+
+/* Append the defaults of omitted trailing type parameters to `tp_args` (which may be
+   NULL when no argument was given, and is created when needed). Nothing is filled when
+   a missing parameter has no default, or when `owner` is a class/trait whose own body
+   is being parsed: a bare self reference there must keep requiring explicit arguments
+   (`func clone() Tensor` must not silently become Tensor[float32]). The caller's arity
+   check reports any remaining mismatch. */
+Vector *fill_tp_defaults(Vector *tps, Vector *tp_args, ParserState *ps, Symbol *owner)
+{
+    int n_tps = vector_size(tps);
+    int n_given = vector_size(tp_args);
+    if (n_given >= n_tps) return tp_args;
+
+    if (owner && (owner->kind == SYM_CLASS || owner->kind == SYM_TRAIT)) {
+        ParserScope *sc = ps->scope;
+        while (sc) {
+            if ((sc->kind == SCOPE_CLASS || sc->kind == SCOPE_TRAIT) && sc->sym == owner)
+                return tp_args;
+            sc = sc->next;
+        }
+    }
+
+    for (int i = n_given; i < n_tps; i++) {
+        TypeParamSymbol *tp_sym = vector_get(tps, i);
+        if (!tp_sym || !tp_sym->dfl_ts) return tp_args;
+    }
+
+    if (!tp_args) tp_args = vector_create_ptr();
+    for (int i = n_given; i < n_tps; i++) {
+        TypeParamSymbol *tp_sym = vector_get(tps, i);
+        vector_push_back(tp_args, &tp_sym->dfl_ts);
+    }
+    return tp_args;
 }
 
 #ifdef __cplusplus

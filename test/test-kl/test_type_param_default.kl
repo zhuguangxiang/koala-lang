@@ -1,0 +1,50 @@
+// RUN: koalac %s --cgen --write-klc -o %t.klc && koala %t.klc | filecheck %s
+
+// Type-parameter defaults: missing trailing type args are filled from the
+// declared defaults in type annotations, constructor indexes and func indexes.
+
+class Foo[T, U = int] {
+    pub let a T
+    pub let b U
+
+    pub func __init__(_a T, _b U) {
+        a = _a
+        b = _b
+    }
+}
+
+class Wrap[T = int] {
+    pub let v T
+
+    pub func __init__(_v T) {
+        v = _v
+    }
+}
+
+func mk[A, B = int](a A, b B) B {
+    return b
+}
+
+func main() {
+    // partial constructor index: U filled from int.
+    // regression: this once segfaulted in __get_param_info because the instance
+    // tp_args kept a NULL slot (vector_reserve pre-sizing) and lost the default.
+    let f = Foo[str]("s", 7)
+    print(f.b)
+
+    // partial type annotation: U filled from int
+    let g Foo[str] = Foo[str, int]("x", 3)
+    print(g.b)
+
+    // bare all-default type annotation: T filled from int
+    let w Wrap = Wrap(5)
+    print(w.v)
+
+    // partial func type-arg index: B filled from int
+    print(mk[str]("s", 9))
+}
+
+// CHECK: 7
+// CHECK-NEXT: 3
+// CHECK-NEXT: 5
+// CHECK-NEXT: 9

@@ -20,6 +20,7 @@ koala -c --package-name=test_pkg/pkg_mock test_pkg/pkg_mock
 koala -c --package-name=test_pkg/pkg_global test_pkg/pkg_global
 koala -c --package-name=test_pkg/pkg_func_type test_pkg/pkg_func_type
 koala -c --package-name=test_pkg/pkg_method_param test_pkg/pkg_method_param
+koala -c --package-name=test_pkg/pkg_tp_default test_pkg/pkg_tp_default
 
 cd test_pkg
 gcc -fPIC -shared pkg1_native/pkg1_native_impl.c -o libpkg1_native.so -I../../include/runtime -I../../include/common -L../../build/DebugTest/lib/ -g

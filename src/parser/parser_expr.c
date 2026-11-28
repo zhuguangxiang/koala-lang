@@ -2147,6 +2147,14 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
         hashmap_entry_init(&key, str_hash(key.name));
         TpInfo *info = hashmap_get(&map, &key);
         if (!info) {
+            // no argument gives it: fall back to the default
+            if (tp_sym->dfl_ts) {
+                log_info("type parameter '%s' of class '%s' takes its default type:",
+                         tp_sym->name, cls_sym->name);
+                log_type_spec(tp_sym->dfl_ts);
+                vector_push_back(result, &tp_sym->dfl_ts);
+                continue;
+            }
             kl_error(call_exp->loc, "cannot infer type parameter '%s' for class '%s'.",
                      tp_sym->name, cls_sym->name);
             hashmap_fini(&map, __tpinfo_free__, NULL);
@@ -2615,8 +2623,13 @@ static void parse_call(ParserState *ps, Expr *exp)
                     log_info("no arguments passed to __init__, set all tp as any");
                     tp_args = vector_create_ptr();
                     TypeSpec *any_ts = any_type_spec();
-                    for (int i = 0; i < vector_size(&cls_sym->tps); i++) {
-                        vector_push_back(tp_args, &any_ts);
+                    TypeParamSymbol *tp_sym;
+                    vector_foreach(tp_sym, &cls_sym->tps) {
+                        if (tp_sym && tp_sym->dfl_ts) {
+                            vector_push_back(tp_args, &tp_sym->dfl_ts);
+                        } else {
+                            vector_push_back(tp_args, &any_ts);
+                        }
                     }
                 } else {
                     tp_args = infer_tp_from_new(cls_sym, ((FuncSymbol *)_fn_sym), call, ps);
@@ -3667,20 +3680,15 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     }
 
     int tp_size = vector_size(&kls_sym->tps);
-    if (tp_size != vector_size(index->vec)) {
-        if (!strcmp(kls_sym->name, "tuple")) {
-            log_info("tuple is inferred type parameter, skip type argument number check.");
-        } else {
-            kl_error(lhs->loc, "type '%s' expects %d type arguments, but %d were provided.",
-                     kls_sym->name, tp_size, vector_size(index->vec));
-            return;
-        }
+    if (vector_size(index->vec) > tp_size && strcmp(kls_sym->name, "tuple")) {
+        kl_error(lhs->loc, "type '%s' expects %d type arguments, but %d were provided.",
+                 kls_sym->name, tp_size, vector_size(index->vec));
+        return;
     }
 
     // Phase 1: Collect all type args into tp_args
 
     Vector *tp_args = vector_create_ptr();
-    vector_reserve(tp_args, tp_size);
 
     Expr *arg;
     vector_foreach(arg, index->vec) {
@@ -3692,8 +3700,16 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
             return;
         }
 
-        // Place at the correct index position
-        vector_set(tp_args, i__, &arg_ts);
+        vector_push_back(tp_args, &arg_ts);
+    }
+
+    // trailing type parameters with a default may be omitted: `Foo[str]` for `[T, U = int]`
+    tp_args = fill_tp_defaults(&kls_sym->tps, tp_args, ps, (Symbol *)kls_sym);
+    if (vector_size(tp_args) != tp_size && strcmp(kls_sym->name, "tuple")) {
+        kl_error(lhs->loc, "type '%s' expects %d type arguments, but %d were provided.",
+                 kls_sym->name, tp_size, vector_size(tp_args));
+        vector_destroy(tp_args);
+        return;
     }
 
     // Phase 2: Bound check with complete tp_args
@@ -3749,7 +3765,7 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
         return;
     }
 
-    if (vector_size(&fn_sym->tps) != vector_size(index->vec)) {
+    if (vector_size(index->vec) > vector_size(&fn_sym->tps)) {
         kl_error(lhs->loc, "func '%s' expects %d type arguments, but %d were provided.",
                  lhs_sym->name, vector_size(&fn_sym->tps), vector_size(index->vec));
         return;
@@ -3769,6 +3785,15 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
             return;
         }
         vector_push_back(tp_args, &arg_ts);
+    }
+
+    // trailing type parameters with a default may be omitted: `f[str]` for `[T, U = int]`
+    tp_args = fill_tp_defaults(&fn_sym->tps, tp_args, ps, NULL);
+    if (vector_size(tp_args) != vector_size(&fn_sym->tps)) {
+        kl_error(lhs->loc, "func '%s' expects %d type arguments, but %d were provided.",
+                 lhs_sym->name, vector_size(&fn_sym->tps), vector_size(tp_args));
+        vector_destroy(tp_args);
+        return;
     }
 
     TypeParamSymbol *tp_sym;

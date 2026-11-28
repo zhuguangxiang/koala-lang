@@ -1,0 +1,18 @@
+// RUN: not koalac %s | filecheck %s
+
+// Defaults must be trailing: once a type parameter has a default, every later
+// parameter needs one too (same rule as value-parameter defaults).
+
+class Bad[T = int, U] {
+    pub let a T
+    pub let b U
+
+    pub func __init__(_a T, _b U) {
+        a = _a
+        b = _b
+    }
+}
+
+func main() {}
+
+// CHECK: type parameter 'U' without a default cannot follow one with a default

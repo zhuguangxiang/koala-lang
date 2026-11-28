@@ -139,6 +139,8 @@ typedef struct _KlcTypeParam {
     uint16_t name_index;
     /* flags */
     uint8_t which;
+    /* ITEM_CONST (default type signature, 0 = none) */
+    uint16_t dfl_index;
     /* up-bounds(type_index) */
     Vector bounds;
 } KlcTypeParam;

@@ -918,6 +918,7 @@ static void write_tps(KlcFile *klc, Vector *vec)
 
         write_uint16(klc, item->name_index);
         write_uint8(klc, item->which);
+        write_uint16(klc, item->dfl_index);
 
         size_t bsize = vector_size(&item->bounds) - 1;
         write_uint8(klc, (uint8_t)bsize);
@@ -1445,6 +1446,7 @@ static void read_tps(KlcFile *klc, Vector *vec)
 
         read_uint16(klc, &tp->name_index);
         read_uint8(klc, &tp->which);
+        read_uint16(klc, &tp->dfl_index);
         read_uint8(klc, (uint8_t *)&bsize);
         for (int j = 0; j < bsize; j++) {
             uint16_t bitem = 0;
